@@ -35,10 +35,18 @@
    and Terrain-Like Graphs," ESA 2025, LIPIcs 351, Article 67.
    DOI: 10.4230/LIPIcs.ESA.2025.67.
 
-   `rect-dominance::biclique` directly implements the induction in Theorem 8
-   for a four-dimensional comparability bigraph. Lemma 12 justifies constructive
-   output-sensitive generation. Every produced partition is checked against
-   the explicit edge set.
+   A fixed-dimensional comparability bigraph has two point sets, with an edge
+   when the point on the first side is strictly smaller than the point on the
+   second side in every coordinate. `rect-dominance::biclique` directly
+   implements the induction in Theorem 8 for this strict coordinatewise
+   dominance relation. Lemma 12 supplies the constructive representation.
+
+   The project embedding has four coordinates and uses even/odd parity so that
+   no horizontal/vertical cross-side pair has an equal coordinate. The general
+   `O(n log^d n)` representation bound therefore specializes to
+   `O(q log^4 q)` for `d = 4`. The flow reduction would remain correct for a
+   biclique cover, but the implementation claims a partition and checks the
+   stronger condition that every explicit edge occurs exactly once.
 
 6. Yefim A. Dinitz, "An Algorithm for the Solution of the Problem of Maximal
    Flow in a Network with Power Estimation," *Doklady Akademii Nauk SSSR* 194,
@@ -56,4 +64,3 @@
    in the supplied paper's asymptotic analysis. `MaxFlowBackend` keeps geometry
    independent of the current `DinicBackend` so another exact backend can be
    added later without changing reductions or certificates.
-

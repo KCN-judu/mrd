@@ -52,6 +52,18 @@ coordinate, recurse on low-left/high-right after dropping that coordinate, and
 recurse within each half without dropping it. The implementation verifies both
 edge-set equality and multiplicity one, so the output is an edge partition.
 
+A fixed-dimensional comparability bigraph has two point sets and an edge from
+one side to the other exactly when one point is strictly smaller in every
+coordinate. Here the relation is strict coordinatewise dominance in four
+coordinates. The parity embedding prevents equal coordinates across the two
+sides, as required by the recursive strict-order construction. Theorem 8 gives
+the biclique representation and Lemma 12 supplies its constructive generation.
+
+A biclique cover may represent an edge more than once; a biclique partition may
+not. The flow reduction only needs a cover, but this implementation claims the
+stronger partition property and audits that every explicit edge has
+multiplicity exactly one.
+
 Each biclique becomes one internal flow node. Outer arcs have capacity one and
 internal arcs use `min(horizontal_count, vertical_count) + 1`. Dinic returns an
 exact integral max flow and residual minimum cut. The implementation rejects a
@@ -87,7 +99,7 @@ biclique vertex occurrences.
 | Explicit conflict graph | `rect-oracle-sg`, `rect-dominance::embedding` | `build_conflict_graph`, `explicit_graph` | `O(h*v)` | output-sensitive reporting in the paper pipeline | edge equality on every solve | independently built geometric graph | materializes all `E` edges |
 | Maximum bipartite matching | `rect-graph::hopcroft_karp` | `hopcroft_karp` | `O(E sqrt(q))` | same classical bound for explicit graph | matching/flow equality | C0 and compressed Dinic | explicit graph required |
 | Konig minimum vertex cover | `rect-graph::hopcroft_karp` | `minimum_vertex_cover` | `O(E+q)` after matching | linear alternating reachability | every edge covered and size equals matching | residual-flow cover | bipartite graphs only |
-| Cardinal--Yuditsky Theorem 8 partition | `rect-dominance::biclique` | `comparability_theorem_8`, `verify_exact_partition` | recursive sorting plus `O(E+sigma)` certificate audit | compact representation `sigma = O(q log^3 q)` in four dimensions | completeness, uniqueness, fabricated-edge, recursion, and coordinate audits | explicit edge set | practical recursive sorting retained |
+| Cardinal--Yuditsky Theorem 8 partition | `rect-dominance::biclique` | `comparability_theorem_8`, `verify_exact_partition` | recursive sorting plus `O(E+sigma)` certificate audit | general `O(q log^d q)` bound specializes to `sigma = O(q log^4 q)` for `d = 4` | completeness, uniqueness, fabricated-edge, recursion, and coordinate audits | explicit edge set | practical recursive sorting retained |
 | C0 flow reduction | `rect-dominance::biclique` | `BicliquePartition::from_explicit_edges` | `O(E)` construction, then Dinic | one biclique per edge baseline | C0 flow equals matching | Hopcroft--Karp | no compression |
 | Compressed flow reduction | `rect-dominance::compressed_flow` | `solve_biclique_flow` | `O(q+sigma)` network construction, then Dinic | compact graph plus asymptotically fast exact flow | dense and full differential suites | C0 and Hopcroft--Karp | Dinic backend, not almost-linear flow |
 | Integral max flow and residual min cut | `rect-graph::dinic` | `MaxFlowBackend::max_flow_min_cut` via `DinicBackend` | generic Dinic `O(V^2 A)` bound | almost-linear exact backend cited by paper | flow value, cut capacity, no internal large-capacity cut | Hopcroft--Karp cover | integral capacities only |
@@ -101,3 +113,7 @@ enumeration algorithm.
 Dinic is the practical implemented flow backend. The almost-linear exact
 max-flow result is cited only for the paper's asymptotic theorem and is not
 implemented here.
+
+The implementation starts the comparability-bigraph recursion with four
+coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
+`O(q log^4 q)`, not `O(q log^3 q)`.

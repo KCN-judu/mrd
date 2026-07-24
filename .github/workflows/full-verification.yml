@@ -28,6 +28,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p artifacts/logs
+          python3 tools/check_biclique_bound.py 2>&1 | tee artifacts/logs/biclique-bound.log
           cargo fmt --all -- --check 2>&1 | tee artifacts/logs/fmt.log
           cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee artifacts/logs/clippy.log
           cargo test --workspace 2>&1 | tee artifacts/logs/tests.log
