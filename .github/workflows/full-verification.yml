@@ -1,0 +1,77 @@
+name: Full verification
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Install CP-SAT oracle
+        run: python3 -m pip install -r tools/external-oracle/requirements.txt
+      - name: Build release verifier
+        run: cargo build --release -p rect-cli
+      - name: Run quality gates
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/logs
+          cargo fmt --all -- --check 2>&1 | tee artifacts/logs/fmt.log
+          cargo clippy --workspace --all-targets --all-features -- -D warnings 2>&1 | tee artifacts/logs/clippy.log
+          cargo test --workspace 2>&1 | tee artifacts/logs/tests.log
+          RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps 2>&1 | tee artifacts/logs/rustdoc.log
+      - name: Run full Rust populations
+        shell: bash
+        run: |
+          set -o pipefail
+          target/release/rect-cli exhaustive --width 4 --height 4 --output artifacts/exhaustive-4x4.json 2>&1 | tee artifacts/logs/exhaustive-4x4.log
+          target/release/rect-cli random --width 8 --height 8 --cases 10000 --seed 42 --output artifacts/random-8x8-seed42.json 2>&1 | tee artifacts/logs/random.log
+          target/release/rect-cli polyomino --max-cells 12 --all-solvers --output artifacts/polyomino-max12.json 2>&1 | tee artifacts/logs/polyomino-max12.log
+          target/release/rect-cli benchmark --suite adversarial --output artifacts/adversarial.csv 2>&1 | tee artifacts/logs/adversarial.log
+      - name: Run bounded external CP-SAT population
+        shell: bash
+        run: |
+          set -o pipefail
+          target/release/rect-cli export-adversarial --output-dir artifacts/adversarial-inputs
+          python3 tools/external-oracle/verify_suite.py \
+            --rect-cli target/release/rect-cli \
+            --exhaustive-width 2 --exhaustive-height 3 \
+            --adversarial-dir artifacts/adversarial-inputs \
+            --max-adversarial-grid-cells 64 \
+            --max-time-seconds 30 \
+            --work-dir artifacts/external-work \
+            --output artifacts/external-oracle.json 2>&1 | tee artifacts/logs/external-oracle.log
+      - name: Render minimized Rust failures
+        if: failure()
+        shell: bash
+        run: |
+          mkdir -p artifacts/failure-svg
+          while IFS= read -r input; do
+            name="$(basename "$(dirname "$input")")"
+            target/release/rect-cli solve \
+              --solver dominance-compressed \
+              --input "$input" \
+              --output "artifacts/failure-svg/$name.json" \
+              --svg "artifacts/failure-svg/$name.svg" || true
+          done < <(find test-data/regressions -name input.json -type f 2>/dev/null)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: full-verification-evidence
+          path: |
+            artifacts/
+            test-data/regressions/
+            test-data/counterexamples/
+          if-no-files-found: warn
