@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use rect_core::BicliqueId;
+use rect_core::{BicliqueId, HorizontalChordId, VerticalChordId};
 use rect_graph::BipartiteGraph;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -29,11 +29,32 @@ pub struct BicliqueBlock {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BicliquePartitionCertificate {
     pub blocks: Vec<BicliqueBlock>,
+    pub block_count: usize,
+    pub total_block_size: usize,
     pub explicit_edge_count: usize,
     pub represented_edge_count: usize,
     pub duplicate_edge_count: usize,
     pub missing_edge_count: usize,
     pub fabricated_edge_count: usize,
+    pub missing_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub fabricated_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub duplicate_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub offending_edge_limit: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BicliquePartitionAudit {
+    pub block_count: usize,
+    pub total_block_size: usize,
+    pub explicit_edge_count: usize,
+    pub represented_edge_count: usize,
+    pub duplicate_edge_count: usize,
+    pub missing_edge_count: usize,
+    pub fabricated_edge_count: usize,
+    pub missing_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub fabricated_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub duplicate_edges: Vec<(HorizontalChordId, VerticalChordId)>,
+    pub offending_edge_limit: usize,
 }
 
 impl BicliquePartition {
@@ -125,20 +146,20 @@ impl BicliquePartition {
                 }
             }
         }
-        let certificate = self.certificate(graph);
-        if certificate.fabricated_edge_count != 0 {
+        let audit = self.audit(graph, 64);
+        if audit.fabricated_edge_count != 0 {
             return Err(BicliqueError::FabricatedEdges {
-                count: certificate.fabricated_edge_count,
+                count: audit.fabricated_edge_count,
             });
         }
-        if certificate.missing_edge_count != 0 {
+        if audit.missing_edge_count != 0 {
             return Err(BicliqueError::MissingEdges {
-                count: certificate.missing_edge_count,
+                count: audit.missing_edge_count,
             });
         }
-        if certificate.duplicate_edge_count != 0 {
+        if audit.duplicate_edge_count != 0 {
             return Err(BicliqueError::DuplicateEdges {
-                count: certificate.duplicate_edge_count,
+                count: audit.duplicate_edge_count,
             });
         }
         Ok(())
@@ -146,6 +167,41 @@ impl BicliquePartition {
 
     #[must_use]
     pub fn certificate(&self, graph: &BipartiteGraph) -> BicliquePartitionCertificate {
+        let audit = self.audit(graph, 64);
+        BicliquePartitionCertificate {
+            blocks: self
+                .bicliques
+                .iter()
+                .map(|biclique| BicliqueBlock {
+                    id: biclique.id,
+                    left: biclique.left.clone(),
+                    right: biclique.right.clone(),
+                })
+                .collect(),
+            block_count: audit.block_count,
+            total_block_size: audit.total_block_size,
+            explicit_edge_count: audit.explicit_edge_count,
+            represented_edge_count: audit.represented_edge_count,
+            duplicate_edge_count: audit.duplicate_edge_count,
+            missing_edge_count: audit.missing_edge_count,
+            fabricated_edge_count: audit.fabricated_edge_count,
+            missing_edges: audit.missing_edges,
+            fabricated_edges: audit.fabricated_edges,
+            duplicate_edges: audit.duplicate_edges,
+            offending_edge_limit: audit.offending_edge_limit,
+        }
+    }
+
+    /// Audits the represented edge multiset against an explicit graph.
+    ///
+    /// Counts remain exact even when the diagnostic edge vectors reach
+    /// `offending_edge_limit`.
+    #[must_use]
+    pub fn audit(
+        &self,
+        graph: &BipartiteGraph,
+        offending_edge_limit: usize,
+    ) -> BicliquePartitionAudit {
         let explicit = graph.edges().collect::<BTreeSet<_>>();
         let mut multiplicities = HashMap::<(usize, usize), usize>::new();
         let mut represented_edge_count = 0;
@@ -157,7 +213,10 @@ impl BicliquePartition {
                 }
             }
         }
-        let duplicate_edge_count = multiplicities.values().map(|&count| count - 1).sum();
+        let duplicate_edge_count = multiplicities
+            .values()
+            .map(|&count| count.saturating_sub(1))
+            .sum();
         let represented = multiplicities.keys().copied().collect::<BTreeSet<_>>();
         let missing_edge_count = explicit.difference(&represented).count();
         let fabricated_edge_count = multiplicities
@@ -165,21 +224,35 @@ impl BicliquePartition {
             .filter(|(edge, _)| !explicit.contains(edge))
             .map(|(_, &count)| count)
             .sum();
-        BicliquePartitionCertificate {
-            blocks: self
-                .bicliques
-                .iter()
-                .map(|biclique| BicliqueBlock {
-                    id: biclique.id,
-                    left: biclique.left.clone(),
-                    right: biclique.right.clone(),
-                })
-                .collect(),
+        let missing_edges = explicit
+            .difference(&represented)
+            .take(offending_edge_limit)
+            .map(|&(left, right)| (HorizontalChordId(left), VerticalChordId(right)))
+            .collect();
+        let fabricated_edges = multiplicities
+            .keys()
+            .filter(|edge| !explicit.contains(edge))
+            .take(offending_edge_limit)
+            .map(|&(left, right)| (HorizontalChordId(left), VerticalChordId(right)))
+            .collect();
+        let duplicate_edges = multiplicities
+            .iter()
+            .filter(|(_, count)| **count > 1)
+            .take(offending_edge_limit)
+            .map(|(&(left, right), _)| (HorizontalChordId(left), VerticalChordId(right)))
+            .collect();
+        BicliquePartitionAudit {
+            block_count: self.bicliques.len(),
+            total_block_size: self.total_vertex_occurrences(),
             explicit_edge_count: explicit.len(),
             represented_edge_count,
             duplicate_edge_count,
             missing_edge_count,
             fabricated_edge_count,
+            missing_edges,
+            fabricated_edges,
+            duplicate_edges,
+            offending_edge_limit,
         }
     }
 }
@@ -404,5 +477,37 @@ mod tests {
             partition.verify_exact_partition(&graph),
             Err(BicliqueError::DuplicateLeftVertex { .. })
         ));
+    }
+
+    #[test]
+    fn audit_counts_all_discrepancies_while_bounding_examples() {
+        let mut graph = rect_graph::BipartiteGraph::new(2, 2);
+        graph.add_edge(0, 0).unwrap();
+        graph.add_edge(1, 1).unwrap();
+        let partition = BicliquePartition {
+            bicliques: vec![
+                Biclique {
+                    id: BicliqueId(0),
+                    left: vec![0],
+                    right: vec![0],
+                },
+                Biclique {
+                    id: BicliqueId(1),
+                    left: vec![0],
+                    right: vec![0, 1],
+                },
+            ],
+        };
+        let audit = partition.audit(&graph, 1);
+        assert_eq!(audit.block_count, 2);
+        assert_eq!(audit.total_block_size, 5);
+        assert_eq!(audit.explicit_edge_count, 2);
+        assert_eq!(audit.represented_edge_count, 3);
+        assert_eq!(audit.missing_edge_count, 1);
+        assert_eq!(audit.fabricated_edge_count, 1);
+        assert_eq!(audit.duplicate_edge_count, 1);
+        assert_eq!(audit.missing_edges.len(), 1);
+        assert_eq!(audit.fabricated_edges.len(), 1);
+        assert_eq!(audit.duplicate_edges.len(), 1);
     }
 }

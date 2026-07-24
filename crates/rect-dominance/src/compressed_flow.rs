@@ -15,6 +15,13 @@ pub struct CompressedFlowSolution {
 
 /// Runs an exact flow on the biclique-compressed network and recovers a cover.
 ///
+/// Outer arcs have unit capacity. Internal arcs use
+/// `U = min(horizontal_count, vertical_count) + 1`; `U - 1` bounds every
+/// possible matching value, so a minimum cut used for certificate recovery
+/// cannot prefer an internal arc over an outer unit-arc cover. The large value
+/// is a cut-certificate device, not a claim that one matching flow needs to
+/// send multiple units through a particular internal arc.
+///
 /// # Errors
 ///
 /// Returns [`CompressedFlowError`] for invalid dimensions/capacities, backend
@@ -191,5 +198,14 @@ mod tests {
         let value = usize::try_from(flow.flow.value).unwrap();
         assert_eq!(value, hopcroft_karp(&graph).size);
         assert_eq!(flow.vertex_cover.size, value);
+        assert_eq!(flow.internal_cut_arc_count, 0);
+        let maximum_matching_bound = flow.internal_capacity.checked_sub(1).unwrap();
+        assert!(maximum_matching_bound >= u64::try_from(value).unwrap());
+        for (left, right) in graph.edges() {
+            assert!(flow.vertex_cover.left[left] || flow.vertex_cover.right[right]);
+            let selected_left = !flow.vertex_cover.left[left];
+            let selected_right = !flow.vertex_cover.right[right];
+            assert!(!(selected_left && selected_right));
+        }
     }
 }
