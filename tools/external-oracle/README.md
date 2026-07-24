@@ -39,3 +39,21 @@ minimize sum_R x_R
 subject to sum_{R contains c} x_R = 1 for every component cell c
 x_R in {0, 1}
 ```
+
+Run the bounded cross-language population after building `rect-cli`:
+
+```bash
+cargo run --release -p rect-cli -- export-adversarial \
+  --output-dir /tmp/rect-adversarial
+
+/tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
+  --rect-cli target/release/rect-cli \
+  --exhaustive-width 2 --exhaustive-height 3 \
+  --adversarial-dir /tmp/rect-adversarial \
+  --work-dir /tmp/rect-external-suite \
+  --output results/external-oracle.json
+```
+
+This verifies all 64 binary `2x3` grids plus the exported deterministic
+adversarial population. The output records the exact input and component counts;
+the per-case CP-SAT and Rust comparison artifacts remain in `--work-dir`.

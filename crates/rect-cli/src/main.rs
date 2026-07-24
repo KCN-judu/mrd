@@ -93,6 +93,10 @@ enum Command {
         #[arg(long)]
         output: PathBuf,
     },
+    ExportAdversarial {
+        #[arg(long)]
+        output_dir: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -225,7 +229,27 @@ fn run() -> Result<(), CliError> {
             oracle_cell_limit,
             output,
         } => benchmark_command(suite, max_cells, oracle_cell_limit, &output),
+        Command::ExportAdversarial { output_dir } => export_adversarial(&output_dir),
     }
+}
+
+fn export_adversarial(output_dir: &Path) -> Result<(), CliError> {
+    fs::create_dir_all(output_dir)?;
+    let instances = rect_verify::adversarial::endpoint_contact_instances()
+        .into_iter()
+        .chain(rect_verify::adversarial::topological_stress_instances())
+        .chain([
+            rect_verify::adversarial::dense_conflict_grid(4, 5),
+            rect_verify::adversarial::dense_conflict_grid(8, 8),
+        ])
+        .collect::<Vec<_>>();
+    for (index, instance) in instances.iter().enumerate() {
+        let path = output_dir.join(format!("{index:03}-{}.json", instance.name));
+        instance
+            .write_json(&path)
+            .map_err(|error| CliError::Output(error.to_string()))?;
+    }
+    write_json(&instances, Some(&output_dir.join("index.json")))
 }
 
 fn benchmark_command(
