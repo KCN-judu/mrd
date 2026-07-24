@@ -85,7 +85,9 @@ Aggregate compact representation statistics are:
 The one-biclique-per-edge C0 networks would total 435 vertices and 643 arcs on
 the same component population. The compact partition uses 31.03% fewer
 vertices and 30.64% fewer arcs. Exact per-component ratios, phase timings, and
-all requested structural fields are in `results/adversarial.csv`.
+all requested structural fields are in `results/adversarial.csv`. The
+`peak_memory_bytes` field is blank because this run did not have a portable
+process-level peak-memory sampler; blank means unmeasured, not zero.
 
 ## Free polyominoes
 
@@ -139,8 +141,9 @@ grids plus 4 adversarial grids, totaling 68 inputs and 187 four-connected
 components. There were 0 CP-SAT/Rust discrepancies and no CP-SAT timeout.
 Thirteen exported adversarial grids exceeded the explicit 64-grid-cell filter;
 the JSON records them in `skipped_adversarial_grid_count` rather than silently
-omitting them. Large Rust components likewise record an exact-cover skip while
-the other three pipelines continue.
+omitting them. None of the 187 selected components exceeded the Rust
+exact-cover cutoff. Larger selected components would record that solver skip
+while the other three pipelines continue.
 
 ## Outcomes and scope
 
