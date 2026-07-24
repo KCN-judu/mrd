@@ -62,6 +62,16 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    Polyomino {
+        #[arg(long)]
+        max_cells: usize,
+        #[arg(long, default_value_t = false)]
+        all_solvers: bool,
+        #[arg(long, default_value_t = 40)]
+        oracle_cell_limit: usize,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -146,6 +156,20 @@ fn run() -> Result<(), CliError> {
                 Err(CliError::Verification(error.to_string()))
             }
         },
+        Command::Polyomino {
+            max_cells,
+            all_solvers,
+            oracle_cell_limit,
+            output,
+        } => {
+            if !all_solvers {
+                return Err(CliError::Input(
+                    "polyomino verification requires --all-solvers".to_owned(),
+                ));
+            }
+            let summary = rect_verify::polyomino::verify_polyominoes(max_cells, oracle_cell_limit);
+            write_json(&summary, output.as_deref())
+        }
     }
 }
 
@@ -209,6 +233,11 @@ fn write_json(value: &impl Serialize, path: Option<&Path>) -> Result<(), CliErro
     let mut bytes = serde_json::to_vec_pretty(value)?;
     bytes.push(b'\n');
     if let Some(path) = path {
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(path, bytes)?;
     } else {
         io::stdout().write_all(&bytes)?;

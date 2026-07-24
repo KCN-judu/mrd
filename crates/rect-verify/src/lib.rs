@@ -1,4 +1,5 @@
 pub mod adversarial;
+pub mod polyomino;
 pub mod transforms;
 
 use rect_core::{ColorGrid, DissectionResult, GridComponent};
