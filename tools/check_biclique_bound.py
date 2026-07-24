@@ -22,6 +22,7 @@ def tracked_text_files() -> list[Path]:
     return [
         Path(path)
         for path in paths
+        if Path(path).resolve() != Path(__file__).resolve()
         if Path(path).suffix
         in {".md", ".rs", ".py", ".toml", ".txt", ".yml", ".yaml"}
     ]
