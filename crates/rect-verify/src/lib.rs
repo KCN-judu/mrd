@@ -1,4 +1,5 @@
 pub mod adversarial;
+pub mod external;
 pub mod polyomino;
 pub mod transforms;
 

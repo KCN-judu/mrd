@@ -7,6 +7,7 @@ use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_d
 use rect_dominance::DominanceMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Parser)]
@@ -69,6 +70,14 @@ enum Command {
         all_solvers: bool,
         #[arg(long, default_value_t = 40)]
         oracle_cell_limit: usize,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    CompareExternal {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        external_result: PathBuf,
         #[arg(long)]
         output: Option<PathBuf>,
     },
@@ -169,6 +178,28 @@ fn run() -> Result<(), CliError> {
             }
             let summary = rect_verify::polyomino::verify_polyominoes(max_cells, oracle_cell_limit);
             write_json(&summary, output.as_deref())
+        }
+        Command::CompareExternal {
+            input,
+            external_result,
+            output,
+        } => {
+            let input_bytes = fs::read(&input)?;
+            let input_hash = format!("{:x}", Sha256::digest(&input_bytes));
+            let input_grid: JsonGrid = serde_json::from_slice(&input_bytes)?;
+            let grid = ColorGrid::new(input_grid.width, input_grid.height, input_grid.cells)
+                .map_err(|error| CliError::Input(error.to_string()))?;
+            let external_bytes = fs::read(external_result)?;
+            let external: rect_verify::external::ExternalOracleResult =
+                serde_json::from_slice(&external_bytes)?;
+            let report = rect_verify::external::compare_external(&grid, &input_hash, &external)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            if !report.all_agree {
+                return Err(CliError::Verification(
+                    "external oracle disagrees with at least one Rust solver".to_owned(),
+                ));
+            }
+            write_json(&report, output.as_deref())
         }
     }
 }
