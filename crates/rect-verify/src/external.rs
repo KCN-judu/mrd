@@ -36,6 +36,7 @@ pub struct ExternalComponentComparison {
     pub external_status: String,
     pub external_optimum: Option<usize>,
     pub rust_optima: BTreeMap<String, usize>,
+    pub rust_skipped_solvers: Vec<String>,
     pub external_rectangles_valid: bool,
     pub agrees: bool,
 }
@@ -59,6 +60,7 @@ pub fn compare_external(
     grid: &ColorGrid<Value>,
     input_hash: &str,
     external: &ExternalOracleResult,
+    exact_cover_cell_limit: usize,
 ) -> Result<ExternalComparisonReport, ExternalComparisonError> {
     if external.schema_version != 1 {
         return Err(ExternalComparisonError::SchemaVersion(
@@ -101,11 +103,7 @@ pub fn compare_external(
         } else {
             false
         };
-        let rust_results = [
-            (
-                "exact-cover",
-                rect_oracle_exact_cover::solve(component).map_err(|error| error.to_string()),
-            ),
+        let mut rust_results = vec![
             (
                 "sg-explicit",
                 rect_oracle_sg::solve(component).map_err(|error| error.to_string()),
@@ -121,6 +119,15 @@ pub fn compare_external(
                     .map_err(|error| error.to_string()),
             ),
         ];
+        let mut rust_skipped_solvers = Vec::new();
+        if component.cell_count() <= exact_cover_cell_limit {
+            rust_results.push((
+                "exact-cover",
+                rect_oracle_exact_cover::solve(component).map_err(|error| error.to_string()),
+            ));
+        } else {
+            rust_skipped_solvers.push("exact-cover".to_owned());
+        }
         let mut rust_optima = BTreeMap::new();
         for (name, result) in rust_results {
             let result = result.map_err(|message| ExternalComparisonError::RustSolver {
@@ -140,6 +147,7 @@ pub fn compare_external(
             external_status: external_component.status.clone(),
             external_optimum,
             rust_optima,
+            rust_skipped_solvers,
             external_rectangles_valid,
             agrees,
         });
@@ -200,7 +208,7 @@ mod tests {
                 runtime_seconds_micros: 0,
             }],
         };
-        let report = compare_external(&grid, "abc", &external).unwrap();
+        let report = compare_external(&grid, "abc", &external, 40).unwrap();
         assert!(report.all_agree);
     }
 }

@@ -29,10 +29,16 @@ def exhaustive_inputs(width: int, height: int, directory: Path) -> list[Path]:
     return inputs
 
 
-def adversarial_inputs(directory: Path | None) -> list[Path]:
+def adversarial_inputs(directory: Path | None, max_cells: int) -> tuple[list[Path], int]:
     if directory is None:
-        return []
-    return sorted(path for path in directory.glob("*.json") if path.name != "index.json")
+        return [], 0
+    candidates = sorted(path for path in directory.glob("*.json") if path.name != "index.json")
+    selected = []
+    for path in candidates:
+        grid = json.loads(path.read_text())
+        if int(grid["width"]) * int(grid["height"]) <= max_cells:
+            selected.append(path)
+    return selected, len(candidates) - len(selected)
 
 
 def run_case(input_path: Path, rect_cli: Path, work_dir: Path) -> dict[str, Any]:
@@ -77,6 +83,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--exhaustive-width", type=int, default=2)
     parser.add_argument("--exhaustive-height", type=int, default=3)
     parser.add_argument("--adversarial-dir", type=Path)
+    parser.add_argument("--max-adversarial-grid-cells", type=int, default=64)
     return parser.parse_args()
 
 
@@ -88,7 +95,10 @@ def main() -> None:
         args.exhaustive_height,
         args.work_dir / "inputs",
     )
-    inputs = exhaustive + adversarial_inputs(args.adversarial_dir)
+    adversarial, skipped_adversarial = adversarial_inputs(
+        args.adversarial_dir, args.max_adversarial_grid_cells
+    )
+    inputs = exhaustive + adversarial
     cases = [run_case(path, args.rect_cli, args.work_dir / "cases") for path in inputs]
     discrepancies = sum(not case["all_agree"] for case in cases)
     summary = {
@@ -102,6 +112,7 @@ def main() -> None:
         "component_count": sum(case["component_count"] for case in cases),
         "exhaustive_grid_count": len(exhaustive),
         "adversarial_grid_count": len(inputs) - len(exhaustive),
+        "skipped_adversarial_grid_count": skipped_adversarial,
         "discrepancy_count": discrepancies,
         "runtime_seconds": time.perf_counter() - started,
         "cases": cases,

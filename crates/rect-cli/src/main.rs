@@ -80,6 +80,8 @@ enum Command {
         input: PathBuf,
         #[arg(long)]
         external_result: PathBuf,
+        #[arg(long, default_value_t = 40)]
+        exact_cover_cell_limit: usize,
         #[arg(long)]
         output: Option<PathBuf>,
     },
@@ -204,6 +206,7 @@ fn run() -> Result<(), CliError> {
         Command::CompareExternal {
             input,
             external_result,
+            exact_cover_cell_limit,
             output,
         } => {
             let input_bytes = fs::read(&input)?;
@@ -214,8 +217,13 @@ fn run() -> Result<(), CliError> {
             let external_bytes = fs::read(external_result)?;
             let external: rect_verify::external::ExternalOracleResult =
                 serde_json::from_slice(&external_bytes)?;
-            let report = rect_verify::external::compare_external(&grid, &input_hash, &external)
-                .map_err(|error| CliError::Verification(error.to_string()))?;
+            let report = rect_verify::external::compare_external(
+                &grid,
+                &input_hash,
+                &external,
+                exact_cover_cell_limit,
+            )
+            .map_err(|error| CliError::Verification(error.to_string()))?;
             if !report.all_agree {
                 return Err(CliError::Verification(
                     "external oracle disagrees with at least one Rust solver".to_owned(),
