@@ -3,7 +3,7 @@
 Evidence date: 2026-07-25 (Asia/Tokyo)
 
 Code commit under test:
-`62a221ccec0528adc7f90a1e12b6b4bfab1199d4`
+`10f1b311b6907643c4609a22cbe8929b0989b6c6`
 
 Environment:
 
@@ -37,11 +37,11 @@ validation, biclique edge-multiset auditing, and stored-regression replay.
 ```bash
 target/release/rect-cli exhaustive \
   --width 4 --height 4 \
-  --output /tmp/exhaustive-4x4-62a221c.json
+  --output /tmp/exhaustive-4x4-10f1b31.json
 
 target/release/rect-cli random \
   --width 8 --height 8 --cases 10000 --seed 42 \
-  --output /tmp/random-8x8-seed42-62a221c.json
+  --output /tmp/random-8x8-seed42-10f1b31.json
 ```
 
 | Population | Inputs | Components | Seed | Discrepancies | Elapsed |
@@ -112,7 +112,7 @@ record-level JSON file:
 ```bash
 target/release/rect-cli polyomino \
   --max-cells 12 --all-solvers --oracle-cell-limit 40 \
-  --output /tmp/polyomino-max12-timed-62a221c.json
+  --output /tmp/polyomino-max12-timed-10f1b31.json
 ```
 
 The known canonical free counts by size 1 through 12 were
@@ -124,15 +124,15 @@ fixtures were verified: 87,148 `verified`, 0 in every other status, 6.13 s.
 
 ```bash
 target/release/rect-cli export-adversarial \
-  --output-dir /tmp/rect-adversarial-62a221c
+  --output-dir /tmp/rect-adversarial-10f1b31
 
 /tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
   --rect-cli target/release/rect-cli \
   --exhaustive-width 2 --exhaustive-height 3 \
-  --adversarial-dir /tmp/rect-adversarial-62a221c \
+  --adversarial-dir /tmp/rect-adversarial-10f1b31 \
   --max-adversarial-grid-cells 64 \
   --max-time-seconds 30 \
-  --work-dir /tmp/rect-external-suite-62a221c \
+  --work-dir /tmp/rect-external-suite-10f1b31 \
   --output results/external-oracle.json
 ```
 

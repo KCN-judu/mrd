@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "git_commit": "62a221ccec0528adc7f90a1e12b6b4bfab1199d4",
+  "git_commit": "10f1b311b6907643c4609a22cbe8929b0989b6c6",
   "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-  "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 2 --exhaustive-height 3 --adversarial-dir /tmp/rect-adversarial-62a221c --max-adversarial-grid-cells 64 --max-time-seconds 30 --work-dir /tmp/rect-external-suite-62a221c --output results/external-oracle.json",
+  "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 2 --exhaustive-height 3 --adversarial-dir /tmp/rect-adversarial-10f1b31 --max-adversarial-grid-cells 64 --max-time-seconds 30 --work-dir /tmp/rect-external-suite-10f1b31 --output results/external-oracle.json",
   "seed": null,
   "timestamp": 1784912242,
   "input_count": 68,
