@@ -279,6 +279,7 @@ version = "0.1.0"
 dependencies = [
  "rect-core",
  "rect-dominance",
+ "rect-graph",
  "rect-oracle-exact-cover",
  "rect-oracle-sg",
  "serde",

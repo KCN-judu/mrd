@@ -203,6 +203,49 @@ pub fn dense_conflict_grid(min_horizontal: usize, min_vertical: usize) -> Advers
 }
 
 #[must_use]
+pub fn contains_complete_bipartite(
+    graph: &rect_graph::BipartiteGraph,
+    left_count: usize,
+    right_count: usize,
+) -> bool {
+    if left_count == 0 {
+        return graph.right_size() >= right_count;
+    }
+    if left_count > graph.left_size() || right_count > graph.right_size() {
+        return false;
+    }
+    let common = vec![true; graph.right_size()];
+    choose_left_vertices(graph, 0, left_count, right_count, &common)
+}
+
+fn choose_left_vertices(
+    graph: &rect_graph::BipartiteGraph,
+    start: usize,
+    remaining: usize,
+    right_count: usize,
+    common: &[bool],
+) -> bool {
+    if remaining == 0 {
+        return common.iter().filter(|&&present| present).count() >= right_count;
+    }
+    if graph.left_size() - start < remaining {
+        return false;
+    }
+    for left in start..=graph.left_size() - remaining {
+        let mut next_common = vec![false; graph.right_size()];
+        for &right in graph.neighbors(left) {
+            next_common[right] = common[right];
+        }
+        if next_common.iter().filter(|&&present| present).count() >= right_count
+            && choose_left_vertices(graph, left + 1, remaining - 1, right_count, &next_common)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[must_use]
 pub fn topological_stress_instances() -> Vec<AdversarialInstance> {
     vec![
         one_hole_ring(7, 7),
@@ -514,8 +557,8 @@ mod tests {
     use rect_dominance::embedding::{DominanceEmbedding, strict_dominance};
 
     use super::{
-        dense_conflict_grid, endpoint_chord_cases, endpoint_contact_instances,
-        topological_stress_instances,
+        contains_complete_bipartite, dense_conflict_grid, endpoint_chord_cases,
+        endpoint_contact_instances, topological_stress_instances,
     };
     use crate::verify_component;
 
@@ -559,6 +602,28 @@ mod tests {
         let analysis = rect_oracle_sg::analyze(&component).unwrap();
         assert!(analysis.horizontal_chords.len() >= 4);
         assert!(analysis.vertical_chords.len() >= 5);
+        assert!(contains_complete_bipartite(&analysis.conflict_graph, 4, 5));
+        assert!(
+            analysis.conflict_graph.edge_count() * 10
+                >= analysis.horizontal_chords.len() * analysis.vertical_chords.len() * 4
+        );
+        let c0 = rect_dominance::solve(&component, rect_dominance::DominanceMode::ExplicitEdges)
+            .unwrap();
+        let compact =
+            rect_dominance::solve(&component, rect_dominance::DominanceMode::Compact).unwrap();
+        assert_eq!(analysis.matching.size, c0.diagnostics.maximum_matching_size);
+        assert_eq!(
+            analysis.matching.size,
+            compact.diagnostics.maximum_matching_size
+        );
+        assert_eq!(
+            c0.diagnostics.maximum_matching_size,
+            compact.diagnostics.maximum_matching_size
+        );
+        assert_eq!(
+            compact.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
+            0
+        );
     }
 
     #[test]

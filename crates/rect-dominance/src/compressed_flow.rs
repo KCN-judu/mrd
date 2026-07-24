@@ -7,6 +7,10 @@ use crate::biclique::BicliquePartition;
 pub struct CompressedFlowSolution {
     pub flow: FlowResult,
     pub vertex_cover: VertexCover,
+    pub network_vertex_count: usize,
+    pub network_arc_count: usize,
+    pub internal_capacity: u64,
+    pub internal_cut_arc_count: usize,
 }
 
 /// Runs an exact flow on the biclique-compressed network and recovers a cover.
@@ -24,22 +28,28 @@ pub fn solve_biclique_flow(
     let layout = build_network(horizontal_count, vertical_count, partition)?;
     let flow = backend.max_flow_min_cut(&layout.network, layout.source, layout.sink)?;
 
+    let mut internal_cut_arc_count = 0;
     for (biclique_index, biclique) in partition.bicliques.iter().enumerate() {
         let biclique_node = layout.biclique_nodes[biclique_index];
         for &left in &biclique.left {
             if flow.source_side[layout.horizontal_nodes[left].0]
                 && !flow.source_side[biclique_node.0]
             {
-                return Err(CompressedFlowError::InternalArcInMinimumCut);
+                internal_cut_arc_count += 1;
             }
         }
         for &right in &biclique.right {
             if flow.source_side[biclique_node.0]
                 && !flow.source_side[layout.vertical_nodes[right].0]
             {
-                return Err(CompressedFlowError::InternalArcInMinimumCut);
+                internal_cut_arc_count += 1;
             }
         }
+    }
+    if internal_cut_arc_count != 0 {
+        return Err(CompressedFlowError::InternalArcInMinimumCut {
+            count: internal_cut_arc_count,
+        });
     }
 
     let left = layout
@@ -63,6 +73,10 @@ pub fn solve_biclique_flow(
         });
     }
     Ok(CompressedFlowSolution {
+        network_vertex_count: layout.network.node_count(),
+        network_arc_count: layout.network.arc_count(),
+        internal_capacity: layout.internal_capacity,
+        internal_cut_arc_count,
         flow,
         vertex_cover: VertexCover { left, right, size },
     })
@@ -75,6 +89,7 @@ struct NetworkLayout {
     horizontal_nodes: Vec<FlowNodeId>,
     biclique_nodes: Vec<FlowNodeId>,
     vertical_nodes: Vec<FlowNodeId>,
+    internal_capacity: u64,
 }
 
 fn build_network(
@@ -135,6 +150,7 @@ fn build_network(
         horizontal_nodes,
         biclique_nodes,
         vertical_nodes,
+        internal_capacity,
     })
 }
 
@@ -148,8 +164,8 @@ pub enum CompressedFlowError {
     CapacityOverflow,
     #[error("biclique contains an endpoint outside its declared side")]
     BicliqueEndpointOutOfBounds,
-    #[error("large-capacity internal arc unexpectedly belongs to a minimum cut")]
-    InternalArcInMinimumCut,
+    #[error("{count} large-capacity internal arcs unexpectedly belong to a minimum cut")]
+    InternalArcInMinimumCut { count: usize },
     #[error("flow value cannot be represented as usize")]
     FlowValueConversion,
     #[error("minimum cut value {cut} differs from recovered cover size {cover}")]

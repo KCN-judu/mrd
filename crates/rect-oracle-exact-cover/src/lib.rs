@@ -105,7 +105,7 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, ExactC
         rectangles: output_rectangles,
         diagnostics: Diagnostics {
             cell_count: component.cell_count(),
-            final_rectangle_count: selected.len(),
+            output_rectangle_count: selected.len(),
             phase_microseconds: [("exact_cover".to_owned(), elapsed.as_micros())]
                 .into_iter()
                 .collect(),

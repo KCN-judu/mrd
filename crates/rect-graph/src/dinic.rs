@@ -33,6 +33,11 @@ impl FlowNetwork {
         self.node_count
     }
 
+    #[must_use]
+    pub const fn arc_count(&self) -> usize {
+        self.arcs.len()
+    }
+
     /// # Errors
     ///
     /// Returns [`FlowError::NodeOutOfBounds`] when either endpoint is invalid.

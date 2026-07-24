@@ -4,9 +4,9 @@ use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::time::Instant;
 
 use rect_core::{
-    Boundary, BoundaryError, Certificate, Coord, Diagnostics, DissectionResult, GeometryError,
-    GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point, ValidationError,
-    VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
+    Boundary, BoundaryError, Certificate, Coord, Diagnostics, DissectionResult, ExactRatio,
+    GeometryError, GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point,
+    ValidationError, VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
 };
 use rect_graph::{BipartiteGraph, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover};
 use serde::Serialize;
@@ -126,10 +126,16 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
             reflex_vertex_count: analysis.boundary.reflex_vertices.len(),
             horizontal_chord_count: analysis.horizontal_chords.len(),
             vertical_chord_count: analysis.vertical_chords.len(),
+            total_chord_count: analysis.horizontal_chords.len() + analysis.vertical_chords.len(),
             explicit_conflict_edge_count: analysis.conflict_graph.edge_count(),
-            matching_or_flow_value: analysis.matching.size,
+            conflict_edge_density: ExactRatio::new(
+                analysis.conflict_graph.edge_count() as u128,
+                (analysis.horizontal_chords.len() as u128)
+                    * (analysis.vertical_chords.len() as u128),
+            ),
+            maximum_matching_size: analysis.matching.size,
             minimum_vertex_cover_size: analysis.vertex_cover.size,
-            final_rectangle_count: analysis.optimum_rectangle_count,
+            output_rectangle_count: analysis.optimum_rectangle_count,
             phase_microseconds: [
                 (
                     "boundary_chords_matching".to_owned(),

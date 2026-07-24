@@ -8,7 +8,8 @@ use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
 use rect_core::{
-    Certificate, Diagnostics, DissectionResult, GridComponent, ValidationError, validate_dissection,
+    Certificate, Diagnostics, DissectionResult, ExactRatio, GridComponent, ValidationError,
+    validate_dissection,
 };
 use rect_graph::DinicBackend;
 use rect_oracle_sg::{SgError, complete_with_selected_chords};
@@ -53,9 +54,10 @@ pub fn solve<C>(
 
     let partition = match mode {
         DominanceMode::ExplicitEdges => BicliquePartition::from_explicit_edges(&dominance_graph),
-        DominanceMode::Compact => BicliquePartition::comparability_theorem_8(&embedding),
+        DominanceMode::Compact => BicliquePartition::comparability_theorem_8(&embedding)?,
     };
     partition.verify_exact_partition(&dominance_graph)?;
+    let biclique_certificate = partition.certificate(&dominance_graph);
     let bicliques_at = Instant::now();
     let flow_solution = solve_biclique_flow(
         embedding.horizontal.len(),
@@ -113,6 +115,11 @@ pub fn solve<C>(
         .enumerate()
         .filter_map(|(index, &selected)| selected.then_some(index))
         .collect::<Vec<_>>();
+    let horizontal_count = embedding.horizontal.len();
+    let vertical_count = embedding.vertical.len();
+    let total_chord_count = horizontal_count + vertical_count;
+    let explicit_edge_count = dominance_graph.edge_count();
+    let biclique_total_size = partition.total_vertex_occurrences();
     let result = DissectionResult {
         optimum_rectangle_count: sg_analysis.optimum_rectangle_count,
         rectangles,
@@ -122,14 +129,29 @@ pub fn solve<C>(
             outer_loop_count: sg_analysis.boundary.outer_loop_count(),
             hole_count: sg_analysis.boundary.hole_count(),
             reflex_vertex_count: sg_analysis.boundary.reflex_vertices.len(),
-            horizontal_chord_count: embedding.horizontal.len(),
-            vertical_chord_count: embedding.vertical.len(),
-            explicit_conflict_edge_count: dominance_graph.edge_count(),
+            horizontal_chord_count: horizontal_count,
+            vertical_chord_count: vertical_count,
+            total_chord_count,
+            explicit_conflict_edge_count: explicit_edge_count,
+            conflict_edge_density: ExactRatio::new(
+                explicit_edge_count as u128,
+                (horizontal_count as u128) * (vertical_count as u128),
+            ),
             biclique_count: partition.bicliques.len(),
-            biclique_representation_size: partition.total_vertex_occurrences(),
-            matching_or_flow_value: flow_value,
+            biclique_total_vertex_occurrences: biclique_total_size,
+            biclique_size_per_chord: ExactRatio::new(
+                biclique_total_size as u128,
+                total_chord_count as u128,
+            ),
+            biclique_size_per_explicit_edge: ExactRatio::new(
+                biclique_total_size as u128,
+                explicit_edge_count as u128,
+            ),
+            compressed_network_vertex_count: flow_solution.network_vertex_count,
+            compressed_network_arc_count: flow_solution.network_arc_count,
+            maximum_matching_size: flow_value,
             minimum_vertex_cover_size: flow_solution.vertex_cover.size,
-            final_rectangle_count: sg_analysis.optimum_rectangle_count,
+            output_rectangle_count: sg_analysis.optimum_rectangle_count,
             phase_microseconds: [
                 (
                     "boundary_effective_chords".to_owned(),
@@ -154,6 +176,7 @@ pub fn solve<C>(
             ]
             .into_iter()
             .collect(),
+            peak_memory_bytes: None,
         },
         certificate: Some(Certificate {
             kind: match mode {
@@ -163,8 +186,12 @@ pub fn solve<C>(
             .to_owned(),
             payload: json!({
                 "embedding": embedding,
-                "bicliques": partition.bicliques,
+                "biclique_partition": biclique_certificate,
                 "flow_value": flow_value,
+                "compressed_network_vertex_count": flow_solution.network_vertex_count,
+                "compressed_network_arc_count": flow_solution.network_arc_count,
+                "internal_capacity": flow_solution.internal_capacity,
+                "internal_cut_arc_count": flow_solution.internal_cut_arc_count,
                 "min_cut_source_side": flow_solution.flow.source_side,
                 "cover_left": flow_solution.vertex_cover.left,
                 "cover_right": flow_solution.vertex_cover.right,

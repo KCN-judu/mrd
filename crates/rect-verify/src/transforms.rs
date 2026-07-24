@@ -101,7 +101,7 @@ impl<C: Clone> TransformedComponent<C> {
         mapped.rectangles.sort_unstable();
         mapped.rectangles.dedup();
         mapped.optimum_rectangle_count = mapped.rectangles.len();
-        mapped.diagnostics.final_rectangle_count = mapped.rectangles.len();
+        mapped.diagnostics.output_rectangle_count = mapped.rectangles.len();
         validate_dissection(original, &mapped)?;
         Ok(mapped)
     }
