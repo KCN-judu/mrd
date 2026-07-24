@@ -9,7 +9,7 @@ use crate::adversarial::{
     topological_stress_instances,
 };
 use crate::polyomino::{enumerate_free_polyominoes, explicit_hole_polyominoes};
-use crate::{VerificationError, verify_component};
+use crate::{GridFixture, VerificationError, verify_component};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BenchmarkContext {
@@ -54,6 +54,7 @@ pub struct BenchmarkReport {
     pub unsupported_count: usize,
     pub solver_error_count: usize,
     pub counterexample_count: usize,
+    pub failure_fixtures: Vec<GridFixture>,
     pub rows: Vec<BenchmarkRow>,
 }
 
@@ -208,11 +209,21 @@ fn benchmark_instances(
     oracle_cell_limit: usize,
 ) -> BenchmarkReport {
     let mut rows = Vec::new();
+    let mut failure_fixtures = Vec::new();
     for instance in instances {
         match instance.foreground_components() {
             Ok(components) => {
                 for component in components {
-                    rows.push(benchmark_component(instance, &component, oracle_cell_limit));
+                    let row = benchmark_component(instance, &component, oracle_cell_limit);
+                    if matches!(row.status.as_str(), "counterexample" | "solver-error") {
+                        failure_fixtures.push(GridFixture {
+                            width: instance.width,
+                            height: instance.height,
+                            cells: instance.cells.clone(),
+                            reason: row.message.clone().unwrap_or_else(|| row.status.clone()),
+                        });
+                    }
+                    rows.push(row);
                 }
             }
             Err(error) => rows.push(BenchmarkRow {
@@ -256,6 +267,7 @@ fn benchmark_instances(
         unsupported_count,
         solver_error_count,
         counterexample_count,
+        failure_fixtures,
         rows,
     }
 }

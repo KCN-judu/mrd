@@ -335,6 +335,10 @@ fn benchmark_command(
         .unwrap_or_else(|| Path::new("."))
         .join("manifest.json");
     update_manifest(&manifest_path, report.metadata.clone())?;
+    for fixture in &report.failure_fixtures {
+        rect_verify::minimize::write_regression_bundle(Path::new("test-data/regressions"), fixture)
+            .map_err(|error| CliError::Output(error.to_string()))?;
+    }
     if report.counterexample_count != 0 || report.solver_error_count != 0 {
         return Err(CliError::Verification(format!(
             "benchmark recorded {} counterexamples and {} solver errors",

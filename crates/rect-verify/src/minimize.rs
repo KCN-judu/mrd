@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rect_core::ColorGrid;
-use rect_dominance::DominanceMode;
+use rect_core::{ColorGrid, Diagnostics, DissectionResult, SvgOverlay, render_dissection_svg};
+use rect_dominance::{DominanceMode, biclique::BicliquePartition, embedding::DominanceEmbedding};
 use serde_json::{Value, json};
 use thiserror::Error;
 
@@ -85,12 +85,61 @@ pub fn write_regression_bundle(
         directory.join("solver-outputs.json"),
         serde_json::to_vec_pretty(&outputs)?,
     )?;
+    fs::write(
+        directory.join("biclique-audit.json"),
+        serde_json::to_vec_pretty(&collect_biclique_audits(&minimized)?)?,
+    )?;
+    write_input_svgs(&directory, &minimized)?;
     let explanation = format!(
         "# Minimized differential regression\n\nExpected behavior: every supported solver must return the same optimum and a cell-exact valid dissection.\n\nOriginal failure: {}\n\nThe workspace test suite replays this input automatically.\n",
         minimized.reason
     );
     fs::write(directory.join("README.md"), explanation)?;
     Ok(directory)
+}
+
+fn collect_biclique_audits(fixture: &GridFixture) -> Result<Value, MinimizeError> {
+    let grid = ColorGrid::new(fixture.width, fixture.height, fixture.cells.clone())
+        .map_err(|error| MinimizeError::InvalidGrid(error.to_string()))?;
+    let mut audits = BTreeMap::new();
+    for component in grid.four_connected_components() {
+        let value = (|| {
+            let analysis =
+                rect_oracle_sg::analyze(&component).map_err(|error| error.to_string())?;
+            let embedding =
+                DominanceEmbedding::new(&analysis.horizontal_chords, &analysis.vertical_chords)
+                    .map_err(|error| error.to_string())?;
+            let graph = embedding
+                .explicit_graph()
+                .map_err(|error| error.to_string())?;
+            let partition = BicliquePartition::comparability_theorem_8(&embedding)
+                .map_err(|error| error.to_string())?;
+            Ok::<Value, String>(json!(partition.audit(&graph, 256)))
+        })()
+        .unwrap_or_else(|error| json!({"error": error}));
+        audits.insert(component.id.0.to_string(), value);
+    }
+    Ok(json!(audits))
+}
+
+fn write_input_svgs(directory: &Path, fixture: &GridFixture) -> Result<(), MinimizeError> {
+    let grid = ColorGrid::new(fixture.width, fixture.height, fixture.cells.clone())
+        .map_err(|error| MinimizeError::InvalidGrid(error.to_string()))?;
+    for component in grid.four_connected_components() {
+        let input_only = DissectionResult {
+            optimum_rectangle_count: 0,
+            rectangles: Vec::new(),
+            diagnostics: Diagnostics::default(),
+            certificate: None,
+        };
+        let svg = render_dissection_svg(&component, &input_only, &SvgOverlay::empty())
+            .map_err(|error| MinimizeError::Svg(error.to_string()))?;
+        fs::write(
+            directory.join(format!("component-{}.svg", component.id.0)),
+            svg,
+        )?;
+    }
+    Ok(())
 }
 
 fn collect_solver_outputs(fixture: &GridFixture) -> Result<Value, MinimizeError> {
@@ -243,6 +292,8 @@ fn stable_fixture_hash(fixture: &GridFixture) -> u64 {
 pub enum MinimizeError {
     #[error("invalid regression grid: {0}")]
     InvalidGrid(String),
+    #[error("cannot render regression SVG: {0}")]
+    Svg(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
