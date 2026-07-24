@@ -261,6 +261,7 @@ fn export_adversarial(output_dir: &Path) -> Result<(), CliError> {
     let instances = rect_verify::adversarial::endpoint_contact_instances()
         .into_iter()
         .chain(rect_verify::adversarial::topological_stress_instances())
+        .chain(rect_verify::adversarial::external_oracle_adversarial_instances())
         .chain([
             rect_verify::adversarial::dense_conflict_grid(4, 5),
             rect_verify::adversarial::dense_conflict_grid(8, 8),
@@ -354,12 +355,13 @@ fn compare_external_command(
         exact_cover_cell_limit,
     )
     .map_err(|error| CliError::Verification(error.to_string()))?;
+    write_json(&report, output)?;
     if !report.all_agree {
         return Err(CliError::Verification(
             "external oracle disagrees with at least one Rust solver".to_owned(),
         ));
     }
-    write_json(&report, output)
+    Ok(())
 }
 
 fn generate_command(

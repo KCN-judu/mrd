@@ -148,7 +148,7 @@ pub fn endpoint_chord_cases() -> Vec<EndpointChordCase> {
 
 #[must_use]
 pub fn endpoint_contact_instances() -> Vec<AdversarialInstance> {
-    let dense = dense_conflict_grid(3, 3);
+    let dense = dense_conflict_grid(2, 2);
     let mut near = dense.clone();
     "endpoint-near-identical-minus-one-cell".clone_into(&mut near.name);
     "endpoint-contact".clone_into(&mut near.family);
@@ -163,6 +163,27 @@ pub fn endpoint_contact_instances() -> Vec<AdversarialInstance> {
         },
         near,
     ]
+}
+
+#[must_use]
+pub fn external_oracle_adversarial_instances() -> Vec<AdversarialInstance> {
+    [
+        one_hole_ring(5, 5),
+        narrow_corridor(7, 5),
+        comb(3, 4),
+        double_comb(3, 5),
+        staircase(5),
+        orthogonal_spiral(7),
+        dense_conflict_grid(2, 2),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, mut instance)| {
+        instance.name = format!("cp-small-{index:02}-{}", instance.name);
+        "external-oracle-adversarial".clone_into(&mut instance.family);
+        instance
+    })
+    .collect()
 }
 
 #[must_use]
