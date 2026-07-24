@@ -1,0 +1,9 @@
+{
+  "width": 3,
+  "height": 3,
+  "cells": [
+    "ink", "ink", "ink",
+    "ink", "paper", "ink",
+    "ink", "ink", "ink"
+  ]
+}

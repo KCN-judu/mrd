@@ -1,0 +1,15 @@
+[package]
+name = "rect-oracle-exact-cover"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rect-core = { path = "../rect-core" }
+rect-graph = { path = "../rect-graph" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
+
