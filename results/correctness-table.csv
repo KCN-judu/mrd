@@ -1,0 +1,8 @@
+suite,grids,components,exact-cover comparisons,CP-SAT comparisons,SG comparisons,C0 comparisons,compressed comparisons,counterexamples
+exhaustive-binary-4x4,65536,337058,337058,0,337058,337058,337058,0
+random-binary-8x8,10000,162162,160900,0,162162,162162,162162,0
+adversarial,17,19,9,0,19,19,19,0
+free-polyomino,6474,6474,6474,0,6474,6474,6474,0
+external-binary-3x3,512,1794,1794,1794,1794,1794,1794,0
+external-free-polyomino,6473,25390,25390,25390,25390,25390,25390,0
+external-adversarial,13,44,44,44,44,44,44,0
