@@ -12,7 +12,8 @@
   paper's `O(n log n)` sweep-line enumeration bound.
 - The compact biclique implementation follows Cardinal--Yuditsky Theorem 8 but
   uses straightforward sorting in recursive calls. It prioritizes checkable
-  construction over optimized constants.
+  construction over optimized constants. Because the embedding has four
+  coordinates, the cited general bound specializes to `O(q log^4 q)`.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The

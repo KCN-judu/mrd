@@ -48,19 +48,23 @@ cargo run --release -p rect-cli -- export-adversarial \
 
 /tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
   --rect-cli target/release/rect-cli \
-  --exhaustive-width 2 --exhaustive-height 3 \
+  --exhaustive-width 3 --exhaustive-height 3 \
+  --polyomino-max-cells 10 \
   --adversarial-dir /tmp/rect-adversarial \
-  --max-adversarial-grid-cells 64 \
+  --max-adversarial-grid-cells 20000 \
+  --max-component-cells 40 \
   --max-time-seconds 30 \
   --work-dir /tmp/rect-external-suite \
   --output results/external-oracle.json
 ```
 
-This verifies all 64 binary `2x3` grids plus adversarial grids whose bounding
-grid area is at most 64 cells. Larger exported cases are counted in
+This verifies all 512 binary `3x3` grids, an independently enumerated canonical
+free-polyomino population, and every exported adversarial grid satisfying both
+configured limits. Larger cases are counted in
 `skipped_adversarial_grid_count`; they are never silently omitted. The CP-SAT
-limit is per component. The comparison command independently records when the
-Rust exact-cover oracle is skipped above its 40-cell default while continuing
-all three effective-chord pipelines. The output records the exact population,
-scope, timeout, commit, toolchain, command, and discrepancy count; per-case
-CP-SAT and Rust artifacts remain in `--work-dir`.
+limit is per component. Every input is classified as `verified`, `timeout`,
+`unsupported`, `solver-error`, or `counterexample`, with exact component counts.
+The comparison command independently records when Rust exact cover is skipped
+above its cell limit while continuing all three effective-chord pipelines. The
+output records population, scope, timeout, commit, toolchain, command, and
+disagreement counts; per-case CP-SAT and Rust artifacts remain in `--work-dir`.

@@ -42,6 +42,14 @@ cargo run --release -p rect-cli -- polyomino \
 
 cargo run --release -p rect-cli -- benchmark \
   --suite adversarial --output results/adversarial.csv
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite dense-conflict --sizes 4,8,16,32,64,128 \
+  --output results/dense-conflict.csv
+
+cargo run --release -p rect-cli -- generate \
+  --family dense-conflict --horizontal 32 --vertical 32 \
+  --json /tmp/dense-32.json --svg /tmp/dense-32.svg
 ```
 
 Add `--svg dissection.svg` to `solve` to render the source cells, boundary,
@@ -65,3 +73,9 @@ The optional independent Python/OR-Tools oracle is documented in
 `tools/external-oracle/README.md`. Reproducible commands, exact tested
 populations, seeds, timeouts, and discrepancy counts are recorded in
 `docs/EXPERIMENTS.md` and `results/manifest.json`.
+
+The four-coordinate Cardinal--Yuditsky specialization has representation bound
+`O(q log^4 q)`. This repository remains a correctness and experimental
+artifact: its exact grid chord enumerator is not the classical `O(n log n)`
+sweep, and its practical Dinic backend is not the cited almost-linear
+theoretical flow algorithm.

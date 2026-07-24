@@ -70,6 +70,16 @@ exact integral max flow and residual minimum cut. The implementation rejects a
 cut that crosses an internal arc, recovers the vertex cover, and compares its
 size and flow value to independent Hopcroft--Karp.
 
+Write `U = min(|H|, |V|) + 1`. The unit capacities on `s -> h` and
+`v -> t` enforce matching endpoints, and `U - 1` is at least every possible
+matching value. A large internal capacity is not needed merely to obtain the
+correct maximum-flow value: any particular `h -> z_k` arc is downstream of one
+unit `s -> h` arc, and any particular `z_k -> v` arc is upstream of one unit
+`v -> t` arc, so each carries at most one unit in an integral matching flow.
+The purpose of `U` is certificate recovery: an integral minimum cut of value at
+most `U - 1` cannot cut an internal arc, so its outer arcs directly encode a
+minimum vertex cover.
+
 ## Acceptance matrix
 
 | Requirement | Evidence | Acceptance |
