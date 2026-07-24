@@ -14,6 +14,12 @@ All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs
 the same cell-exact output validator.
 
+The supported input model is a finite colored array of unit cells, split by
+color and four-connectivity into ordinary nondegenerate grid regions. The
+implementation does not accept ornaments, isolated formal-boundary points,
+line-segment holes, point holes, arbitrary degenerate formal holes, or general
+polygon input. See `docs/KNOWN_LIMITATIONS.md` for the exact scope boundary.
+
 ## Quick start
 
 ```bash
@@ -29,6 +35,13 @@ cargo run --release -p rect-cli -- exhaustive --width 3 --height 3
 
 cargo run --release -p rect-cli -- random \
   --width 8 --height 8 --cases 10000 --seed 42
+
+cargo run --release -p rect-cli -- polyomino \
+  --max-cells 12 --all-solvers \
+  --output results/polyomino-summary.json
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite adversarial --output results/adversarial.csv
 ```
 
 Add `--svg dissection.svg` to `solve` to render the source cells, boundary,
@@ -48,3 +61,7 @@ The input format is:
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
 
+The optional independent Python/OR-Tools oracle is documented in
+`tools/external-oracle/README.md`. Reproducible commands, exact tested
+populations, seeds, timeouts, and discrepancy counts are recorded in
+`docs/EXPERIMENTS.md` and `results/manifest.json`.

@@ -1,9 +1,12 @@
 # Known limitations
 
 - The implemented geometry adapter accepts finite unions of unit grid cells and
-  ordinary nondegenerate holes. Soltan--Gorpinevich ornaments, segment holes,
-  isolated point holes, and other degenerate formal-boundary cases are not yet
-  represented and are not claimed as supported.
+  ordinary nondegenerate holes. Soltan--Gorpinevich ornaments, line-segment
+  holes, point holes, isolated formal-boundary points, and arbitrary degenerate
+  formal holes are not represented and are not claimed as supported.
+- General polygon input is not accepted. All supported geometry must be
+  generated from finite grid cells and serialized in the colored-grid JSON
+  format.
 - Effective chords are enumerated by exact aligned-reflex pair testing. This is
   semantically faithful for the supported grid model but does not implement the
   paper's `O(n log n)` sweep-line enumeration bound.
@@ -18,4 +21,5 @@
   debugging view and not a correctness oracle.
 - Exhaustive `4x4` verification is available as an explicit release-mode command
   rather than a default unit test because its runtime is machine-dependent.
-
+- Experimental agreement is finite evidence, not a proof that the practical
+  implementation realizes the paper's full `n^(1+o(1))` algorithm.

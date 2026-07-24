@@ -50,10 +50,17 @@ cargo run --release -p rect-cli -- export-adversarial \
   --rect-cli target/release/rect-cli \
   --exhaustive-width 2 --exhaustive-height 3 \
   --adversarial-dir /tmp/rect-adversarial \
+  --max-adversarial-grid-cells 64 \
+  --max-time-seconds 30 \
   --work-dir /tmp/rect-external-suite \
   --output results/external-oracle.json
 ```
 
-This verifies all 64 binary `2x3` grids plus the exported deterministic
-adversarial population. The output records the exact input and component counts;
-the per-case CP-SAT and Rust comparison artifacts remain in `--work-dir`.
+This verifies all 64 binary `2x3` grids plus adversarial grids whose bounding
+grid area is at most 64 cells. Larger exported cases are counted in
+`skipped_adversarial_grid_count`; they are never silently omitted. The CP-SAT
+limit is per component. The comparison command independently records when the
+Rust exact-cover oracle is skipped above its 40-cell default while continuing
+all three effective-chord pipelines. The output records the exact population,
+scope, timeout, commit, toolchain, command, and discrepancy count; per-case
+CP-SAT and Rust artifacts remain in `--work-dir`.
