@@ -41,6 +41,8 @@ jobs:
           target/release/rect-cli random --width 8 --height 8 --cases 10000 --seed 42 --output artifacts/random-8x8-seed42.json 2>&1 | tee artifacts/logs/random.log
           target/release/rect-cli polyomino --max-cells 12 --all-solvers --output artifacts/polyomino-max12.json 2>&1 | tee artifacts/logs/polyomino-max12.log
           target/release/rect-cli benchmark --suite adversarial --output artifacts/adversarial.csv 2>&1 | tee artifacts/logs/adversarial.log
+          target/release/rect-cli benchmark --suite polyomino --max-cells 10 --output artifacts/polyomino.csv 2>&1 | tee artifacts/logs/polyomino-benchmark.log
+          target/release/rect-cli benchmark --suite dense-conflict --sizes 4,8,16,32,64,128 --output artifacts/dense-conflict.csv 2>&1 | tee artifacts/logs/dense-conflict.log
       - name: Run bounded external CP-SAT population
         shell: bash
         run: |
@@ -48,12 +50,25 @@ jobs:
           target/release/rect-cli export-adversarial --output-dir artifacts/adversarial-inputs
           python3 tools/external-oracle/verify_suite.py \
             --rect-cli target/release/rect-cli \
-            --exhaustive-width 2 --exhaustive-height 3 \
+            --exhaustive-width 3 --exhaustive-height 3 \
+            --polyomino-max-cells 10 \
             --adversarial-dir artifacts/adversarial-inputs \
-            --max-adversarial-grid-cells 64 \
+            --max-adversarial-grid-cells 20000 \
+            --max-component-cells 40 \
             --max-time-seconds 30 \
             --work-dir artifacts/external-work \
             --output artifacts/external-oracle.json 2>&1 | tee artifacts/logs/external-oracle.log
+      - name: Generate paper-ready tables
+        run: |
+          python3 tools/generate_paper_tables.py \
+            --manifest artifacts/manifest.json \
+            --exhaustive artifacts/exhaustive-4x4.json \
+            --random artifacts/random-8x8-seed42.json \
+            --adversarial artifacts/adversarial.csv \
+            --polyomino artifacts/polyomino.csv \
+            --external artifacts/external-oracle.json \
+            --dense artifacts/dense-conflict.csv \
+            --output-dir artifacts/tables
       - name: Render minimized Rust failures
         if: failure()
         shell: bash
