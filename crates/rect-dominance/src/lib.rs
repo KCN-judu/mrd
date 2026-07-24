@@ -120,6 +120,21 @@ pub fn solve<C>(
     let total_chord_count = horizontal_count + vertical_count;
     let explicit_edge_count = dominance_graph.edge_count();
     let biclique_total_size = partition.total_vertex_occurrences();
+    let c0_network_vertex_count = 2_usize
+        .checked_add(total_chord_count)
+        .and_then(|value| value.checked_add(explicit_edge_count))
+        .ok_or(DominanceError::MetricOverflow)?;
+    let c0_network_arc_count = explicit_edge_count
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(total_chord_count))
+        .ok_or(DominanceError::MetricOverflow)?;
+    let (compressed_network_vertex_count, compressed_network_arc_count) = match mode {
+        DominanceMode::ExplicitEdges => (0, 0),
+        DominanceMode::Compact => (
+            flow_solution.network_vertex_count,
+            flow_solution.network_arc_count,
+        ),
+    };
     let result = DissectionResult {
         optimum_rectangle_count: sg_analysis.optimum_rectangle_count,
         rectangles,
@@ -147,8 +162,10 @@ pub fn solve<C>(
                 biclique_total_size as u128,
                 explicit_edge_count as u128,
             ),
-            compressed_network_vertex_count: flow_solution.network_vertex_count,
-            compressed_network_arc_count: flow_solution.network_arc_count,
+            c0_network_vertex_count,
+            c0_network_arc_count,
+            compressed_network_vertex_count,
+            compressed_network_arc_count,
             maximum_matching_size: flow_value,
             minimum_vertex_cover_size: flow_solution.vertex_cover.size,
             output_rectangle_count: sg_analysis.optimum_rectangle_count,
@@ -220,6 +237,8 @@ pub enum DominanceError {
     ExplicitGraphMismatch,
     #[error("flow value cannot be represented as usize")]
     FlowValueConversion,
+    #[error("diagnostic network metric overflowed usize")]
+    MetricOverflow,
     #[error("Hopcroft--Karp matching value {matching} differs from flow value {flow}")]
     MatchingFlowMismatch { matching: usize, flow: usize },
     #[error("flow-recovered vertex cover misses explicit edge ({left}, {right})")]

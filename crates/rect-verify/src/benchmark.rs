@@ -37,10 +37,13 @@ pub struct BenchmarkMetadata {
 pub struct BenchmarkRow {
     pub instance_name: String,
     pub family: String,
+    pub parameters: BTreeMap<String, usize>,
     pub component_id: usize,
     pub status: String,
     pub message: Option<String>,
     pub diagnostics: Diagnostics,
+    pub c0_phase_microseconds: BTreeMap<String, u128>,
+    pub compressed_phase_microseconds: BTreeMap<String, u128>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -63,14 +66,18 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,component_id,status,message,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,phase_microseconds,peak_memory_bytes"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,peak_memory_bytes"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
             let sigma_per_chord = ratio_columns(row.diagnostics.biclique_size_per_chord);
             let sigma_per_edge = ratio_columns(row.diagnostics.biclique_size_per_explicit_edge);
-            let phases = serde_json::to_string(&row.diagnostics.phase_microseconds)
+            let c0_phases = serde_json::to_string(&row.c0_phase_microseconds)
                 .unwrap_or_else(|_| "{}".to_owned());
+            let compressed_phases = serde_json::to_string(&row.compressed_phase_microseconds)
+                .unwrap_or_else(|_| "{}".to_owned());
+            let parameters =
+                serde_json::to_string(&row.parameters).unwrap_or_else(|_| "{}".to_owned());
             let fields = [
                 self.metadata.git_commit.clone(),
                 self.metadata.rustc_version.clone(),
@@ -86,6 +93,7 @@ impl BenchmarkReport {
                 self.metadata.unsupported_input_features.join(";"),
                 row.instance_name.clone(),
                 row.family.clone(),
+                parameters,
                 row.component_id.to_string(),
                 row.status.clone(),
                 row.message.clone().unwrap_or_default(),
@@ -107,12 +115,15 @@ impl BenchmarkReport {
                 sigma_per_chord.1,
                 sigma_per_edge.0,
                 sigma_per_edge.1,
+                row.diagnostics.c0_network_vertex_count.to_string(),
+                row.diagnostics.c0_network_arc_count.to_string(),
                 row.diagnostics.compressed_network_vertex_count.to_string(),
                 row.diagnostics.compressed_network_arc_count.to_string(),
                 row.diagnostics.maximum_matching_size.to_string(),
                 row.diagnostics.minimum_vertex_cover_size.to_string(),
                 row.diagnostics.output_rectangle_count.to_string(),
-                phases,
+                c0_phases,
+                compressed_phases,
                 row.diagnostics
                     .peak_memory_bytes
                     .map(|bytes| bytes.to_string())
@@ -180,6 +191,15 @@ pub fn benchmark_polyomino(
     benchmark_instances(context, &instances, oracle_cell_limit)
 }
 
+#[must_use]
+pub fn benchmark_dense_conflict(context: BenchmarkContext, sizes: &[usize]) -> BenchmarkReport {
+    let instances = sizes
+        .iter()
+        .map(|&size| dense_conflict_grid(size, size))
+        .collect::<Vec<_>>();
+    benchmark_instances(context, &instances, 0)
+}
+
 fn benchmark_instances(
     context: BenchmarkContext,
     instances: &[AdversarialInstance],
@@ -196,10 +216,13 @@ fn benchmark_instances(
             Err(error) => rows.push(BenchmarkRow {
                 instance_name: instance.name.clone(),
                 family: instance.family.clone(),
+                parameters: instance.parameters.clone(),
                 component_id: 0,
                 status: "unsupported".to_owned(),
                 message: Some(error.to_string()),
                 diagnostics: Diagnostics::default(),
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
             }),
         }
     }
@@ -240,14 +263,29 @@ fn benchmark_component<C>(
     oracle_cell_limit: usize,
 ) -> BenchmarkRow {
     match verify_component(component, oracle_cell_limit) {
-        Ok(verification) => BenchmarkRow {
-            instance_name: instance.name.clone(),
-            family: instance.family.clone(),
-            component_id: component.id.0,
-            status: "verified".to_owned(),
-            message: None,
-            diagnostics: verification.dominance_compact.diagnostics,
-        },
+        Ok(verification) => {
+            let c0_phase_microseconds = verification
+                .dominance_c0
+                .diagnostics
+                .phase_microseconds
+                .clone();
+            let compressed_phase_microseconds = verification
+                .dominance_compact
+                .diagnostics
+                .phase_microseconds
+                .clone();
+            BenchmarkRow {
+                instance_name: instance.name.clone(),
+                family: instance.family.clone(),
+                parameters: instance.parameters.clone(),
+                component_id: component.id.0,
+                status: "verified".to_owned(),
+                message: None,
+                diagnostics: verification.dominance_compact.diagnostics,
+                c0_phase_microseconds,
+                compressed_phase_microseconds,
+            }
+        }
         Err(error) => {
             let status = match error {
                 VerificationError::OptimumMismatch { .. } => "counterexample",
@@ -259,6 +297,7 @@ fn benchmark_component<C>(
             BenchmarkRow {
                 instance_name: instance.name.clone(),
                 family: instance.family.clone(),
+                parameters: instance.parameters.clone(),
                 component_id: component.id.0,
                 status: status.to_owned(),
                 message: Some(error.to_string()),
@@ -266,6 +305,8 @@ fn benchmark_component<C>(
                     cell_count: component.cell_count(),
                     ..Diagnostics::default()
                 },
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
             }
         }
     }

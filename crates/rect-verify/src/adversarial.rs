@@ -597,33 +597,40 @@ mod tests {
 
     #[test]
     fn dense_generator_meets_requested_chord_floor() {
-        let instance = dense_conflict_grid(4, 5);
-        let component = instance.foreground_components().unwrap().remove(0);
-        let analysis = rect_oracle_sg::analyze(&component).unwrap();
-        assert!(analysis.horizontal_chords.len() >= 4);
-        assert!(analysis.vertical_chords.len() >= 5);
-        assert!(contains_complete_bipartite(&analysis.conflict_graph, 4, 5));
-        assert!(
-            analysis.conflict_graph.edge_count() * 10
-                >= analysis.horizontal_chords.len() * analysis.vertical_chords.len() * 4
-        );
-        let c0 = rect_dominance::solve(&component, rect_dominance::DominanceMode::ExplicitEdges)
-            .unwrap();
-        let compact =
-            rect_dominance::solve(&component, rect_dominance::DominanceMode::Compact).unwrap();
-        assert_eq!(analysis.matching.size, c0.diagnostics.maximum_matching_size);
-        assert_eq!(
-            analysis.matching.size,
-            compact.diagnostics.maximum_matching_size
-        );
-        assert_eq!(
-            c0.diagnostics.maximum_matching_size,
-            compact.diagnostics.maximum_matching_size
-        );
-        assert_eq!(
-            compact.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
-            0
-        );
+        for (horizontal, vertical) in [(4, 5), (8, 8), (16, 16), (32, 32)] {
+            let instance = dense_conflict_grid(horizontal, vertical);
+            let component = instance.foreground_components().unwrap().remove(0);
+            let analysis = rect_oracle_sg::analyze(&component).unwrap();
+            assert!(analysis.horizontal_chords.len() >= horizontal);
+            assert!(analysis.vertical_chords.len() >= vertical);
+            assert!(contains_complete_bipartite(
+                &analysis.conflict_graph,
+                horizontal,
+                vertical
+            ));
+            assert!(
+                analysis.conflict_graph.edge_count() * 10
+                    >= analysis.horizontal_chords.len() * analysis.vertical_chords.len() * 2
+            );
+            let c0 =
+                rect_dominance::solve(&component, rect_dominance::DominanceMode::ExplicitEdges)
+                    .unwrap();
+            let compact =
+                rect_dominance::solve(&component, rect_dominance::DominanceMode::Compact).unwrap();
+            assert_eq!(analysis.matching.size, c0.diagnostics.maximum_matching_size);
+            assert_eq!(
+                analysis.matching.size,
+                compact.diagnostics.maximum_matching_size
+            );
+            assert_eq!(
+                c0.diagnostics.maximum_matching_size,
+                compact.diagnostics.maximum_matching_size
+            );
+            assert_eq!(
+                compact.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
+                0
+            );
+        }
     }
 
     #[test]

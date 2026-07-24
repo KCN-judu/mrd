@@ -93,8 +93,22 @@ enum Command {
         max_cells: usize,
         #[arg(long, default_value_t = 40)]
         oracle_cell_limit: usize,
+        #[arg(long, default_value = "4,8,16,32,64,128")]
+        sizes: String,
         #[arg(long)]
         output: PathBuf,
+    },
+    Generate {
+        #[arg(long, value_enum)]
+        family: GenerateFamilyArg,
+        #[arg(long)]
+        horizontal: usize,
+        #[arg(long)]
+        vertical: usize,
+        #[arg(long)]
+        json: PathBuf,
+        #[arg(long)]
+        svg: PathBuf,
     },
     ExportAdversarial {
         #[arg(long)]
@@ -113,7 +127,13 @@ enum SolverArg {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
+    DenseConflict,
     Polyomino,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum GenerateFamilyArg {
+    DenseConflict,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -209,35 +229,29 @@ fn run() -> Result<(), CliError> {
             external_result,
             exact_cover_cell_limit,
             output,
-        } => {
-            let input_bytes = fs::read(&input)?;
-            let input_hash = format!("{:x}", Sha256::digest(&input_bytes));
-            let input_grid: JsonGrid = serde_json::from_slice(&input_bytes)?;
-            let grid = ColorGrid::new(input_grid.width, input_grid.height, input_grid.cells)
-                .map_err(|error| CliError::Input(error.to_string()))?;
-            let external_bytes = fs::read(external_result)?;
-            let external: rect_verify::external::ExternalOracleResult =
-                serde_json::from_slice(&external_bytes)?;
-            let report = rect_verify::external::compare_external(
-                &grid,
-                &input_hash,
-                &external,
-                exact_cover_cell_limit,
-            )
-            .map_err(|error| CliError::Verification(error.to_string()))?;
-            if !report.all_agree {
-                return Err(CliError::Verification(
-                    "external oracle disagrees with at least one Rust solver".to_owned(),
-                ));
-            }
-            write_json(&report, output.as_deref())
-        }
+        } => compare_external_command(
+            &input,
+            &external_result,
+            exact_cover_cell_limit,
+            output.as_deref(),
+        ),
         Command::Benchmark {
             suite,
             max_cells,
             oracle_cell_limit,
+            sizes,
             output,
-        } => benchmark_command(suite, max_cells, oracle_cell_limit, &output),
+        } => {
+            let sizes = parse_sizes(&sizes)?;
+            benchmark_command(suite, max_cells, oracle_cell_limit, &sizes, &output)
+        }
+        Command::Generate {
+            family,
+            horizontal,
+            vertical,
+            json,
+            svg,
+        } => generate_command(family, horizontal, vertical, &json, &svg),
         Command::ExportAdversarial { output_dir } => export_adversarial(&output_dir),
     }
 }
@@ -265,6 +279,7 @@ fn benchmark_command(
     suite: BenchmarkSuiteArg,
     max_cells: usize,
     oracle_cell_limit: usize,
+    sizes: &[usize],
     output: &Path,
 ) -> Result<(), CliError> {
     if suite == BenchmarkSuiteArg::Polyomino && max_cells == 0 {
@@ -275,6 +290,9 @@ fn benchmark_command(
     let context = benchmark_context()?;
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
+        BenchmarkSuiteArg::DenseConflict => {
+            rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
+        }
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
         }
@@ -294,6 +312,111 @@ fn benchmark_command(
             report.counterexample_count, report.solver_error_count
         )));
     }
+    Ok(())
+}
+
+fn parse_sizes(value: &str) -> Result<Vec<usize>, CliError> {
+    let sizes = value
+        .split(',')
+        .map(str::trim)
+        .map(|item| {
+            item.parse::<usize>().map_err(|_| {
+                CliError::Input(format!("dense-conflict size `{item}` is not an integer"))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if sizes.is_empty() || sizes.contains(&0) {
+        return Err(CliError::Input(
+            "dense-conflict sizes must be nonempty positive integers".to_owned(),
+        ));
+    }
+    Ok(sizes)
+}
+
+fn compare_external_command(
+    input: &Path,
+    external_result: &Path,
+    exact_cover_cell_limit: usize,
+    output: Option<&Path>,
+) -> Result<(), CliError> {
+    let input_bytes = fs::read(input)?;
+    let input_hash = format!("{:x}", Sha256::digest(&input_bytes));
+    let input_grid: JsonGrid = serde_json::from_slice(&input_bytes)?;
+    let grid = ColorGrid::new(input_grid.width, input_grid.height, input_grid.cells)
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    let external_bytes = fs::read(external_result)?;
+    let external: rect_verify::external::ExternalOracleResult =
+        serde_json::from_slice(&external_bytes)?;
+    let report = rect_verify::external::compare_external(
+        &grid,
+        &input_hash,
+        &external,
+        exact_cover_cell_limit,
+    )
+    .map_err(|error| CliError::Verification(error.to_string()))?;
+    if !report.all_agree {
+        return Err(CliError::Verification(
+            "external oracle disagrees with at least one Rust solver".to_owned(),
+        ));
+    }
+    write_json(&report, output)
+}
+
+fn generate_command(
+    family: GenerateFamilyArg,
+    horizontal: usize,
+    vertical: usize,
+    json_path: &Path,
+    svg_path: &Path,
+) -> Result<(), CliError> {
+    if horizontal == 0 || vertical == 0 {
+        return Err(CliError::Input(
+            "dense-conflict chord targets must be positive".to_owned(),
+        ));
+    }
+    let instance = match family {
+        GenerateFamilyArg::DenseConflict => {
+            rect_verify::adversarial::dense_conflict_grid(horizontal, vertical)
+        }
+    };
+    if let Some(parent) = json_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    instance
+        .write_json(json_path)
+        .map_err(|error| CliError::Output(error.to_string()))?;
+    let components = instance
+        .foreground_components()
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    let [component] = components.as_slice() else {
+        return Err(CliError::Input(format!(
+            "dense-conflict generator produced {} foreground components",
+            components.len()
+        )));
+    };
+    let analysis =
+        rect_oracle_sg::analyze(component).map_err(|error| CliError::Solver(error.to_string()))?;
+    let result = rect_dominance::solve(component, DominanceMode::Compact)
+        .map_err(|error| CliError::Solver(error.to_string()))?;
+    let (selected_horizontal, selected_vertical) = selected_chords(&result, &analysis)?;
+    let svg = render_dissection_svg(
+        component,
+        &result,
+        &SvgOverlay {
+            horizontal_chords: &analysis.horizontal_chords,
+            vertical_chords: &analysis.vertical_chords,
+            selected_horizontal: &selected_horizontal,
+            selected_vertical: &selected_vertical,
+        },
+    )?;
+    if let Some(parent) = svg_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(svg_path, svg)?;
     Ok(())
 }
 

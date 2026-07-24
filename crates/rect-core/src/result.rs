@@ -40,6 +40,8 @@ pub struct Diagnostics {
     pub biclique_total_vertex_occurrences: usize,
     pub biclique_size_per_chord: Option<ExactRatio>,
     pub biclique_size_per_explicit_edge: Option<ExactRatio>,
+    pub c0_network_vertex_count: usize,
+    pub c0_network_arc_count: usize,
     pub compressed_network_vertex_count: usize,
     pub compressed_network_arc_count: usize,
     pub maximum_matching_size: usize,
