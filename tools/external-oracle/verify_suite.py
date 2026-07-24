@@ -41,12 +41,17 @@ def adversarial_inputs(directory: Path | None, max_cells: int) -> tuple[list[Pat
     return selected, len(candidates) - len(selected)
 
 
-def run_case(input_path: Path, rect_cli: Path, work_dir: Path) -> dict[str, Any]:
+def run_case(
+    input_path: Path,
+    rect_cli: Path,
+    work_dir: Path,
+    max_time_seconds: float,
+) -> dict[str, Any]:
     case_dir = work_dir / input_path.stem
     case_dir.mkdir(parents=True, exist_ok=True)
     external_path = case_dir / "external.json"
     comparison_path = case_dir / "comparison.json"
-    external = solve_grid(input_path, None)
+    external = solve_grid(input_path, max_time_seconds)
     external_path.write_text(json.dumps(external, indent=2) + "\n")
     completed = subprocess.run(
         [
@@ -84,6 +89,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--exhaustive-height", type=int, default=3)
     parser.add_argument("--adversarial-dir", type=Path)
     parser.add_argument("--max-adversarial-grid-cells", type=int, default=64)
+    parser.add_argument("--max-time-seconds", type=float, default=30.0)
     return parser.parse_args()
 
 
@@ -99,7 +105,15 @@ def main() -> None:
         args.adversarial_dir, args.max_adversarial_grid_cells
     )
     inputs = exhaustive + adversarial
-    cases = [run_case(path, args.rect_cli, args.work_dir / "cases") for path in inputs]
+    cases = [
+        run_case(
+            path,
+            args.rect_cli,
+            args.work_dir / "cases",
+            args.max_time_seconds,
+        )
+        for path in inputs
+    ]
     discrepancies = sum(not case["all_agree"] for case in cases)
     summary = {
         "schema_version": 1,
@@ -110,6 +124,16 @@ def main() -> None:
         "timestamp": int(time.time()),
         "input_count": len(inputs),
         "component_count": sum(case["component_count"] for case in cases),
+        "input_model": "finite-colored-unit-cell-grid",
+        "unsupported_input_features": [
+            "ornaments",
+            "isolated-formal-boundary-points",
+            "line-segment-holes",
+            "point-holes",
+            "degenerate-formal-holes",
+            "general-polygon-input",
+        ],
+        "cp_sat_max_time_seconds_per_component": args.max_time_seconds,
         "exhaustive_grid_count": len(exhaustive),
         "adversarial_grid_count": len(inputs) - len(exhaustive),
         "skipped_adversarial_grid_count": skipped_adversarial,

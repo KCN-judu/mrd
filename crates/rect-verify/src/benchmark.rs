@@ -29,6 +29,8 @@ pub struct BenchmarkMetadata {
     pub timestamp: u64,
     pub input_count: usize,
     pub component_count: usize,
+    pub input_model: String,
+    pub unsupported_input_features: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -61,7 +63,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,instance_name,family,component_id,status,message,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,phase_microseconds,peak_memory_bytes"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,component_id,status,message,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,phase_microseconds,peak_memory_bytes"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -80,6 +82,8 @@ impl BenchmarkReport {
                 self.metadata.timestamp.to_string(),
                 self.metadata.input_count.to_string(),
                 self.metadata.component_count.to_string(),
+                self.metadata.input_model.clone(),
+                self.metadata.unsupported_input_features.join(";"),
                 row.instance_name.clone(),
                 row.family.clone(),
                 row.component_id.to_string(),
@@ -212,6 +216,15 @@ fn benchmark_instances(
             timestamp: context.timestamp,
             input_count: instances.len(),
             component_count: rows.len(),
+            input_model: "finite-colored-unit-cell-grid".to_owned(),
+            unsupported_input_features: vec![
+                "ornaments".to_owned(),
+                "isolated-formal-boundary-points".to_owned(),
+                "line-segment-holes".to_owned(),
+                "point-holes".to_owned(),
+                "degenerate-formal-holes".to_owned(),
+                "general-polygon-input".to_owned(),
+            ],
         },
         verified_count,
         unsupported_count,
