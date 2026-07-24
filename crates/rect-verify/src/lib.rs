@@ -1,3 +1,6 @@
+pub mod adversarial;
+pub mod transforms;
+
 use rect_core::{ColorGrid, DissectionResult, GridComponent};
 use rect_dominance::DominanceMode;
 use serde::{Deserialize, Serialize};
