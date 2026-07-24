@@ -1,55 +1,156 @@
-# Reproducible experiment baseline
+# Reproducible v0.2 experiments
 
-Date: 2026-07-24
+Evidence date: 2026-07-25 (Asia/Tokyo)
 
-Toolchain: `rustc 1.89.0`, `cargo 1.89.0`
+Code commit under test:
+`62a221ccec0528adc7f90a1e12b6b4bfab1199d4`
 
-Profile: Cargo `--release`, warm build
-Machine timing: local macOS workspace; elapsed times are informative, not claims
-about asymptotic performance.
+Environment:
 
-## Exhaustive binary grids
+- macOS 26.5 (build 25F71), arm64;
+- Apple M4, 16 GiB physical memory;
+- `rustc 1.89.0 (29483883e 2025-08-04)`;
+- Cargo release profile, warm build;
+- Python 3.13 isolated environment with OR-Tools 9.15 for the optional oracle.
 
-```bash
-/usr/bin/time -p target/release/rect-cli exhaustive \
-  --width 4 --height 4 --output exhaustive-4x4.json
-```
+Elapsed times are local wall-clock observations, not asymptotic claims. Rust
+solvers have no wall-clock timeout. Verification uses the exact-cover oracle
+through 40 component cells unless a command states otherwise. The external
+CP-SAT suite uses a 30-second limit per component.
 
-Result:
-
-```text
-grid_count      65,536
-component_count 337,058
-counterexamples 0
-real            5.19 s
-```
-
-Every component was solved by independent exact cover, explicit SG,
-dominance C0, and compact dominance flow. Every returned rectangle list was
-validated cell by cell.
-
-## Deterministic mixed-family random campaign
+## Quality gates
 
 ```bash
-/usr/bin/time -p target/release/rect-cli random \
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+```
+
+Result: all gates passed. The workspace test run reported 29 passed tests
+across 13 test binaries and doc-test groups. These tests include endpoint
+contacts, dense and topological adversarial families, mapped-back metamorphic
+validation, biclique edge-multiset auditing, and stored-regression replay.
+
+## Exhaustive and random grids
+
+```bash
+target/release/rect-cli exhaustive \
+  --width 4 --height 4 \
+  --output /tmp/exhaustive-4x4-62a221c.json
+
+target/release/rect-cli random \
   --width 8 --height 8 --cases 10000 --seed 42 \
-  --output random-8x8-seed42.json
+  --output /tmp/random-8x8-seed42-62a221c.json
 ```
 
-Result:
+| Population | Inputs | Components | Seed | Discrepancies | Elapsed |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| all binary `4x4` grids | 65,536 | 337,058 | deterministic enumeration | 0 | 5.64 s |
+| mixed-family random `8x8` grids | 10,000 | 162,162 | 42 | 0 | 9.11 s |
 
-```text
-case_count      10,000
-component_count 162,162
-counterexamples 0
-real            8.80 s
+Every `4x4` component was checked by exact cover, explicit SG,
+dominance C0, and compressed dominance flow. In the random campaign, exact
+cover was used through 40 cells; larger components still compared all three
+effective-chord pipelines and validated every returned dissection.
+
+## Adversarial benchmark
+
+```bash
+target/release/rect-cli benchmark \
+  --suite adversarial \
+  --output results/adversarial.csv
 ```
 
-The six repeating families are Bernoulli masks, connected random walks, unions
-of rectangles, combs, checkerboards, and rings/corridors. Exact cover is used for
-components up to 40 cells; larger components compare the two independent graph
-pipelines and validate feasibility/certificates.
+The deterministic population contains 17 grids and 19 foreground components:
+endpoint-contact variants, dense conflict grids, rings and multiple holes,
+nested-looking legal geometry, one-cell corridors, combs, double combs,
+staircases, spirals, reflex-heavy cases, long runs, disconnected same-color
+regions, and diagonal-only contact. All 19 components are `verified`; there are
+0 unsupported cases, solver errors, discrepancies, or counterexamples.
 
-These experiments establish agreement for the tested domain. They are not a
-proof of support for ornament or degenerate formal-hole inputs, which remain
-explicitly out of scope.
+Aggregate compact representation statistics are:
+
+| Metric | Value |
+| --- | ---: |
+| total effective chords `q` | 151 |
+| explicit conflict edges `E` | 246 |
+| bicliques | 111 |
+| total biclique size `sigma` | 295 |
+| compact network vertices | 300 |
+| compact network arcs | 446 |
+| aggregate maximum matching | 64 |
+| output rectangles | 136 |
+
+The one-biclique-per-edge C0 networks would total 435 vertices and 643 arcs on
+the same component population. The compact partition uses 31.03% fewer
+vertices and 30.64% fewer arcs. Exact per-component ratios, phase timings, and
+all requested structural fields are in `results/adversarial.csv`.
+
+## Free polyominoes
+
+The repository-sized structural CSV uses the practical bound 10:
+
+```bash
+target/release/rect-cli benchmark \
+  --suite polyomino --max-cells 10 --oracle-cell-limit 40 \
+  --output results/polyomino.csv
+```
+
+It records 6,474 verified instances: 6,473 canonical free polyominoes plus one
+explicit ordinary-hole fixture. There are 0 unsupported cases, solver errors,
+discrepancies, or counterexamples. Its aggregates are `q = 15,992`,
+`E = 8,092`, 6,294 bicliques, `sigma = 14,191`, 35,234 compact network
+vertices, and 30,183 compact network arcs. Relative to C0 totals, compact
+networks use 4.86% fewer vertices and 6.19% fewer arcs.
+
+The full requested validation was run separately to avoid committing a 35 MB
+record-level JSON file:
+
+```bash
+target/release/rect-cli polyomino \
+  --max-cells 12 --all-solvers --oracle-cell-limit 40 \
+  --output /tmp/polyomino-max12-timed-62a221c.json
+```
+
+The known canonical free counts by size 1 through 12 were
+`1, 1, 2, 5, 12, 35, 108, 369, 1,285, 4,655, 17,073, 63,600`.
+All 87,146 free polyominoes and two separately generated ordinary-hole
+fixtures were verified: 87,148 `verified`, 0 in every other status, 6.13 s.
+
+## External CP-SAT oracle
+
+```bash
+target/release/rect-cli export-adversarial \
+  --output-dir /tmp/rect-adversarial-62a221c
+
+/tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
+  --rect-cli target/release/rect-cli \
+  --exhaustive-width 2 --exhaustive-height 3 \
+  --adversarial-dir /tmp/rect-adversarial-62a221c \
+  --max-adversarial-grid-cells 64 \
+  --max-time-seconds 30 \
+  --work-dir /tmp/rect-external-suite-62a221c \
+  --output results/external-oracle.json
+```
+
+The independently parsed and modeled population contains all 64 binary `2x3`
+grids plus 4 adversarial grids, totaling 68 inputs and 187 four-connected
+components. There were 0 CP-SAT/Rust discrepancies and no CP-SAT timeout.
+Thirteen exported adversarial grids exceeded the explicit 64-grid-cell filter;
+the JSON records them in `skipped_adversarial_grid_count` rather than silently
+omitting them. Large Rust components likewise record an exact-cover skip while
+the other three pipelines continue.
+
+## Outcomes and scope
+
+Across these populations there were 0 solver discrepancies and therefore 0
+new minimized counterexamples. No supported benchmark or polyomino instance was
+marked unsupported. The repository results explicitly exclude ornaments,
+isolated formal-boundary points, line-segment holes, point holes, arbitrary
+degenerate formal holes, and general polygon input.
+
+The evidence does not establish an end-to-end `n^(1+o(1))` implementation. The
+effective-chord enumerator is exact for supported grids but is not the paper's
+`O(n log n)` enumeration algorithm, and Dinic remains the practical exact flow
+backend rather than the cited almost-linear theoretical backend.

@@ -1,0 +1,639 @@
+{
+  "schema_version": 1,
+  "git_commit": "62a221ccec0528adc7f90a1e12b6b4bfab1199d4",
+  "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+  "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 2 --exhaustive-height 3 --adversarial-dir /tmp/rect-adversarial-62a221c --max-adversarial-grid-cells 64 --max-time-seconds 30 --work-dir /tmp/rect-external-suite-62a221c --output results/external-oracle.json",
+  "seed": null,
+  "timestamp": 1784912242,
+  "input_count": 68,
+  "component_count": 187,
+  "input_model": "finite-colored-unit-cell-grid",
+  "unsupported_input_features": [
+    "ornaments",
+    "isolated-formal-boundary-points",
+    "line-segment-holes",
+    "point-holes",
+    "degenerate-formal-holes",
+    "general-polygon-input"
+  ],
+  "cp_sat_max_time_seconds_per_component": 30.0,
+  "exhaustive_grid_count": 64,
+  "adversarial_grid_count": 4,
+  "skipped_adversarial_grid_count": 13,
+  "discrepancy_count": 0,
+  "runtime_seconds": 0.3946623329538852,
+  "cases": [
+    {
+      "name": "binary-2x3-000000",
+      "input_hash": "dda6da10e14e15fbb1216e1caa5ba7d49a364ecd8a6f57d78b9c64c9c909e361",
+      "component_count": 1,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000001",
+      "input_hash": "8b1cf1c955f67d707bca43d15f9055e360c976a8bcb4480b88b86ecc17b80ac2",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000010",
+      "input_hash": "2074daabfbc1da005373884d80e080ace11cccf161f02dbf3483d170b6e8e9d4",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000011",
+      "input_hash": "f08224387543dd1f2e48748d43e85ce8a56db1f1a9bd7329a8190f6a710ee34e",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000100",
+      "input_hash": "ce8d635cafb0d688362eec1182a67446ef67bcb93d59853e4cccda24d24157de",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000101",
+      "input_hash": "10d2ace61986a951aaaa58c177f6d8c5169910546e79e83a15712693cf370117",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000110",
+      "input_hash": "d4cb56f2fd04a89ea37fc3ead4c464f2532531550b85f15c4e6538ff15d1aa65",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-000111",
+      "input_hash": "76f5862ebb69aa8a35270fa8bba8ba86db99f70ca140e323de06ab7b25eebf7a",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001000",
+      "input_hash": "fdacf99b17465533bea3ffcb7fabafcdbc90a2622208ede3bfc00894ba79932c",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001001",
+      "input_hash": "3dd1d2faad64fd936de20d4097e9c1e28508b7bc39457a49f9aff75c56de8840",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001010",
+      "input_hash": "2ca8a50653928d4919d5996e0bda4cbe0c50ead62925148343767449f720fad7",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001011",
+      "input_hash": "3aa503f42f788e8d4986a6b0b02d5fa4652600d0af2b9f7ac68fdbd6d002f08c",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001100",
+      "input_hash": "4333399606300ce48015d62906674de91d95a566c498897f5661e71c960d8ecc",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001101",
+      "input_hash": "de1bfb4748b81a56c1039251d455eb4f4c0c4b29deb0f02e5b3411097089eea6",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001110",
+      "input_hash": "9cbfa957f5ad6330163fceaa84db01adc02b69ad561a6ad8b900fe430f55201e",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-001111",
+      "input_hash": "f6a359cf7f9b04912ab6e35d0eaab99a289d0844e8f389d19226591ba04df084",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010000",
+      "input_hash": "9d64f8352cf09af005cd04e0e8b34ea4286440a08b5bc721b271e06132dc4398",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010001",
+      "input_hash": "059aa594720fc083ef8ed369661a0a7e157c7cea9ddbcc27b53e6d81e93ddfc9",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010010",
+      "input_hash": "171b7b876f3d3d4d8e53cd44aa71a980025c3d7fcfd445bda49a70c527894555",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010011",
+      "input_hash": "d97886770906ec86e15fa86c884373895b5448d594cf520a733c936bf4527575",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010100",
+      "input_hash": "39e9eca818009ba6d13feb8287364fd3ca20c557b6c0fe6e2b80db8b513d3621",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010101",
+      "input_hash": "141422e53e26b8dccaa23a8e5bebc111a6b5b579e25d96e9120330e276797ea6",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010110",
+      "input_hash": "af6ec89622982d904fb20c92d0029b0c05178b8f455b0894e19ac2160ad5a772",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-010111",
+      "input_hash": "5cc8fa22b86f4ea6f75bccfb563cbb34b75074172dce8d4c7910cc5faed47edd",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011000",
+      "input_hash": "e3d818f65a341e23161437dc8860c44efc15d053a30cf93d99a9e9c2790ca690",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011001",
+      "input_hash": "e43733403a4b974afc457e37523254229f4a6d8a7fc57be2c9b25d80a5ae0143",
+      "component_count": 6,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011010",
+      "input_hash": "1a00c75a973844336debe89cd16e1ba790b212e169a0096964bb76eebe4b534c",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011011",
+      "input_hash": "08f3d5e7e340ba40e40dfc1fcbdf929c38b0c179fafbd7885b9492857c19c097",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011100",
+      "input_hash": "f5975b34b4655f685053528c26235241358211b4148c6c611a49b5fd521b422d",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011101",
+      "input_hash": "0d760d315c47bd7f1ba41e904d148a2dc8c5ff9d4d60fd9cc6daa8d51bc28b00",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011110",
+      "input_hash": "1bde04760ef946fa1173760f20ca504774ce803fb18e609629d25c078732927c",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-011111",
+      "input_hash": "36095464d7910f83ef4f8c122bb54328bf5807314a192d232af90d430d31bf76",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100000",
+      "input_hash": "37bfdb508ceef82a377364c1965696f0630a65a5c5d9be9e282029f20568f6cd",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100001",
+      "input_hash": "7a571b661e5497d67591ea256400cc4eab4fa53e27e8da8836bb45a6827f06ba",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100010",
+      "input_hash": "34bfeff2438870c4339d65ee000b83076fda5c6175d6f338c868df1a6fb38fe2",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100011",
+      "input_hash": "954cc949b08e95c72830fb5f28703c48d98908e9d905b225e7ddf7731ce12ea4",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100100",
+      "input_hash": "0306415e70a5a4171951f61cce618bd19c5e3b3e1788da67a9e272f8365e0c0c",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100101",
+      "input_hash": "82a58722502c0e12669797e51acc13cb7e4e280a7a3a94b16659eca21ce5cebb",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100110",
+      "input_hash": "05daae2f26ef3271ffe86f8eb6752f268cb3ce8317394ffb5c484bc9c112b2c9",
+      "component_count": 6,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-100111",
+      "input_hash": "69c0e6a8ec7c028d142a4f8d9a96cf23ac8aef6d0e30208e4875ce1ad8ab301b",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101000",
+      "input_hash": "ce9fa34f52b71484f551a571aabaf070584a70206c8519ea984fa347fbee1b31",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101001",
+      "input_hash": "81a0ca3eb6ac96df30b284585d03c5a3ae1ca75d2534eafb07e7c837431deb61",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101010",
+      "input_hash": "5b8e21dd1be1b2a4a60ced9d8802a387c963edb39b1b04a2f2c765ca45bf3fb2",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101011",
+      "input_hash": "54a0dc462a84adc02c94f477c2da2e0e12d03f3878b1fe4d3711899d89f9a8d3",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101100",
+      "input_hash": "7ad6da06ab82ff9d7d291bf523cfa97af3c147cda881ceb1e1d0f0d41dc1cd08",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101101",
+      "input_hash": "5aac553462ac7c654c42ea2fc52a7f8718f1bc13d7228c4f12573f75deb36b89",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101110",
+      "input_hash": "7f29ae1a007829e48d7856a14d69495073187e7fef9423e387586b172aa59e3f",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-101111",
+      "input_hash": "ea82904bfe86fe0691bcf92470a823167b546e81c9e221ae38997a82a6cfa48a",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110000",
+      "input_hash": "9d1a00a00a7c250481a8e7d3b349adf9fb4e28c03af7e77a45734723c9f3119f",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110001",
+      "input_hash": "f63ce841c3f8d821b7c4adedda16a29b2df317c7aa3c61055b17f97739461644",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110010",
+      "input_hash": "159d60a0b98b591981ac66addbb9ef795b9bf93f820890ec5268112f54e85359",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110011",
+      "input_hash": "3c14d0563e0d7667a9ef668094b0285001152e5328db0f3a166692f1b993c288",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110100",
+      "input_hash": "c080c71aa812ae8b812ae7ce4368c8ebb94559af08ba91ce27682e1d2fe17071",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110101",
+      "input_hash": "8398469496d52d7140ddb2e63e91b191635b5e067368e4ff1b20a0da87768e1e",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110110",
+      "input_hash": "e4acbd2bbe1dcebc5e0a4b7e7f1ad1e8fe801707060497fea33be438de7fd8c2",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-110111",
+      "input_hash": "c096d7c8f661fb260ca2b5bf92e1d1661ff9e0f96312963f83d2515c28c4f3ec",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111000",
+      "input_hash": "04745e8b649fe8fe036dba5769d50a067fc4b49edf7e077483081928faea6cfe",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111001",
+      "input_hash": "342a20686b556a11444c32a642cf01ab31b11c29df620e878a07b218c28f13e6",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111010",
+      "input_hash": "85c798fd69f81fadd53ac1befd0679b6b3734c8d33580606af0f56be4c8f11e0",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111011",
+      "input_hash": "0d51d58e67a8b33354b48a4a44b9ae79113bdfe69f39c71f612bab3e23de6e15",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111100",
+      "input_hash": "7777b1b838d434f7e9c0df9771396b0acf0a0ad45a0641b73d2a4f7c4aae0707",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111101",
+      "input_hash": "ac02e05240a527ec6a6b9db3ca5b10f5adaa85504f926056af426b26f470cdbe",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111110",
+      "input_hash": "296d1eae502d3583b1b90de0054095cf7a0f632a1014a875394b891e73a509f0",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "binary-2x3-111111",
+      "input_hash": "f67790fb5d075662624b73f538fd73a5c598d6f306d00ae8c3a4969f4fb2dd7e",
+      "component_count": 1,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "002-one-hole-ring",
+      "input_hash": "166c89452624b24966a7aa951816816975fbbcc5a07c8fb784ad78482e5c9c51",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "008-staircase",
+      "input_hash": "2077b109e60d876c6d81f1dac7a0478ca7f43539bf11384493ffbc837e18ac38",
+      "component_count": 2,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "013-disconnected-same-color",
+      "input_hash": "f6c3db7a3d849663d5ceb2345ca21789adda94068c3887d7fd2b59b8cadcb746",
+      "component_count": 3,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    },
+    {
+      "name": "014-diagonal-touch-only",
+      "input_hash": "43fab00ca84af0830b8dc547516cf101c4ee02eed068a6feebe4de4f4597325e",
+      "component_count": 4,
+      "external_status": "optimal",
+      "rust_exit_code": 0,
+      "all_agree": true,
+      "stderr": null
+    }
+  ]
+}

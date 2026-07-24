@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "runs": [
+    {
+      "git_commit": "62a221ccec0528adc7f90a1e12b6b4bfab1199d4",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite adversarial --output results/adversarial.csv",
+      "seed": null,
+      "timestamp": 1784912227,
+      "input_count": 17,
+      "component_count": 19,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "62a221ccec0528adc7f90a1e12b6b4bfab1199d4",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite polyomino --max-cells 10 --oracle-cell-limit 40 --output results/polyomino.csv",
+      "seed": null,
+      "timestamp": 1784912228,
+      "input_count": 6474,
+      "component_count": 6474,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    }
+  ]
+}
