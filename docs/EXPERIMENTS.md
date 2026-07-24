@@ -1,60 +1,89 @@
 # Reproducible v0.2 experiments
 
-Evidence date: 2026-07-25 (Asia/Tokyo)
+Evidence date: 2026-07-25 (Asia/Tokyo).
 
-Code commit under test:
-`10f1b311b6907643c4609a22cbe8929b0989b6c6`
+All committed results were produced from Git commit
+`32faff61bc4577ab50010e5d253afe83f7655d83` with
+`rustc 1.89.0 (29483883e 2025-08-04)`, the Cargo release profile, macOS
+26.5 on an Apple M4, and integer-only correctness paths. The random seed was
+42. The external OR-Tools 9.15 CP-SAT oracle used seed 0 and a 30-second
+timeout per component. Rust solvers had no wall-clock timeout. Unless stated
+otherwise, skipped means a configured size filter prevented a particular
+oracle comparison; it does not mean that a supported Rust input failed.
 
-Environment:
-
-- macOS 26.5 (build 25F71), arm64;
-- Apple M4, 16 GiB physical memory;
-- `rustc 1.89.0 (29483883e 2025-08-04)`;
-- Cargo release profile, warm build;
-- Python 3.13 isolated environment with OR-Tools 9.15 for the optional oracle.
-
-Elapsed times are local wall-clock observations, not asymptotic claims. Rust
-solvers have no wall-clock timeout. Verification uses the exact-cover oracle
-through 40 component cells unless a command states otherwise. The external
-CP-SAT suite uses a 30-second limit per component.
+The machine-readable environment, commands, seeds, timeout, populations, and
+generated table paths are in `results/manifest.json`. Paper-ready correctness,
+compression, and scope tables are generated in `results/paper-tables.md` and
+the adjacent CSV files. Those files are the source of truth for tabular
+numbers; this report explains their populations and limits rather than
+maintaining duplicate tables.
 
 ## Quality gates
 
 ```bash
 cargo fmt --all -- --check
+python3 tools/check_biclique_bound.py
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-Result: all gates passed. The workspace test run reported 29 passed tests
-across 13 test binaries and doc-test groups. These tests include endpoint
-contacts, dense and topological adversarial families, mapped-back metamorphic
-validation, biclique edge-multiset auditing, and stored-regression replay.
+The release gate run passed. The workspace test command reported 30 passing
+tests across 13 test binaries and doc-test groups. These tests include
+endpoint contacts, flow-capacity certificates, dense and topological
+adversarial families, mapped-back metamorphic validation, biclique
+edge-multiset auditing, and stored-regression replay.
 
-## Exhaustive and random grids
+## 1. Exhaustive binary-grid verification
 
 ```bash
 target/release/rect-cli exhaustive \
   --width 4 --height 4 \
-  --output /tmp/exhaustive-4x4-10f1b31.json
-
-target/release/rect-cli random \
-  --width 8 --height 8 --cases 10000 --seed 42 \
-  --output /tmp/random-8x8-seed42-10f1b31.json
+  --output results/exhaustive-4x4.json
 ```
 
-| Population | Inputs | Components | Seed | Discrepancies | Elapsed |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| all binary `4x4` grids | 65,536 | 337,058 | deterministic enumeration | 0 | 5.64 s |
-| mixed-family random `8x8` grids | 10,000 | 162,162 | 42 | 0 | 9.11 s |
+The complete population is all 65,536 binary `4x4` grids and their 337,058
+four-connected monochromatic components. Exact cover, SG, C0, and compressed
+flow each made 337,058 comparisons. All 337,058 components were solved and
+validated, with 0 skipped, 0 timed out, and 0 disagreements. The measured
+wall time was 6.60 seconds.
 
-Every `4x4` component was checked by exact cover, explicit SG,
-dominance C0, and compressed dominance flow. In the random campaign, exact
-cover was used through 40 cells; larger components still compared all three
-effective-chord pipelines and validated every returned dissection.
+## 2. Random-grid verification
 
-## Adversarial benchmark
+```bash
+target/release/rect-cli random \
+  --width 8 --height 8 --cases 10000 --seed 42 \
+  --output results/random-8x8-seed42.json
+```
+
+The seeded population contains 10,000 binary `8x8` grids and 162,162
+components. SG, C0, and compressed flow solved and validated all 162,162
+components. Exact cover compared 160,900 components and skipped 1,262 above
+its 40-cell limit. There were 0 timeouts and 0 disagreements. The measured
+wall time was 9.42 seconds.
+
+## 3. Free-polyomino verification
+
+```bash
+target/release/rect-cli benchmark \
+  --suite polyomino --max-cells 10 --oracle-cell-limit 40 \
+  --output results/polyomino.csv
+
+target/release/rect-cli polyomino \
+  --max-cells 12 --all-solvers --oracle-cell-limit 40 \
+  --output /tmp/mrd-polyomino-max12-32faff6.json
+```
+
+The committed structural CSV contains 6,473 canonical free polyominoes
+through 10 cells plus one ordinary-hole fixture: 6,474 inputs and components,
+all solved, with 0 skipped, 0 timed out, and 0 disagreements. The larger
+validation contains the known 87,146 canonical free polyominoes through 12
+cells plus two separately generated ordinary-hole fixtures. All 87,148 inputs
+and components were verified, with 0 in every other status, in 6.40 seconds.
+The record-level max-12 JSON is not committed because it is about 35 MB; its
+command and aggregate are retained here and in the release notes.
+
+## 4. Adversarial verification
 
 ```bash
 target/release/rect-cli benchmark \
@@ -62,98 +91,106 @@ target/release/rect-cli benchmark \
   --output results/adversarial.csv
 ```
 
-The deterministic population contains 17 grids and 19 foreground components:
-endpoint-contact variants, dense conflict grids, rings and multiple holes,
-nested-looking legal geometry, one-cell corridors, combs, double combs,
-staircases, spirals, reflex-heavy cases, long runs, disconnected same-color
-regions, and diagonal-only contact. All 19 components are `verified`; there are
-0 unsupported cases, solver errors, discrepancies, or counterexamples.
+This deterministic population contains 17 grids and 19 foreground
+components spanning endpoint contacts, rings and multiple holes, narrow
+corridors, combs and double combs, staircases, spirals, dense conflicts,
+reflex-heavy shapes, long runs, disconnected same-color regions, and
+diagonal-only contact. SG, C0, and compressed flow solved all 19 components;
+exact cover compared 9 and skipped 10 above its configured cell limit. There
+were 0 unsupported components, 0 timeouts, 0 solver errors, and 0
+disagreements. No minimized regression fixture was created because no
+counterexample occurred.
 
-Aggregate compact representation statistics are:
-
-| Metric | Value |
-| --- | ---: |
-| total effective chords `q` | 151 |
-| explicit conflict edges `E` | 246 |
-| bicliques | 111 |
-| total biclique size `sigma` | 295 |
-| compact network vertices | 300 |
-| compact network arcs | 446 |
-| aggregate maximum matching | 64 |
-| output rectangles | 136 |
-
-The one-biclique-per-edge C0 networks would total 435 vertices and 643 arcs on
-the same component population. The compact partition uses 31.03% fewer
-vertices and 30.64% fewer arcs. Exact per-component ratios, phase timings, and
-all requested structural fields are in `results/adversarial.csv`. The
-`peak_memory_bytes` field is blank because this run did not have a portable
-process-level peak-memory sampler; blank means unmeasured, not zero.
-
-## Free polyominoes
-
-The repository-sized structural CSV uses the practical bound 10:
+## 5. External CP-SAT comparisons
 
 ```bash
-target/release/rect-cli benchmark \
-  --suite polyomino --max-cells 10 --oracle-cell-limit 40 \
-  --output results/polyomino.csv
-```
-
-It records 6,474 verified instances: 6,473 canonical free polyominoes plus one
-explicit ordinary-hole fixture. There are 0 unsupported cases, solver errors,
-discrepancies, or counterexamples. Its aggregates are `q = 15,992`,
-`E = 8,092`, 6,294 bicliques, `sigma = 14,191`, 35,234 compact network
-vertices, and 30,183 compact network arcs. Relative to C0 totals, compact
-networks use 4.86% fewer vertices and 6.19% fewer arcs.
-
-The full requested validation was run separately to avoid committing a 35 MB
-record-level JSON file:
-
-```bash
-target/release/rect-cli polyomino \
-  --max-cells 12 --all-solvers --oracle-cell-limit 40 \
-  --output /tmp/polyomino-max12-timed-10f1b31.json
-```
-
-The known canonical free counts by size 1 through 12 were
-`1, 1, 2, 5, 12, 35, 108, 369, 1,285, 4,655, 17,073, 63,600`.
-All 87,146 free polyominoes and two separately generated ordinary-hole
-fixtures were verified: 87,148 `verified`, 0 in every other status, 6.13 s.
-
-## External CP-SAT oracle
-
-```bash
-target/release/rect-cli export-adversarial \
-  --output-dir /tmp/rect-adversarial-10f1b31
-
-/tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
+tools/external-oracle/verify_suite.py \
   --rect-cli target/release/rect-cli \
-  --exhaustive-width 2 --exhaustive-height 3 \
-  --adversarial-dir /tmp/rect-adversarial-10f1b31 \
-  --max-adversarial-grid-cells 64 \
+  --exhaustive-width 3 --exhaustive-height 3 \
+  --polyomino-max-cells 10 \
+  --adversarial-dir /tmp/mrd-adversarial-final-32faff6 \
+  --max-adversarial-grid-cells 20000 \
+  --max-component-cells 40 --exact-cover-cell-limit 40 \
   --max-time-seconds 30 \
-  --work-dir /tmp/rect-external-suite-10f1b31 \
+  --work-dir /tmp/mrd-external-final-32faff6 \
   --output results/external-oracle.json
 ```
 
-The independently parsed and modeled population contains all 64 binary `2x3`
-grids plus 4 adversarial grids, totaling 68 inputs and 187 four-connected
-components. There were 0 CP-SAT/Rust discrepancies and no CP-SAT timeout.
-Thirteen exported adversarial grids exceeded the explicit 64-grid-cell filter;
-the JSON records them in `skipped_adversarial_grid_count` rather than silently
-omitting them. None of the 187 selected components exceeded the Rust
-exact-cover cutoff. Larger selected components would record that solver skip
-while the other three pipelines continue.
+The Python oracle independently parses grid JSON and enumerates valid
+monochromatic rectangles without calling Rust geometry. It selected 6,998
+inputs and 27,228 components: all 512 binary `3x3` grids (1,794 components),
+all 6,473 free polyominoes through 10 cells (25,390 components), and 13
+adversarial grids (44 components). CP-SAT, exact cover, SG, C0, and compressed
+flow all compared all 27,228 selected components. All 6,998 inputs were
+verified; 11 larger adversarial grids were explicitly skipped by the input
+filter, while selected components had 0 unsupported, 0 solver errors, 0
+timeouts, and 0 disagreements. Wall time was 41.21 seconds.
 
-## Outcomes and scope
+## 6. Biclique-partition audits
 
-Across these populations there were 0 solver discrepancies and therefore 0
-new minimized counterexamples. No supported benchmark or polyomino instance was
-marked unsupported. The repository results explicitly exclude ornaments,
-isolated formal-boundary points, line-segment holes, point holes, arbitrary
-degenerate formal holes, and general polygon input.
+Every compressed-solver invocation for a feasible explicit graph audits the
+block multiset against independently generated geometric conflict edges. The
+audit checks nonempty blocks, unique vertex IDs, actual Cartesian-product
+edges, no missing or fabricated edge, multiplicity exactly one, strict
+recursive decrease, and termination. The recorded correctness populations
+plus the six dense instances exercised 532,947 compact solver/audit
+invocations. Every audit passed; 0 edges were missing, fabricated, or
+duplicated, so 0 inputs were skipped, timed out, or disagreed at this layer.
+Exact discrepancy counts are retained even when stored offending-edge samples
+are bounded.
 
-The evidence does not establish an end-to-end `n^(1+o(1))` implementation. The
-effective-chord enumerator is exact for supported grids but is not the paper's
-`O(n log n)` enumeration algorithm, and Dinic remains the practical exact flow
-backend rather than the cited almost-linear theoretical backend.
+## 7. Dense-conflict compression benchmarks
+
+```bash
+target/release/rect-cli benchmark \
+  --suite dense-conflict --sizes 4,8,16,32,64,128 \
+  --output results/dense-conflict.csv
+```
+
+All six geometry-backed grids and their six components were solved, with 0
+skipped, 0 timed out, and 0 disagreements. From size 4 to 128, `q` grew from
+16 to 512, explicit conflict edges from 32 to 16,896, and biclique incidence
+size `sigma` from 40 to 1,619. C0 arcs grew from 80 to 34,304 while compact
+arcs grew from 56 to 2,131, an observed arc reduction from 30.00% to 93.79%.
+These measurements demonstrate compression on this deterministic family; they
+do not establish a new asymptotic law. Phase timings and all intermediate
+sizes are in the generated compression table.
+
+## 8. Metamorphic tests
+
+```bash
+cargo test -p rect-verify transforms
+```
+
+The fixture is transformed by translation, horizontal and vertical
+reflection, rotations by 90, 180, and 270 degrees, main-diagonal reflection,
+and uniform scaling by two. Exact cover, SG, C0, and compressed flow produce
+32 mapped-back dissections, all validated against the original cells and all
+with invariant optimum counts. This deterministic test has one source grid,
+eight transformed cases, 32 solver results, and 0 skipped, timed out, or
+disagreed results. A separate count-invariance regression covers the same
+geometric laws at the public verification layer.
+
+## 9. Known unsupported input classes
+
+The input model is finite colored unit-cell grids with ordinary nondegenerate
+holes. Ornaments, isolated formal-boundary points, line-segment holes, point
+holes, arbitrary degenerate formal holes, and general polygon input are
+outside the accepted model. They are listed in every benchmark's metadata and
+in the generated scope table. Consequently the experiment population for
+these classes is 0 grids and 0 components: 0 solved, 0 configured skips, 0
+timeouts, and 0 disagreements. This is a declared scope boundary, not evidence
+that those theoretical cases are implemented.
+
+## 10. Gap to the theoretical asymptotic algorithm
+
+The effective-chord enumerator is exact for supported grids but uses aligned
+reflex-pair tests rather than the classical `O(n log n)`
+Soltan--Gorpinevich sweep. The compact flow implementation uses Dinic, not the
+cited deterministic almost-linear exact-flow backend. The constructive
+four-coordinate dominance recursion is implemented and audited with the
+correct `O(q log^4 q)` Cardinal--Yuditsky upper bound, but the artifact as a
+whole is not an end-to-end `n^(1+o(1))` implementation. This scope statement
+does not add a separate experimental population: 0 grids and components were
+claimed for the unimplemented backends, hence 0 solved, skipped, timed out, or
+disagreed results for them.

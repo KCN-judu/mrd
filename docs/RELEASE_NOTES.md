@@ -8,13 +8,21 @@ This release hardens the finite colored-grid verification artifact with:
 - 10,000 deterministic random `8x8` grids, seed 42, and 162,162 components;
 - all 87,146 canonical free polyominoes through 12 cells plus two explicit
   ordinary-hole fixtures;
-- independent CP-SAT comparisons for all binary `3x3` grids, all free
-  polyominoes through 10 cells, and bounded endpoint/topology/dense adversarial
-  fixtures;
+- independent CP-SAT comparisons on 6,998 inputs and 27,228 components: all
+  binary `3x3` grids, all free polyominoes through 10 cells, and 13 bounded
+  endpoint/topology/dense adversarial fixtures;
 - exact biclique-partition audits for missing, fabricated, and duplicate edges;
 - geometry-backed dense-conflict benchmarks through requested size 128;
 - generated correctness, compression, and supported-scope tables;
 - the corrected four-dimensional Cardinal--Yuditsky bound `O(q log^4 q)`.
+
+The CP-SAT campaign completed all 27,228 selected component comparisons with
+0 timeouts, 0 unsupported components, 0 solver errors, and 0 disagreements;
+11 larger adversarial grids were explicitly excluded by the configured input
+limit. Across the geometry-backed dense family from size 4 through 128,
+explicit conflict edges grew from 32 to 16,896, biclique incidence size from
+40 to 1,619, and compact-flow arc reduction from 30.00% to 93.79%. Every
+tested compact decomposition passed the exact edge-multiplicity audit.
 
 The supported model is finite colored unit-cell grids with ordinary
 nondegenerate holes. Ornaments, isolated formal-boundary points, line-segment
