@@ -190,26 +190,14 @@ fn run() -> Result<(), CliError> {
             width,
             height,
             output,
-        } => match rect_verify::exhaustive_binary(width, height) {
-            Ok(report) => write_json(&report, output.as_deref()),
-            Err(error) => {
-                persist_counterexample(&error)?;
-                Err(CliError::Verification(error.to_string()))
-            }
-        },
+        } => exhaustive_command(width, height, output.as_deref()),
         Command::Random {
             width,
             height,
             cases,
             seed,
             output,
-        } => match rect_verify::random_binary(width, height, cases, seed) {
-            Ok(report) => write_json(&report, output.as_deref()),
-            Err(error) => {
-                persist_counterexample(&error)?;
-                Err(CliError::Verification(error.to_string()))
-            }
-        },
+        } => random_command(width, height, cases, seed, output.as_deref()),
         Command::Polyomino {
             max_cells,
             all_solvers,
@@ -222,7 +210,13 @@ fn run() -> Result<(), CliError> {
                 ));
             }
             let summary = rect_verify::polyomino::verify_polyominoes(max_cells, oracle_cell_limit);
-            write_json(&summary, output.as_deref())
+            write_experiment_json(
+                &summary,
+                None,
+                summary.records.len(),
+                summary.records.len(),
+                output.as_deref(),
+            )
         }
         Command::CompareExternal {
             input,
@@ -253,6 +247,40 @@ fn run() -> Result<(), CliError> {
             svg,
         } => generate_command(family, horizontal, vertical, &json, &svg),
         Command::ExportAdversarial { output_dir } => export_adversarial(&output_dir),
+    }
+}
+
+fn exhaustive_command(width: usize, height: usize, output: Option<&Path>) -> Result<(), CliError> {
+    match rect_verify::exhaustive_binary(width, height) {
+        Ok(report) => {
+            let input_count = usize::try_from(report.grid_count)
+                .map_err(|_| CliError::Output("grid count exceeds usize".to_owned()))?;
+            let component_count = usize::try_from(report.component_count)
+                .map_err(|_| CliError::Output("component count exceeds usize".to_owned()))?;
+            write_experiment_json(&report, None, input_count, component_count, output)
+        }
+        Err(error) => {
+            persist_counterexample(&error)?;
+            Err(CliError::Verification(error.to_string()))
+        }
+    }
+}
+
+fn random_command(
+    width: usize,
+    height: usize,
+    cases: usize,
+    seed: u64,
+    output: Option<&Path>,
+) -> Result<(), CliError> {
+    match rect_verify::random_binary(width, height, cases, seed) {
+        Ok(report) => {
+            write_experiment_json(&report, Some(seed), cases, report.component_count, output)
+        }
+        Err(error) => {
+            persist_counterexample(&error)?;
+            Err(CliError::Verification(error.to_string()))
+        }
     }
 }
 
@@ -502,6 +530,42 @@ fn write_text(path: &Path, value: &str) -> Result<(), CliError> {
     }
     fs::write(path, value)?;
     Ok(())
+}
+
+fn write_experiment_json(
+    report: &impl Serialize,
+    seed: Option<u64>,
+    input_count: usize,
+    component_count: usize,
+    output: Option<&Path>,
+) -> Result<(), CliError> {
+    let context = benchmark_context()?;
+    let mut value = serde_json::to_value(report)?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| CliError::Output("experiment report is not a JSON object".to_owned()))?;
+    object.insert(
+        "metadata".to_owned(),
+        serde_json::to_value(rect_verify::benchmark::BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed,
+            timestamp: context.timestamp,
+            input_count,
+            component_count,
+            input_model: "finite-colored-unit-cell-grid".to_owned(),
+            unsupported_input_features: vec![
+                "ornaments".to_owned(),
+                "isolated-formal-boundary-points".to_owned(),
+                "line-segment-holes".to_owned(),
+                "point-holes".to_owned(),
+                "degenerate-formal-holes".to_owned(),
+                "general-polygon-input".to_owned(),
+            ],
+        })?,
+    );
+    write_json(&value, output)
 }
 
 fn benchmark_context() -> Result<rect_verify::benchmark::BenchmarkContext, CliError> {

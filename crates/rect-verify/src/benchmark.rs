@@ -41,6 +41,7 @@ pub struct BenchmarkRow {
     pub component_id: usize,
     pub status: String,
     pub message: Option<String>,
+    pub exact_cover_compared: bool,
     pub diagnostics: Diagnostics,
     pub c0_phase_microseconds: BTreeMap<String, u128>,
     pub compressed_phase_microseconds: BTreeMap<String, u128>,
@@ -66,7 +67,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,peak_memory_bytes"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,peak_memory_bytes"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -97,6 +98,7 @@ impl BenchmarkReport {
                 row.component_id.to_string(),
                 row.status.clone(),
                 row.message.clone().unwrap_or_default(),
+                row.exact_cover_compared.to_string(),
                 row.diagnostics.cell_count.to_string(),
                 row.diagnostics.boundary_complexity.to_string(),
                 row.diagnostics.hole_count.to_string(),
@@ -220,6 +222,7 @@ fn benchmark_instances(
                 component_id: 0,
                 status: "unsupported".to_owned(),
                 message: Some(error.to_string()),
+                exact_cover_compared: false,
                 diagnostics: Diagnostics::default(),
                 c0_phase_microseconds: BTreeMap::new(),
                 compressed_phase_microseconds: BTreeMap::new(),
@@ -281,6 +284,7 @@ fn benchmark_component<C>(
                 component_id: component.id.0,
                 status: "verified".to_owned(),
                 message: None,
+                exact_cover_compared: verification.exact_cover.is_some(),
                 diagnostics: verification.dominance_compact.diagnostics,
                 c0_phase_microseconds,
                 compressed_phase_microseconds,
@@ -301,6 +305,7 @@ fn benchmark_component<C>(
                 component_id: component.id.0,
                 status: status.to_owned(),
                 message: Some(error.to_string()),
+                exact_cover_compared: component.cell_count() <= oracle_cell_limit,
                 diagnostics: Diagnostics {
                     cell_count: component.cell_count(),
                     ..Diagnostics::default()

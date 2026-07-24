@@ -187,6 +187,12 @@ def run_case(
         "rust_comparison_component_count": len(comparison["components"])
         if comparison
         else 0,
+        "exact_cover_comparison_count": sum(
+            "exact-cover" in component["rust_optima"]
+            for component in comparison["components"]
+        )
+        if comparison
+        else 0,
         "disagreement_component_count": disagreement_count,
         "status": status,
         "rust_exit_code": completed.returncode,
@@ -246,6 +252,18 @@ def main() -> None:
         suite_summaries[suite] = {
             "input_count": len(suite_cases),
             "component_count": sum(case["component_count"] for case in suite_cases),
+            "cp_sat_comparison_count": sum(
+                case["cp_sat_optimal_component_count"] for case in suite_cases
+            ),
+            "exact_cover_comparison_count": sum(
+                case["exact_cover_comparison_count"] for case in suite_cases
+            ),
+            "rust_comparison_component_count": sum(
+                case["rust_comparison_component_count"] for case in suite_cases
+            ),
+            "disagreement_component_count": sum(
+                case["disagreement_component_count"] for case in suite_cases
+            ),
             "status_counts": dict(Counter(case["status"] for case in suite_cases)),
         }
     summary = {
@@ -269,6 +287,9 @@ def main() -> None:
         "rust_comparison_component_count": sum(
             case["rust_comparison_component_count"] for case in cases
         ),
+        "exact_cover_comparison_count": sum(
+            case["exact_cover_comparison_count"] for case in cases
+        ),
         "disagreement_component_count": sum(
             case["disagreement_component_count"] for case in cases
         ),
@@ -286,6 +307,8 @@ def main() -> None:
         "exact_cover_cell_limit": args.exact_cover_cell_limit,
         "max_component_cells": args.max_component_cells,
         "exhaustive_grid_count": len(exhaustive),
+        "exhaustive_width": args.exhaustive_width,
+        "exhaustive_height": args.exhaustive_height,
         "polyomino_input_count": len(polyominoes),
         "polyomino_count_by_size": polyomino_count_by_size,
         "adversarial_grid_count": len(adversarial),

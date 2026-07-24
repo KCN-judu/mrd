@@ -130,6 +130,11 @@ pub struct ExhaustiveReport {
     pub height: usize,
     pub grid_count: u64,
     pub component_count: u64,
+    pub exact_cover_comparison_count: u64,
+    pub sg_comparison_count: u64,
+    pub c0_comparison_count: u64,
+    pub compressed_comparison_count: u64,
+    pub counterexample_count: u64,
 }
 
 /// Enumerates all binary grids of the requested dimensions.
@@ -186,6 +191,11 @@ pub fn exhaustive_binary(
         height,
         grid_count,
         component_count,
+        exact_cover_comparison_count: component_count,
+        sg_comparison_count: component_count,
+        c0_comparison_count: component_count,
+        compressed_comparison_count: component_count,
+        counterexample_count: 0,
     })
 }
 
@@ -196,6 +206,11 @@ pub struct RandomReport {
     pub cases: usize,
     pub seed: u64,
     pub component_count: usize,
+    pub exact_cover_comparison_count: usize,
+    pub sg_comparison_count: usize,
+    pub c0_comparison_count: usize,
+    pub compressed_comparison_count: usize,
+    pub counterexample_count: usize,
 }
 
 /// Verifies deterministic cases from six shape families.
@@ -215,6 +230,7 @@ pub fn random_binary(
         .ok_or(VerificationError::EnumerationTooLarge)?;
     let mut random = SplitMix64::new(seed);
     let mut component_count = 0;
+    let mut exact_cover_comparison_count = 0;
     for case_index in 0..cases {
         let family = case_index % 6;
         let cells = random_case(width, height, cell_count, family, &mut random);
@@ -232,6 +248,7 @@ pub fn random_binary(
         component_count += components.len();
         for component in components {
             let limit = if component.cell_count() <= 40 { 40 } else { 0 };
+            exact_cover_comparison_count += usize::from(limit != 0);
             if let Err(error) = verify_component(&component, limit) {
                 return Err(VerificationError::Fixture {
                     fixture: GridFixture {
@@ -250,6 +267,11 @@ pub fn random_binary(
         cases,
         seed,
         component_count,
+        exact_cover_comparison_count,
+        sg_comparison_count: component_count,
+        c0_comparison_count: component_count,
+        compressed_comparison_count: component_count,
+        counterexample_count: 0,
     })
 }
 
