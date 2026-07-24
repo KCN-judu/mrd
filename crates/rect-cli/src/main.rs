@@ -1,6 +1,8 @@
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::Command as ProcessCommand;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
@@ -81,6 +83,16 @@ enum Command {
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    Benchmark {
+        #[arg(long, value_enum)]
+        suite: BenchmarkSuiteArg,
+        #[arg(long, default_value_t = 12)]
+        max_cells: usize,
+        #[arg(long, default_value_t = 40)]
+        oracle_cell_limit: usize,
+        #[arg(long)]
+        output: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -89,6 +101,12 @@ enum SolverArg {
     SgExplicit,
     DominanceC0,
     DominanceCompressed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum BenchmarkSuiteArg {
+    Adversarial,
+    Polyomino,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -201,7 +219,49 @@ fn run() -> Result<(), CliError> {
             }
             write_json(&report, output.as_deref())
         }
+        Command::Benchmark {
+            suite,
+            max_cells,
+            oracle_cell_limit,
+            output,
+        } => benchmark_command(suite, max_cells, oracle_cell_limit, &output),
     }
+}
+
+fn benchmark_command(
+    suite: BenchmarkSuiteArg,
+    max_cells: usize,
+    oracle_cell_limit: usize,
+    output: &Path,
+) -> Result<(), CliError> {
+    if suite == BenchmarkSuiteArg::Polyomino && max_cells == 0 {
+        return Err(CliError::Input(
+            "polyomino benchmark requires --max-cells greater than zero".to_owned(),
+        ));
+    }
+    let context = benchmark_context()?;
+    let report = match suite {
+        BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
+        BenchmarkSuiteArg::Polyomino => {
+            rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
+        }
+    };
+    let csv = report
+        .to_csv()
+        .map_err(|error| CliError::Output(error.to_string()))?;
+    write_text(output, &csv)?;
+    let manifest_path = output
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("manifest.json");
+    update_manifest(&manifest_path, report.metadata.clone())?;
+    if report.counterexample_count != 0 || report.solver_error_count != 0 {
+        return Err(CliError::Verification(format!(
+            "benchmark recorded {} counterexamples and {} solver errors",
+            report.counterexample_count, report.solver_error_count
+        )));
+    }
+    Ok(())
 }
 
 fn solve_command(
@@ -274,6 +334,61 @@ fn write_json(value: &impl Serialize, path: Option<&Path>) -> Result<(), CliErro
         io::stdout().write_all(&bytes)?;
     }
     Ok(())
+}
+
+fn write_text(path: &Path, value: &str) -> Result<(), CliError> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, value)?;
+    Ok(())
+}
+
+fn benchmark_context() -> Result<rect_verify::benchmark::BenchmarkContext, CliError> {
+    let git_output = ProcessCommand::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()?;
+    if !git_output.status.success() {
+        return Err(CliError::Output(
+            "cannot resolve the current Git commit".to_owned(),
+        ));
+    }
+    let rustc_output = ProcessCommand::new("rustc").arg("--version").output()?;
+    if !rustc_output.status.success() {
+        return Err(CliError::Output("cannot resolve rustc version".to_owned()));
+    }
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| CliError::Output(error.to_string()))?
+        .as_secs();
+    Ok(rect_verify::benchmark::BenchmarkContext {
+        git_commit: String::from_utf8(git_output.stdout)
+            .map_err(|error| CliError::Output(error.to_string()))?
+            .trim()
+            .to_owned(),
+        rustc_version: String::from_utf8(rustc_output.stdout)
+            .map_err(|error| CliError::Output(error.to_string()))?
+            .trim()
+            .to_owned(),
+        command: std::env::args().collect::<Vec<_>>().join(" "),
+        seed: None,
+        timestamp,
+    })
+}
+
+fn update_manifest(
+    path: &Path,
+    metadata: rect_verify::benchmark::BenchmarkMetadata,
+) -> Result<(), CliError> {
+    let mut manifest = if path.exists() {
+        serde_json::from_slice::<rect_verify::benchmark::ExperimentManifest>(&fs::read(path)?)?
+    } else {
+        rect_verify::benchmark::ExperimentManifest::default()
+    };
+    manifest.runs.push(metadata);
+    write_json(&manifest, Some(path))
 }
 
 fn write_svg_files(
@@ -369,10 +484,8 @@ fn persist_counterexample(error: &rect_verify::VerificationError) -> Result<(), 
     let Some(fixture) = error.fixture() else {
         return Ok(());
     };
-    let directory = Path::new("test-data/counterexamples");
-    fs::create_dir_all(directory)?;
-    let bytes = serde_json::to_vec_pretty(fixture)?;
-    fs::write(directory.join("first.json"), bytes)?;
+    rect_verify::minimize::write_regression_bundle(Path::new("test-data/regressions"), fixture)
+        .map_err(|error| CliError::Output(error.to_string()))?;
     Ok(())
 }
 
@@ -392,4 +505,6 @@ enum CliError {
     Verification(String),
     #[error("invalid certificate: {0}")]
     Certificate(String),
+    #[error("cannot produce requested output: {0}")]
+    Output(String),
 }

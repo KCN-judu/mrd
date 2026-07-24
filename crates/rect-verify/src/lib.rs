@@ -1,5 +1,7 @@
 pub mod adversarial;
+pub mod benchmark;
 pub mod external;
+pub mod minimize;
 pub mod polyomino;
 pub mod transforms;
 
