@@ -342,3 +342,28 @@ CompactOnly path-tree runs on the clean family retain
 `explicit_conflict_edge_count: null` and all forbidden execution-trace flags
 false. The selector now evaluates both orientations; the grid dual remains an
 area-sensitive reference construction rather than the paper's planar sweep.
+
+## v0.6 true compact path-tree evidence
+
+The v0.6 implementation is committed in `fe9c29d`. CompactOnly path-tree
+records contain endpoint-only `CompactTreePath` values; explicit
+`ChordTreePath` edge vectors and per-path BFS are retained only by
+FullyAudited. CompactOnly defaults to `BoundaryLaminar`, while
+`ReferenceAreaFloodFill` remains available through `--region-dual reference-area`
+for differential debugging.
+
+The trace contract records
+`full_tree_path_edge_lists_materialized=false`, `per_path_bfs_called=false`,
+`area_flood_fill_dual_built=false`, `unit_chord_cuts_materialized=false`, and
+`prepared_occupancy_transposed=false` on the CompactOnly boundary path. The
+SVG regression uses geometry-only analysis and preserves these flags.
+
+The boundary dual is checked against the area dual by chord-labelled path edge
+sets on the small clean population. The compact boundary backend matches the
+independent compact 4D output on every non-empty binary 3x3 clean component.
+The full 4x4 campaign is an explicit release-mode gate because its 155,389
+eligible components are machine-dependent. The scaled clean
+complete-bipartite compact benchmark is in
+`results/v0.6-clean-complete-bipartite-compact.csv` for `t=1,2,4,8,16,32,64,128`;
+all rows are verified and the path-edge record count remains zero while
+`q=4t` grows to 512.

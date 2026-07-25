@@ -396,6 +396,24 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "fe9c29d132326729935c58c1a29877ea1856e83e",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-complete-bipartite-compact --sizes 1,2,4,8,16,32,64,128 --output results/v0.6-clean-complete-bipartite-compact.csv",
+      "seed": null,
+      "timestamp": 1784984068,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-grid-clean-complete-bipartite-compact",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {
@@ -458,12 +476,34 @@
       "result_commits": [
         "602df9ad4737c067311f438c94ddf880fd6c7ca1"
       ]
+    },
+    {
+      "version": "0.5.0-clean-hole-free-path-tree",
+      "tag": "v0.5.0-clean-hole-free-path-tree",
+      "peeled_commit": "c8646f60c2056c4c87811e4e93ca6e75edd06d6b",
+      "evidence": "clean census, symmetric path-tree geometry, and complete-bipartite family",
+      "result_commits": [
+        "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
+        "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca"
+      ]
+    },
+    {
+      "version": "0.6.0",
+      "tag": "v0.6.0-true-compact-path-tree",
+      "peeled_commit": "PENDING",
+      "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
+      "result_commits": [
+        "fe9c29d132326729935c58c1a29877ea1856e83e"
+      ]
     }
   ],
   "generated_tables": [
     "results/correctness-table.csv",
     "results/compression-table.csv",
     "results/scope-table.csv",
-    "results/paper-tables.md"
+    "results/paper-tables.md",
+    "results/v0.6-clean-complete-bipartite-compact.csv",
+    "results/v0.6-clean-complete-bipartite-compact-summary.json",
+    "results/v0.6-clean-complete-bipartite-compact.md"
   ]
 }

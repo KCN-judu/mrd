@@ -70,7 +70,7 @@ four-dimensional edge partition with a geometry-derived region dual and tree
 paths. FullyAudited retains the area-flood-fill dual, explicit per-path BFS,
 and both vertical-tree/horizontal-path and horizontal-tree/vertical-path
 orientations as independent oracles. CompactOnly uses the boundary-laminar
-dual and endpoint-only HLD records (`CompactTreePath`), so it stores no
+dual (`BoundaryLaminar`) and endpoint-only HLD records (`CompactTreePath`), so it stores no
 per-path edge list and does not transpose the prepared occupancy. Heavy-light
 canonical segment nodes produce the bicliques consumed by the same compressed
 flow backend. `--representation auto` selects this representation only when

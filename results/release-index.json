@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
-  "current_workspace_version": "0.5.0",
+  "current_workspace_version": "0.6.0",
   "defaults": {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
     "compact_rectangle_recovery_backend": "dense-grid",
     "compact_conflict_representation": "dominance-4d",
-    "fully_audited_completion_backend": "reference-rescan"
+    "compact_region_dual": "boundary-laminar",
+    "fully_audited_completion_backend": "reference-rescan",
+    "fully_audited_region_dual": "reference-area"
   },
   "releases": [
     {
@@ -60,6 +62,15 @@
         "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
         "d90acb5",
         "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca"
+      ]
+    },
+    {
+      "version": "0.6.0",
+      "tag": "v0.6.0-true-compact-path-tree",
+      "peeled_commit": "PENDING",
+      "evidence": "boundary-laminar region dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
+      "result_commits": [
+        "fe9c29d132326729935c58c1a29877ea1856e83e"
       ]
     }
   ]

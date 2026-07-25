@@ -9,5 +9,5 @@ almost-linear theoretical flow backend,used asymptotically,not implemented,no,ci
 explicit rectangle output,constructive completion,implemented,yes,cell-exact validation
 machine-checkable certificates,not an artifact requirement,implemented,yes,"matching, partition, flow, cut, and rectangles"
 clean hole-free eligibility,Definition 9.1,integer grid classifier with loop identities,yes,"component and chord-mass census; ornaments remain out of model"
-path-tree biclique partition,Theorems 9.5-9.6,area-sensitive vertical dual plus HLD,yes,"FullyAudited path-neighbor and edge-partition audits"
+path-tree biclique partition,Theorems 9.5-9.6,"BoundaryLaminar dual plus endpoint-only HLD in CompactOnly; area dual oracle in FullyAudited",yes,"dual/path differential audits; no compact path-edge lists"
 clean complete-bipartite family,Theorem 9.2,unsupported integer-grid realization,scope rejection,"no fabricated dense approximation is emitted"

@@ -35,9 +35,11 @@
   reference-rescan backend remains selectable as an Oracle and FullyAudited
   continues to use it by default.
 - The clean-hole-free path-tree representation is an additional specialized
-  backend. It now evaluates both tree/path orientations and records the
-  smaller compact partition, but both grid reference duals are area-sensitive
-  and do not implement the paper's planar-sweep construction.
+  backend. FullyAudited retains the area-flood-fill dual and both orientations
+  as independent oracles. CompactOnly uses the boundary-laminar dual and
+  endpoint-only HLD without per-path edge vectors or prepared-grid transpose;
+  this finite-grid interval construction does not implement the paper's
+  general polygon planar sweep.
 - Prepared occupancy, cut arrays, recovery state, and validation are dense in
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less
