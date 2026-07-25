@@ -403,6 +403,10 @@ fn normalize(mut cells: Vec<SignedCell>) -> Vec<SignedCell> {
 
 #[cfg(test)]
 mod tests {
+    use rect_oracle_sg::{
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
+    };
+
     use super::{
         Polyomino, PolyominoStatus, enumerate_free_polyominoes, explicit_hole_polyominoes,
         verify_polyominoes,
@@ -438,5 +442,38 @@ mod tests {
                 .iter()
                 .all(|record| record.status == PolyominoStatus::Verified)
         );
+    }
+
+    #[test]
+    fn grid_runs_match_reference_for_all_polyominoes_through_twelve_cells() {
+        let instances = enumerate_free_polyominoes(12)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(index, polyomino)| {
+                polyomino.to_instance(format!("differential-{index}"), "free-polyomino")
+            })
+            .chain(explicit_hole_polyominoes(12));
+        for instance in instances {
+            for component in instance.foreground_components().unwrap() {
+                let boundary = rect_core::Boundary::from_component(&component).unwrap();
+                let reference = ReferencePairwiseEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                let grid_runs = GridInteriorRunEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                assert_eq!(
+                    reference.horizontal, grid_runs.horizontal,
+                    "horizontal family mismatch for {}",
+                    instance.name
+                );
+                assert_eq!(
+                    reference.vertical, grid_runs.vertical,
+                    "vertical family mismatch for {}",
+                    instance.name
+                );
+            }
+        }
     }
 }

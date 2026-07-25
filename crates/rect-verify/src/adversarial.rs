@@ -576,10 +576,14 @@ pub enum AdversarialError {
 mod tests {
     use rect_core::closed_chords_intersect;
     use rect_dominance::embedding::{DominanceEmbedding, strict_dominance};
+    use rect_oracle_sg::{
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
+    };
 
     use super::{
         contains_complete_bipartite, dense_conflict_grid, endpoint_chord_cases,
-        endpoint_contact_instances, topological_stress_instances,
+        endpoint_contact_instances, external_oracle_adversarial_instances,
+        topological_stress_instances,
     };
     use crate::verify_component;
 
@@ -617,6 +621,37 @@ mod tests {
     }
 
     #[test]
+    fn grid_runs_match_all_adversarial_chord_families() {
+        let instances = endpoint_contact_instances()
+            .into_iter()
+            .chain(topological_stress_instances())
+            .chain(external_oracle_adversarial_instances())
+            .chain([
+                dense_conflict_grid(4, 5),
+                dense_conflict_grid(8, 8),
+                dense_conflict_grid(32, 32),
+            ]);
+        for instance in instances {
+            for component in instance.foreground_components().unwrap() {
+                let boundary = rect_core::Boundary::from_component(&component).unwrap();
+                let reference = ReferencePairwiseEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                let grid_runs = GridInteriorRunEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                assert_eq!(
+                    reference.horizontal, grid_runs.horizontal,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(reference.vertical, grid_runs.vertical, "{}", instance.name);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
     fn dense_generator_meets_requested_chord_floor() {
         for (horizontal, vertical) in [(4, 5), (8, 8), (16, 16), (32, 32)] {
             let instance = dense_conflict_grid(horizontal, vertical);
@@ -638,6 +673,13 @@ mod tests {
                     .unwrap();
             let compact =
                 rect_dominance::solve(&component, rect_dominance::DominanceMode::Compact).unwrap();
+            let audited_grid_runs =
+                rect_dominance::solve_with_verification_mode_and_chord_enumerator(
+                    &component,
+                    rect_dominance::VerificationMode::FullyAudited,
+                    rect_dominance::ChordEnumerator::GridInteriorRuns,
+                )
+                .unwrap();
             let compact_only = rect_dominance::solve_with_verification_mode(
                 &component,
                 rect_dominance::VerificationMode::CompactOnly,
@@ -668,6 +710,23 @@ mod tests {
             assert_eq!(
                 compact.diagnostics.maximum_matching_size,
                 compact_only.diagnostics.maximum_matching_size
+            );
+            assert_eq!(
+                compact.optimum_rectangle_count,
+                audited_grid_runs.optimum_rectangle_count
+            );
+            assert_eq!(
+                audited_grid_runs
+                    .diagnostics
+                    .effective_chord_enumerator
+                    .as_deref(),
+                Some("grid-interior-runs")
+            );
+            assert!(
+                audited_grid_runs
+                    .diagnostics
+                    .execution_trace
+                    .explicit_conflict_graph_built
             );
             assert_eq!(
                 compact.optimum_rectangle_count,
