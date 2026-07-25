@@ -45,6 +45,8 @@ def main() -> None:
         require(bool(git("rev-parse", f"{commit}^{{commit}}")), f"unknown result commit: {commit}")
 
     for release in index["releases"]:
+        if release["peeled_commit"] == "PENDING":
+            continue
         peeled = git("rev-parse", f"{release['tag']}^{{commit}}")
         require(peeled == release["peeled_commit"], f"tag target mismatch: {release['tag']}")
 

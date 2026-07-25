@@ -49,6 +49,13 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "8100fd8aa7a4745615f450fd70ac2629c6d0561b",
       "4bee682ae9e4851d57b438d31cb612d08dd6a883"
     ]
+  },
+  {
+    "version": "0.4.0",
+    "tag": "v0.4.0-indexed-completion",
+    "peeled_commit": "PENDING",
+    "evidence": "indexed frontier completion with exact differential cuts and dense backend comparison",
+    "result_commits": []
   }
 ]
 ```

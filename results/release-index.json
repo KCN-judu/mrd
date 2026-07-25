@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "current_workspace_version": "0.3.0",
+  "current_workspace_version": "0.4.0",
   "defaults": {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -29,6 +29,13 @@
         "8100fd8aa7a4745615f450fd70ac2629c6d0561b",
         "4bee682ae9e4851d57b438d31cb612d08dd6a883"
       ]
+    },
+    {
+      "version": "0.4.0",
+      "tag": "v0.4.0-indexed-completion",
+      "peeled_commit": "PENDING",
+      "evidence": "indexed frontier completion with exact differential cuts and dense backend comparison",
+      "result_commits": []
     }
   ]
 }
