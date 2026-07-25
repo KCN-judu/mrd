@@ -398,6 +398,18 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
         "flow_graph_storage".to_owned(),
         (flow_solution.network_vertex_count + flow_solution.network_arc_count) * size_of::<usize>(),
     );
+    owned_allocation_estimates.insert(
+        "certificate_payload".to_owned(),
+        total_chord_count * size_of::<embedding::DominancePoint>()
+            + partition.bicliques.len() * size_of::<biclique::Biclique>()
+            + biclique_total_size * size_of::<usize>()
+            + (flow_solution.flow.source_side.len()
+                + flow_solution.vertex_cover.left.len()
+                + flow_solution.vertex_cover.right.len()
+                + selected_horizontal_indices.len()
+                + selected_vertical_indices.len())
+                * size_of::<usize>(),
+    );
     let result = DissectionResult {
         optimum_rectangle_count,
         rectangles,
@@ -461,9 +473,9 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             ),
             emitted_chord_count: Some(total_chord_count),
             owned_allocation_estimates,
-            horizontal_interior_run_count: None,
-            vertical_interior_run_count: None,
-            candidate_reflex_pair_count: None,
+            horizontal_interior_run_count: geometry.horizontal_interior_run_count,
+            vertical_interior_run_count: geometry.vertical_interior_run_count,
+            candidate_reflex_pair_count: geometry.candidate_reflex_pair_count,
         },
         certificate: Some(Certificate {
             kind: "dominance-compact-only".to_owned(),

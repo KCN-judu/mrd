@@ -31,12 +31,18 @@ pub struct SgGeometry {
     pub boundary: Boundary,
     pub horizontal_chords: Vec<HorizontalChord>,
     pub vertical_chords: Vec<VerticalChord>,
+    pub horizontal_interior_run_count: Option<usize>,
+    pub vertical_interior_run_count: Option<usize>,
+    pub candidate_reflex_pair_count: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EffectiveChordFamilies {
     pub horizontal: Vec<HorizontalChord>,
     pub vertical: Vec<VerticalChord>,
+    pub horizontal_interior_run_count: Option<usize>,
+    pub vertical_interior_run_count: Option<usize>,
+    pub candidate_reflex_pair_count: Option<usize>,
 }
 
 pub trait EffectiveChordEnumerator {
@@ -92,6 +98,9 @@ pub fn analyze_geometry_with<C, E: EffectiveChordEnumerator>(
         boundary,
         horizontal_chords: families.horizontal,
         vertical_chords: families.vertical,
+        horizontal_interior_run_count: families.horizontal_interior_run_count,
+        vertical_interior_run_count: families.vertical_interior_run_count,
+        candidate_reflex_pair_count: families.candidate_reflex_pair_count,
     })
 }
 
@@ -305,6 +314,9 @@ impl EffectiveChordEnumerator for ReferencePairwiseEnumerator {
         Ok(EffectiveChordFamilies {
             horizontal: horizontal_chords,
             vertical: vertical_chords,
+            horizontal_interior_run_count: None,
+            vertical_interior_run_count: None,
+            candidate_reflex_pair_count: Some(points.len().saturating_sub(1) * points.len() / 2),
         })
     }
 
@@ -326,6 +338,9 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
             .collect::<Vec<_>>();
         let mut horizontal_records = BTreeSet::new();
         let mut vertical_records = BTreeSet::new();
+        let mut horizontal_interior_run_count = 0;
+        let mut vertical_interior_run_count = 0;
+        let mut candidate_reflex_pair_count = 0;
         let mask = component
             .cells
             .iter()
@@ -339,9 +354,9 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
         }
         for (y, mut xs) in horizontal_points {
             xs.sort_unstable();
-            for (left_run, right_run) in
-                two_sided_runs(&mask, component.grid_width, component.grid_height, y, true)
-            {
+            let runs = two_sided_runs(&mask, component.grid_width, component.grid_height, y, true);
+            horizontal_interior_run_count += runs.len();
+            for (left_run, right_run) in runs {
                 let aligned = xs
                     .iter()
                     .copied()
@@ -349,6 +364,7 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
                     .collect::<Vec<_>>();
                 for (index, &left) in aligned.iter().enumerate() {
                     for &right in &aligned[index + 1..] {
+                        candidate_reflex_pair_count += 1;
                         horizontal_records.insert((y, left, right));
                     }
                 }
@@ -356,9 +372,9 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
         }
         for (x, mut ys) in vertical_points {
             ys.sort_unstable();
-            for (bottom_run, top_run) in
-                two_sided_runs(&mask, component.grid_width, component.grid_height, x, false)
-            {
+            let runs = two_sided_runs(&mask, component.grid_width, component.grid_height, x, false);
+            vertical_interior_run_count += runs.len();
+            for (bottom_run, top_run) in runs {
                 let aligned = ys
                     .iter()
                     .copied()
@@ -366,6 +382,7 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
                     .collect::<Vec<_>>();
                 for (index, &bottom) in aligned.iter().enumerate() {
                     for &top in &aligned[index + 1..] {
+                        candidate_reflex_pair_count += 1;
                         vertical_records.insert((x, bottom, top));
                     }
                 }
@@ -388,6 +405,9 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
         Ok(EffectiveChordFamilies {
             horizontal,
             vertical,
+            horizontal_interior_run_count: Some(horizontal_interior_run_count),
+            vertical_interior_run_count: Some(vertical_interior_run_count),
+            candidate_reflex_pair_count: Some(candidate_reflex_pair_count),
         })
     }
 
@@ -1126,7 +1146,11 @@ mod tests {
                 let optimized = GridInteriorRunEnumerator
                     .enumerate(&component, &boundary)
                     .unwrap();
-                assert_eq!(reference, optimized, "mask {mask:#05x}");
+                assert_eq!(
+                    reference.horizontal, optimized.horizontal,
+                    "mask {mask:#05x}"
+                );
+                assert_eq!(reference.vertical, optimized.vertical, "mask {mask:#05x}");
             }
         }
     }
@@ -1150,8 +1174,81 @@ mod tests {
                 let optimized = GridInteriorRunEnumerator
                     .enumerate(&component, &boundary)
                     .unwrap();
-                assert_eq!(reference, optimized, "mask {mask:#06x}");
+                assert_eq!(
+                    reference.horizontal, optimized.horizontal,
+                    "mask {mask:#06x}"
+                );
+                assert_eq!(reference.vertical, optimized.vertical, "mask {mask:#06x}");
             }
+        }
+    }
+
+    #[test]
+    fn grid_runs_match_reference_on_one_hundred_thousand_connected_regions() {
+        const CASES: usize = 100_000;
+        const SEED: u64 = 0x6d72_642d_7630_3300;
+        let mut random = SplitMix64::new(SEED);
+        for case in 0..CASES {
+            let width = 5 + random.index(12);
+            let height = 5 + random.index(12);
+            let mut cells = vec![false; width * height];
+            let mut x = random.index(width);
+            let mut y = random.index(height);
+            cells[y * width + x] = true;
+            let steps = 8 + random.index(width * height * 3);
+            for _ in 0..steps {
+                match random.index(4) {
+                    0 if x > 0 => x -= 1,
+                    1 if x + 1 < width => x += 1,
+                    2 if y > 0 => y -= 1,
+                    3 if y + 1 < height => y += 1,
+                    _ => {}
+                }
+                cells[y * width + x] = true;
+            }
+            let grid = ColorGrid::new(width, height, cells.clone()).unwrap();
+            let component = grid
+                .four_connected_components()
+                .into_iter()
+                .find(|component| component.color)
+                .unwrap();
+            let boundary = rect_core::Boundary::from_component(&component).unwrap();
+            let reference = ReferencePairwiseEnumerator
+                .enumerate(&component, &boundary)
+                .unwrap();
+            let optimized = GridInteriorRunEnumerator
+                .enumerate(&component, &boundary)
+                .unwrap();
+            assert_eq!(
+                reference.horizontal, optimized.horizontal,
+                "horizontal: seed={SEED:#018x}, case={case}, width={width}, height={height}, cells={cells:?}"
+            );
+            assert_eq!(
+                reference.vertical, optimized.vertical,
+                "seed={SEED:#018x}, case={case}, width={width}, height={height}, cells={cells:?}"
+            );
+        }
+    }
+
+    struct SplitMix64 {
+        state: u64,
+    }
+
+    impl SplitMix64 {
+        const fn new(seed: u64) -> Self {
+            Self { state: seed }
+        }
+
+        fn next(&mut self) -> u64 {
+            self.state = self.state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+            let mut value = self.state;
+            value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+            value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+            value ^ (value >> 31)
+        }
+
+        fn index(&mut self, upper: usize) -> usize {
+            usize::try_from(self.next() % u64::try_from(upper).unwrap()).unwrap()
         }
     }
 }
