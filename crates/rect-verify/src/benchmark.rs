@@ -3,6 +3,7 @@ use std::fmt::Write;
 
 use rect_core::{Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::VerificationMode;
+use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 
 use crate::adversarial::{
@@ -299,6 +300,86 @@ pub fn benchmark_dense_compact_only(context: BenchmarkContext, sizes: &[usize]) 
         verified_count,
         unsupported_count,
         solver_error_count,
+        counterexample_count: 0,
+        failure_fixtures: Vec::new(),
+        rows,
+    }
+}
+
+#[must_use]
+pub fn benchmark_dense_completion(context: BenchmarkContext, sizes: &[usize]) -> BenchmarkReport {
+    let backends = [
+        (CompletionBackendKind::ReferenceRescan, "reference-rescan"),
+        (CompletionBackendKind::IndexedFrontier, "indexed-frontier"),
+    ];
+    let instances = sizes
+        .iter()
+        .map(|&size| dense_conflict_grid(size, size))
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for (backend, backend_name) in backends {
+        for instance in &instances {
+            if let Ok(components) = instance.foreground_components() {
+                for component in components {
+                    let result = rect_dominance::solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+                        &component,
+                        VerificationMode::CompactOnly,
+                        rect_dominance::ChordEnumerator::GridInteriorRuns,
+                        backend,
+                    );
+                    rows.push(match result {
+                        Ok(result) => BenchmarkRow {
+                            instance_name: format!("{}-{backend_name}", instance.name),
+                            family: "dense-completion".to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "verified".to_owned(),
+                            message: None,
+                            exact_cover_compared: false,
+                            compact_only_phase_microseconds: result
+                                .diagnostics
+                                .phase_microseconds
+                                .clone(),
+                            diagnostics: result.diagnostics,
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                        },
+                        Err(error) => BenchmarkRow {
+                            instance_name: format!("{}-{backend_name}", instance.name),
+                            family: "dense-completion".to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "solver-error".to_owned(),
+                            message: Some(error.to_string()),
+                            exact_cover_compared: false,
+                            diagnostics: Diagnostics {
+                                cell_count: component.cell_count(),
+                                ..Diagnostics::default()
+                            },
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                            compact_only_phase_microseconds: BTreeMap::new(),
+                        },
+                    });
+                }
+            }
+        }
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: instances.len() * backends.len(),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-cell-grid".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
         counterexample_count: 0,
         failure_fixtures: Vec::new(),
         rows,

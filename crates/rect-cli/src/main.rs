@@ -150,6 +150,7 @@ enum BenchmarkSuiteArg {
     Adversarial,
     DenseConflict,
     DenseCompactOnly,
+    DenseCompletion,
     Polyomino,
 }
 
@@ -355,6 +356,9 @@ fn benchmark_command(
         }
         BenchmarkSuiteArg::DenseCompactOnly => {
             rect_verify::benchmark::benchmark_dense_compact_only(context, sizes)
+        }
+        BenchmarkSuiteArg::DenseCompletion => {
+            rect_verify::benchmark::benchmark_dense_completion(context, sizes)
         }
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
@@ -852,7 +856,7 @@ mod tests {
 
     use serde_json::Value;
 
-    use super::{ChordEnumeratorArg, SolverArg, solve_command};
+    use super::{ChordEnumeratorArg, CompletionBackendArg, SolverArg, solve_command};
 
     #[test]
     fn compact_only_svg_keeps_forbidden_execution_trace_false() {

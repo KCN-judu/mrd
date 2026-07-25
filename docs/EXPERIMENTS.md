@@ -257,3 +257,20 @@ whole is not an end-to-end `n^(1+o(1))` implementation. This scope statement
 does not add a separate experimental population: 0 grids and components were
 claimed for the unimplemented backends, hence 0 solved, skipped, timed out, or
 disagreed results for them.
+
+## v0.4 indexed completion evidence
+
+The v0.4 campaign keeps the v0.3 populations unchanged and compares the two
+completion backends on the geometry-backed dense family. Targets 128, 256, 512,
+and 1024 correspond to total effective-chord counts 512, 1024, 2048, and 4096.
+Both backends use `GridInteriorRunEnumerator` and CompactOnly flow; only the
+completion backend changes. Generated files are
+`results/v0.4-dense-completion.csv`, `results/v0.4-completion-table.csv`, and
+`results/v0.4-completion-table.md`.
+
+Measured geometric-completion speedups for indexed frontier over reference
+rescan were 2.066x, 1.980x, 2.007x, and 1.909x at q=512, 1024, 2048, and 4096.
+The indexed backend performed two initial local-bbox scans per component and
+all exact differential suites compared selected cuts, added cuts, and sorted
+rectangles. Owned-allocation estimates are recorded; process peak RSS remains
+unmeasured.

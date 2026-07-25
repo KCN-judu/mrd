@@ -91,3 +91,8 @@ The four-coordinate Cardinal--Yuditsky specialization has representation bound
 artifact: its exact grid chord enumerator is not the classical `O(n log n)`
 sweep, and its practical Dinic backend is not the cited almost-linear
 theoretical flow algorithm.
+
+CompactOnly uses the verified `indexed-frontier` geometric-completion backend
+by default. `reference-rescan` remains available for differential debugging;
+see `docs/GEOMETRIC_COMPLETION.md` for the deterministic policy and exact
+cut-family acceptance contract.

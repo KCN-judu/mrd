@@ -180,36 +180,25 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "47f0412aff29eafb80de29201cf8f4b5f825bf92",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite dense-completion --sizes 128,256,512,1024 --output results/v0.4-dense-completion.csv",
+      "seed": null,
+      "timestamp": 1784956386,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
-  ],
-  "release_metadata": {
-    "git_commit": "32faff61bc4577ab50010e5d253afe83f7655d83",
-    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-    "operating_system": "macOS-26.5-arm64-arm-64bit-Mach-O",
-    "cpu": "Apple M4",
-    "build_profile": "release",
-    "random_seed": 42,
-    "cp_sat_seed": 0,
-    "cp_sat_timeout_seconds_per_component": 30.0,
-    "commands": [
-      "target/release/rect-cli exhaustive --width 4 --height 4 --output results/exhaustive-4x4.json",
-      "target/release/rect-cli random --width 8 --height 8 --cases 10000 --seed 42 --output results/random-8x8-seed42.json",
-      "target/release/rect-cli benchmark --suite adversarial --output results/adversarial.csv",
-      "target/release/rect-cli benchmark --suite polyomino --max-cells 10 --oracle-cell-limit 40 --output results/polyomino.csv",
-      "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-adversarial-final-32faff6 --max-adversarial-grid-cells 20000 --max-component-cells 40 --exact-cover-cell-limit 40 --max-time-seconds 30 --work-dir /tmp/mrd-external-final-32faff6 --output results/external-oracle.json",
-      "target/release/rect-cli benchmark --suite dense-conflict --sizes 4,8,16,32,64,128 --output results/dense-conflict.csv"
-    ]
-  },
-  "generated_tables": [
-    "results/correctness-table.csv",
-    "results/compression-table.csv",
-    "results/scope-table.csv",
-    "results/paper-tables.md",
-    "results/v0.3-compact-dense.csv",
-    "results/v0.3-adversarial.csv",
-    "results/v0.3-random-8x8-seed42.json",
-    "results/v0.3-chord-differential.json",
-    "results/v0.3-external-oracle.json"
   ],
   "release_summaries": [
     {
@@ -217,15 +206,13 @@
       "tag": "v0.2.0-adversarial-validation",
       "peeled_commit": "a7766ef0245799d19a5282ec9e8a00015269cec6",
       "evidence": "historical v0.2 result population",
-      "result_commits": [
-        "32faff61bc4577ab50010e5d253afe83f7655d83"
-      ]
+      "result_commits": ["32faff61bc4577ab50010e5d253afe83f7655d83"]
     },
     {
       "version": "0.3.0",
       "tag": "v0.3.0-compact-execution",
       "peeled_commit": "7e30fa8b15d870f3fa1ed92272e8236a72f1815a",
-      "evidence": "compact execution, exact grid-run chord differential, dense CompactOnly, random, adversarial, and CP-SAT reruns",
+      "evidence": "compact execution and exact grid-run chord differential",
       "result_commits": [
         "20de1aafb8bcef2537495171720c21f969f84445",
         "e90f18f1313a25a91c9151f734f17ab663049a69",
@@ -235,5 +222,19 @@
         "4bee682ae9e4851d57b438d31cb612d08dd6a883"
       ]
     }
+  ],
+  "generated_tables": [
+    "results/correctness-table.csv",
+    "results/compression-table.csv",
+    "results/scope-table.csv",
+    "results/paper-tables.md",
+    "results/v0.3-compact-dense.csv",
+    "results/v0.3-adversarial.csv",
+    "results/v0.3-random-8x8-seed42.json",
+    "results/v0.3-chord-differential.json",
+    "results/v0.3-external-oracle.json",
+    "results/v0.4-dense-completion.csv",
+    "results/v0.4-completion-table.csv",
+    "results/v0.4-completion-table.md"
   ]
 }
