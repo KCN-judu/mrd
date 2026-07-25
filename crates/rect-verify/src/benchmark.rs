@@ -7,8 +7,8 @@ use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 
 use crate::adversarial::{
-    AdversarialInstance, dense_conflict_grid, endpoint_contact_instances,
-    topological_stress_instances,
+    AdversarialInstance, alternating_notch_corridor, comb, dense_conflict_grid, double_comb,
+    endpoint_contact_instances, orthogonal_spiral, staircase, topological_stress_instances,
 };
 use crate::polyomino::{enumerate_free_polyominoes, explicit_hole_polyominoes};
 use crate::{GridFixture, VerificationError, verify_component};
@@ -72,7 +72,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -121,6 +121,11 @@ impl BenchmarkReport {
                     .clone()
                     .unwrap_or_default(),
                 optional_number(row.diagnostics.effective_chord_enumeration_microseconds),
+                optional_number(row.diagnostics.prepared_component_build_count),
+                optional_number(row.diagnostics.prepared_component_build_microseconds),
+                optional_number(row.diagnostics.boundary_extraction_microseconds),
+                optional_number(row.diagnostics.reflex_grouping_microseconds),
+                optional_number(row.diagnostics.occupancy_bytes),
                 optional_number(row.diagnostics.horizontal_interior_run_count),
                 optional_number(row.diagnostics.vertical_interior_run_count),
                 optional_number(row.diagnostics.candidate_reflex_pair_count),
@@ -168,6 +173,9 @@ impl BenchmarkReport {
                 optional_number(row.diagnostics.added_horizontal_unit_cut_count),
                 optional_number(row.diagnostics.added_vertical_unit_cut_count),
                 optional_number(row.diagnostics.completion_stale_candidates),
+                optional_number(row.diagnostics.rectangle_recovery_queue_pushes),
+                optional_number(row.diagnostics.rectangle_recovery_region_count),
+                optional_number(row.diagnostics.rectangle_recovery_allocations),
                 c0_phases,
                 compressed_phases,
                 compact_only_phases,
@@ -347,6 +355,133 @@ pub fn benchmark_dense_completion(context: BenchmarkContext, sizes: &[usize]) ->
                         Err(error) => BenchmarkRow {
                             instance_name: format!("{}-{backend_name}", instance.name),
                             family: "dense-completion".to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "solver-error".to_owned(),
+                            message: Some(error.to_string()),
+                            exact_cover_compared: false,
+                            diagnostics: Diagnostics {
+                                cell_count: component.cell_count(),
+                                ..Diagnostics::default()
+                            },
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                            compact_only_phase_microseconds: BTreeMap::new(),
+                        },
+                    });
+                }
+            }
+        }
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: instances.len() * backends.len(),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-cell-grid".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
+        counterexample_count: 0,
+        failure_fixtures: Vec::new(),
+        rows,
+    }
+}
+
+#[must_use]
+pub fn benchmark_completion_heavy(
+    context: BenchmarkContext,
+    sizes: &[usize],
+    families: &[String],
+) -> BenchmarkReport {
+    let mut instances = Vec::new();
+    for &size in sizes {
+        for family in families {
+            let mut instance = match family.as_str() {
+                "staircase" => staircase(size.max(2)),
+                "alternating-notch-corridor" | "notch-corridor" => {
+                    alternating_notch_corridor(size.max(2))
+                }
+                "comb" => comb(size.max(2), size.div_ceil(2).max(3)),
+                "double-comb" => double_comb(size.max(2), size.div_ceil(2).max(5)),
+                "orthogonal-spiral" | "spiral" => {
+                    let odd_size = size.max(5) | 1;
+                    orthogonal_spiral(odd_size)
+                }
+                _ => continue,
+            };
+            "completion-heavy".clone_into(&mut instance.family);
+            instance
+                .parameters
+                .insert("requested_size".to_owned(), size);
+            instances.push(instance);
+        }
+    }
+    benchmark_completion_instances(context, &instances, "completion-heavy")
+}
+
+#[must_use]
+pub fn benchmark_area_heavy(context: BenchmarkContext, sizes: &[usize]) -> BenchmarkReport {
+    let instances = sizes
+        .iter()
+        .map(|&size| AdversarialInstance {
+            name: format!("solid-area-{size}x{size}"),
+            family: "area-heavy".to_owned(),
+            width: size,
+            height: size,
+            cells: vec![true; size * size],
+            parameters: [("side".to_owned(), size)].into_iter().collect(),
+        })
+        .collect::<Vec<_>>();
+    benchmark_completion_instances(context, &instances, "area-heavy")
+}
+
+fn benchmark_completion_instances(
+    context: BenchmarkContext,
+    instances: &[AdversarialInstance],
+    family: &str,
+) -> BenchmarkReport {
+    let backends = [
+        (CompletionBackendKind::ReferenceRescan, "reference-rescan"),
+        (CompletionBackendKind::IndexedFrontier, "indexed-frontier"),
+    ];
+    let mut rows = Vec::new();
+    for (backend, backend_name) in backends {
+        for instance in instances {
+            if let Ok(components) = instance.foreground_components() {
+                for component in components {
+                    let result = rect_dominance::solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+                        &component,
+                        VerificationMode::CompactOnly,
+                        rect_dominance::ChordEnumerator::GridInteriorRuns,
+                        backend,
+                    );
+                    rows.push(match result {
+                        Ok(result) => BenchmarkRow {
+                            instance_name: format!("{}-{backend_name}", instance.name),
+                            family: family.to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "verified".to_owned(),
+                            message: None,
+                            exact_cover_compared: false,
+                            compact_only_phase_microseconds: result
+                                .diagnostics
+                                .phase_microseconds
+                                .clone(),
+                            diagnostics: result.diagnostics,
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                        },
+                        Err(error) => BenchmarkRow {
+                            instance_name: format!("{}-{backend_name}", instance.name),
+                            family: family.to_owned(),
                             parameters: instance.parameters.clone(),
                             component_id: component.id.0,
                             status: "solver-error".to_owned(),

@@ -103,6 +103,11 @@ enum Command {
         oracle_cell_limit: usize,
         #[arg(long, default_value = "4,8,16,32,64,128")]
         sizes: String,
+        #[arg(
+            long,
+            default_value = "staircase,alternating-notch-corridor,comb,double-comb,spiral"
+        )]
+        families: String,
         #[arg(long)]
         output: PathBuf,
     },
@@ -151,6 +156,8 @@ enum BenchmarkSuiteArg {
     DenseConflict,
     DenseCompactOnly,
     DenseCompletion,
+    CompletionHeavy,
+    AreaHeavy,
     Polyomino,
 }
 
@@ -266,10 +273,19 @@ fn run() -> Result<(), CliError> {
             max_cells,
             oracle_cell_limit,
             sizes,
+            families,
             output,
         } => {
             let sizes = parse_sizes(&sizes)?;
-            benchmark_command(suite, max_cells, oracle_cell_limit, &sizes, &output)
+            let families = parse_families(&families);
+            benchmark_command(
+                suite,
+                max_cells,
+                oracle_cell_limit,
+                &sizes,
+                &families,
+                &output,
+            )
         }
         Command::Generate {
             family,
@@ -341,6 +357,7 @@ fn benchmark_command(
     max_cells: usize,
     oracle_cell_limit: usize,
     sizes: &[usize],
+    families: &[String],
     output: &Path,
 ) -> Result<(), CliError> {
     if suite == BenchmarkSuiteArg::Polyomino && max_cells == 0 {
@@ -359,6 +376,12 @@ fn benchmark_command(
         }
         BenchmarkSuiteArg::DenseCompletion => {
             rect_verify::benchmark::benchmark_dense_completion(context, sizes)
+        }
+        BenchmarkSuiteArg::CompletionHeavy => {
+            rect_verify::benchmark::benchmark_completion_heavy(context, sizes, families)
+        }
+        BenchmarkSuiteArg::AreaHeavy => {
+            rect_verify::benchmark::benchmark_area_heavy(context, sizes)
         }
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
@@ -402,6 +425,14 @@ fn parse_sizes(value: &str) -> Result<Vec<usize>, CliError> {
         ));
     }
     Ok(sizes)
+}
+
+fn parse_families(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .filter(|family| !family.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn compare_external_command(

@@ -354,7 +354,8 @@ fn nested_looking() -> AdversarialInstance {
     )
 }
 
-fn narrow_corridor(width: usize, height: usize) -> AdversarialInstance {
+#[must_use]
+pub fn narrow_corridor(width: usize, height: usize) -> AdversarialInstance {
     let mut cells = vec![false; width * height];
     fill_rectangle(&mut cells, width, 0, 0, width, 1);
     fill_rectangle(&mut cells, width, width - 1, 0, width, height);
@@ -370,7 +371,8 @@ fn narrow_corridor(width: usize, height: usize) -> AdversarialInstance {
     )
 }
 
-fn comb(teeth: usize, tooth_height: usize) -> AdversarialInstance {
+#[must_use]
+pub fn comb(teeth: usize, tooth_height: usize) -> AdversarialInstance {
     let width = teeth * 2 + 1;
     let height = tooth_height + 1;
     let mut cells = vec![false; width * height];
@@ -389,7 +391,8 @@ fn comb(teeth: usize, tooth_height: usize) -> AdversarialInstance {
     )
 }
 
-fn double_comb(teeth: usize, height: usize) -> AdversarialInstance {
+#[must_use]
+pub fn double_comb(teeth: usize, height: usize) -> AdversarialInstance {
     let width = teeth * 2 + 1;
     let mut cells = vec![false; width * height];
     fill_rectangle(&mut cells, width, 0, 0, width, 1);
@@ -410,7 +413,8 @@ fn double_comb(teeth: usize, height: usize) -> AdversarialInstance {
     )
 }
 
-fn staircase(steps: usize) -> AdversarialInstance {
+#[must_use]
+pub fn staircase(steps: usize) -> AdversarialInstance {
     let mut cells = vec![false; steps * steps];
     for y in 0..steps {
         fill_rectangle(&mut cells, steps, 0, y, steps - y, y + 1);
@@ -425,7 +429,13 @@ fn staircase(steps: usize) -> AdversarialInstance {
     )
 }
 
-fn orthogonal_spiral(size: usize) -> AdversarialInstance {
+/// Builds a one-cell-wide orthogonal spiral.
+///
+/// # Panics
+///
+/// Panics unless `size` is odd and at least five.
+#[must_use]
+pub fn orthogonal_spiral(size: usize) -> AdversarialInstance {
     assert!(size >= 5 && size % 2 == 1);
     let mut cells = vec![false; size * size];
     let (mut left, mut right, mut bottom, mut top) = (0, size - 1, 0, size - 1);
@@ -449,6 +459,28 @@ fn orthogonal_spiral(size: usize) -> AdversarialInstance {
         size,
         cells,
         [("size".to_owned(), size)].into_iter().collect(),
+    )
+}
+
+#[must_use]
+pub fn alternating_notch_corridor(notches: usize) -> AdversarialInstance {
+    let width = notches * 2 + 1;
+    let height = 5;
+    let mut cells = vec![true; width * height];
+    for notch in 0..notches {
+        let x = notch * 2 + 1;
+        let range = if notch % 2 == 0 { 0..2 } else { 3..5 };
+        for y in range {
+            set_cell(&mut cells, width, x, y, false);
+        }
+    }
+    instance(
+        "alternating-notch-corridor",
+        "completion-heavy",
+        width,
+        height,
+        cells,
+        [("notches".to_owned(), notches)].into_iter().collect(),
     )
 }
 
