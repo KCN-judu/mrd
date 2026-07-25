@@ -140,6 +140,7 @@ pub struct PreparedGridComponent {
     pub x1: usize,
     pub y1: usize,
     pub occupancy: Vec<bool>,
+    pub occupancy_prefix_sums: Vec<usize>,
     pub horizontal_interior_runs: Vec<Vec<(usize, usize)>>,
     pub vertical_interior_runs: Vec<Vec<(usize, usize)>>,
 }
@@ -196,12 +197,23 @@ impl PreparedGridComponent {
                 }
             }
         }
+        let prefix_width = width + 1;
+        let mut occupancy_prefix_sums = vec![0; prefix_width * (height + 1)];
+        for y in 0..height {
+            let mut row_sum = 0;
+            for x in 0..width {
+                row_sum += usize::from(occupancy[y * width + x]);
+                occupancy_prefix_sums[(y + 1) * prefix_width + x + 1] =
+                    occupancy_prefix_sums[y * prefix_width + x + 1] + row_sum;
+            }
+        }
         Ok(Self {
             x0,
             y0,
             x1,
             y1,
             occupancy,
+            occupancy_prefix_sums,
             horizontal_interior_runs,
             vertical_interior_runs,
         })
@@ -214,6 +226,30 @@ impl PreparedGridComponent {
             && y >= self.y0
             && y < self.y1
             && self.occupancy[(y - self.y0) * (self.x1 - self.x0) + x - self.x0]
+    }
+
+    #[must_use]
+    pub const fn width(&self) -> usize {
+        self.x1 - self.x0
+    }
+
+    #[must_use]
+    pub const fn height(&self) -> usize {
+        self.y1 - self.y0
+    }
+
+    #[must_use]
+    pub fn occupied_cell_count(&self, x0: usize, y0: usize, x1: usize, y1: usize) -> usize {
+        if x0 < self.x0 || y0 < self.y0 || x1 > self.x1 || y1 > self.y1 || x0 > x1 || y0 > y1 {
+            return 0;
+        }
+        let prefix_width = self.width() + 1;
+        let (left, top, right, bottom) = (x0 - self.x0, y0 - self.y0, x1 - self.x0, y1 - self.y0);
+        let lower_rows = self.occupancy_prefix_sums[bottom * prefix_width + right]
+            - self.occupancy_prefix_sums[top * prefix_width + right];
+        let excluded_left = self.occupancy_prefix_sums[bottom * prefix_width + left]
+            - self.occupancy_prefix_sums[top * prefix_width + left];
+        lower_rows - excluded_left
     }
 }
 
@@ -281,5 +317,9 @@ mod tests {
         );
         assert!(prepared.contains_cell(1, 1));
         assert_eq!(prepared.horizontal_interior_runs[1], vec![(0, 2)]);
+        assert_eq!(prepared.occupied_cell_count(0, 0, 2, 2), 4);
+        assert_eq!(prepared.occupied_cell_count(1, 0, 2, 2), 2);
+        assert_eq!(prepared.occupied_cell_count(0, 1, 2, 2), 2);
+        assert_eq!(prepared.occupied_cell_count(1, 1, 1, 1), 0);
     }
 }
