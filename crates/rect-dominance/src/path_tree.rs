@@ -566,6 +566,52 @@ impl RegionDualTree {
         }
         Ok(paths)
     }
+
+    fn explicit_paths_from_compact(
+        &self,
+        compact_paths: &[CompactTreePath],
+        horizontal_chords: &[HorizontalChord],
+    ) -> Result<Vec<ChordTreePath>, PathTreeError> {
+        let mut paths = Vec::with_capacity(compact_paths.len());
+        for compact in compact_paths {
+            let mut parent = vec![None; self.region_count];
+            let mut parent_edge = vec![None; self.region_count];
+            let mut queue = VecDeque::from([compact.start_region]);
+            parent[compact.start_region.0] = Some(compact.start_region);
+            while let Some(region) = queue.pop_front() {
+                if region == compact.end_region {
+                    break;
+                }
+                for &(neighbor, edge) in &self.adjacency[region.0] {
+                    if parent[neighbor.0].is_none() {
+                        parent[neighbor.0] = Some(region);
+                        parent_edge[neighbor.0] = Some(edge);
+                        queue.push_back(neighbor);
+                    }
+                }
+            }
+            if parent[compact.end_region.0].is_none() {
+                return Err(PathTreeError::MissingTreePath);
+            }
+            let mut edges = Vec::new();
+            let mut current = compact.end_region;
+            while current != compact.start_region {
+                edges.push(parent_edge[current.0].ok_or(PathTreeError::MissingTreePath)?);
+                current = parent[current.0].ok_or(PathTreeError::MissingTreePath)?;
+            }
+            edges.reverse();
+            let horizontal = horizontal_chords
+                .get(compact.chord_index)
+                .ok_or(PathTreeError::MissingTreePath)?;
+            paths.push(ChordTreePath {
+                horizontal: horizontal.id(),
+                start_region: compact.start_region,
+                end_region: compact.end_region,
+                vertical_edges: edges,
+            });
+        }
+        Ok(paths)
+    }
 }
 
 impl HeavyLightDecomposition {
@@ -897,7 +943,11 @@ pub fn build_path_tree_partition_with_backend(
         }
     };
     let paths = if materialize_explicit_paths {
-        tree.horizontal_paths(prepared, horizontal_chords)?
+        if dual_backend == RegionDualBackend::BoundaryLaminar {
+            tree.explicit_paths_from_compact(&compact_paths, horizontal_chords)?
+        } else {
+            tree.horizontal_paths(prepared, horizontal_chords)?
+        }
     } else {
         Vec::new()
     };
@@ -1373,7 +1423,12 @@ impl PathTreePartition {
         horizontal_chords: &[HorizontalChord],
         vertical_chords: &[VerticalChord],
     ) -> Result<(), PathTreeError> {
-        let explicit = self.tree.horizontal_paths(prepared, horizontal_chords)?;
+        let explicit = if self.tree.boundary_gap_regions.is_empty() {
+            self.tree.horizontal_paths(prepared, horizontal_chords)?
+        } else {
+            self.tree
+                .explicit_paths_from_compact(&self.compact_paths, horizontal_chords)?
+        };
         if explicit.len() != self.compact_paths.len() {
             return Err(PathTreeError::MissingTreePath);
         }
