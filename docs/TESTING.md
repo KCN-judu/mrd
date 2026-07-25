@@ -24,7 +24,8 @@ The workspace test suite includes:
 - canonical free-polyomino enumeration under all eight dihedral symmetries;
 - automatic replay of every bundle under `test-data/regressions`;
 - all `2^(3*3) = 512` binary grids, splitting both colors into four-connected
-  components and comparing exact cover, explicit SG, C0 flow, and compact flow;
+  components and comparing exact cover, explicit SG, C0 flow, fully audited
+  compact flow, and CompactOnly;
 - deterministic random families through the CLI: Bernoulli masks, random walks,
   rectangle unions, combs, checkerboards, and rings/corridors.
 
@@ -42,7 +43,19 @@ cargo run --release -p rect-cli -- polyomino --max-cells 12 \
 
 cargo run --release -p rect-cli -- benchmark --suite adversarial \
   --output adversarial.csv
+
+cargo run --release -p rect-cli -- generate --family dense-conflict \
+  --horizontal 1024 --vertical 1024 \
+  --json /tmp/dense-1024.json --svg /tmp/dense-1024.svg
+
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only --input /tmp/dense-1024.json \
+  --output /tmp/dense-1024-result.json
 ```
+
+The last pair exercises a geometry-backed instance with `q = 4096` without
+constructing the explicit conflict graph. Check that every component result
+serializes `diagnostics.explicit_conflict_edge_count` as `null`.
 
 The 2026-07-24 baseline run completed the full `4x4` campaign and the 10,000-case
 seed-42 campaign without a counterexample. Exact counts and timing context are in

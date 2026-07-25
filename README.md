@@ -8,7 +8,9 @@ monochromatic rectangular partitions of finite colored grids:
   and constructive geometric completion;
 - `dominance-c0`: the paper's 4D embedding with one biclique per edge and Dinic;
 - `dominance-compressed`: the constructive Cardinal--Yuditsky Theorem 8
-  biclique partition and the compressed Dinic network.
+  biclique partition and the compressed Dinic network, available as both a
+  fully audited path and a compact-only path that does not materialize conflict
+  edges.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs
@@ -25,6 +27,10 @@ polygon input. See `docs/KNOWN_LIMITATIONS.md` for the exact scope boundary.
 ```bash
 cargo run --release -p rect-cli -- solve \
   --solver exact-cover \
+  --input test-data/example.json
+
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only \
   --input test-data/example.json
 
 cargo run --release -p rect-cli -- verify \

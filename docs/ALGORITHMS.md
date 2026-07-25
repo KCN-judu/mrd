@@ -43,8 +43,23 @@ beta(v)  = (2 rank(x)+1, -2 rank(x)+1,
             2 rank(t)+1, -2 rank(b)+1)
 ```
 
-Every horizontal--vertical pair is checked against closed geometric
-intersection before graph algorithms run.
+`VerificationMode::FullyAudited` checks every horizontal--vertical pair against
+closed geometric intersection, materializes the explicit graph, runs
+Hopcroft--Karp, and audits the biclique edge multiset. This is the validation
+and regression mode used for the v0.2 evidence.
+
+`VerificationMode::CompactOnly` instead follows only:
+
+```text
+effective chords -> 4D embedding -> Theorem 8 partition
+                 -> compressed flow -> geometric completion
+```
+
+It does not call pairwise embedding equivalence, explicit graph construction,
+Hopcroft--Karp, C0 construction, or full edge-partition audit. Cross-side
+coordinate equality is checked with per-coordinate value indexes, and block
+structure is checked in `O(sigma)` without expanding any block product.
+Compact-only diagnostics serialize `explicit_conflict_edge_count` as `null`.
 
 Stage C0 creates one biclique per explicit dominance edge. Stage C1 implements
 the proof recursion of Cardinal--Yuditsky Theorem 8: split points by the current
@@ -105,13 +120,13 @@ biclique vertex occurrences.
 | Colored component extraction | `rect-core::grid` | `ColorGrid::four_connected_components` | `O(N)` flood fill | Input-adapter step, not the paper bottleneck | corner contact splits | Python oracle connectivity | finite grids only |
 | Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `Boundary::from_component`, `enumerate_effective_chords` | exact boundary cancellation plus aligned-reflex pair and span tests | `O(n log n)` enumeration in Soltan--Gorpinevich | rings, topology families, exhaustive grids | exact cover and CP-SAT optima | no ornaments or degenerate formal holes |
 | Closed horizontal/vertical chord intersection | `rect-core::geometry` | `closed_chords_intersect` | `O(1)` integer comparisons | `O(1)` predicate | every endpoint case and signed exhaustive segment range | independently coded strict dominance | closed chords; endpoint contact conflicts |
-| Endpoint-preserving 4D parity embedding | `rect-dominance::embedding` | `DominanceEmbedding::new`, `assert_pairwise_equivalence` | `O(q log q + h*v)` including pairwise audit | rank embedding plus dominance reporting | endpoint and metamorphic suites | closed geometric predicate | explicit audit is intentionally quadratic |
-| Explicit conflict graph | `rect-oracle-sg`, `rect-dominance::embedding` | `build_conflict_graph`, `explicit_graph` | `O(h*v)` | output-sensitive reporting in the paper pipeline | edge equality on every solve | independently built geometric graph | materializes all `E` edges |
-| Maximum bipartite matching | `rect-graph::hopcroft_karp` | `hopcroft_karp` | `O(E sqrt(q))` | same classical bound for explicit graph | matching/flow equality | C0 and compressed Dinic | explicit graph required |
+| Endpoint-preserving 4D parity embedding | `rect-dominance::embedding` | `DominanceEmbedding::new`, `assert_pairwise_equivalence` | `O(q log q)` construction; FullyAudited adds `O(h*v)` pairwise audit | rank embedding plus dominance reporting | endpoint and metamorphic suites | closed geometric predicate | pairwise audit is excluded from CompactOnly |
+| Explicit conflict graph | `rect-oracle-sg`, `rect-dominance::embedding` | `build_conflict_graph`, `explicit_graph` | `O(h*v)` | output-sensitive reporting in the paper pipeline | edge equality in FullyAudited | independently built geometric graph | excluded from CompactOnly |
+| Maximum bipartite matching | `rect-graph::hopcroft_karp` | `hopcroft_karp` | `O(E sqrt(q))` | same classical bound for explicit graph | matching/flow equality in FullyAudited | C0 and compressed Dinic | excluded from CompactOnly |
 | Konig minimum vertex cover | `rect-graph::hopcroft_karp` | `minimum_vertex_cover` | `O(E+q)` after matching | linear alternating reachability | every edge covered and size equals matching | residual-flow cover | bipartite graphs only |
-| Cardinal--Yuditsky Theorem 8 partition | `rect-dominance::biclique` | `comparability_theorem_8`, `verify_exact_partition` | recursive sorting plus `O(E+sigma)` certificate audit | general `O(q log^d q)` bound specializes to `sigma = O(q log^4 q)` for `d = 4` | completeness, uniqueness, fabricated-edge, recursion, and coordinate audits | explicit edge set | practical recursive sorting retained |
+| Cardinal--Yuditsky Theorem 8 partition | `rect-dominance::biclique` | `comparability_theorem_8`, `verify_structure`, `verify_exact_partition` | recursive sorting plus `O(sigma)` structure checking; FullyAudited adds `O(E+sigma)` edge audit | general `O(q log^d q)` bound specializes to `sigma = O(q log^4 q)` for `d = 4` | completeness, uniqueness, fabricated-edge, recursion, and coordinate audits | explicit edge set in FullyAudited | practical recursive sorting retained |
 | C0 flow reduction | `rect-dominance::biclique` | `BicliquePartition::from_explicit_edges` | `O(E)` construction, then Dinic | one biclique per edge baseline | C0 flow equals matching | Hopcroft--Karp | no compression |
-| Compressed flow reduction | `rect-dominance::compressed_flow` | `solve_biclique_flow` | `O(q+sigma)` network construction, then Dinic | compact graph plus asymptotically fast exact flow | dense and full differential suites | C0 and Hopcroft--Karp | Dinic backend, not almost-linear flow |
+| Compressed flow reduction | `rect-dominance::compressed_flow` | `solve_biclique_flow` | `O(q+sigma)` network construction, then Dinic | compact graph plus asymptotically fast exact flow | dense and full differential suites compare FullyAudited and CompactOnly | C0 and Hopcroft--Karp in FullyAudited | Dinic backend, not almost-linear flow |
 | Integral max flow and residual min cut | `rect-graph::dinic` | `MaxFlowBackend::max_flow_min_cut` via `DinicBackend` | generic Dinic `O(V^2 A)` bound | almost-linear exact backend cited by paper | flow value, cut capacity, no internal large-capacity cut | Hopcroft--Karp cover | integral capacities only |
 | Geometric completion, SG Section 10 | `rect-oracle-sg` | `complete_with_selected_chords` | explicit integer cut insertion and cell-region recovery | linear completion after chord choice in the source construction | formula count and metamorphic mapped-back outputs | exact cover and CP-SAT selected rectangles | ordinary grid regions only |
 | Final dissection validation | `rect-core::validation` | `validate_dissection` | linear in component cells plus enumerated rectangle area | verification layer, not paper runtime | invoked for every solver output | independently produced outputs use same exact cell contract | integer-grid rectangles only |

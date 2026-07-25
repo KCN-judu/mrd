@@ -14,6 +14,13 @@
   uses straightforward sorting in recursive calls. It prioritizes checkable
   construction over optimized constants. Because the embedding has four
   coordinates, the cited general bound specializes to `O(q log^4 q)`.
+- `VerificationMode::CompactOnly` avoids explicit conflict edges, pairwise
+  chord traversal, Hopcroft--Karp, C0 construction, and the full partition
+  audit. Its correctness relies on the same constructive recursion that is
+  exhaustively audited in `FullyAudited`; output geometry and minimum-cut
+  certificate invariants remain checked in both modes.
+- Portable process peak-memory measurement is not implemented. A null
+  `peak_memory_bytes` diagnostic means unmeasured, not zero.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The
