@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "git_commit": "e90f18f",
+  "git_commit": "8100fd8",
   "reference_enumerator": "reference-pairwise",
   "candidate_enumerator": "grid-interior-runs",
   "populations": [
@@ -18,6 +18,16 @@
       "name": "connected-random-walk-5-through-16",
       "input_count": 100000,
       "seed": 7886476043898336000,
+      "disagreement_count": 0
+    },
+    {
+      "name": "free-polyomino-through-12-plus-ordinary-holes",
+      "input_count": 87148,
+      "disagreement_count": 0
+    },
+    {
+      "name": "endpoint-topological-external-and-dense-adversarial",
+      "input_count": 25,
       "disagreement_count": 0
     }
   ],

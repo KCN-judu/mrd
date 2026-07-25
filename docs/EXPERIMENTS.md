@@ -15,6 +15,12 @@ through `16x16`, using seed `0x6d72642d76303300`, also produced exact
 horizontal and vertical chord-family equality. The machine-readable summary is
 `results/v0.3-chord-differential.json`.
 
+Exact family equality was additionally checked for all 87,146 free
+polyominoes through 12 cells, two explicit ordinary-hole fixtures, and 25
+endpoint, topological, external-oracle, and dense adversarial fixtures. The
+FullyAudited grid-run mode performs this reference-family comparison before
+building its explicit graph and running matching.
+
 The CompactOnly contract tests assert that pairwise embedding audit, explicit
 conflict graph construction, Hopcroft--Karp, C0 construction, and full edge
 partition expansion are all false. FullyAudited tests assert the corresponding

@@ -71,10 +71,11 @@ The four rows are separate CompactOnly evidence and do not overwrite the v0.2
 population above. Peak RSS is unmeasured; no null value is interpreted as zero.
 
 Chord-family differential evidence covers 511 nonempty `3x3` masks, 65,535
-nonempty `4x4` masks, and 100,000 deterministic connected larger regions. All
-166,046 inputs had exact horizontal and vertical family equality, with no
-missing or fabricated chord. The v0.3 CP-SAT rerun verified 6,998 inputs and
-27,228 components with zero disagreement.
+nonempty `4x4` masks, 100,000 deterministic connected larger regions, 87,148
+polyomino/hole fixtures, and 25 adversarial fixtures. All 253,219 inputs had
+exact horizontal and vertical family equality, with no missing or fabricated
+chord. The v0.3 CP-SAT rerun verified 6,998 inputs and 27,228 components with
+zero disagreement.
 
 The final `q=4096` run measured 285,717 microseconds for boundary plus grid-run
 enumeration, 201 for embedding, 2,716 for biclique construction, 539 for flow,
