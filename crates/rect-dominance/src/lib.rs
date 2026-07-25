@@ -15,8 +15,8 @@ use rect_core::{
 };
 use rect_graph::DinicBackend;
 use rect_oracle_sg::{
-    CompletionMetrics, EffectiveChordEnumerator, GeometricCompletionBackend,
-    GridInteriorRunEnumerator, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
+    CompletionBackendKind, CompletionMetrics, EffectiveChordEnumerator, GridInteriorRunEnumerator,
+    IndexedFrontierCompletion, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
     complete_with_backend,
 };
 use serde::{Deserialize, Serialize};
@@ -84,10 +84,14 @@ pub fn solve_with_verification_mode<C>(
     component: &GridComponent<C>,
     mode: VerificationMode,
 ) -> Result<DissectionResult, DominanceError> {
-    solve_with_verification_mode_and_chord_enumerator(
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
         component,
         mode,
         ChordEnumerator::GridInteriorRuns,
+        match mode {
+            VerificationMode::FullyAudited => CompletionBackendKind::ReferenceRescan,
+            VerificationMode::CompactOnly => CompletionBackendKind::IndexedFrontier,
+        },
     )
 }
 
@@ -102,25 +106,47 @@ pub fn solve_with_verification_mode_and_chord_enumerator<C>(
     mode: VerificationMode,
     enumerator: ChordEnumerator,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+        component,
+        mode,
+        enumerator,
+        CompletionBackendKind::ReferenceRescan,
+    )
+}
+
+/// Solves with explicit verification, chord-enumerator, and completion backends.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when geometry, flow, completion, or validation
+/// invariants fail.
+pub fn solve_with_verification_mode_and_chord_enumerator_and_completion_backend<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+) -> Result<DissectionResult, DominanceError> {
     match mode {
         VerificationMode::FullyAudited => match enumerator {
             ChordEnumerator::ReferencePairwise => solve_fully_audited_with(
                 component,
                 DominanceMode::Compact,
                 &ReferencePairwiseEnumerator,
+                completion_backend,
             ),
             ChordEnumerator::GridInteriorRuns => solve_fully_audited_with(
                 component,
                 DominanceMode::Compact,
                 &GridInteriorRunEnumerator,
+                completion_backend,
             ),
         },
         VerificationMode::CompactOnly => match enumerator {
             ChordEnumerator::ReferencePairwise => {
-                solve_compact_only_with(component, &ReferencePairwiseEnumerator)
+                solve_compact_only_with(component, &ReferencePairwiseEnumerator, completion_backend)
             }
             ChordEnumerator::GridInteriorRuns => {
-                solve_compact_only_with(component, &GridInteriorRunEnumerator)
+                solve_compact_only_with(component, &GridInteriorRunEnumerator, completion_backend)
             }
         },
     }
@@ -137,7 +163,12 @@ pub fn solve<C>(
     component: &GridComponent<C>,
     mode: DominanceMode,
 ) -> Result<DissectionResult, DominanceError> {
-    solve_fully_audited_with(component, mode, &ReferencePairwiseEnumerator)
+    solve_fully_audited_with(
+        component,
+        mode,
+        &ReferencePairwiseEnumerator,
+        CompletionBackendKind::ReferenceRescan,
+    )
 }
 
 #[allow(clippy::too_many_lines)]
@@ -145,6 +176,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
     component: &GridComponent<C>,
     mode: DominanceMode,
     enumerator: &E,
+    completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
     let sg_analysis = rect_oracle_sg::analyze_with(component, enumerator)?;
@@ -210,13 +242,13 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
         .map(|covered| !covered)
         .collect::<Vec<_>>();
     let flow_at = Instant::now();
-    let completion = complete_with_backend(
+    let completion = complete_selected(
         component,
         &sg_analysis.horizontal_chords,
         &sg_analysis.vertical_chords,
         &selected_horizontal,
         &selected_vertical,
-        &ReferenceRescanCompletion,
+        completion_backend,
     )?;
     if completion.rectangles.len() != sg_analysis.optimum_rectangle_count {
         return Err(DominanceError::CompletionCount {
@@ -358,7 +390,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: None,
             owned_allocation_estimates: BTreeMap::new(),
-            completion_backend: Some(ReferenceRescanCompletion.name().to_owned()),
+            completion_backend: Some(completion_backend.name().to_owned()),
             ..completion_diagnostics(&completion.metrics)
         },
         certificate: Some(Certificate {
@@ -392,6 +424,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
 fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     component: &GridComponent<C>,
     enumerator: &E,
+    completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
     let geometry = rect_oracle_sg::analyze_geometry_with(component, enumerator)?;
@@ -442,13 +475,13 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     let optimum_rectangle_count = formula_base
         .checked_sub(independent_count)
         .ok_or(DominanceError::FormulaUnderflow)?;
-    let completion = complete_with_backend(
+    let completion = complete_selected(
         component,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
         &selected_horizontal,
         &selected_vertical,
-        &ReferenceRescanCompletion,
+        completion_backend,
     )?;
     if completion.rectangles.len() != optimum_rectangle_count {
         return Err(DominanceError::CompletionCount {
@@ -591,7 +624,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             horizontal_interior_run_count: geometry.horizontal_interior_run_count,
             vertical_interior_run_count: geometry.vertical_interior_run_count,
             candidate_reflex_pair_count: geometry.candidate_reflex_pair_count,
-            completion_backend: Some(ReferenceRescanCompletion.name().to_owned()),
+            completion_backend: Some(completion_backend.name().to_owned()),
             ..completion_diagnostics(&completion.metrics)
         },
         certificate: Some(Certificate {
@@ -615,6 +648,34 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     };
     validate_dissection(component, &result)?;
     Ok(result)
+}
+
+fn complete_selected<C>(
+    component: &GridComponent<C>,
+    horizontal_chords: &[rect_core::HorizontalChord],
+    vertical_chords: &[rect_core::VerticalChord],
+    selected_horizontal: &[bool],
+    selected_vertical: &[bool],
+    backend: CompletionBackendKind,
+) -> Result<rect_oracle_sg::CompletionResult, DominanceError> {
+    match backend {
+        CompletionBackendKind::ReferenceRescan => Ok(complete_with_backend(
+            component,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+            &ReferenceRescanCompletion,
+        )?),
+        CompletionBackendKind::IndexedFrontier => Ok(complete_with_backend(
+            component,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+            &IndexedFrontierCompletion,
+        )?),
+    }
 }
 
 #[derive(Debug, Error)]

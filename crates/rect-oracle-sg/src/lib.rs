@@ -1,6 +1,7 @@
 //! Explicit Soltan--Gorpinevich oracle for ordinary grid-cell polygons.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet, VecDeque};
 use std::time::Instant;
 
 use rect_core::{
@@ -720,6 +721,16 @@ pub enum CompletionBackendKind {
     IndexedFrontier,
 }
 
+impl CompletionBackendKind {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceRescan => "reference-rescan",
+            Self::IndexedFrontier => "indexed-frontier",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 struct Cuts {
     horizontal: BTreeSet<HorizontalUnitCut>,
@@ -758,12 +769,259 @@ impl Cuts {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Direction {
     East,
     North,
     West,
     South,
+}
+
+impl Direction {
+    const fn order(self) -> usize {
+        match self {
+            Self::East => 0,
+            Self::North => 1,
+            Self::West => 2,
+            Self::South => 3,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct FrontierCandidate {
+    y: usize,
+    x: usize,
+    direction_order: usize,
+    generation: u64,
+    direction: Direction,
+}
+
+#[derive(Clone, Debug)]
+struct CompletionState {
+    x0: usize,
+    y0: usize,
+    x1: usize,
+    y1: usize,
+    width: usize,
+    height: usize,
+    occupancy: Vec<bool>,
+    horizontal_cut_bits: Vec<bool>,
+    vertical_cut_bits: Vec<bool>,
+    cuts: Cuts,
+    generations: Vec<u64>,
+    frontier: BinaryHeap<Reverse<FrontierCandidate>>,
+}
+
+impl CompletionState {
+    fn new<C>(component: &GridComponent<C>, cuts: Cuts) -> Result<Self, SgError> {
+        let (x0, y0, x1, y1) = component
+            .bounds()
+            .ok_or(SgError::CompletionDidNotTerminate)?;
+        let width = x1 - x0;
+        let height = y1 - y0;
+        let mut occupancy = vec![false; width * height];
+        for cell in &component.cells {
+            occupancy[(cell.y - y0) * width + cell.x - x0] = true;
+        }
+        let mut state = Self {
+            x0,
+            y0,
+            x1,
+            y1,
+            width,
+            height,
+            occupancy,
+            horizontal_cut_bits: vec![false; width * (height + 1)],
+            vertical_cut_bits: vec![false; (width + 1) * height],
+            cuts,
+            generations: vec![0; (width + 1) * (height + 1)],
+            frontier: BinaryHeap::new(),
+        };
+        for cut in state.cuts.horizontal.iter().copied().collect::<Vec<_>>() {
+            state.set_horizontal_cut_bit(cut);
+        }
+        for cut in state.cuts.vertical.iter().copied().collect::<Vec<_>>() {
+            state.set_vertical_cut_bit(cut);
+        }
+        Ok(state)
+    }
+
+    fn contains_cell(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x < self.x1
+            && y >= self.y0
+            && y < self.y1
+            && self.occupancy[(y - self.y0) * self.width + x - self.x0]
+    }
+
+    fn vertex_index(&self, x: usize, y: usize) -> usize {
+        (y - self.y0) * (self.width + 1) + x - self.x0
+    }
+
+    fn horizontal_cut(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x < self.x1
+            && y >= self.y0
+            && y <= self.y1
+            && self.horizontal_cut_bits[(y - self.y0) * self.width + x - self.x0]
+    }
+
+    fn vertical_cut(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x <= self.x1
+            && y >= self.y0
+            && y < self.y1
+            && self.vertical_cut_bits[(y - self.y0) * (self.width + 1) + x - self.x0]
+    }
+
+    fn set_horizontal_cut_bit(&mut self, cut: HorizontalUnitCut) {
+        if cut.x >= self.x0 && cut.x < self.x1 && cut.y >= self.y0 && cut.y <= self.y1 {
+            let index = (cut.y - self.y0) * self.width + cut.x - self.x0;
+            self.horizontal_cut_bits[index] = true;
+        }
+    }
+
+    fn set_vertical_cut_bit(&mut self, cut: VerticalUnitCut) {
+        if cut.x >= self.x0 && cut.x <= self.x1 && cut.y >= self.y0 && cut.y < self.y1 {
+            let index = (cut.y - self.y0) * (self.width + 1) + cut.x - self.x0;
+            self.vertical_cut_bits[index] = true;
+        }
+    }
+
+    fn local_quadrants(&self, x: usize, y: usize) -> [bool; 4] {
+        [
+            x > 0 && y > 0 && self.contains_cell(x - 1, y - 1),
+            y > 0 && self.contains_cell(x, y - 1),
+            self.contains_cell(x, y),
+            x > 0 && self.contains_cell(x - 1, y),
+        ]
+    }
+
+    fn local_blocked_rays(&self, inside: [bool; 4], x: usize, y: usize) -> [bool; 4] {
+        [
+            self.horizontal_cut(x, y) || inside[1] != inside[2],
+            self.vertical_cut(x, y) || inside[2] != inside[3],
+            (x > 0 && self.horizontal_cut(x - 1, y)) || inside[3] != inside[0],
+            (y > 0 && self.vertical_cut(x, y - 1)) || inside[0] != inside[1],
+        ]
+    }
+
+    fn candidate_valid(
+        &self,
+        x: usize,
+        y: usize,
+        direction: Direction,
+        metrics: &mut CompletionMetrics,
+    ) -> bool {
+        metrics.concave_candidate_queries += 1;
+        let inside = self.local_quadrants(x, y);
+        let blocked = self.local_blocked_rays(inside, x, y);
+        if !blocked.iter().any(|&value| value) {
+            return false;
+        }
+        let (roots, sizes) = local_angle_components(inside, blocked);
+        let (ray, first, second) = match direction {
+            Direction::East => (0, 1, 2),
+            Direction::North => (1, 2, 3),
+            Direction::West => (2, 3, 0),
+            Direction::South => (3, 0, 1),
+        };
+        inside[first]
+            && inside[second]
+            && !blocked[ray]
+            && roots[first] == roots[second]
+            && sizes[roots[first]] >= 3
+    }
+
+    fn enqueue_vertex(
+        &mut self,
+        x: usize,
+        y: usize,
+        horizontal: bool,
+        metrics: &mut CompletionMetrics,
+    ) {
+        if x < self.x0 || x > self.x1 || y < self.y0 || y > self.y1 {
+            return;
+        }
+        let index = self.vertex_index(x, y);
+        let generation = self.generations[index];
+        for direction in [
+            Direction::East,
+            Direction::North,
+            Direction::West,
+            Direction::South,
+        ] {
+            if direction.is_horizontal() == horizontal
+                && self.candidate_valid(x, y, direction, metrics)
+            {
+                self.frontier.push(Reverse(FrontierCandidate {
+                    y,
+                    x,
+                    direction_order: direction.order(),
+                    generation,
+                    direction,
+                }));
+            }
+        }
+    }
+
+    fn refresh_vertex(
+        &mut self,
+        x: usize,
+        y: usize,
+        horizontal: bool,
+        metrics: &mut CompletionMetrics,
+    ) {
+        if x < self.x0 || x > self.x1 || y < self.y0 || y > self.y1 {
+            return;
+        }
+        let index = self.vertex_index(x, y);
+        self.generations[index] = self.generations[index].wrapping_add(1);
+        self.enqueue_vertex(x, y, horizontal, metrics);
+    }
+
+    fn initialize_frontier(&mut self, horizontal: bool, metrics: &mut CompletionMetrics) {
+        self.frontier.clear();
+        self.generations.fill(0);
+        metrics.full_grid_vertex_scans += 1;
+        for y in self.y0..=self.y1 {
+            for x in self.x0..=self.x1 {
+                self.enqueue_vertex(x, y, horizontal, metrics);
+            }
+        }
+    }
+
+    fn pop_candidate(&mut self, metrics: &mut CompletionMetrics) -> Option<FrontierCandidate> {
+        while let Some(Reverse(candidate)) = self.frontier.pop() {
+            metrics.candidate_revalidations += 1;
+            let generation = self.generations[self.vertex_index(candidate.x, candidate.y)];
+            if candidate.generation != generation
+                || !self.candidate_valid(candidate.x, candidate.y, candidate.direction, metrics)
+            {
+                metrics.stale_candidate_count += 1;
+                continue;
+            }
+            return Some(candidate);
+        }
+        None
+    }
+
+    fn perpendicular_boundary_at(&self, point: (usize, usize), horizontal_chord: bool) -> bool {
+        let (x, y) = point;
+        let inside = self.local_quadrants(x, y);
+        if horizontal_chord {
+            self.vertical_cut(x, y)
+                || (y > 0 && self.vertical_cut(x, y - 1))
+                || inside[2] != inside[3]
+                || inside[0] != inside[1]
+        } else {
+            self.horizontal_cut(x, y)
+                || (x > 0 && self.horizontal_cut(x - 1, y))
+                || inside[1] != inside[2]
+                || inside[3] != inside[0]
+        }
+    }
 }
 
 impl Direction {
@@ -884,15 +1142,7 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
         let rectangles_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             rectangles_at.duration_since(vertical_at).as_micros();
-        validate_dissection(
-            component,
-            &DissectionResult {
-                optimum_rectangle_count: rectangles.len(),
-                rectangles: rectangles.clone(),
-                diagnostics: Diagnostics::default(),
-                certificate: None,
-            },
-        )?;
+        validate_completion_rectangles(component, &rectangles)?;
         metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
         let added_horizontal_unit_cuts = cuts
             .horizontal
@@ -921,6 +1171,225 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
     fn name(&self) -> &'static str {
         "reference-rescan"
     }
+}
+
+impl GeometricCompletionBackend for IndexedFrontierCompletion {
+    fn complete<C>(
+        &self,
+        component: &GridComponent<C>,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<CompletionResult, SgError> {
+        if selected_horizontal.len() != horizontal_chords.len()
+            || selected_vertical.len() != vertical_chords.len()
+        {
+            return Err(SgError::SelectionLengthMismatch);
+        }
+        let started = Instant::now();
+        let cuts = Cuts::from_selection(
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )?;
+        let selected_at = Instant::now();
+        let selected_horizontal_unit_cuts = cuts.horizontal.iter().copied().collect::<Vec<_>>();
+        let selected_vertical_unit_cuts = cuts.vertical.iter().copied().collect::<Vec<_>>();
+        let mut metrics = CompletionMetrics {
+            selected_chord_cut_materialization_microseconds: selected_at
+                .duration_since(started)
+                .as_micros(),
+            initial_horizontal_unit_cut_count: cuts.horizontal.len(),
+            initial_vertical_unit_cut_count: cuts.vertical.len(),
+            ..CompletionMetrics::default()
+        };
+        let mut state = CompletionState::new(component, cuts)?;
+        complete_indexed_axis(&mut state, true, &mut metrics)?;
+        let horizontal_at = Instant::now();
+        metrics.horizontal_simple_chord_completion_microseconds =
+            horizontal_at.duration_since(selected_at).as_micros();
+        complete_indexed_axis(&mut state, false, &mut metrics)?;
+        let vertical_at = Instant::now();
+        metrics.vertical_simple_chord_completion_microseconds =
+            vertical_at.duration_since(horizontal_at).as_micros();
+        let rectangles = rectangles_from_cuts(component, &state.cuts, &mut metrics)?;
+        let rectangles_at = Instant::now();
+        metrics.rectangle_recovery_microseconds =
+            rectangles_at.duration_since(vertical_at).as_micros();
+        validate_completion_rectangles(component, &rectangles)?;
+        metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
+        let added_horizontal_unit_cuts = state
+            .cuts
+            .horizontal
+            .iter()
+            .filter(|cut| selected_horizontal_unit_cuts.binary_search(cut).is_err())
+            .copied()
+            .collect::<Vec<_>>();
+        let added_vertical_unit_cuts = state
+            .cuts
+            .vertical
+            .iter()
+            .filter(|cut| selected_vertical_unit_cuts.binary_search(cut).is_err())
+            .copied()
+            .collect::<Vec<_>>();
+        metrics.added_horizontal_unit_cut_count = added_horizontal_unit_cuts.len();
+        metrics.added_vertical_unit_cut_count = added_vertical_unit_cuts.len();
+        Ok(CompletionResult {
+            rectangles,
+            selected_horizontal_unit_cuts,
+            selected_vertical_unit_cuts,
+            added_horizontal_unit_cuts,
+            added_vertical_unit_cuts,
+            metrics,
+        })
+    }
+
+    fn name(&self) -> &'static str {
+        "indexed-frontier"
+    }
+}
+
+fn complete_indexed_axis(
+    state: &mut CompletionState,
+    horizontal: bool,
+    metrics: &mut CompletionMetrics,
+) -> Result<(), SgError> {
+    state.initialize_frontier(horizontal, metrics);
+    let maximum_unit_cuts = state
+        .width
+        .checked_mul(state.height + 1)
+        .and_then(|horizontal_slots| {
+            (state.width + 1)
+                .checked_mul(state.height)
+                .and_then(|vertical_slots| horizontal_slots.checked_add(vertical_slots))
+        })
+        .ok_or(SgError::CompletionDidNotTerminate)?;
+    for _ in 0..=maximum_unit_cuts {
+        let Some(candidate) = state.pop_candidate(metrics) else {
+            return Ok(());
+        };
+        let added = extend_indexed_simple_chord(state, candidate, horizontal, metrics);
+        if added == 0 {
+            return Err(SgError::InvalidSimpleChord {
+                point: (candidate.x, candidate.y),
+            });
+        }
+        if horizontal {
+            metrics.horizontal_simple_chord_count += 1;
+        } else {
+            metrics.vertical_simple_chord_count += 1;
+        }
+    }
+    Err(SgError::CompletionDidNotTerminate)
+}
+
+fn extend_indexed_simple_chord(
+    state: &mut CompletionState,
+    candidate: FrontierCandidate,
+    horizontal: bool,
+    metrics: &mut CompletionMetrics,
+) -> usize {
+    let mut horizontal_additions = Vec::new();
+    let mut vertical_additions = Vec::new();
+    let (mut x, mut y) = (candidate.x, candidate.y);
+    loop {
+        metrics.ray_extension_unit_steps += 1;
+        let next = match candidate.direction {
+            Direction::East => {
+                if y == 0
+                    || !state.contains_cell(x, y - 1)
+                    || !state.contains_cell(x, y)
+                    || state.horizontal_cut(x, y)
+                {
+                    break;
+                }
+                horizontal_additions.push(HorizontalUnitCut { x, y });
+                x += 1;
+                (x, y)
+            }
+            Direction::West => {
+                if x == 0 || y == 0 {
+                    break;
+                }
+                let unit_x = x - 1;
+                if !state.contains_cell(unit_x, y - 1)
+                    || !state.contains_cell(unit_x, y)
+                    || state.horizontal_cut(unit_x, y)
+                {
+                    break;
+                }
+                horizontal_additions.push(HorizontalUnitCut { x: unit_x, y });
+                x -= 1;
+                (x, y)
+            }
+            Direction::North => {
+                if x == 0
+                    || !state.contains_cell(x - 1, y)
+                    || !state.contains_cell(x, y)
+                    || state.vertical_cut(x, y)
+                {
+                    break;
+                }
+                vertical_additions.push(VerticalUnitCut { x, y });
+                y += 1;
+                (x, y)
+            }
+            Direction::South => {
+                if x == 0 || y == 0 {
+                    break;
+                }
+                let unit_y = y - 1;
+                if !state.contains_cell(x - 1, unit_y)
+                    || !state.contains_cell(x, unit_y)
+                    || state.vertical_cut(x, unit_y)
+                {
+                    break;
+                }
+                vertical_additions.push(VerticalUnitCut { x, y: unit_y });
+                y -= 1;
+                (x, y)
+            }
+        };
+        if state.perpendicular_boundary_at(next, candidate.direction.is_horizontal()) {
+            break;
+        }
+    }
+    let added = horizontal_additions.len() + vertical_additions.len();
+    let mut affected = BTreeSet::new();
+    for cut in horizontal_additions {
+        state.set_horizontal_cut_bit(cut);
+        state.cuts.horizontal.insert(cut);
+        affected.insert((cut.x, cut.y));
+        affected.insert((cut.x + 1, cut.y));
+    }
+    for cut in vertical_additions {
+        state.set_vertical_cut_bit(cut);
+        state.cuts.vertical.insert(cut);
+        affected.insert((cut.x, cut.y));
+        affected.insert((cut.x, cut.y + 1));
+    }
+    for (affected_x, affected_y) in affected {
+        state.refresh_vertex(affected_x, affected_y, horizontal, metrics);
+    }
+    added
+}
+
+fn validate_completion_rectangles<C>(
+    component: &GridComponent<C>,
+    rectangles: &[GridRect],
+) -> Result<(), SgError> {
+    validate_dissection(
+        component,
+        &DissectionResult {
+            optimum_rectangle_count: rectangles.len(),
+            rectangles: rectangles.to_vec(),
+            diagnostics: Diagnostics::default(),
+            certificate: None,
+        },
+    )?;
+    Ok(())
 }
 
 fn complete_axis<C>(
@@ -1302,9 +1771,9 @@ mod tests {
     use rect_oracle_exact_cover as exact_cover;
 
     use super::{
-        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
-        ReferenceRescanCompletion, analyze, complete_with_backend, complete_with_chord_families,
-        solve,
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
+        ReferencePairwiseEnumerator, ReferenceRescanCompletion, analyze, complete_with_backend,
+        complete_with_chord_families, solve,
     };
 
     fn foreground_component(width: usize, height: usize, cells: Vec<bool>) -> GridComponent<bool> {
@@ -1383,6 +1852,80 @@ mod tests {
             completion.metrics.added_vertical_unit_cut_count,
             completion.added_vertical_unit_cuts.len()
         );
+    }
+
+    fn assert_completion_backends_equal(component: &GridComponent<bool>) {
+        let analysis = analyze(component).unwrap();
+        let reference = complete_with_backend(
+            component,
+            &analysis.horizontal_chords,
+            &analysis.vertical_chords,
+            &analysis.selected_horizontal,
+            &analysis.selected_vertical,
+            &ReferenceRescanCompletion,
+        )
+        .unwrap();
+        let indexed = complete_with_backend(
+            component,
+            &analysis.horizontal_chords,
+            &analysis.vertical_chords,
+            &analysis.selected_horizontal,
+            &analysis.selected_vertical,
+            &IndexedFrontierCompletion,
+        )
+        .unwrap();
+        assert_eq!(
+            reference.selected_horizontal_unit_cuts,
+            indexed.selected_horizontal_unit_cuts
+        );
+        assert_eq!(
+            reference.selected_vertical_unit_cuts,
+            indexed.selected_vertical_unit_cuts
+        );
+        assert_eq!(
+            reference.added_horizontal_unit_cuts,
+            indexed.added_horizontal_unit_cuts
+        );
+        assert_eq!(
+            reference.added_vertical_unit_cuts,
+            indexed.added_vertical_unit_cuts
+        );
+        assert_eq!(reference.rectangles, indexed.rectangles);
+        assert_eq!(indexed.metrics.full_grid_vertex_scans, 2);
+    }
+
+    #[test]
+    fn completion_backends_match_through_three_by_three() {
+        for mask in 1_u16..(1_u16 << 9) {
+            let cells = (0..9)
+                .map(|index| mask & (1_u16 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(3, 3, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                assert_completion_backends_equal(&component);
+            }
+        }
+    }
+
+    #[test]
+    fn completion_backends_match_through_four_by_four() {
+        for mask in 1_u32..(1_u32 << 16) {
+            let cells = (0..16)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(4, 4, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                assert_completion_backends_equal(&component);
+            }
+        }
     }
 
     #[test]
@@ -1509,6 +2052,40 @@ mod tests {
             assert_eq!(
                 reference.vertical, optimized.vertical,
                 "seed={SEED:#018x}, case={case}, width={width}, height={height}, cells={cells:?}"
+            );
+            let selected_horizontal = vec![false; reference.horizontal.len()];
+            let selected_vertical = vec![false; reference.vertical.len()];
+            let reference_completion = complete_with_backend(
+                &component,
+                &reference.horizontal,
+                &reference.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+                &ReferenceRescanCompletion,
+            )
+            .unwrap();
+            let indexed_completion = complete_with_backend(
+                &component,
+                &reference.horizontal,
+                &reference.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+                &IndexedFrontierCompletion,
+            )
+            .unwrap();
+            assert_eq!(
+                reference_completion.added_horizontal_unit_cuts,
+                indexed_completion.added_horizontal_unit_cuts,
+                "completion horizontal: seed={SEED:#018x}, case={case}"
+            );
+            assert_eq!(
+                reference_completion.added_vertical_unit_cuts,
+                indexed_completion.added_vertical_unit_cuts,
+                "completion vertical: seed={SEED:#018x}, case={case}"
+            );
+            assert_eq!(
+                reference_completion.rectangles, indexed_completion.rectangles,
+                "completion rectangles: seed={SEED:#018x}, case={case}"
             );
         }
     }
