@@ -1,16 +1,20 @@
 # Clean Hole-Free Path-Tree Representation
 
-For a clean hole-free component, `rect-dominance::path_tree` constructs a
-reference region dual by inserting every vertical effective chord as a unit
-cut, flood-filling occupied cells across uncut sides, and labeling the two
-incident regions of each chord. The implementation checks connectivity,
-unique labels, and `|E| + 1 = |V|`; it is deliberately area-sensitive and is a
-reference construction, not the paper's planar-sweep runtime.
+For a clean hole-free component, `rect-dominance::path_tree` provides two dual
+backends. `ReferenceAreaFloodFill` inserts every vertical effective chord as a
+unit cut, flood-fills occupied cells across uncut sides, and labels the two
+incident regions of each chord. `BoundaryLaminar` is the CompactOnly
+construction: it cuts the normalized outer boundary at a deterministic
+endpoint-free gap, builds the interval-containment tree, and labels boundary
+gaps without occupancy flood fill. The formal rule is in
+`docs/BOUNDARY_DUAL_CONSTRUCTION.md`.
 
-Every horizontal chord is then mapped to the unique region-tree path between
-its endpoint regions. The path is recovered from tree geometry, never from the
-explicit conflict graph. FullyAudited verifies that the path edge set equals
-the independently materialized geometric neighborhood.
+Every horizontal chord is mapped to a `CompactTreePath` containing only its two
+endpoint regions. Endpoint-only HLD emits `O(log q)` heavy-chain intervals and
+feeds the canonical segment decomposition directly; the path length is
+computed from endpoint depths without enumerating tree edges. The legacy
+`ChordTreePath` edge vector and per-path BFS remain an independent
+FullyAudited oracle.
 
 Heavy-light decomposition stores parent, parent edge, depth, subtree size,
 heavy child, chain head, chain ID, and edge position. Equal subtree sizes are
@@ -29,11 +33,10 @@ path-tree     require a clean-hole-free certificate
 auto          path-tree when eligible, otherwise compact 4D fallback
 ```
 
-The CLI exposes the selector as `--representation`. For an eligible component,
-the path-tree backend constructs both orientations on the prepared occupancy
-and deterministically keeps the one with smaller biclique vertex-occurrence
-size, breaking ties in favor of `vertical-tree-horizontal-paths`. The selected
-orientation is recorded in `diagnostics.path_tree_orientation` and in the
-certificate. Both orientations reuse the same grid reference dual and HLD
-implementation; the dual construction remains area-sensitive rather than the
-paper's planar sweep. Dinic is still the exact practical flow backend.
+The CLI exposes the selector as `--representation` and `--region-dual
+reference-area|boundary-laminar`. FullyAudited constructs both orientations
+with the area reference and compares their explicit paths and partitions.
+CompactOnly uses the boundary-laminar vertical orientation without transposing
+the prepared occupancy; its trace records zero area visits, unit-cut records,
+per-path BFS calls, and explicit path-edge materialization. Dinic is still the
+exact practical flow backend.

@@ -10,7 +10,8 @@ use std::time::Instant;
 use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
-use path_tree::{PathTreeError, build_best_path_tree_partition};
+pub use path_tree::RegionDualBackend;
+use path_tree::{PathTreeError, build_best_path_tree_partition_with_backend};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
     PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
@@ -115,6 +116,33 @@ pub fn solve_with_representation<C>(
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_with_representation_and_region_dual(
+        component,
+        mode,
+        representation,
+        enumerator,
+        completion_backend,
+        match mode {
+            VerificationMode::FullyAudited => RegionDualBackend::ReferenceAreaFloodFill,
+            VerificationMode::CompactOnly => RegionDualBackend::BoundaryLaminar,
+        },
+    )
+}
+
+/// Solver entry point with an explicit path-tree region-dual backend.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when geometry, representation, flow,
+/// completion, or validation invariants fail.
+pub fn solve_with_representation_and_region_dual<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    representation: ConflictRepresentationBackend,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
+) -> Result<DissectionResult, DominanceError> {
     match representation {
         ConflictRepresentationBackend::GeneralDominance4D => {
             solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -126,7 +154,7 @@ pub fn solve_with_representation<C>(
             .map(|result| annotate_general_representation(result, None))
         }
         ConflictRepresentationBackend::CleanHoleFreePathTree => {
-            solve_path_tree_dispatch(component, mode, enumerator, completion_backend)
+            solve_path_tree_dispatch(component, mode, enumerator, completion_backend, region_dual)
         }
         ConflictRepresentationBackend::Auto => {
             let geometry = match enumerator {
@@ -150,6 +178,7 @@ pub fn solve_with_representation<C>(
                     &certificate,
                     mode,
                     completion_backend,
+                    region_dual,
                 )
             } else {
                 solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -485,6 +514,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
                 c0_partition_built: matches!(mode, DominanceMode::ExplicitEdges),
                 full_edge_partition_audit_called: true,
                 compact_structure_check_called: true,
+                ..ExecutionTrace::default()
             },
             effective_chord_enumerator: Some(enumerator.name().to_owned()),
             effective_chord_enumeration_microseconds: Some(
@@ -845,6 +875,7 @@ fn solve_path_tree_dispatch<C>(
     mode: VerificationMode,
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
 ) -> Result<DissectionResult, DominanceError> {
     let geometry = match enumerator {
         ChordEnumerator::ReferencePairwise => {
@@ -863,7 +894,14 @@ fn solve_path_tree_dispatch<C>(
     if !certificate.eligible {
         return Err(DominanceError::PathTreeIneligible(certificate));
     }
-    solve_path_tree_with_geometry(component, &geometry, &certificate, mode, completion_backend)
+    solve_path_tree_with_geometry(
+        component,
+        &geometry,
+        &certificate,
+        mode,
+        completion_backend,
+        region_dual,
+    )
 }
 
 #[allow(clippy::too_many_lines)]
@@ -873,14 +911,17 @@ fn solve_path_tree_with_geometry<C>(
     certificate: &rect_oracle_sg::CleanHoleFreeCertificate,
     mode: VerificationMode,
     completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let path_tree = build_best_path_tree_partition(
+    let path_tree = build_best_path_tree_partition_with_backend(
         &geometry.prepared,
         &geometry.boundary,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
         certificate.clone(),
+        mode == VerificationMode::FullyAudited,
+        region_dual,
     )?;
     let path_tree_at = Instant::now();
     let mut four_d_sigma = None;
@@ -891,6 +932,23 @@ fn solve_path_tree_with_geometry<C>(
             &geometry.horizontal_chords,
             &geometry.vertical_chords,
         )?;
+        // The boundary dual is independently built and checked against the
+        // area oracle in FullyAudited.  CompactOnly skips this comparison.
+        let boundary_partition = build_best_path_tree_partition_with_backend(
+            &geometry.prepared,
+            &geometry.boundary,
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+            certificate.clone(),
+            false,
+            RegionDualBackend::BoundaryLaminar,
+        )?;
+        boundary_partition
+            .biclique_partition
+            .verify_exact_partition(&graph)?;
+        boundary_partition
+            .path_tree
+            .verify_paths(&geometry.horizontal_chords, &geometry.vertical_chords)?;
         path_tree
             .biclique_partition
             .verify_exact_partition(&graph)?;
@@ -1041,6 +1099,14 @@ fn solve_path_tree_with_geometry<C>(
                 hopcroft_karp_called: mode == VerificationMode::FullyAudited,
                 full_edge_partition_audit_called: mode == VerificationMode::FullyAudited,
                 compact_structure_check_called: true,
+                full_tree_path_edge_lists_materialized: mode == VerificationMode::FullyAudited,
+                per_path_bfs_called: mode == VerificationMode::FullyAudited,
+                area_flood_fill_dual_built: region_dual
+                    == RegionDualBackend::ReferenceAreaFloodFill,
+                unit_chord_cuts_materialized: region_dual
+                    == RegionDualBackend::ReferenceAreaFloodFill,
+                prepared_occupancy_transposed: mode == VerificationMode::FullyAudited
+                    && region_dual == RegionDualBackend::ReferenceAreaFloodFill,
                 ..ExecutionTrace::default()
             },
             effective_chord_enumerator: Some("prepared-path-tree-input".to_owned()),
@@ -1067,6 +1133,50 @@ fn solve_path_tree_with_geometry<C>(
             canonical_segment_node_count: Some(path_tree.canonical_segment_node_count),
             path_tree_sigma: Some(sigma),
             four_d_sigma,
+            region_dual_backend: Some(region_dual.name().to_owned()),
+            region_dual_construction_microseconds: Some(
+                path_tree_at.duration_since(started).as_micros(),
+            ),
+            dual_tree_edge_count: Some(path_tree.path_tree.tree.edges.len()),
+            dual_allocated_bytes: Some(
+                path_tree.path_tree.tree.edges.len()
+                    * std::mem::size_of::<rect_core::VerticalChordId>()
+                    + path_tree.path_tree.tree.adjacency.len()
+                        * std::mem::size_of::<
+                            Vec<(path_tree::DualRegionId, rect_core::VerticalChordId)>,
+                        >(),
+            ),
+            dual_unit_cut_count: Some(
+                if region_dual == RegionDualBackend::ReferenceAreaFloodFill {
+                    geometry
+                        .vertical_chords
+                        .iter()
+                        .filter_map(|chord| usize::try_from(chord.top() - chord.bottom()).ok())
+                        .sum()
+                } else {
+                    0
+                },
+            ),
+            dual_area_cell_visits: Some(
+                if region_dual == RegionDualBackend::ReferenceAreaFloodFill {
+                    geometry
+                        .prepared
+                        .occupancy
+                        .iter()
+                        .filter(|&&occupied| occupied)
+                        .count()
+                } else {
+                    0
+                },
+            ),
+            dual_interval_count: Some(if region_dual == RegionDualBackend::BoundaryLaminar {
+                path_tree.path_tree.tree.edges.len()
+            } else {
+                0
+            }),
+            dual_maximum_nesting_depth: Some(0),
+            hld_interval_count: Some(path_tree.canonical_segment_node_count),
+            explicit_path_records_materialized: Some(path_tree.path_tree.paths.len()),
             ..completion_diagnostics(&completion.metrics)
         },
         certificate: Some(Certificate {
@@ -1076,6 +1186,7 @@ fn solve_path_tree_with_geometry<C>(
                 "clean_certificate": path_tree.path_tree.certificate,
                 "region_dual_tree": path_tree.path_tree.tree,
                 "chord_tree_paths": path_tree.path_tree.paths,
+                "compact_tree_paths": path_tree.path_tree.compact_paths,
                 "orientation": path_tree.orientation,
                 "biclique_partition": path_tree.biclique_partition,
                 "flow_value": flow_value,

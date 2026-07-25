@@ -7,8 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
 use rect_dominance::{
-    ChordEnumerator, ConflictRepresentationBackend, DominanceMode, VerificationMode,
-    solve_with_representation,
+    ChordEnumerator, ConflictRepresentationBackend, DominanceMode, RegionDualBackend,
+    VerificationMode, solve_with_representation_and_region_dual,
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
@@ -45,6 +45,8 @@ enum Command {
         completion_backend: Option<CompletionBackendArg>,
         #[arg(long, value_enum)]
         representation: Option<RepresentationArg>,
+        #[arg(long, value_enum)]
+        region_dual: Option<RegionDualArg>,
     },
     Verify {
         #[arg(long)]
@@ -162,6 +164,12 @@ enum RepresentationArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RegionDualArg {
+    ReferenceArea,
+    BoundaryLaminar,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     CleanCensus,
@@ -257,11 +265,13 @@ fn run() -> Result<(), CliError> {
             chord_enumerator,
             completion_backend,
             representation,
+            region_dual,
         } => solve_command(
             solver,
             chord_enumerator,
             completion_backend,
             representation,
+            region_dual,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -611,11 +621,13 @@ fn generate_command(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn solve_command(
     solver: SolverArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
     representation: Option<RepresentationArg>,
+    region_dual: Option<RegionDualArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -630,6 +642,7 @@ fn solve_command(
             chord_enumerator,
             completion_backend,
             representation,
+            region_dual,
         )?;
         solutions.push(ComponentSolution {
             component_id: component.id.0,
@@ -658,11 +671,12 @@ fn solve_component<C>(
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
     representation: Option<RepresentationArg>,
+    region_dual: Option<RegionDualArg>,
 ) -> Result<DissectionResult, CliError> {
     let completion_backend = completion_backend.map(completion_backend_kind);
     match solver {
         SolverArg::ExactCover => {
-            if completion_backend.is_some() || representation.is_some() {
+            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -672,7 +686,7 @@ fn solve_component<C>(
                 .map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::SgExplicit => {
-            if completion_backend.is_some() || representation.is_some() {
+            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -681,7 +695,7 @@ fn solve_component<C>(
             rect_oracle_sg::solve(component).map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::DominanceC0 => {
-            if completion_backend.is_some() || representation.is_some() {
+            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -690,20 +704,25 @@ fn solve_component<C>(
             rect_dominance::solve(component, DominanceMode::ExplicitEdges)
                 .map_err(|error| CliError::Solver(error.to_string()))
         }
-        SolverArg::DominanceCompressed => solve_with_representation(
+        SolverArg::DominanceCompressed => solve_with_representation_and_region_dual(
             component,
             VerificationMode::FullyAudited,
             representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
             dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise)),
             completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
+            region_dual.map_or(
+                RegionDualBackend::ReferenceAreaFloodFill,
+                region_dual_kind,
+            ),
         )
         .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::DominanceCompactOnly => solve_with_representation(
+        SolverArg::DominanceCompactOnly => solve_with_representation_and_region_dual(
             component,
             VerificationMode::CompactOnly,
             representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
             dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns)),
             completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
+            region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
         )
         .map_err(|error| CliError::Solver(error.to_string())),
     }
@@ -728,6 +747,13 @@ const fn representation_kind(representation: RepresentationArg) -> ConflictRepre
         RepresentationArg::Dominance4d => ConflictRepresentationBackend::GeneralDominance4D,
         RepresentationArg::PathTree => ConflictRepresentationBackend::CleanHoleFreePathTree,
         RepresentationArg::Auto => ConflictRepresentationBackend::Auto,
+    }
+}
+
+const fn region_dual_kind(backend: RegionDualArg) -> RegionDualBackend {
+    match backend {
+        RegionDualArg::ReferenceArea => RegionDualBackend::ReferenceAreaFloodFill,
+        RegionDualArg::BoundaryLaminar => RegionDualBackend::BoundaryLaminar,
     }
 }
 
@@ -1022,6 +1048,7 @@ mod tests {
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
             Some(RepresentationArg::Dominance4d),
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),

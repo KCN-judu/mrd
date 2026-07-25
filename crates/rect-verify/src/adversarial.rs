@@ -988,6 +988,18 @@ mod tests {
                     ..rect_core::ExecutionTrace::default()
                 }
             );
+            assert_eq!(
+                result.diagnostics.region_dual_backend.as_deref(),
+                Some("boundary-laminar")
+            );
+            assert_eq!(
+                result.diagnostics.explicit_path_records_materialized,
+                Some(0)
+            );
+            assert_eq!(
+                result.diagnostics.path_edge_incidence_count,
+                Some(4 * t * t)
+            );
             assert!(matches!(
                 result.diagnostics.path_tree_orientation.as_deref(),
                 Some("vertical-tree-horizontal-paths" | "horizontal-tree-vertical-paths")

@@ -33,6 +33,18 @@ pub struct ExecutionTrace {
     pub c0_partition_built: bool,
     pub full_edge_partition_audit_called: bool,
     pub compact_structure_check_called: bool,
+    /// True only when the audited path-tree oracle materializes every tree
+    /// edge traversed by every path chord.
+    pub full_tree_path_edge_lists_materialized: bool,
+    /// True only for the independent reference path reconstruction oracle.
+    pub per_path_bfs_called: bool,
+    /// True only for the area-sensitive reference region dual.
+    pub area_flood_fill_dual_built: bool,
+    /// True only when geometric chords are expanded into unit cuts by the
+    /// path-tree dual builder.
+    pub unit_chord_cuts_materialized: bool,
+    /// True when a prepared occupancy context is copied/transposed.
+    pub prepared_occupancy_transposed: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -103,6 +115,16 @@ pub struct Diagnostics {
     pub path_tree_sigma: Option<usize>,
     pub four_d_sigma: Option<usize>,
     pub owned_allocation_estimates: BTreeMap<String, usize>,
+    pub region_dual_backend: Option<String>,
+    pub region_dual_construction_microseconds: Option<u128>,
+    pub dual_tree_edge_count: Option<usize>,
+    pub dual_allocated_bytes: Option<usize>,
+    pub dual_unit_cut_count: Option<usize>,
+    pub dual_area_cell_visits: Option<usize>,
+    pub dual_interval_count: Option<usize>,
+    pub dual_maximum_nesting_depth: Option<usize>,
+    pub hld_interval_count: Option<usize>,
+    pub explicit_path_records_materialized: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
