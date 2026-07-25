@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "git_commit": "e90f18f",
+  "reference_enumerator": "reference-pairwise",
+  "candidate_enumerator": "grid-interior-runs",
+  "populations": [
+    {
+      "name": "exhaustive-binary-3x3-nonempty",
+      "input_count": 511,
+      "disagreement_count": 0
+    },
+    {
+      "name": "exhaustive-binary-4x4-nonempty",
+      "input_count": 65535,
+      "disagreement_count": 0
+    },
+    {
+      "name": "connected-random-walk-5-through-16",
+      "input_count": 100000,
+      "seed": 7886476043898336000,
+      "disagreement_count": 0
+    }
+  ],
+  "missing_chord_count": 0,
+  "fabricated_chord_count": 0,
+  "minimized_fixture_count": 0
+}

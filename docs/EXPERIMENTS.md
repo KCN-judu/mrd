@@ -10,6 +10,10 @@ reference implementation remains available; CompactOnly uses
 `GridInteriorRunEnumerator` after exact chord-set equality on every binary
 `3x3` and `4x4` component (512 and 65,535 non-empty masks respectively).
 The differential population produced no missing or fabricated chords.
+An additional 100,000 connected random-walk regions on grids from `5x5`
+through `16x16`, using seed `0x6d72642d76303300`, also produced exact
+horizontal and vertical chord-family equality. The machine-readable summary is
+`results/v0.3-chord-differential.json`.
 
 The CompactOnly contract tests assert that pairwise embedding audit, explicit
 conflict graph construction, Hopcroft--Karp, C0 construction, and full edge
@@ -29,6 +33,13 @@ is intentionally not claimed; `peak_memory_bytes` remains null. Result
 diagnostics include labeled owned-allocation estimates for chord vectors,
 embedding points, biclique vectors, and flow storage. These are component-owned
 estimates, not process peak memory.
+
+The bounded external OR-Tools 9.15 CP-SAT population was rerun for v0.3:
+6,998 inputs and 27,228 components, including all `3x3` binary grids, free
+polyominoes through 10 cells, and 13 selected adversarial grids. All 27,228
+components were solved and compared, with 0 timeouts, unsupported components,
+or disagreements. The separate evidence file is
+`results/v0.3-external-oracle.json`; it does not replace the v0.2 population.
 
 All committed results were produced from Git commit
 `32faff61bc4577ab50010e5d253afe83f7655d83` with
