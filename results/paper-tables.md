@@ -53,7 +53,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "0.4.0",
     "tag": "v0.4.0-indexed-completion",
-    "peeled_commit": "3f1dbb6057892d45ab94115cd5279137963549aa",
+    "peeled_commit": "00b6160a12f95e4b1722ec0f831f61fbf72228e0",
     "evidence": "indexed frontier completion with exact differential cuts and dense backend comparison",
     "result_commits": [
       "47f0412aff29eafb80de29201cf8f4b5f825bf92",
