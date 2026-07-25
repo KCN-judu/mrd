@@ -432,6 +432,24 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "c6bafda3a0493d60f6468f4298765468376753d8",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-complete-bipartite-compact --sizes 1,2,4,8,16,32,64,128 --output results/v0.6-clean-complete-bipartite-compact.csv",
+      "seed": null,
+      "timestamp": 1784986003,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-grid-clean-complete-bipartite-compact",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {
@@ -508,12 +526,13 @@
     {
       "version": "0.6.0",
       "tag": "v0.6.0-true-compact-path-tree",
-      "peeled_commit": "ce773a21e44cb5ecba6b6442e6c2bb9172f37141",
+      "peeled_commit": "c6bafda3a0493d60f6468f4298765468376753d8",
       "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
       "result_commits": [
         "b03ae75039b4f55a7c8940d41bbcf364d72a2d77",
         "349487ddef9d34b49cf48ac1e0dfc432676aa8b5",
-        "ce773a21e44cb5ecba6b6442e6c2bb9172f37141"
+        "ce773a21e44cb5ecba6b6442e6c2bb9172f37141",
+        "c6bafda3a0493d60f6468f4298765468376753d8"
       ]
     }
   ],
