@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "runs": [
     {
       "git_commit": "8100fd8",
@@ -450,9 +450,45 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "5818aa9338efce45d77cd98ae608852556f35cb7",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv",
+      "seed": null,
+      "timestamp": 1784992167,
+      "input_count": 65535,
+      "component_count": 168529,
+      "input_model": "finite-colored-unit-grid-binary-4x4-boundary-differential",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "5818aa9338efce45d77cd98ae608852556f35cb7",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv",
+      "seed": null,
+      "timestamp": 1784992208,
+      "input_count": 65535,
+      "component_count": 168529,
+      "input_model": "finite-colored-unit-grid-binary-4x4-boundary-differential",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
-  "release_metadata": {
+  "historical_release_metadata": {
     "git_commit": "32faff61bc4577ab50010e5d253afe83f7655d83",
     "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
     "operating_system": "macOS-26.5-arm64-arm-64bit-Mach-O",
@@ -534,8 +570,31 @@
         "ce773a21e44cb5ecba6b6442e6c2bb9172f37141",
         "c6bafda3a0493d60f6468f4298765468376753d8"
       ]
+    },
+    {
+      "version": "0.7.0",
+      "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
+      "peeled_commit": "PENDING",
+      "evidence": "path-tree structural families, orientation-policy audit, axis-view differential, and path-tree-vs-4d comparison",
+      "result_commits": []
     }
   ],
+  "current_release": {
+    "version": "0.7.0",
+    "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
+    "peeled_commit": "PENDING",
+    "defaults": {
+      "compact_chord_enumerator": "grid-interior-runs",
+      "compact_completion_backend": "indexed-frontier",
+      "compact_conflict_representation": "dominance-4d",
+      "compact_path_tree_orientation": "build-both",
+      "compact_rectangle_recovery_backend": "dense-grid",
+      "compact_region_dual": "boundary-laminar",
+      "fully_audited_completion_backend": "reference-rescan",
+      "fully_audited_path_tree_orientation": "build-both",
+      "fully_audited_region_dual": "reference-area"
+    }
+  },
   "generated_tables": [
     "results/correctness-table.csv",
     "results/compression-table.csv",
@@ -543,6 +602,11 @@
     "results/paper-tables.md",
     "results/v0.6-clean-complete-bipartite-compact.csv",
     "results/v0.6-clean-complete-bipartite-compact-summary.json",
-    "results/v0.6-clean-complete-bipartite-compact.md"
+    "results/v0.6-clean-complete-bipartite-compact.md",
+    "results/v0.6-clean-boundary-differential.csv",
+    "results/v0.6-clean-boundary-differential.json",
+    "results/v0.6-clean-boundary-differential.md",
+    "results/v0.7-path-tree-families.csv",
+    "results/v0.7-path-tree-vs-4d.csv"
   ]
 }
