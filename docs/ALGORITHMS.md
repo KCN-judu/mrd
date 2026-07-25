@@ -143,6 +143,9 @@ algorithm. CompactOnly defaults to grid runs and the CLI override
 `--chord-enumerator reference-pairwise|grid-interior-runs` remains available.
 See `docs/GRID_CHORD_ENUMERATION.md`.
 
+The exact horizontal-then-vertical completion policy, unit-cut semantics, and
+backend differential contract are specified in `docs/GEOMETRIC_COMPLETION.md`.
+
 Dinic is the practical implemented flow backend. The almost-linear exact
 max-flow result is cited only for the paper's asymptotic theorem and is not
 implemented here.
