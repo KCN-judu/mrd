@@ -532,6 +532,31 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
                 + selected_vertical_indices.len())
                 * size_of::<usize>(),
     );
+    owned_allocation_estimates.insert(
+        "completion_output_vectors".to_owned(),
+        completion.selected_horizontal_unit_cuts.len()
+            * size_of::<rect_oracle_sg::HorizontalUnitCut>()
+            + completion.selected_vertical_unit_cuts.len()
+                * size_of::<rect_oracle_sg::VerticalUnitCut>()
+            + completion.added_horizontal_unit_cuts.len()
+                * size_of::<rect_oracle_sg::HorizontalUnitCut>()
+            + completion.added_vertical_unit_cuts.len()
+                * size_of::<rect_oracle_sg::VerticalUnitCut>()
+            + completion.rectangles.len() * size_of::<rect_core::GridRect>(),
+    );
+    if completion_backend == CompletionBackendKind::IndexedFrontier
+        && let Some((x0, y0, x1, y1)) = component.bounds()
+    {
+        let width = x1 - x0;
+        let height = y1 - y0;
+        owned_allocation_estimates.insert(
+            "completion_dense_arrays_estimate".to_owned(),
+            width * height
+                + width * (height + 1)
+                + (width + 1) * height
+                + (width + 1) * (height + 1) * size_of::<u64>(),
+        );
+    }
     let result = DissectionResult {
         optimum_rectangle_count,
         rectangles: completion.rectangles,

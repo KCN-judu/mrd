@@ -56,7 +56,8 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
     "peeled_commit": "3f1dbb6057892d45ab94115cd5279137963549aa",
     "evidence": "indexed frontier completion with exact differential cuts and dense backend comparison",
     "result_commits": [
-      "47f0412aff29eafb80de29201cf8f4b5f825bf92"
+      "47f0412aff29eafb80de29201cf8f4b5f825bf92",
+      "24af74330ef0f3b4cd287463af694e5d72afa952"
     ]
   }
 ]

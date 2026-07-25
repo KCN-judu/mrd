@@ -269,7 +269,7 @@ completion backend changes. Generated files are
 `results/v0.4-completion-table.md`.
 
 Measured geometric-completion speedups for indexed frontier over reference
-rescan were 2.066x, 1.980x, 2.007x, and 1.909x at q=512, 1024, 2048, and 4096.
+rescan were 4.183x, 1.800x, 1.821x, and 1.541x at q=512, 1024, 2048, and 4096.
 The indexed backend performed two initial local-bbox scans per component and
 all exact differential suites compared selected cuts, added cuts, and sorted
 rectangles. Owned-allocation estimates are recorded; process peak RSS remains

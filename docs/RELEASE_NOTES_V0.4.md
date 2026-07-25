@@ -17,8 +17,8 @@ Exact differential evidence covers every nonempty binary 3x3 and 4x4 grid,
 connected regions. Both outputs pass the cell-exact validator. No disagreement
 or minimized completion regression was produced.
 
-The dense q=512 through q=4096 campaign measured geometric-completion speedups
-from 1.909x to 2.066x. This is a measured practical improvement, not a new
+The final dense q=512 through q=4096 campaign measured geometric-completion
+speedups from 1.541x to 4.183x. This is a measured practical improvement, not a new
 asymptotic claim. Process peak RSS remains unavailable; owned storage estimates
 are retained.
 
