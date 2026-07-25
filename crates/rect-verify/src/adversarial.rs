@@ -65,7 +65,7 @@ pub fn clean_complete_bipartite_grid(
                 .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
         let left_depth = 2 + index;
         let right_depth = 2 + t + index;
-        for y in interval_start..interval_start + 1 {
+        for y in interval_start..=interval_start {
             for x in 0..left_depth {
                 set_cell(&mut cells, width, x, y, false);
             }
@@ -82,7 +82,7 @@ pub fn clean_complete_bipartite_grid(
                 .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
         let bottom_depth = 2 + index;
         let top_depth = 2 + t + index;
-        for x in interval_start..interval_start + 1 {
+        for x in interval_start..=interval_start {
             for y in 0..bottom_depth {
                 set_cell(&mut cells, width, x, y, false);
             }
@@ -990,7 +990,7 @@ mod tests {
             );
             assert!(matches!(
                 result.diagnostics.path_tree_orientation.as_deref(),
-                Some("vertical-tree-horizontal-paths") | Some("horizontal-tree-vertical-paths")
+                Some("vertical-tree-horizontal-paths" | "horizontal-tree-vertical-paths")
             ));
         }
     }

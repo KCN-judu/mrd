@@ -588,6 +588,11 @@ fn transpose_chords(
 /// code, and swapping the resulting biclique sides back to the original H/V
 /// convention.  The two orientations therefore have identical edge semantics
 /// while exposing different compact-size tradeoffs.
+///
+/// # Errors
+///
+/// Returns [`PathTreeError`] when the clean certificate, transposed chord
+/// coordinates, or either reference dual construction is invalid.
 pub fn build_oriented_path_tree_partition(
     prepared: &PreparedGridComponent,
     boundary: &Boundary,
@@ -658,6 +663,10 @@ pub fn build_oriented_path_tree_partition(
 /// Builds both orientations and returns the one with the smaller compact
 /// vertex-occurrence size. Ties are resolved in favor of the historical
 /// vertical-tree orientation for stable certificates.
+///
+/// # Errors
+///
+/// Returns [`PathTreeError`] when either orientation cannot be constructed.
 pub fn build_best_path_tree_partition(
     prepared: &PreparedGridComponent,
     boundary: &Boundary,
