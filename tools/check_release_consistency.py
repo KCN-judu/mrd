@@ -60,6 +60,7 @@ def main() -> None:
     require('"version": "0.3.0"' in tables, "generated v0.3 release summary missing")
     require(index["defaults"]["compact_chord_enumerator"] == "grid-interior-runs", "wrong CompactOnly enumerator default")
     require(index["defaults"]["compact_completion_backend"] in {"reference-rescan", "indexed-frontier"}, "unknown completion backend label")
+    require(index["defaults"]["compact_rectangle_recovery_backend"] == "dense-grid", "wrong CompactOnly recovery backend")
     print(f"release consistency: ok (workspace {workspace_version})")
 
 

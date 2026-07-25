@@ -59,6 +59,15 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "47f0412aff29eafb80de29201cf8f4b5f825bf92",
       "24af74330ef0f3b4cd287463af694e5d72afa952"
     ]
+  },
+  {
+    "version": "0.5.0",
+    "tag": "v0.5.0-prepared-grid-pipeline",
+    "peeled_commit": "PENDING",
+    "evidence": "single-build prepared geometry, prepared-run enumeration, dense cut storage, dense recovery, and exact differential outputs",
+    "result_commits": [
+      "09cbb218cb8307e7d1ee3fa56fd198cce6d8fa3f"
+    ]
   }
 ]
 ```
