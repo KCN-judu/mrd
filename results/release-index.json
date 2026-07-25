@@ -3,7 +3,7 @@
   "current_workspace_version": "0.3.0",
   "defaults": {
     "compact_chord_enumerator": "grid-interior-runs",
-    "compact_completion_backend": "reference-rescan",
+    "compact_completion_backend": "indexed-frontier",
     "fully_audited_completion_backend": "reference-rescan"
   },
   "releases": [

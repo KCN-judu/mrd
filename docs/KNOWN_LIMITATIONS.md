@@ -30,6 +30,10 @@
 - The v0.3 grid-run path is specialized to finite unit-cell components. It is
   differentially checked against the pairwise reference, but it does not claim
   the paper's general polygon `O(n log n)` enumerator.
+- CompactOnly now defaults to the indexed-frontier completion backend after
+  exact differential equality on the recorded v0.4 populations. The
+  reference-rescan backend remains selectable as an Oracle and FullyAudited
+  continues to use it by default.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The

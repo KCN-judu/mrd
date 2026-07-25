@@ -6,7 +6,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
-use rect_dominance::{ChordEnumerator, DominanceMode, VerificationMode};
+use rect_dominance::{
+    ChordEnumerator, DominanceMode, VerificationMode,
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
+};
+use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -37,6 +41,8 @@ enum Command {
         svg: Option<PathBuf>,
         #[arg(long, value_enum)]
         chord_enumerator: Option<ChordEnumeratorArg>,
+        #[arg(long, value_enum)]
+        completion_backend: Option<CompletionBackendArg>,
     },
     Verify {
         #[arg(long)]
@@ -134,6 +140,12 @@ enum ChordEnumeratorArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum CompletionBackendArg {
+    ReferenceRescan,
+    IndexedFrontier,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     DenseConflict,
@@ -185,9 +197,11 @@ fn run() -> Result<(), CliError> {
             output,
             svg,
             chord_enumerator,
+            completion_backend,
         } => solve_command(
             solver,
             chord_enumerator,
+            completion_backend,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -485,6 +499,7 @@ fn generate_command(
 fn solve_command(
     solver: SolverArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
+    completion_backend: Option<CompletionBackendArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -493,7 +508,7 @@ fn solve_command(
     let components = grid.four_connected_components();
     let mut solutions = Vec::with_capacity(components.len());
     for component in &components {
-        let result = solve_component(component, solver, chord_enumerator)?;
+        let result = solve_component(component, solver, chord_enumerator, completion_backend)?;
         solutions.push(ComponentSolution {
             component_id: component.id.0,
             color: component.color.clone(),
@@ -519,35 +534,51 @@ fn solve_component<C>(
     component: &GridComponent<C>,
     solver: SolverArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
+    completion_backend: Option<CompletionBackendArg>,
 ) -> Result<DissectionResult, CliError> {
+    let completion_backend = completion_backend.map(completion_backend_kind);
     match solver {
         SolverArg::ExactCover => rect_oracle_exact_cover::solve(component)
             .map_err(|error| CliError::Solver(error.to_string())),
         SolverArg::SgExplicit => {
+            if completion_backend.is_some() {
+                return Err(CliError::Input(
+                    "--completion-backend applies only to dominance solvers".to_owned(),
+                ));
+            }
             rect_oracle_sg::solve(component).map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::DominanceC0 => rect_dominance::solve(component, DominanceMode::ExplicitEdges)
             .map_err(|error| CliError::Solver(error.to_string())),
         SolverArg::DominanceCompressed => {
-            rect_dominance::solve_with_verification_mode_and_chord_enumerator(
+            solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
                 component,
                 VerificationMode::FullyAudited,
                 dominance_enumerator(
                     chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise),
                 ),
+                completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
             )
             .map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::DominanceCompactOnly => {
-            rect_dominance::solve_with_verification_mode_and_chord_enumerator(
+            solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
                 component,
                 VerificationMode::CompactOnly,
                 dominance_enumerator(
                     chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns),
                 ),
+                completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
             )
             .map_err(|error| CliError::Solver(error.to_string()))
         }
+    }
+}
+
+const fn completion_backend_kind(backend: CompletionBackendArg) -> CompletionBackendKind {
+    match backend {
+        CompletionBackendArg::ReferenceRescan => CompletionBackendKind::ReferenceRescan,
+        CompletionBackendArg::IndexedFrontier => CompletionBackendKind::IndexedFrontier,
     }
 }
 
@@ -839,6 +870,7 @@ mod tests {
         solve_command(
             SolverArg::DominanceCompactOnly,
             Some(ChordEnumeratorArg::GridInteriorRuns),
+            Some(CompletionBackendArg::IndexedFrontier),
             &input,
             Some(&output),
             Some(&svg),
