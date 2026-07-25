@@ -149,7 +149,11 @@ impl BicliquePartition {
         horizontal_count: usize,
         vertical_count: usize,
     ) -> Result<(), BicliqueError> {
+        let mut ids = BTreeSet::new();
         for biclique in &self.bicliques {
+            if !ids.insert(biclique.id) {
+                return Err(BicliqueError::DuplicateBicliqueId { id: biclique.id });
+            }
             if biclique.left.is_empty() || biclique.right.is_empty() {
                 return Err(BicliqueError::EmptySide { id: biclique.id });
             }
@@ -179,6 +183,50 @@ impl BicliquePartition {
                     return Err(BicliqueError::RightOutOfBounds {
                         id: biclique.id,
                         right,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Verifies every compact block using coordinate extrema only.
+    ///
+    /// For each block and coordinate this computes the maximum left value and
+    /// minimum right value. Strict separation proves every Cartesian-product
+    /// pair is a valid dominance edge without enumerating that product.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] when a block is structurally invalid or fails
+    /// strict coordinate separation.
+    pub fn verify_dominance_blocks(
+        &self,
+        embedding: &DominanceEmbedding,
+    ) -> Result<(), BicliqueError> {
+        self.verify_structure(embedding.horizontal.len(), embedding.vertical.len())?;
+        for biclique in &self.bicliques {
+            let mut max_left = [i128::MIN; 4];
+            let mut min_right = [i128::MAX; 4];
+            for &left in &biclique.left {
+                for (coordinate, value) in embedding.horizontal[left].coordinates.iter().enumerate()
+                {
+                    max_left[coordinate] = max_left[coordinate].max(*value);
+                }
+            }
+            for &right in &biclique.right {
+                for (coordinate, value) in embedding.vertical[right].coordinates.iter().enumerate()
+                {
+                    min_right[coordinate] = min_right[coordinate].min(*value);
+                }
+            }
+            for coordinate in 0..4 {
+                if max_left[coordinate] >= min_right[coordinate] {
+                    return Err(BicliqueError::CoordinateSeparationViolation {
+                        id: biclique.id,
+                        coordinate,
+                        max_left: max_left[coordinate],
+                        min_right: min_right[coordinate],
                     });
                 }
             }
@@ -412,6 +460,8 @@ fn split_sides(points: &[SidePoint]) -> (Vec<usize>, Vec<usize>) {
 
 #[derive(Debug, Error)]
 pub enum BicliqueError {
+    #[error("biclique ID {id:?} is repeated")]
+    DuplicateBicliqueId { id: BicliqueId },
     #[error("biclique {id:?} has an empty side")]
     EmptySide { id: BicliqueId },
     #[error("biclique {id:?} repeats a left vertex ID")]
@@ -449,6 +499,15 @@ pub enum BicliqueError {
         right: usize,
         coordinate: usize,
     },
+    #[error(
+        "biclique {id:?} violates strict dominance at coordinate {coordinate}: max left {max_left} >= min right {min_right}"
+    )]
+    CoordinateSeparationViolation {
+        id: BicliqueId,
+        coordinate: usize,
+        max_left: i128,
+        min_right: i128,
+    },
 }
 
 #[cfg(test)]
@@ -485,6 +544,73 @@ mod tests {
         assert_eq!(certificate.duplicate_edge_count, 0);
         assert_eq!(certificate.missing_edge_count, 0);
         assert_eq!(certificate.fabricated_edge_count, 0);
+    }
+
+    #[test]
+    fn dominance_block_validation_uses_coordinate_extrema() {
+        let horizontal = [HorizontalChord::new(HorizontalChordId(0), 0, 2, 0).unwrap()];
+        let vertical = [VerticalChord::new(VerticalChordId(0), 1, -1, 1).unwrap()];
+        let embedding = DominanceEmbedding::new(&horizontal, &vertical).unwrap();
+        let partition = BicliquePartition {
+            bicliques: vec![Biclique {
+                id: BicliqueId(0),
+                left: vec![0],
+                right: vec![0],
+            }],
+        };
+        partition.verify_dominance_blocks(&embedding).unwrap();
+    }
+
+    #[test]
+    fn dominance_block_validation_rejects_bad_coordinate() {
+        let horizontal = [HorizontalChord::new(HorizontalChordId(0), 0, 2, 0).unwrap()];
+        let vertical = [VerticalChord::new(VerticalChordId(0), 1, -1, 0).unwrap()];
+        let mut embedding = DominanceEmbedding::new(&horizontal, &vertical).unwrap();
+        embedding.vertical[0].coordinates[0] = embedding.horizontal[0].coordinates[0];
+        let partition = BicliquePartition {
+            bicliques: vec![Biclique {
+                id: BicliqueId(0),
+                left: vec![0],
+                right: vec![0],
+            }],
+        };
+        assert!(matches!(
+            partition.verify_dominance_blocks(&embedding),
+            Err(BicliqueError::CoordinateSeparationViolation { .. })
+        ));
+    }
+
+    #[test]
+    fn compact_structure_rejects_duplicate_ids_and_bounds() {
+        let partition = BicliquePartition {
+            bicliques: vec![
+                Biclique {
+                    id: BicliqueId(0),
+                    left: vec![0],
+                    right: vec![0],
+                },
+                Biclique {
+                    id: BicliqueId(0),
+                    left: vec![0],
+                    right: vec![0],
+                },
+            ],
+        };
+        assert!(matches!(
+            partition.verify_structure(1, 1),
+            Err(BicliqueError::DuplicateBicliqueId { .. })
+        ));
+        let out_of_bounds = BicliquePartition {
+            bicliques: vec![Biclique {
+                id: BicliqueId(0),
+                left: vec![1],
+                right: vec![0],
+            }],
+        };
+        assert!(matches!(
+            out_of_bounds.verify_structure(1, 1),
+            Err(BicliqueError::LeftOutOfBounds { .. })
+        ));
     }
 
     #[test]
