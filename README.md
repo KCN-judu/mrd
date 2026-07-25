@@ -70,6 +70,18 @@ cargo run --release -p rect-cli -- benchmark \
   --suite clean-boundary-differential \
   --output results/v0.6-clean-boundary-differential.csv
 
+cargo run --release -p rect-cli -- benchmark \
+  --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128 \
+  --output results/v0.7-path-tree-orientation-audit.csv
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite path-tree-dual-differential --sizes 1,2,4 \
+  --output results/v0.7-path-tree-dual-differential.csv
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite path-tree-vs4d --sizes 1,2,4,8 \
+  --output results/v0.7-path-tree-vs-4d.csv
+
 cargo run --release -p rect-cli -- generate \
   --family dense-conflict --horizontal 32 --vertical 32 \
   --json /tmp/dense-32.json --svg /tmp/dense-32.svg

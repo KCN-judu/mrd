@@ -35,3 +35,10 @@ For `BoundaryLaminar`, CompactOnly uses an axis-generic boundary view for the
 horizontal-tree orientation. FullyAudited retains the historical physical
 transpose as an independent Oracle until the axis-view equality campaign is
 complete.
+
+The v0.7 audit reports all recorded rows, not only optimum counts. Across
+160,443 clean components, `BoundEstimate` selected the exact minimum sigma on
+every row; the only 410 policy differences were equal-sigma direction ties.
+The full per-instance CSV is `results/v0.7-path-tree-orientation-audit.csv`,
+with a compact summary in the adjacent JSON and Markdown files. This is finite
+evidence for the selector, not a proof of a general polygon bound.

@@ -1034,6 +1034,7 @@ fn update_manifest(
         }
     };
     manifest.schema_version = 3;
+    manifest.runs.retain(|run| run.command != metadata.command);
     manifest.runs.push(metadata);
     write_json(&manifest, Some(path))
 }

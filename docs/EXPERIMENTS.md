@@ -381,3 +381,35 @@ rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-cle
 It writes CSV, JSON, and Markdown summaries and compares canonical rectangles,
 optimum counts, clean certificates, and forbidden execution-trace flags for
 each eligible component rather than merely reporting an aggregate counter.
+
+## v0.7 structural path-tree evidence
+
+The v0.7 branching probe uses only unit-cell geometry and checks both axis
+views. It finds a clean `balanced-laminar-9` witness with dual-tree maximum
+branching degree 9; the older vertical-only probe was rejected because it
+silently skipped horizontal-tree witnesses. No synthetic tree is passed to the
+production builder.
+
+The orientation audit covers 160,443 clean components from all nonempty binary
+3x3 and 4x4 masks, free polyominoes through ten cells, deterministic clean
+structural families, complete-bipartite fixtures, and 256 seeded 8x8 random
+candidates. BoundEstimate has 160,443 exact sigma matches, zero positive
+regret, and 410 equal-sigma tie-direction differences. Full rows are in
+`results/v0.7-path-tree-orientation-audit.csv`; the JSON and Markdown files are
+aggregate summaries so the large row population is not duplicated.
+
+The bounded dual differential covers 156,267 clean components from the binary
+3x3/4x4 population, structural families, and complete-bipartite sizes 1, 2,
+and 4. BoundaryLaminar and ReferenceAreaFloodFill agree on every canonical
+rectangle result and sigma, with zero solver errors. Auto fallback covers seven
+fixtures: four clean path-tree selections and three non-clean compact 4D
+fallbacks. These results are in the corresponding `results/v0.7-*` CSV/JSON
+artifacts and are bound to the current release commit in the manifest.
+
+The path-tree-vs-4D report now includes q buckets `0-8`, `9-32`, `33-128`,
+`129-512`, and `513+`; it records construction, flow, completion, total time,
+network, sigma, and owned-allocation fields separately. The production default
+remains `dominance-4d` for CompactOnly and `build-both` for the path-tree
+backend: the audit justifies the bound selector as regret-free on the finite
+population, but does not silently replace the established default without a
+separate policy commit.

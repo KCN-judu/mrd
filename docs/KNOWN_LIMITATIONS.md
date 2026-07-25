@@ -42,6 +42,12 @@
   the v0.7 bound-estimate regret campaign is justified. This finite-grid
   interval construction does not implement the paper's general polygon planar
   sweep.
+- The v0.7 orientation audit found zero positive sigma regret for
+  `BoundEstimate` on its recorded finite populations, but 410 equal-sigma
+  direction ties. The production defaults therefore remain the conservative
+  `build-both` path-tree selector and `dominance-4d` representation; changing
+  either default requires a separate policy decision and evidence-bound
+  release note.
 - Prepared occupancy, cut arrays, recovery state, and validation are dense in
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less
