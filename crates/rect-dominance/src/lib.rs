@@ -10,8 +10,11 @@ use std::time::Instant;
 use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
-pub use path_tree::RegionDualBackend;
-use path_tree::{PathTreeError, build_best_path_tree_partition_with_backend};
+use path_tree::{
+    PathTreeError, build_best_path_tree_partition_with_backend,
+    build_path_tree_partition_with_orientation_policy,
+};
+pub use path_tree::{PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
     PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
@@ -143,6 +146,27 @@ pub fn solve_with_representation_and_region_dual<C>(
     completion_backend: CompletionBackendKind,
     region_dual: RegionDualBackend,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_with_representation_and_region_dual_and_orientation_policy(
+        component,
+        mode,
+        representation,
+        enumerator,
+        completion_backend,
+        region_dual,
+        default_orientation_policy(mode),
+    )
+}
+
+/// Solver entry point with an explicit path-tree orientation policy.
+pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    representation: ConflictRepresentationBackend,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
+    orientation_policy: PathTreeOrientationPolicy,
+) -> Result<DissectionResult, DominanceError> {
     match representation {
         ConflictRepresentationBackend::GeneralDominance4D => {
             solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -153,9 +177,14 @@ pub fn solve_with_representation_and_region_dual<C>(
             )
             .map(|result| annotate_general_representation(result, None))
         }
-        ConflictRepresentationBackend::CleanHoleFreePathTree => {
-            solve_path_tree_dispatch(component, mode, enumerator, completion_backend, region_dual)
-        }
+        ConflictRepresentationBackend::CleanHoleFreePathTree => solve_path_tree_dispatch(
+            component,
+            mode,
+            enumerator,
+            completion_backend,
+            region_dual,
+            orientation_policy,
+        ),
         ConflictRepresentationBackend::Auto => {
             let geometry = match enumerator {
                 ChordEnumerator::ReferencePairwise => {
@@ -179,6 +208,7 @@ pub fn solve_with_representation_and_region_dual<C>(
                     mode,
                     completion_backend,
                     region_dual,
+                    orientation_policy,
                 )
             } else {
                 solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -189,6 +219,14 @@ pub fn solve_with_representation_and_region_dual<C>(
                 )
                 .map(|result| annotate_general_representation(result, Some(false)))
             }
+        }
+    }
+}
+
+const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientationPolicy {
+    match mode {
+        VerificationMode::FullyAudited | VerificationMode::CompactOnly => {
+            PathTreeOrientationPolicy::BuildBothExact
         }
     }
 }
@@ -876,6 +914,7 @@ fn solve_path_tree_dispatch<C>(
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
     region_dual: RegionDualBackend,
+    orientation_policy: PathTreeOrientationPolicy,
 ) -> Result<DissectionResult, DominanceError> {
     let geometry = match enumerator {
         ChordEnumerator::ReferencePairwise => {
@@ -901,6 +940,7 @@ fn solve_path_tree_dispatch<C>(
         mode,
         completion_backend,
         region_dual,
+        orientation_policy,
     )
 }
 
@@ -912,9 +952,10 @@ fn solve_path_tree_with_geometry<C>(
     mode: VerificationMode,
     completion_backend: CompletionBackendKind,
     region_dual: RegionDualBackend,
+    orientation_policy: PathTreeOrientationPolicy,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let path_tree = build_best_path_tree_partition_with_backend(
+    let path_tree = build_path_tree_partition_with_orientation_policy(
         &geometry.prepared,
         &geometry.boundary,
         &geometry.horizontal_chords,
@@ -922,6 +963,7 @@ fn solve_path_tree_with_geometry<C>(
         certificate.clone(),
         mode == VerificationMode::FullyAudited,
         region_dual,
+        orientation_policy,
     )?;
     let path_tree_at = Instant::now();
     let mut four_d_sigma = None;
@@ -1127,6 +1169,7 @@ fn solve_path_tree_with_geometry<C>(
             ),
             clean_hole_free_eligible: Some(true),
             path_tree_orientation: Some(path_tree.orientation.name().to_owned()),
+            path_tree_orientation_policy: Some(orientation_policy.name().to_owned()),
             dual_region_count: Some(path_tree.dual_region_count),
             path_count: Some(path_tree.path_count),
             path_edge_incidence_count: Some(path_tree.total_path_edge_incidences),

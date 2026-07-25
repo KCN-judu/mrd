@@ -108,6 +108,7 @@ pub struct Diagnostics {
     pub conflict_representation: Option<String>,
     pub clean_hole_free_eligible: Option<bool>,
     pub path_tree_orientation: Option<String>,
+    pub path_tree_orientation_policy: Option<String>,
     pub dual_region_count: Option<usize>,
     pub path_count: Option<usize>,
     pub path_edge_incidence_count: Option<usize>,

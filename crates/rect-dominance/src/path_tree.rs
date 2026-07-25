@@ -113,6 +113,33 @@ impl PathTreeOrientation {
     }
 }
 
+/// Controls how the path/tree representation chooses its fixed orientation.
+///
+/// `BuildBothExact` is the historical audited selector. `BoundEstimate` uses
+/// the paper-shaped upper bounds before constructing either full partition and
+/// therefore builds only the selected orientation. The fixed policies are
+/// useful for differential tests and benchmarks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PathTreeOrientationPolicy {
+    BuildBothExact,
+    BoundEstimate,
+    VerticalTree,
+    HorizontalTree,
+}
+
+impl PathTreeOrientationPolicy {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::BuildBothExact => "build-both",
+            Self::BoundEstimate => "bound-estimate",
+            Self::VerticalTree => "vertical-tree",
+            Self::HorizontalTree => "horizontal-tree",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct OrientedPathTreePartition {
     pub orientation: PathTreeOrientation,
@@ -1282,6 +1309,95 @@ pub fn build_best_path_tree_partition_with_backend(
     materialize_explicit_paths: bool,
     dual_backend: RegionDualBackend,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
+    build_path_tree_partition_with_orientation_policy(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        materialize_explicit_paths,
+        dual_backend,
+        PathTreeOrientationPolicy::BuildBothExact,
+    )
+}
+
+/// Builds a path-tree partition using an explicit orientation policy.
+///
+/// `BuildBothExact` constructs both independent orientations and selects the
+/// smaller actual sigma, preserving the historical behavior. `BoundEstimate`
+/// computes the paper-shaped orientation bounds first and constructs only the
+/// selected orientation. Ties use the vertical-tree orientation.
+pub fn build_path_tree_partition_with_orientation_policy(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    materialize_explicit_paths: bool,
+    dual_backend: RegionDualBackend,
+    policy: PathTreeOrientationPolicy,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
+    let orientation = match policy {
+        PathTreeOrientationPolicy::VerticalTree => {
+            return build_oriented_path_tree_partition_with_backend(
+                prepared,
+                boundary,
+                horizontal_chords,
+                vertical_chords,
+                certificate,
+                PathTreeOrientation::VerticalTreeHorizontalPaths,
+                materialize_explicit_paths,
+                dual_backend,
+            );
+        }
+        PathTreeOrientationPolicy::HorizontalTree => {
+            return build_oriented_path_tree_partition_with_backend(
+                prepared,
+                boundary,
+                horizontal_chords,
+                vertical_chords,
+                certificate,
+                PathTreeOrientation::HorizontalTreeVerticalPaths,
+                materialize_explicit_paths,
+                dual_backend,
+            );
+        }
+        PathTreeOrientationPolicy::BuildBothExact => {
+            return build_best_both(
+                prepared,
+                boundary,
+                horizontal_chords,
+                vertical_chords,
+                certificate,
+                materialize_explicit_paths,
+                dual_backend,
+            );
+        }
+        PathTreeOrientationPolicy::BoundEstimate => {
+            estimate_orientation(horizontal_chords.len(), vertical_chords.len())
+        }
+    };
+    build_oriented_path_tree_partition_with_backend(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        orientation,
+        materialize_explicit_paths,
+        dual_backend,
+    )
+}
+
+fn build_best_both(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    materialize_explicit_paths: bool,
+    dual_backend: RegionDualBackend,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
     let vertical = build_oriented_path_tree_partition_with_backend(
         prepared,
         boundary,
@@ -1308,6 +1424,31 @@ pub fn build_best_path_tree_partition_with_backend(
         Ok(horizontal)
     } else {
         Ok(vertical)
+    }
+}
+
+fn estimate_orientation(horizontal_count: usize, vertical_count: usize) -> PathTreeOrientation {
+    let q = horizontal_count.saturating_add(vertical_count);
+    let l = ceil_log2(q.saturating_add(1));
+    let l_squared = l.saturating_mul(l);
+    let vertical_estimate = horizontal_count
+        .saturating_mul(l_squared)
+        .saturating_add(vertical_count.saturating_mul(l));
+    let horizontal_estimate = vertical_count
+        .saturating_mul(l_squared)
+        .saturating_add(horizontal_count.saturating_mul(l));
+    if horizontal_estimate < vertical_estimate {
+        PathTreeOrientation::HorizontalTreeVerticalPaths
+    } else {
+        PathTreeOrientation::VerticalTreeHorizontalPaths
+    }
+}
+
+const fn ceil_log2(value: usize) -> usize {
+    if value <= 1 {
+        0
+    } else {
+        usize::BITS as usize - (value - 1).leading_zeros() as usize
     }
 }
 
@@ -1469,8 +1610,9 @@ mod tests {
 
     use super::{
         DualRegionId, DualTreeEdge, HeavyLightDecomposition, PathTreeOrientation,
-        RegionDualBackend, RegionDualTree, VerticalChordId, build_oriented_path_tree_partition,
-        build_path_tree_partition, build_path_tree_partition_with_backend,
+        PathTreeOrientationPolicy, RegionDualBackend, RegionDualTree, VerticalChordId,
+        build_oriented_path_tree_partition, build_path_tree_partition,
+        build_path_tree_partition_with_backend,
     };
 
     fn synthetic_tree(node_count: usize, edges: &[(usize, usize)]) -> RegionDualTree {
@@ -1549,6 +1691,26 @@ mod tests {
         for (tree, path) in cases {
             assert_decomposes_exactly(&tree, &path);
         }
+    }
+
+    #[test]
+    fn orientation_bound_policy_is_stable_and_tie_breaks_vertical() {
+        assert_eq!(
+            super::estimate_orientation(2, 8),
+            PathTreeOrientation::VerticalTreeHorizontalPaths
+        );
+        assert_eq!(
+            super::estimate_orientation(8, 2),
+            PathTreeOrientation::HorizontalTreeVerticalPaths
+        );
+        assert_eq!(
+            super::estimate_orientation(4, 4),
+            PathTreeOrientation::VerticalTreeHorizontalPaths
+        );
+        assert_eq!(
+            PathTreeOrientationPolicy::BoundEstimate.name(),
+            "bound-estimate"
+        );
     }
 
     #[test]

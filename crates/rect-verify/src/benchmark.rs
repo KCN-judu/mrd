@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 
 use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
-use rect_dominance::VerificationMode;
+use rect_dominance::{
+    ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
+    solve_with_representation_and_region_dual,
+};
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +27,222 @@ pub struct CleanCensusReport {
     pub eligible_chord_count: usize,
     pub rejection_counts: BTreeMap<String, usize>,
     pub eligible_q_histogram: BTreeMap<usize, usize>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CleanBoundaryDifferentialReport {
+    pub metadata: BenchmarkMetadata,
+    pub masks: usize,
+    pub components: usize,
+    pub eligible_components: usize,
+    pub verified: usize,
+    pub unsupported: usize,
+    pub solver_errors: usize,
+    pub counterexamples: usize,
+    pub execution_trace_violations: usize,
+    pub orientation_counts: BTreeMap<String, usize>,
+    pub q_min: Option<usize>,
+    pub q_max: Option<usize>,
+    pub sigma_min: Option<usize>,
+    pub sigma_max: Option<usize>,
+}
+
+impl CleanBoundaryDifferentialReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        format!(
+            "git_commit,rustc_version,command,seed,timestamp,masks,components,eligible_components,verified,unsupported,solver_errors,counterexamples,execution_trace_violations,orientation_counts,q_min,q_max,sigma_min,sigma_max\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            self.metadata.git_commit,
+            self.metadata.rustc_version,
+            escape_csv(&self.metadata.command),
+            self.metadata
+                .seed
+                .map_or_else(String::new, |seed| seed.to_string()),
+            self.metadata.timestamp,
+            self.masks,
+            self.components,
+            self.eligible_components,
+            self.verified,
+            self.unsupported,
+            self.solver_errors,
+            self.counterexamples,
+            self.execution_trace_violations,
+            escape_csv(&serde_json::to_string(&self.orientation_counts).unwrap_or_default()),
+            optional_number(self.q_min),
+            optional_number(self.q_max),
+            optional_number(self.sigma_min),
+            optional_number(self.sigma_max),
+        )
+    }
+
+    #[must_use]
+    pub fn to_markdown(&self) -> String {
+        format!(
+            "# v0.6 BoundaryLaminar Differential\n\n- Masks: {}\n- Components: {}\n- Eligible components: {}\n- Verified: {}\n- Unsupported: {}\n- Solver errors: {}\n- Counterexamples: {}\n- Execution-trace violations: {}\n- Orientation counts: `{}`\n- q range: {:?}\n- sigma range: {:?}\n",
+            self.masks,
+            self.components,
+            self.eligible_components,
+            self.verified,
+            self.unsupported,
+            self.solver_errors,
+            self.counterexamples,
+            self.execution_trace_violations,
+            serde_json::to_string(&self.orientation_counts).unwrap_or_default(),
+            self.q_min.zip(self.q_max),
+            self.sigma_min.zip(self.sigma_max),
+        )
+    }
+}
+
+#[must_use]
+pub fn clean_boundary_differential_4x4(
+    context: BenchmarkContext,
+) -> CleanBoundaryDifferentialReport {
+    let mut components = 0;
+    let mut eligible_components = 0;
+    let mut verified = 0;
+    let mut unsupported = 0;
+    let mut solver_errors = 0;
+    let mut counterexamples = 0;
+    let mut execution_trace_violations = 0;
+    let mut orientation_counts = BTreeMap::new();
+    let mut q_min = None;
+    let mut q_max = None;
+    let mut sigma_min = None;
+    let mut sigma_max = None;
+    for mask in 1_u32..(1_u32 << 16) {
+        let cells = (0..16)
+            .map(|index| mask & (1_u32 << index) != 0)
+            .collect::<Vec<_>>();
+        let Ok(grid) = ColorGrid::new(4, 4, cells) else {
+            continue;
+        };
+        for component in grid
+            .four_connected_components()
+            .into_iter()
+            .filter(|component| component.color)
+        {
+            components += 1;
+            let Ok(geometry) = rect_oracle_sg::analyze_geometry_with(
+                &component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            ) else {
+                unsupported += 1;
+                continue;
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            if !certificate.eligible {
+                continue;
+            }
+            eligible_components += 1;
+            let q = geometry
+                .horizontal_chords
+                .len()
+                .saturating_add(geometry.vertical_chords.len());
+            q_min = Some(q_min.map_or(q, |value: usize| value.min(q)));
+            q_max = Some(q_max.map_or(q, |value: usize| value.max(q)));
+            let path = solve_with_representation_and_region_dual(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+            );
+            let general = solve_with_representation_and_region_dual(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::GeneralDominance4D,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+            );
+            match (path, general) {
+                (Ok(path), Ok(general)) => {
+                    let trace_ok = !path
+                        .diagnostics
+                        .execution_trace
+                        .pairwise_embedding_audit_called
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .explicit_conflict_graph_built
+                        && !path.diagnostics.execution_trace.hopcroft_karp_called
+                        && !path.diagnostics.execution_trace.c0_partition_built
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .full_edge_partition_audit_called
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .full_tree_path_edge_lists_materialized
+                        && !path.diagnostics.execution_trace.per_path_bfs_called
+                        && !path.diagnostics.execution_trace.area_flood_fill_dual_built
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .unit_chord_cuts_materialized
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .prepared_occupancy_transposed
+                        && path.diagnostics.explicit_conflict_edge_count.is_none();
+                    if !trace_ok {
+                        execution_trace_violations += 1;
+                    }
+                    let sigma = path.diagnostics.path_tree_sigma.unwrap_or(0);
+                    sigma_min = Some(sigma_min.map_or(sigma, |value: usize| value.min(sigma)));
+                    sigma_max = Some(sigma_max.map_or(sigma, |value: usize| value.max(sigma)));
+                    if let Some(orientation) = path.diagnostics.path_tree_orientation.clone() {
+                        *orientation_counts.entry(orientation).or_default() += 1;
+                    }
+                    if trace_ok
+                        && path.optimum_rectangle_count == general.optimum_rectangle_count
+                        && path.rectangles == general.rectangles
+                        && path.diagnostics.clean_hole_free_eligible == Some(true)
+                        && general.diagnostics.clean_hole_free_eligible == Some(true)
+                    {
+                        verified += 1;
+                    } else {
+                        counterexamples += 1;
+                    }
+                }
+                (Err(_), _) | (_, Err(_)) => solver_errors += 1,
+            }
+        }
+    }
+    CleanBoundaryDifferentialReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: (1_u32 << 16) as usize - 1,
+            component_count: components,
+            input_model: "finite-colored-unit-grid-binary-4x4-boundary-differential".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        masks: (1_u32 << 16) as usize - 1,
+        components,
+        eligible_components,
+        verified,
+        unsupported,
+        solver_errors,
+        counterexamples,
+        execution_trace_violations,
+        orientation_counts,
+        q_min,
+        q_max,
+        sigma_min,
+        sigma_max,
+    }
 }
 
 impl CleanCensusReport {

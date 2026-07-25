@@ -7,8 +7,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
 use rect_dominance::{
-    ChordEnumerator, ConflictRepresentationBackend, DominanceMode, RegionDualBackend,
-    VerificationMode, solve_with_representation_and_region_dual,
+    ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
+    RegionDualBackend, VerificationMode,
+    solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
@@ -47,6 +48,8 @@ enum Command {
         representation: Option<RepresentationArg>,
         #[arg(long, value_enum)]
         region_dual: Option<RegionDualArg>,
+        #[arg(long, value_enum)]
+        path_tree_orientation: Option<PathTreeOrientationArg>,
     },
     Verify {
         #[arg(long)]
@@ -170,9 +173,18 @@ enum RegionDualArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PathTreeOrientationArg {
+    BuildBoth,
+    BoundEstimate,
+    VerticalTree,
+    HorizontalTree,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     CleanCensus,
+    CleanBoundaryDifferential,
     CleanCompleteBipartite,
     CleanCompleteBipartiteCompact,
     DenseConflict,
@@ -267,12 +279,14 @@ fn run() -> Result<(), CliError> {
             completion_backend,
             representation,
             region_dual,
+            path_tree_orientation,
         } => solve_command(
             solver,
             chord_enumerator,
             completion_backend,
             representation,
             region_dual,
+            path_tree_orientation,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -443,6 +457,18 @@ fn benchmark_command(
         update_manifest(&manifest_path, census.metadata)?;
         return Ok(());
     }
+    if suite == BenchmarkSuiteArg::CleanBoundaryDifferential {
+        let report = rect_verify::benchmark::clean_boundary_differential_4x4(context);
+        write_text(output, &report.to_csv())?;
+        write_json(&report, Some(&output.with_extension("json")))?;
+        write_text(&output.with_extension("md"), &report.to_markdown())?;
+        let manifest_path = output
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("manifest.json");
+        update_manifest(&manifest_path, report.metadata)?;
+        return Ok(());
+    }
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
         BenchmarkSuiteArg::CleanCompleteBipartite => {
@@ -473,6 +499,7 @@ fn benchmark_command(
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
         }
         BenchmarkSuiteArg::CleanCensus => unreachable!(),
+        BenchmarkSuiteArg::CleanBoundaryDifferential => unreachable!(),
     };
     let csv = report
         .to_csv()
@@ -632,6 +659,7 @@ fn solve_command(
     completion_backend: Option<CompletionBackendArg>,
     representation: Option<RepresentationArg>,
     region_dual: Option<RegionDualArg>,
+    path_tree_orientation: Option<PathTreeOrientationArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -647,6 +675,7 @@ fn solve_command(
             completion_backend,
             representation,
             region_dual,
+            path_tree_orientation,
         )?;
         solutions.push(ComponentSolution {
             component_id: component.id.0,
@@ -676,11 +705,16 @@ fn solve_component<C>(
     completion_backend: Option<CompletionBackendArg>,
     representation: Option<RepresentationArg>,
     region_dual: Option<RegionDualArg>,
+    path_tree_orientation: Option<PathTreeOrientationArg>,
 ) -> Result<DissectionResult, CliError> {
     let completion_backend = completion_backend.map(completion_backend_kind);
     match solver {
         SolverArg::ExactCover => {
-            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
+            if completion_backend.is_some()
+                || representation.is_some()
+                || region_dual.is_some()
+                || path_tree_orientation.is_some()
+            {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -690,7 +724,11 @@ fn solve_component<C>(
                 .map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::SgExplicit => {
-            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
+            if completion_backend.is_some()
+                || representation.is_some()
+                || region_dual.is_some()
+                || path_tree_orientation.is_some()
+            {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -699,7 +737,11 @@ fn solve_component<C>(
             rect_oracle_sg::solve(component).map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::DominanceC0 => {
-            if completion_backend.is_some() || representation.is_some() || region_dual.is_some() {
+            if completion_backend.is_some()
+                || representation.is_some()
+                || region_dual.is_some()
+                || path_tree_orientation.is_some()
+            {
                 return Err(CliError::Input(
                     "completion and representation options apply only to dominance solvers"
                         .to_owned(),
@@ -708,24 +750,40 @@ fn solve_component<C>(
             rect_dominance::solve(component, DominanceMode::ExplicitEdges)
                 .map_err(|error| CliError::Solver(error.to_string()))
         }
-        SolverArg::DominanceCompressed => solve_with_representation_and_region_dual(
-            component,
-            VerificationMode::FullyAudited,
-            representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
-            dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise)),
-            completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
-            region_dual.map_or(RegionDualBackend::ReferenceAreaFloodFill, region_dual_kind),
-        )
-        .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::DominanceCompactOnly => solve_with_representation_and_region_dual(
-            component,
-            VerificationMode::CompactOnly,
-            representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
-            dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns)),
-            completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
-            region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
-        )
-        .map_err(|error| CliError::Solver(error.to_string())),
+        SolverArg::DominanceCompressed => {
+            solve_with_representation_and_region_dual_and_orientation_policy(
+                component,
+                VerificationMode::FullyAudited,
+                representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+                dominance_enumerator(
+                    chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise),
+                ),
+                completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
+                region_dual.map_or(RegionDualBackend::ReferenceAreaFloodFill, region_dual_kind),
+                path_tree_orientation.map_or(
+                    PathTreeOrientationPolicy::BuildBothExact,
+                    path_tree_orientation_kind,
+                ),
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))
+        }
+        SolverArg::DominanceCompactOnly => {
+            solve_with_representation_and_region_dual_and_orientation_policy(
+                component,
+                VerificationMode::CompactOnly,
+                representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+                dominance_enumerator(
+                    chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns),
+                ),
+                completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
+                region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
+                path_tree_orientation.map_or(
+                    PathTreeOrientationPolicy::BuildBothExact,
+                    path_tree_orientation_kind,
+                ),
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))
+        }
     }
 }
 
@@ -755,6 +813,17 @@ const fn region_dual_kind(backend: RegionDualArg) -> RegionDualBackend {
     match backend {
         RegionDualArg::ReferenceArea => RegionDualBackend::ReferenceAreaFloodFill,
         RegionDualArg::BoundaryLaminar => RegionDualBackend::BoundaryLaminar,
+    }
+}
+
+const fn path_tree_orientation_kind(
+    orientation: PathTreeOrientationArg,
+) -> PathTreeOrientationPolicy {
+    match orientation {
+        PathTreeOrientationArg::BuildBoth => PathTreeOrientationPolicy::BuildBothExact,
+        PathTreeOrientationArg::BoundEstimate => PathTreeOrientationPolicy::BoundEstimate,
+        PathTreeOrientationArg::VerticalTree => PathTreeOrientationPolicy::VerticalTree,
+        PathTreeOrientationArg::HorizontalTree => PathTreeOrientationPolicy::HorizontalTree,
     }
 }
 
@@ -1049,6 +1118,7 @@ mod tests {
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
             Some(RepresentationArg::Dominance4d),
+            None,
             None,
             input.as_path(),
             Some(output.as_path()),
