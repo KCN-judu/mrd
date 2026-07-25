@@ -367,3 +367,17 @@ complete-bipartite compact benchmark is in
 `results/v0.6-clean-complete-bipartite-compact.csv` for `t=1,2,4,8,16,32,64,128`;
 all rows are verified and the path-edge record count remains zero while
 `q=4t` grows to 512.
+
+The v0.6 evidence has two distinct populations. The historical v0.5 rows above
+use the area-dual two-orientation selector. The current v0.6 CompactOnly rows
+use `BoundaryLaminar`, endpoint-only HLD, and the finite-grid axis view; the
+area dual, physical transpose, explicit path vectors, and per-path BFS remain
+reference-only operations. The reproducible full-population command is:
+
+```text
+rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv
+```
+
+It writes CSV, JSON, and Markdown summaries and compares canonical rectangles,
+optimum counts, clean certificates, and forbidden execution-trace flags for
+each eligible component rather than merely reporting an aggregate counter.

@@ -16,10 +16,14 @@ interval membership and handles wraparound without copying or rotating the
 loop. FullyAudited compares this predicate with the closed integer chord
 intersection predicate on every horizontal/vertical pair of a clean component.
 
-The path-tree solver builds both the vertical-tree/horizontal-path and
-horizontal-tree/vertical-path orientations from the prepared occupancy. It
-selects the smaller HLD biclique partition, with a deterministic vertical
-orientation tie-break, and records the choice in the result diagnostics.
+The path-tree solver exposes four orientation policies: `build-both` constructs
+both orientations and selects the smaller audited sigma; `bound-estimate`
+chooses one orientation from the paper-shaped pre-construction bound; and the
+two fixed policies are debugging/benchmark controls. FullyAudited defaults to
+`build-both`. CompactOnly currently keeps that conservative default until the
+v0.7 regret campaign justifies a dispatch change. BoundaryLaminar uses an
+axis-generic view for the horizontal-tree orientation, while the historical
+coordinate-transpose implementation remains an audited reference.
 
 The census artifacts count chord mass as well as components. A large number of
 zero-chord rectangles is therefore not treated as evidence that the path-tree

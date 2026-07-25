@@ -43,6 +43,9 @@ jobs:
           target/release/rect-cli benchmark --suite adversarial --output artifacts/adversarial.csv 2>&1 | tee artifacts/logs/adversarial.log
           target/release/rect-cli benchmark --suite polyomino --max-cells 10 --output artifacts/polyomino.csv 2>&1 | tee artifacts/logs/polyomino-benchmark.log
           target/release/rect-cli benchmark --suite dense-conflict --sizes 4,8,16,32,64,128 --output artifacts/dense-conflict.csv 2>&1 | tee artifacts/logs/dense-conflict.log
+          target/release/rect-cli benchmark --suite clean-boundary-differential --output artifacts/clean-boundary-differential.csv 2>&1 | tee artifacts/logs/clean-boundary-differential.log
+          target/release/rect-cli benchmark --suite clean-complete-bipartite-compact --sizes 1,2,4,8,16,32,64,128 --output artifacts/clean-complete-bipartite-compact.csv 2>&1 | tee artifacts/logs/clean-complete-bipartite-compact.log
+          target/release/rect-cli benchmark --suite path-tree-comparison --sizes 3 --output artifacts/path-tree-comparison-3x3.csv 2>&1 | tee artifacts/logs/path-tree-comparison-3x3.log
       - name: Run bounded external CP-SAT population
         shell: bash
         run: |

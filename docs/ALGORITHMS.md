@@ -67,16 +67,18 @@ Compact-only diagnostics serialize `explicit_conflict_edge_count` as `null`.
 
 On a clean hole-free component, `--representation path-tree` replaces the
 four-dimensional edge partition with a geometry-derived region dual and tree
-paths. FullyAudited retains the area-flood-fill dual, explicit per-path BFS,
-and both vertical-tree/horizontal-path and horizontal-tree/vertical-path
-orientations as independent oracles. CompactOnly uses the boundary-laminar
-dual (`BoundaryLaminar`) and endpoint-only HLD records (`CompactTreePath`), so it stores no
-per-path edge list and does not transpose the prepared occupancy. Heavy-light
-canonical segment nodes produce the bicliques consumed by the same compressed
-flow backend. `--representation auto` selects this representation only when
-the clean certificate passes and records a compact 4D fallback otherwise. The
-boundary dual is a finite-grid realization rather than the paper's general
-planar sweep; see `docs/BOUNDARY_DUAL_CONSTRUCTION.md` and
+paths. FullyAudited retains the `ReferenceAreaFloodFill` dual, explicit
+per-path BFS, physical transpose Oracle, and both orientations as independent
+references. CompactOnly uses the `BoundaryLaminar` dual and endpoint-only HLD
+records (`CompactTreePath`); its axis view avoids occupancy, boundary, and chord
+transposition in the production path. Orientation selection is controlled by
+`--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`;
+the default remains `build-both` until the v0.7 regret evidence is frozen.
+Heavy-light canonical segment nodes produce the bicliques consumed by the same
+compressed flow backend. `--representation auto` selects this representation
+only when the clean certificate passes and records a compact 4D fallback
+otherwise. The boundary dual is a finite-grid realization rather than the
+paper's general planar sweep; see `docs/BOUNDARY_DUAL_CONSTRUCTION.md` and
 `docs/PATH_TREE_REPRESENTATION.md`.
 
 Stage C0 creates one biclique per explicit dominance edge. Stage C1 implements
@@ -150,7 +152,7 @@ biclique vertex occurrences.
 | Rectangle recovery | `rect-oracle-sg` | `DenseGridRecovery` | dense visited mask, reusable integer queue, prefix-sum rectangularity proof | verification/output layer | exact rectangle equality against `ReferenceHashBfsRecovery` | hash BFS | component-local area storage |
 | Final dissection validation | `rect-core::validation` | `validate_dissection_prepared` | reuses prepared occupancy; linear in local area plus rectangle area | verification layer, not paper runtime | ordinary and prepared validators agree | independently produced outputs use same exact cell contract | integer-grid rectangles only |
 | Clean eligibility and endpoint alternation | `rect-oracle-sg` | `classify_clean_hole_free`, `endpoints_alternate` | integer loop IDs and modular interval tests | Definition 9.1 / Theorem 9.4 scope for supported grid model | endpoint and hole fixtures | closed chord predicate | ornaments and degenerate formal holes unsupported |
-| Region-dual path-tree partition | `rect-dominance::path_tree` | `build_path_tree_partition` | area-sensitive dual, HLD canonical intervals | `O(q log^2 q)` structural biclique bound; dual sweep bound not implemented | tree/path/partition audits in FullyAudited | explicit graph only as Oracle | vertical-tree reference orientation |
+| Region-dual path-tree partition | `rect-dominance::path_tree` | `build_path_tree_partition` | BoundaryLaminar endpoint intervals + endpoint HLD in CompactOnly; area flood-fill Oracle in FullyAudited | `O(q log^2 q)` structural biclique bound; general polygon dual sweep not implemented | tree/path/partition audits and axis-view differential tests | transposed area dual and explicit graph | finite unit-grid clean components only |
 
 The current effective-chord implementation has interchangeable
 `ReferencePairwiseEnumerator` and `GridInteriorRunEnumerator` paths. The latter

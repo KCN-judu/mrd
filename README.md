@@ -14,6 +14,10 @@ monochromatic rectangular partitions of finite colored grids:
 - `--representation path-tree|auto`: the clean hole-free region-dual tree
   representation, with an explicit eligibility certificate and compact 4D
   fallback.
+- `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`:
+  choose or audit the path-tree orientation without changing the correctness
+  Oracles. The default remains `build-both` until the v0.7 evidence campaign
+  justifies adaptive dispatch.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs
@@ -61,6 +65,10 @@ cargo run --release -p rect-cli -- benchmark \
 cargo run --release -p rect-cli -- benchmark \
   --suite dense-conflict --sizes 4,8,16,32,64,128 \
   --output results/dense-conflict.csv
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite clean-boundary-differential \
+  --output results/v0.6-clean-boundary-differential.csv
 
 cargo run --release -p rect-cli -- generate \
   --family dense-conflict --horizontal 32 --vertical 32 \
