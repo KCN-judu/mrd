@@ -97,6 +97,11 @@ endpoint contacts, flow-capacity certificates, dense and topological
 adversarial families, mapped-back metamorphic validation, biclique
 edge-multiset auditing, and stored-regression replay.
 
+The v0.5 path-tree gate additionally covers HLD path, star, balanced, and
+irregular trees, clean eligibility/fallback, and endpoint identity round trips.
+The current workspace run reports 53 passing tests across 13 suites; the full
+command remains the acceptance source of truth below.
+
 ## 1. Exhaustive binary-grid verification
 
 ```bash
@@ -247,9 +252,10 @@ that those theoretical cases are implemented.
 
 ## 10. Gap to the theoretical asymptotic algorithm
 
-The effective-chord enumerator is exact for supported grids but uses aligned
-reflex-pair tests rather than the classical `O(n log n)`
-Soltan--Gorpinevich sweep. The compact flow implementation uses Dinic, not the
+The effective-chord enumerator is exact for supported grids and defaults to the
+prepared grid-interior-run index; the aligned reflex-pair implementation is
+retained as the differential reference. Neither path is the classical
+`O(n log n)` Soltan--Gorpinevich sweep. The compact flow implementation uses Dinic, not the
 cited deterministic almost-linear exact-flow backend. The constructive
 four-coordinate dominance recursion is implemented and audited with the
 correct `O(q log^4 q)` Cardinal--Yuditsky upper bound, but the artifact as a
@@ -292,3 +298,26 @@ reference and 425 microseconds for the dense backend. These are single-run
 measurements, not portable performance guarantees. Source rows are
 `results/v0.5-completion-heavy.csv`, `results/v0.5-area-heavy.csv`, and
 `results/v0.5-dense-completion.csv`.
+
+## v0.5 clean hole-free path-tree evidence
+
+The clean census enumerated every nonempty binary `4x4` grid component. It
+covered 168,529 components, of which 167,936 were hole-free and 155,389 passed
+the clean certificate. Total effective-chord mass was 55,296 and eligible mass
+was 19,908. Rejections were 593 ordinary-hole components and 20,736 shared
+boundary-endpoint cases. The eligible q histogram is generated in
+`results/v0.5-clean-census.json`, with the same data in CSV and Markdown form.
+
+The path-tree comparison enumerated the binary `3x3` population, retained 871
+eligible components, and compared FullyAudited path-tree and four-dimensional
+outputs. All 871 had identical optimum counts and canonical rectangles and
+passed cell-exact validation. The evidence is in
+`results/v0.5-path-tree-comparison.csv`; explicit conflict graphs are used only
+inside FullyAudited Oracle audits. CompactOnly path-tree SVG runs preserve the
+edge-free execution trace.
+
+The reference dual construction is area-sensitive and currently uses the
+vertical-tree/horizontal-path orientation. The paper's symmetric orientation
+selector, planar-sweep dual construction, and integer-grid complete-bipartite
+family remain explicit scope gaps; no unsupported dense approximation is
+included in the evidence.

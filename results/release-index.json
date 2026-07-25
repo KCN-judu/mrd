@@ -56,7 +56,10 @@
       "tag": "v0.5.0-clean-hole-free-path-tree",
       "peeled_commit": "PENDING",
       "evidence": "clean eligibility census, region-dual tree, HLD canonical path partition, representation selection, and differential path-tree audits",
-      "result_commits": []
+      "result_commits": [
+        "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
+        "d90acb5"
+      ]
     }
   ]
 }
