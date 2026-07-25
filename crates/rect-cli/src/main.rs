@@ -797,3 +797,51 @@ enum CliError {
     #[error("cannot produce requested output: {0}")]
     Output(String),
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use serde_json::Value;
+
+    use super::{ChordEnumeratorArg, SolverArg, solve_command};
+
+    #[test]
+    fn compact_only_svg_keeps_forbidden_execution_trace_false() {
+        let root =
+            std::env::temp_dir().join(format!("mrd-compact-svg-regression-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("input.json");
+        let output = root.join("output.json");
+        let svg = root.join("output.svg");
+        fs::write(
+            &input,
+            br#"{"width":2,"height":2,"cells":["a","a","a","a"]}"#,
+        )
+        .unwrap();
+        solve_command(
+            SolverArg::DominanceCompactOnly,
+            ChordEnumeratorArg::GridInteriorRuns,
+            &input,
+            Some(&output),
+            Some(&svg),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        let diagnostics = &value["components"][0]["result"]["diagnostics"];
+        assert!(diagnostics["explicit_conflict_edge_count"].is_null());
+        let trace = &diagnostics["execution_trace"];
+        for key in [
+            "pairwise_embedding_audit_called",
+            "explicit_conflict_graph_built",
+            "hopcroft_karp_called",
+            "c0_partition_built",
+            "full_edge_partition_audit_called",
+        ] {
+            assert_eq!(trace[key], false, "forbidden trace flag {key}");
+        }
+        assert_eq!(trace["compact_structure_check_called"], true);
+        assert!(!fs::read(&svg).unwrap().is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+}
