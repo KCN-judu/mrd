@@ -7,8 +7,8 @@ use std::time::Instant;
 use rect_core::{
     Boundary, BoundaryError, Certificate, Coord, Diagnostics, DissectionResult, ExactRatio,
     GeometryError, GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point,
-    PreparedGridComponent, ValidationError, VerticalChord, VerticalChordId,
-    closed_chords_intersect, validate_dissection,
+    PreparedComponentContext, PreparedContextError, PreparedGridComponent, ValidationError,
+    VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
 };
 use rect_graph::{BipartiteGraph, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover};
 use serde::{Deserialize, Serialize};
@@ -31,11 +31,16 @@ pub struct SgAnalysis {
 #[derive(Clone, Debug)]
 pub struct SgGeometry {
     pub boundary: Boundary,
+    pub prepared: PreparedGridComponent,
     pub horizontal_chords: Vec<HorizontalChord>,
     pub vertical_chords: Vec<VerticalChord>,
     pub horizontal_interior_run_count: Option<usize>,
     pub vertical_interior_run_count: Option<usize>,
     pub candidate_reflex_pair_count: Option<usize>,
+    pub prepared_component_build_microseconds: u128,
+    pub boundary_extraction_microseconds: u128,
+    pub reflex_grouping_microseconds: u128,
+    pub effective_chord_enumeration_microseconds: u128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -59,6 +64,18 @@ pub trait EffectiveChordEnumerator {
         component: &GridComponent<C>,
         boundary: &Boundary,
     ) -> Result<EffectiveChordFamilies, SgError>;
+
+    /// Enumerates chords from geometry already prepared for this solve.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] under the same conditions as [`Self::enumerate`].
+    fn enumerate_prepared<C>(
+        &self,
+        context: &PreparedComponentContext<'_, C>,
+    ) -> Result<EffectiveChordFamilies, SgError> {
+        self.enumerate(context.component, &context.boundary)
+    }
 
     fn name(&self) -> &'static str;
 }
@@ -89,20 +106,39 @@ pub fn analyze_geometry_with<C, E: EffectiveChordEnumerator>(
     component: &GridComponent<C>,
     enumerator: &E,
 ) -> Result<SgGeometry, SgError> {
-    let boundary = Boundary::from_component(component)?;
-    if boundary.outer_loop_count() != 1 {
+    let context = PreparedComponentContext::new(component)?;
+    analyze_prepared_geometry(context, enumerator)
+}
+
+/// Extracts geometry from a context prepared exactly once for this solve.
+///
+/// # Errors
+///
+/// Returns [`SgError`] when topology validation or enumeration fails.
+pub fn analyze_prepared_geometry<C, E: EffectiveChordEnumerator>(
+    context: PreparedComponentContext<'_, C>,
+    enumerator: &E,
+) -> Result<SgGeometry, SgError> {
+    if context.boundary.outer_loop_count() != 1 {
         return Err(SgError::UnsupportedBoundaryTopology {
-            outer_loops: boundary.outer_loop_count(),
+            outer_loops: context.boundary.outer_loop_count(),
         });
     }
-    let families = enumerator.enumerate(component, &boundary)?;
+    let enumeration_started = Instant::now();
+    let families = enumerator.enumerate_prepared(&context)?;
+    let effective_chord_enumeration_microseconds = enumeration_started.elapsed().as_micros();
     Ok(SgGeometry {
-        boundary,
+        boundary: context.boundary,
+        prepared: context.prepared,
         horizontal_chords: families.horizontal,
         vertical_chords: families.vertical,
         horizontal_interior_run_count: families.horizontal_interior_run_count,
         vertical_interior_run_count: families.vertical_interior_run_count,
         candidate_reflex_pair_count: families.candidate_reflex_pair_count,
+        prepared_component_build_microseconds: context.prepared_component_build_microseconds,
+        boundary_extraction_microseconds: context.boundary_extraction_microseconds,
+        reflex_grouping_microseconds: context.reflex_grouping_microseconds,
+        effective_chord_enumeration_microseconds,
     })
 }
 
@@ -407,39 +443,38 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
     fn enumerate<C>(
         &self,
         component: &GridComponent<C>,
-        boundary: &Boundary,
+        _boundary: &Boundary,
     ) -> Result<EffectiveChordFamilies, SgError> {
-        let points = boundary
-            .reflex_vertices
-            .iter()
-            .map(|vertex| vertex.point)
-            .collect::<Vec<_>>();
+        let context = PreparedComponentContext::new(component)?;
+        self.enumerate_prepared(&context)
+    }
+
+    fn enumerate_prepared<C>(
+        &self,
+        context: &PreparedComponentContext<'_, C>,
+    ) -> Result<EffectiveChordFamilies, SgError> {
         let mut horizontal_records = BTreeSet::new();
         let mut vertical_records = BTreeSet::new();
         let mut horizontal_interior_run_count = 0;
         let mut vertical_interior_run_count = 0;
         let mut candidate_reflex_pair_count = 0;
-        let mask = component
-            .cells
-            .iter()
-            .map(|cell| (cell.x, cell.y))
-            .collect::<HashSet<_>>();
-        let mut horizontal_points = BTreeMap::<Coord, Vec<Coord>>::new();
-        let mut vertical_points = BTreeMap::<Coord, Vec<Coord>>::new();
-        for point in points {
-            horizontal_points.entry(point.y).or_default().push(point.x);
-            vertical_points.entry(point.x).or_default().push(point.y);
-        }
-        for (y, mut xs) in horizontal_points {
-            xs.sort_unstable();
-            let runs = two_sided_runs(&mask, component.grid_width, component.grid_height, y, true);
+        for (&y, xs) in &context.reflex_by_row {
+            let y_index = coordinate_to_usize(y)?;
+            let Some(local_y) = y_index.checked_sub(context.prepared.y0) else {
+                continue;
+            };
+            let Some(runs) = context.prepared.horizontal_interior_runs.get(local_y) else {
+                continue;
+            };
             horizontal_interior_run_count += runs.len();
-            for (left_run, right_run) in runs {
-                let aligned = xs
-                    .iter()
-                    .copied()
-                    .filter(|&x| left_run <= x && x <= right_run)
-                    .collect::<Vec<_>>();
+            for &(left_run, right_run) in runs {
+                let left_run = Coord::try_from(left_run)
+                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+                let right_run = Coord::try_from(right_run)
+                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+                let begin = xs.partition_point(|&x| x < left_run);
+                let end = xs.partition_point(|&x| x <= right_run);
+                let aligned = &xs[begin..end];
                 for (index, &left) in aligned.iter().enumerate() {
                     for &right in &aligned[index + 1..] {
                         candidate_reflex_pair_count += 1;
@@ -448,16 +483,23 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
                 }
             }
         }
-        for (x, mut ys) in vertical_points {
-            ys.sort_unstable();
-            let runs = two_sided_runs(&mask, component.grid_width, component.grid_height, x, false);
+        for (&x, ys) in &context.reflex_by_column {
+            let x_index = coordinate_to_usize(x)?;
+            let Some(local_x) = x_index.checked_sub(context.prepared.x0) else {
+                continue;
+            };
+            let Some(runs) = context.prepared.vertical_interior_runs.get(local_x) else {
+                continue;
+            };
             vertical_interior_run_count += runs.len();
-            for (bottom_run, top_run) in runs {
-                let aligned = ys
-                    .iter()
-                    .copied()
-                    .filter(|&y| bottom_run <= y && y <= top_run)
-                    .collect::<Vec<_>>();
+            for &(bottom_run, top_run) in runs {
+                let bottom_run = Coord::try_from(bottom_run)
+                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+                let top_run = Coord::try_from(top_run)
+                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+                let begin = ys.partition_point(|&y| y < bottom_run);
+                let end = ys.partition_point(|&y| y <= top_run);
+                let aligned = &ys[begin..end];
                 for (index, &bottom) in aligned.iter().enumerate() {
                     for &top in &aligned[index + 1..] {
                         candidate_reflex_pair_count += 1;
@@ -492,48 +534,6 @@ impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
     fn name(&self) -> &'static str {
         "grid-interior-runs"
     }
-}
-
-fn two_sided_runs(
-    mask: &HashSet<(usize, usize)>,
-    width: usize,
-    height: usize,
-    line: Coord,
-    horizontal: bool,
-) -> Vec<(Coord, Coord)> {
-    let line = usize::try_from(line).unwrap_or(usize::MAX);
-    let limit = if horizontal { width } else { height };
-    let mut runs = Vec::new();
-    let mut start = None;
-    for offset in 0..=limit {
-        let interior = if offset < limit && line > 0 {
-            if horizontal {
-                mask.contains(&(offset, line - 1)) && mask.contains(&(offset, line))
-            } else {
-                mask.contains(&(line - 1, offset)) && mask.contains(&(line, offset))
-            }
-        } else {
-            false
-        };
-        match (start, interior) {
-            (None, true) => start = Some(offset),
-            (Some(begin), false) => {
-                runs.push((
-                    Coord::try_from(begin).unwrap(),
-                    Coord::try_from(offset).unwrap(),
-                ));
-                start = None;
-            }
-            _ => {}
-        }
-    }
-    if !horizontal && line >= width {
-        return Vec::new();
-    }
-    if horizontal && line >= height {
-        return Vec::new();
-    }
-    runs
 }
 
 fn horizontal_open_interval_is_interior<C>(
@@ -1729,6 +1729,8 @@ fn uncut_neighbors<C>(
 
 #[derive(Debug, Error)]
 pub enum SgError {
+    #[error(transparent)]
+    PreparedContext(#[from] PreparedContextError),
     #[error(transparent)]
     Boundary(#[from] BoundaryError),
     #[error(transparent)]
