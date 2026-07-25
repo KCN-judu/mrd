@@ -35,8 +35,8 @@ enum Command {
         output: Option<PathBuf>,
         #[arg(long)]
         svg: Option<PathBuf>,
-        #[arg(long, value_enum, default_value_t = ChordEnumeratorArg::GridInteriorRuns)]
-        chord_enumerator: ChordEnumeratorArg,
+        #[arg(long, value_enum)]
+        chord_enumerator: Option<ChordEnumeratorArg>,
     },
     Verify {
         #[arg(long)]
@@ -484,7 +484,7 @@ fn generate_command(
 
 fn solve_command(
     solver: SolverArg,
-    chord_enumerator: ChordEnumeratorArg,
+    chord_enumerator: Option<ChordEnumeratorArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -518,7 +518,7 @@ fn solve_command(
 fn solve_component<C>(
     component: &GridComponent<C>,
     solver: SolverArg,
-    chord_enumerator: ChordEnumeratorArg,
+    chord_enumerator: Option<ChordEnumeratorArg>,
 ) -> Result<DissectionResult, CliError> {
     match solver {
         SolverArg::ExactCover => rect_oracle_exact_cover::solve(component)
@@ -528,20 +528,33 @@ fn solve_component<C>(
         }
         SolverArg::DominanceC0 => rect_dominance::solve(component, DominanceMode::ExplicitEdges)
             .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::DominanceCompressed => rect_dominance::solve(component, DominanceMode::Compact)
-            .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::DominanceCompactOnly => {
-            let enumerator = match chord_enumerator {
-                ChordEnumeratorArg::ReferencePairwise => ChordEnumerator::ReferencePairwise,
-                ChordEnumeratorArg::GridInteriorRuns => ChordEnumerator::GridInteriorRuns,
-            };
+        SolverArg::DominanceCompressed => {
             rect_dominance::solve_with_verification_mode_and_chord_enumerator(
                 component,
-                VerificationMode::CompactOnly,
-                enumerator,
+                VerificationMode::FullyAudited,
+                dominance_enumerator(
+                    chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise),
+                ),
             )
             .map_err(|error| CliError::Solver(error.to_string()))
         }
+        SolverArg::DominanceCompactOnly => {
+            rect_dominance::solve_with_verification_mode_and_chord_enumerator(
+                component,
+                VerificationMode::CompactOnly,
+                dominance_enumerator(
+                    chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns),
+                ),
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))
+        }
+    }
+}
+
+const fn dominance_enumerator(enumerator: ChordEnumeratorArg) -> ChordEnumerator {
+    match enumerator {
+        ChordEnumeratorArg::ReferencePairwise => ChordEnumerator::ReferencePairwise,
+        ChordEnumeratorArg::GridInteriorRuns => ChordEnumerator::GridInteriorRuns,
     }
 }
 
@@ -825,7 +838,7 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
-            ChordEnumeratorArg::GridInteriorRuns,
+            Some(ChordEnumeratorArg::GridInteriorRuns),
             &input,
             Some(&output),
             Some(&svg),

@@ -110,7 +110,20 @@ pub fn analyze_geometry_with<C, E: EffectiveChordEnumerator>(
 ///
 /// Returns [`SgError`] when a boundary, chord, graph, or formula invariant fails.
 pub fn analyze<C>(component: &GridComponent<C>) -> Result<SgAnalysis, SgError> {
-    let geometry = analyze_geometry(component)?;
+    analyze_with(component, &ReferencePairwiseEnumerator)
+}
+
+/// Builds the complete explicit reduction with a selected chord enumerator.
+///
+/// # Errors
+///
+/// Returns [`SgError`] when geometry, graph construction, matching, or
+/// certificate validation fails.
+pub fn analyze_with<C, E: EffectiveChordEnumerator>(
+    component: &GridComponent<C>,
+    enumerator: &E,
+) -> Result<SgAnalysis, SgError> {
+    let geometry = analyze_geometry_with(component, enumerator)?;
     let boundary = geometry.boundary;
     let horizontal_chords = geometry.horizontal_chords;
     let vertical_chords = geometry.vertical_chords;

@@ -73,7 +73,18 @@ pub fn solve_with_verification_mode_and_chord_enumerator<C>(
     enumerator: ChordEnumerator,
 ) -> Result<DissectionResult, DominanceError> {
     match mode {
-        VerificationMode::FullyAudited => solve(component, DominanceMode::Compact),
+        VerificationMode::FullyAudited => match enumerator {
+            ChordEnumerator::ReferencePairwise => solve_fully_audited_with(
+                component,
+                DominanceMode::Compact,
+                &ReferencePairwiseEnumerator,
+            ),
+            ChordEnumerator::GridInteriorRuns => solve_fully_audited_with(
+                component,
+                DominanceMode::Compact,
+                &GridInteriorRunEnumerator,
+            ),
+        },
         VerificationMode::CompactOnly => match enumerator {
             ChordEnumerator::ReferencePairwise => {
                 solve_compact_only_with(component, &ReferencePairwiseEnumerator)
@@ -96,8 +107,25 @@ pub fn solve<C>(
     component: &GridComponent<C>,
     mode: DominanceMode,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_fully_audited_with(component, mode, &ReferencePairwiseEnumerator)
+}
+
+#[allow(clippy::too_many_lines)]
+fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
+    component: &GridComponent<C>,
+    mode: DominanceMode,
+    enumerator: &E,
+) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let sg_analysis = rect_oracle_sg::analyze(component)?;
+    let sg_analysis = rect_oracle_sg::analyze_with(component, enumerator)?;
+    if enumerator.name() == "grid-interior-runs" {
+        let reference = rect_oracle_sg::analyze_geometry(component)?;
+        if reference.horizontal_chords != sg_analysis.horizontal_chords
+            || reference.vertical_chords != sg_analysis.vertical_chords
+        {
+            return Err(DominanceError::ChordFamilyMismatch);
+        }
+    }
     let geometry_at = Instant::now();
     let embedding =
         DominanceEmbedding::new(&sg_analysis.horizontal_chords, &sg_analysis.vertical_chords)?;
@@ -263,7 +291,7 @@ pub fn solve<C>(
                 full_edge_partition_audit_called: true,
                 compact_structure_check_called: true,
             },
-            effective_chord_enumerator: Some("reference-pairwise".to_owned()),
+            effective_chord_enumerator: Some(enumerator.name().to_owned()),
             effective_chord_enumeration_microseconds: Some(
                 geometry_at.duration_since(started).as_micros(),
             ),
@@ -514,6 +542,8 @@ pub enum DominanceError {
     InvalidOutput(#[from] ValidationError),
     #[error("geometric conflict graph differs from the explicit dominance graph")]
     ExplicitGraphMismatch,
+    #[error("selected effective-chord enumerator differs from the pairwise reference families")]
+    ChordFamilyMismatch,
     #[error("flow value cannot be represented as usize")]
     FlowValueConversion,
     #[error("diagnostic network metric overflowed usize")]
