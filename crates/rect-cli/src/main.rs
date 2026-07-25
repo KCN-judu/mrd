@@ -137,6 +137,7 @@ enum ChordEnumeratorArg {
 enum BenchmarkSuiteArg {
     Adversarial,
     DenseConflict,
+    DenseCompactOnly,
     Polyomino,
 }
 
@@ -337,6 +338,9 @@ fn benchmark_command(
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
         BenchmarkSuiteArg::DenseConflict => {
             rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
+        }
+        BenchmarkSuiteArg::DenseCompactOnly => {
+            rect_verify::benchmark::benchmark_dense_compact_only(context, sizes)
         }
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)

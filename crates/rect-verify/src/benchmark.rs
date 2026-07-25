@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 
 use rect_core::{Diagnostics, ExactRatio, GridComponent};
+use rect_dominance::VerificationMode;
 use serde::{Deserialize, Serialize};
 
 use crate::adversarial::{
@@ -69,7 +70,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -83,6 +84,9 @@ impl BenchmarkReport {
                 .unwrap_or_else(|_| "{}".to_owned());
             let parameters =
                 serde_json::to_string(&row.parameters).unwrap_or_else(|_| "{}".to_owned());
+            let owned_allocation_estimates =
+                serde_json::to_string(&row.diagnostics.owned_allocation_estimates)
+                    .unwrap_or_else(|_| "{}".to_owned());
             let fields = [
                 self.metadata.git_commit.clone(),
                 self.metadata.rustc_version.clone(),
@@ -111,6 +115,15 @@ impl BenchmarkReport {
                 row.diagnostics.vertical_chord_count.to_string(),
                 row.diagnostics.total_chord_count.to_string(),
                 row.diagnostics
+                    .effective_chord_enumerator
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(row.diagnostics.effective_chord_enumeration_microseconds),
+                optional_number(row.diagnostics.horizontal_interior_run_count),
+                optional_number(row.diagnostics.vertical_interior_run_count),
+                optional_number(row.diagnostics.candidate_reflex_pair_count),
+                optional_number(row.diagnostics.emitted_chord_count),
+                row.diagnostics
                     .explicit_conflict_edge_count
                     .map_or_else(String::new, |count| count.to_string()),
                 density.0,
@@ -137,6 +150,7 @@ impl BenchmarkReport {
                     .peak_memory_bytes
                     .map(|bytes| bytes.to_string())
                     .unwrap_or_default(),
+                owned_allocation_estimates,
             ];
             writeln!(
                 csv,
@@ -175,6 +189,96 @@ pub fn benchmark_adversarial(context: BenchmarkContext) -> BenchmarkReport {
         .chain([dense_conflict_grid(4, 5), dense_conflict_grid(8, 8)])
         .collect::<Vec<_>>();
     benchmark_instances(context, &instances, 40)
+}
+
+#[must_use]
+pub fn benchmark_dense_compact_only(context: BenchmarkContext, sizes: &[usize]) -> BenchmarkReport {
+    let instances = sizes
+        .iter()
+        .map(|&size| dense_conflict_grid(size, size))
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for instance in &instances {
+        match instance.foreground_components() {
+            Ok(components) => {
+                for component in components {
+                    let result = rect_dominance::solve_with_verification_mode(
+                        &component,
+                        VerificationMode::CompactOnly,
+                    );
+                    rows.push(match result {
+                        Ok(result) => BenchmarkRow {
+                            instance_name: instance.name.clone(),
+                            family: "dense-compact-only".to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "verified".to_owned(),
+                            message: None,
+                            exact_cover_compared: false,
+                            compact_only_phase_microseconds: result
+                                .diagnostics
+                                .phase_microseconds
+                                .clone(),
+                            diagnostics: result.diagnostics,
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                        },
+                        Err(error) => BenchmarkRow {
+                            instance_name: instance.name.clone(),
+                            family: "dense-compact-only".to_owned(),
+                            parameters: instance.parameters.clone(),
+                            component_id: component.id.0,
+                            status: "solver-error".to_owned(),
+                            message: Some(error.to_string()),
+                            exact_cover_compared: false,
+                            diagnostics: Diagnostics {
+                                cell_count: component.cell_count(),
+                                ..Diagnostics::default()
+                            },
+                            c0_phase_microseconds: BTreeMap::new(),
+                            compressed_phase_microseconds: BTreeMap::new(),
+                            compact_only_phase_microseconds: BTreeMap::new(),
+                        },
+                    });
+                }
+            }
+            Err(error) => rows.push(BenchmarkRow {
+                instance_name: instance.name.clone(),
+                family: "dense-compact-only".to_owned(),
+                parameters: instance.parameters.clone(),
+                component_id: 0,
+                status: "unsupported".to_owned(),
+                message: Some(error.to_string()),
+                exact_cover_compared: false,
+                diagnostics: Diagnostics::default(),
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
+                compact_only_phase_microseconds: BTreeMap::new(),
+            }),
+        }
+    }
+    let verified_count = count_status(&rows, "verified");
+    let unsupported_count = count_status(&rows, "unsupported");
+    let solver_error_count = count_status(&rows, "solver-error");
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: instances.len(),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-cell-grid".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count,
+        unsupported_count,
+        solver_error_count,
+        counterexample_count: 0,
+        failure_fixtures: Vec::new(),
+        rows,
+    }
 }
 
 #[must_use]
@@ -345,6 +449,24 @@ fn benchmark_component<C>(
 
 fn count_status(rows: &[BenchmarkRow], status: &str) -> usize {
     rows.iter().filter(|row| row.status == status).count()
+}
+
+fn optional_number<T: ToString>(value: Option<T>) -> String {
+    value.map_or_else(String::new, |value| value.to_string())
+}
+
+fn unsupported_input_features() -> Vec<String> {
+    [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
 }
 
 fn ratio_columns(ratio: Option<ExactRatio>) -> (String, String) {
