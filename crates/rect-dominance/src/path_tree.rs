@@ -1178,23 +1178,34 @@ pub fn build_oriented_path_tree_partition_with_backend(
             })
         }
         PathTreeOrientation::HorizontalTreeVerticalPaths => {
-            let transposed_prepared = transpose_prepared(prepared);
-            let transposed_boundary = if dual_backend == RegionDualBackend::BoundaryLaminar {
-                transpose_boundary(boundary)
-            } else {
-                boundary.clone()
-            };
             let (transposed_horizontal, transposed_vertical) =
                 transpose_chords(horizontal_chords, vertical_chords)?;
-            let transposed = build_path_tree_partition_with_backend(
-                &transposed_prepared,
-                &transposed_boundary,
-                &transposed_horizontal,
-                &transposed_vertical,
-                certificate,
-                materialize_explicit_paths,
-                dual_backend,
-            )?;
+            let transposed_boundary = transpose_boundary(boundary);
+            let transposed = if dual_backend == RegionDualBackend::BoundaryLaminar {
+                // BoundaryLaminar never needs occupancy, prefix sums, or run
+                // indexes. Reuse the prepared reference by view while
+                // swapping only the combinatorial boundary/chord axes.
+                build_path_tree_partition_with_backend(
+                    prepared,
+                    &transposed_boundary,
+                    &transposed_horizontal,
+                    &transposed_vertical,
+                    certificate,
+                    materialize_explicit_paths,
+                    dual_backend,
+                )?
+            } else {
+                let transposed_prepared = transpose_prepared(prepared);
+                build_path_tree_partition_with_backend(
+                    &transposed_prepared,
+                    &boundary.clone(),
+                    &transposed_horizontal,
+                    &transposed_vertical,
+                    certificate,
+                    materialize_explicit_paths,
+                    dual_backend,
+                )?
+            };
             let mut transposed = transposed;
             let bicliques = std::mem::take(&mut transposed.biclique_partition.bicliques)
                 .into_iter()
@@ -1271,21 +1282,6 @@ pub fn build_best_path_tree_partition_with_backend(
     materialize_explicit_paths: bool,
     dual_backend: RegionDualBackend,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
-    if !materialize_explicit_paths && dual_backend == RegionDualBackend::BoundaryLaminar {
-        // The compact production path uses one axis-generic boundary dual.
-        // Building the historical transposed area view would reintroduce an
-        // O(A) copy, so orientation selection remains an audited concern.
-        return build_oriented_path_tree_partition_with_backend(
-            prepared,
-            boundary,
-            horizontal_chords,
-            vertical_chords,
-            certificate,
-            PathTreeOrientation::VerticalTreeHorizontalPaths,
-            false,
-            dual_backend,
-        );
-    }
     let vertical = build_oriented_path_tree_partition_with_backend(
         prepared,
         boundary,
