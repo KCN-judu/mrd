@@ -431,8 +431,11 @@ fn generate_command(
             components.len()
         )));
     };
-    let geometry = rect_oracle_sg::analyze_geometry(component)
-        .map_err(|error| CliError::Solver(error.to_string()))?;
+    let geometry = rect_oracle_sg::analyze_geometry_with(
+        component,
+        &rect_oracle_sg::GridInteriorRunEnumerator,
+    )
+    .map_err(|error| CliError::Solver(error.to_string()))?;
     let result =
         rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
             .map_err(|error| CliError::Solver(error.to_string()))?;
@@ -641,6 +644,27 @@ fn write_svg_files(
         };
         let svg = if solver == SolverArg::ExactCover {
             render_dissection_svg(component, &solution.result, &SvgOverlay::empty())?
+        } else if solver == SolverArg::DominanceCompactOnly {
+            let geometry = rect_oracle_sg::analyze_geometry_with(
+                component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))?;
+            let (selected_horizontal, selected_vertical) = selected_chords(
+                &solution.result,
+                geometry.horizontal_chords.len(),
+                geometry.vertical_chords.len(),
+            )?;
+            render_dissection_svg(
+                component,
+                &solution.result,
+                &SvgOverlay {
+                    horizontal_chords: &geometry.horizontal_chords,
+                    vertical_chords: &geometry.vertical_chords,
+                    selected_horizontal: &selected_horizontal,
+                    selected_vertical: &selected_vertical,
+                },
+            )?
         } else {
             let analysis = rect_oracle_sg::analyze(component)
                 .map_err(|error| CliError::Solver(error.to_string()))?;
