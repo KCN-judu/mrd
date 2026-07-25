@@ -18,6 +18,7 @@ use thiserror::Error;
 #[derive(Clone, Debug)]
 pub struct SgAnalysis {
     pub boundary: Boundary,
+    pub prepared: PreparedGridComponent,
     pub horizontal_chords: Vec<HorizontalChord>,
     pub vertical_chords: Vec<VerticalChord>,
     pub conflict_graph: BipartiteGraph,
@@ -163,6 +164,7 @@ pub fn analyze_with<C, E: EffectiveChordEnumerator>(
 ) -> Result<SgAnalysis, SgError> {
     let geometry = analyze_geometry_with(component, enumerator)?;
     let boundary = geometry.boundary;
+    let prepared = geometry.prepared;
     let horizontal_chords = geometry.horizontal_chords;
     let vertical_chords = geometry.vertical_chords;
     let conflict_graph = build_conflict_graph(&horizontal_chords, &vertical_chords)?;
@@ -190,6 +192,7 @@ pub fn analyze_with<C, E: EffectiveChordEnumerator>(
 
     let analysis = SgAnalysis {
         boundary,
+        prepared,
         horizontal_chords,
         vertical_chords,
         conflict_graph,
@@ -679,6 +682,9 @@ pub struct CompletionMetrics {
     pub stale_candidate_count: usize,
     pub ray_extension_unit_steps: usize,
     pub rectangle_recovery_component_visits: usize,
+    pub rectangle_recovery_queue_pushes: usize,
+    pub rectangle_recovery_region_count: usize,
+    pub rectangle_recovery_allocations: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -690,6 +696,36 @@ pub struct CompletionResult {
     pub added_vertical_unit_cuts: Vec<VerticalUnitCut>,
     pub metrics: CompletionMetrics,
 }
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RectangleRecoveryResult {
+    pub rectangles: Vec<GridRect>,
+    pub cell_visits: usize,
+    pub queue_pushes: usize,
+    pub region_count: usize,
+    pub allocations: usize,
+}
+
+pub trait RectangleRecoveryBackend {
+    /// Recovers canonical rectangles from prepared occupancy and dense cuts.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] when a cut region is not rectangular.
+    fn recover(
+        &self,
+        prepared: &PreparedGridComponent,
+        cuts: &DenseCutGrid,
+    ) -> Result<RectangleRecoveryResult, SgError>;
+
+    fn name(&self) -> &'static str;
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReferenceHashBfsRecovery;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct DenseGridRecovery;
 
 pub trait GeometricCompletionBackend {
     /// Completes the selected effective chords into a rectangular dissection.
@@ -705,6 +741,29 @@ pub trait GeometricCompletionBackend {
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
     ) -> Result<CompletionResult, SgError>;
+
+    /// Completes using occupancy and runs already prepared for this solve.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] under the same conditions as [`Self::complete`].
+    fn complete_prepared<C>(
+        &self,
+        component: &GridComponent<C>,
+        _prepared: &PreparedGridComponent,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<CompletionResult, SgError> {
+        self.complete(
+            component,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )
+    }
 
     fn name(&self) -> &'static str;
 }
@@ -733,12 +792,12 @@ impl CompletionBackendKind {
 }
 
 #[derive(Clone, Debug, Default)]
-struct Cuts {
+struct ReferenceOrderedCuts {
     horizontal: BTreeSet<HorizontalUnitCut>,
     vertical: BTreeSet<VerticalUnitCut>,
 }
 
-impl Cuts {
+impl ReferenceOrderedCuts {
     fn from_selection(
         horizontal_chords: &[HorizontalChord],
         vertical_chords: &[VerticalChord],
@@ -767,6 +826,130 @@ impl Cuts {
             }
         }
         Ok(cuts)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DenseCutGrid {
+    x0: usize,
+    y0: usize,
+    width: usize,
+    height: usize,
+    horizontal: Vec<bool>,
+    vertical: Vec<bool>,
+}
+
+impl DenseCutGrid {
+    fn from_selection(
+        prepared: &PreparedGridComponent,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<Self, SgError> {
+        let mut cuts = Self {
+            x0: prepared.x0,
+            y0: prepared.y0,
+            width: prepared.width(),
+            height: prepared.height(),
+            horizontal: vec![false; prepared.width() * (prepared.height() + 1)],
+            vertical: vec![false; (prepared.width() + 1) * prepared.height()],
+        };
+        for (index, &selected) in selected_horizontal.iter().enumerate() {
+            if selected {
+                let chord = horizontal_chords[index];
+                let y = coordinate_to_usize(chord.y())?;
+                for x in coordinate_to_usize(chord.left())?..coordinate_to_usize(chord.right())? {
+                    cuts.insert_horizontal(HorizontalUnitCut { x, y });
+                }
+            }
+        }
+        for (index, &selected) in selected_vertical.iter().enumerate() {
+            if selected {
+                let chord = vertical_chords[index];
+                let x = coordinate_to_usize(chord.x())?;
+                for y in coordinate_to_usize(chord.bottom())?..coordinate_to_usize(chord.top())? {
+                    cuts.insert_vertical(VerticalUnitCut { x, y });
+                }
+            }
+        }
+        Ok(cuts)
+    }
+
+    fn contains_horizontal(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x < self.x0 + self.width
+            && y >= self.y0
+            && y <= self.y0 + self.height
+            && self.horizontal[(y - self.y0) * self.width + x - self.x0]
+    }
+
+    fn contains_vertical(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x <= self.x0 + self.width
+            && y >= self.y0
+            && y < self.y0 + self.height
+            && self.vertical[(y - self.y0) * (self.width + 1) + x - self.x0]
+    }
+
+    fn insert_horizontal(&mut self, cut: HorizontalUnitCut) -> bool {
+        if cut.x < self.x0
+            || cut.x >= self.x0 + self.width
+            || cut.y < self.y0
+            || cut.y > self.y0 + self.height
+        {
+            return false;
+        }
+        let index = (cut.y - self.y0) * self.width + cut.x - self.x0;
+        let inserted = !self.horizontal[index];
+        self.horizontal[index] = true;
+        inserted
+    }
+
+    fn insert_vertical(&mut self, cut: VerticalUnitCut) -> bool {
+        if cut.x < self.x0
+            || cut.x > self.x0 + self.width
+            || cut.y < self.y0
+            || cut.y >= self.y0 + self.height
+        {
+            return false;
+        }
+        let index = (cut.y - self.y0) * (self.width + 1) + cut.x - self.x0;
+        let inserted = !self.vertical[index];
+        self.vertical[index] = true;
+        inserted
+    }
+
+    fn horizontal_cuts(&self) -> Vec<HorizontalUnitCut> {
+        let mut cuts = self
+            .horizontal
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &present)| {
+                present.then_some(HorizontalUnitCut {
+                    x: self.x0 + index % self.width,
+                    y: self.y0 + index / self.width,
+                })
+            })
+            .collect::<Vec<_>>();
+        cuts.sort_unstable();
+        cuts
+    }
+
+    fn vertical_cuts(&self) -> Vec<VerticalUnitCut> {
+        let mut cuts = self
+            .vertical
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &present)| {
+                present.then_some(VerticalUnitCut {
+                    x: self.x0 + index % (self.width + 1),
+                    y: self.y0 + index / (self.width + 1),
+                })
+            })
+            .collect::<Vec<_>>();
+        cuts.sort_unstable();
+        cuts
     }
 }
 
@@ -799,50 +982,36 @@ struct FrontierCandidate {
 }
 
 #[derive(Clone, Debug)]
-struct CompletionState {
+struct CompletionState<'a> {
     x0: usize,
     y0: usize,
     x1: usize,
     y1: usize,
     width: usize,
     height: usize,
-    occupancy: Vec<bool>,
-    horizontal_cut_bits: Vec<bool>,
-    vertical_cut_bits: Vec<bool>,
-    cuts: Cuts,
+    prepared: &'a PreparedGridComponent,
+    cuts: DenseCutGrid,
     generations: Vec<u64>,
     frontier: BinaryHeap<Reverse<FrontierCandidate>>,
 }
 
-impl CompletionState {
-    fn new<C>(component: &GridComponent<C>, cuts: Cuts) -> Result<Self, SgError> {
-        let prepared = PreparedGridComponent::from_component(component)
-            .map_err(|_| SgError::CompletionDidNotTerminate)?;
+impl<'a> CompletionState<'a> {
+    fn new(prepared: &'a PreparedGridComponent, cuts: DenseCutGrid) -> Self {
         let (x0, y0, x1, y1) = (prepared.x0, prepared.y0, prepared.x1, prepared.y1);
         let width = x1 - x0;
         let height = y1 - y0;
-        let occupancy = prepared.occupancy.clone();
-        let mut state = Self {
+        Self {
             x0,
             y0,
             x1,
             y1,
             width,
             height,
-            occupancy,
-            horizontal_cut_bits: vec![false; width * (height + 1)],
-            vertical_cut_bits: vec![false; (width + 1) * height],
+            prepared,
             cuts,
             generations: vec![0; (width + 1) * (height + 1)],
             frontier: BinaryHeap::new(),
-        };
-        for cut in state.cuts.horizontal.iter().copied().collect::<Vec<_>>() {
-            state.set_horizontal_cut_bit(cut);
         }
-        for cut in state.cuts.vertical.iter().copied().collect::<Vec<_>>() {
-            state.set_vertical_cut_bit(cut);
-        }
-        Ok(state)
     }
 
     fn contains_cell(&self, x: usize, y: usize) -> bool {
@@ -850,7 +1019,7 @@ impl CompletionState {
             && x < self.x1
             && y >= self.y0
             && y < self.y1
-            && self.occupancy[(y - self.y0) * self.width + x - self.x0]
+            && self.prepared.contains_cell(x, y)
     }
 
     fn vertex_index(&self, x: usize, y: usize) -> usize {
@@ -862,7 +1031,7 @@ impl CompletionState {
             && x < self.x1
             && y >= self.y0
             && y <= self.y1
-            && self.horizontal_cut_bits[(y - self.y0) * self.width + x - self.x0]
+            && self.cuts.contains_horizontal(x, y)
     }
 
     fn vertical_cut(&self, x: usize, y: usize) -> bool {
@@ -870,21 +1039,7 @@ impl CompletionState {
             && x <= self.x1
             && y >= self.y0
             && y < self.y1
-            && self.vertical_cut_bits[(y - self.y0) * (self.width + 1) + x - self.x0]
-    }
-
-    fn set_horizontal_cut_bit(&mut self, cut: HorizontalUnitCut) {
-        if cut.x >= self.x0 && cut.x < self.x1 && cut.y >= self.y0 && cut.y <= self.y1 {
-            let index = (cut.y - self.y0) * self.width + cut.x - self.x0;
-            self.horizontal_cut_bits[index] = true;
-        }
-    }
-
-    fn set_vertical_cut_bit(&mut self, cut: VerticalUnitCut) {
-        if cut.x >= self.x0 && cut.x <= self.x1 && cut.y >= self.y0 && cut.y < self.y1 {
-            let index = (cut.y - self.y0) * (self.width + 1) + cut.x - self.x0;
-            self.vertical_cut_bits[index] = true;
-        }
+            && self.cuts.contains_vertical(x, y)
     }
 
     fn local_quadrants(&self, x: usize, y: usize) -> [bool; 4] {
@@ -1096,6 +1251,30 @@ pub fn complete_with_backend<C, B: GeometricCompletionBackend>(
     )
 }
 
+/// Performs geometric completion while reusing prepared component geometry.
+///
+/// # Errors
+///
+/// Returns [`SgError`] for dimension mismatches or completion invariants.
+pub fn complete_with_prepared_backend<C, B: GeometricCompletionBackend>(
+    component: &GridComponent<C>,
+    prepared: &PreparedGridComponent,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    selected_horizontal: &[bool],
+    selected_vertical: &[bool],
+    backend: &B,
+) -> Result<CompletionResult, SgError> {
+    backend.complete_prepared(
+        component,
+        prepared,
+        horizontal_chords,
+        vertical_chords,
+        selected_horizontal,
+        selected_vertical,
+    )
+}
+
 impl GeometricCompletionBackend for ReferenceRescanCompletion {
     fn complete<C>(
         &self,
@@ -1111,7 +1290,7 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
             return Err(SgError::SelectionLengthMismatch);
         }
         let started = Instant::now();
-        let mut cuts = Cuts::from_selection(
+        let mut cuts = ReferenceOrderedCuts::from_selection(
             horizontal_chords,
             vertical_chords,
             selected_horizontal,
@@ -1180,30 +1359,52 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
     ) -> Result<CompletionResult, SgError> {
+        let prepared = PreparedGridComponent::from_component(component)
+            .map_err(|_| SgError::CompletionDidNotTerminate)?;
+        self.complete_prepared(
+            component,
+            &prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )
+    }
+
+    fn complete_prepared<C>(
+        &self,
+        component: &GridComponent<C>,
+        prepared: &PreparedGridComponent,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<CompletionResult, SgError> {
         if selected_horizontal.len() != horizontal_chords.len()
             || selected_vertical.len() != vertical_chords.len()
         {
             return Err(SgError::SelectionLengthMismatch);
         }
         let started = Instant::now();
-        let cuts = Cuts::from_selection(
+        let cuts = DenseCutGrid::from_selection(
+            prepared,
             horizontal_chords,
             vertical_chords,
             selected_horizontal,
             selected_vertical,
         )?;
         let selected_at = Instant::now();
-        let selected_horizontal_unit_cuts = cuts.horizontal.iter().copied().collect::<Vec<_>>();
-        let selected_vertical_unit_cuts = cuts.vertical.iter().copied().collect::<Vec<_>>();
+        let selected_horizontal_unit_cuts = cuts.horizontal_cuts();
+        let selected_vertical_unit_cuts = cuts.vertical_cuts();
         let mut metrics = CompletionMetrics {
             selected_chord_cut_materialization_microseconds: selected_at
                 .duration_since(started)
                 .as_micros(),
-            initial_horizontal_unit_cut_count: cuts.horizontal.len(),
-            initial_vertical_unit_cut_count: cuts.vertical.len(),
+            initial_horizontal_unit_cut_count: selected_horizontal_unit_cuts.len(),
+            initial_vertical_unit_cut_count: selected_vertical_unit_cuts.len(),
             ..CompletionMetrics::default()
         };
-        let mut state = CompletionState::new(component, cuts)?;
+        let mut state = CompletionState::new(prepared, cuts);
         complete_indexed_axis(&mut state, true, &mut metrics)?;
         let horizontal_at = Instant::now();
         metrics.horizontal_simple_chord_completion_microseconds =
@@ -1212,22 +1413,25 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         let vertical_at = Instant::now();
         metrics.vertical_simple_chord_completion_microseconds =
             vertical_at.duration_since(horizontal_at).as_micros();
-        let rectangles = rectangles_from_cuts(component, &state.cuts, &mut metrics)?;
+        let recovery = DenseGridRecovery.recover(prepared, &state.cuts)?;
+        metrics.rectangle_recovery_component_visits = recovery.cell_visits;
+        metrics.rectangle_recovery_queue_pushes = recovery.queue_pushes;
+        metrics.rectangle_recovery_region_count = recovery.region_count;
+        metrics.rectangle_recovery_allocations = recovery.allocations;
+        let rectangles = recovery.rectangles;
         let rectangles_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             rectangles_at.duration_since(vertical_at).as_micros();
         validate_completion_rectangles(component, &rectangles)?;
         metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
-        let added_horizontal_unit_cuts = state
-            .cuts
-            .horizontal
+        let all_horizontal_unit_cuts = state.cuts.horizontal_cuts();
+        let all_vertical_unit_cuts = state.cuts.vertical_cuts();
+        let added_horizontal_unit_cuts = all_horizontal_unit_cuts
             .iter()
             .filter(|cut| selected_horizontal_unit_cuts.binary_search(cut).is_err())
             .copied()
             .collect::<Vec<_>>();
-        let added_vertical_unit_cuts = state
-            .cuts
-            .vertical
+        let added_vertical_unit_cuts = all_vertical_unit_cuts
             .iter()
             .filter(|cut| selected_vertical_unit_cuts.binary_search(cut).is_err())
             .copied()
@@ -1355,19 +1559,19 @@ fn extend_indexed_simple_chord(
         }
     }
     let added = horizontal_additions.len() + vertical_additions.len();
-    let mut affected = BTreeSet::new();
+    let mut affected = Vec::new();
     for cut in horizontal_additions {
-        state.set_horizontal_cut_bit(cut);
-        state.cuts.horizontal.insert(cut);
-        affected.insert((cut.x, cut.y));
-        affected.insert((cut.x + 1, cut.y));
+        state.cuts.insert_horizontal(cut);
+        affected.push((cut.x, cut.y));
+        affected.push((cut.x + 1, cut.y));
     }
     for cut in vertical_additions {
-        state.set_vertical_cut_bit(cut);
-        state.cuts.vertical.insert(cut);
-        affected.insert((cut.x, cut.y));
-        affected.insert((cut.x, cut.y + 1));
+        state.cuts.insert_vertical(cut);
+        affected.push((cut.x, cut.y));
+        affected.push((cut.x, cut.y + 1));
     }
+    affected.sort_unstable();
+    affected.dedup();
     for (affected_x, affected_y) in affected {
         state.refresh_vertex(affected_x, affected_y, horizontal, metrics);
     }
@@ -1392,7 +1596,7 @@ fn validate_completion_rectangles<C>(
 
 fn complete_axis<C>(
     component: &GridComponent<C>,
-    cuts: &mut Cuts,
+    cuts: &mut ReferenceOrderedCuts,
     horizontal: bool,
     metrics: &mut CompletionMetrics,
 ) -> Result<(), SgError> {
@@ -1434,7 +1638,7 @@ fn complete_axis<C>(
 
 fn find_concave_ray<C>(
     component: &GridComponent<C>,
-    cuts: &Cuts,
+    cuts: &ReferenceOrderedCuts,
     horizontal: bool,
     metrics: &mut CompletionMetrics,
 ) -> Option<((usize, usize), Direction)> {
@@ -1486,7 +1690,12 @@ fn local_quadrants<C>(component: &GridComponent<C>, x: usize, y: usize) -> [bool
     ]
 }
 
-fn local_blocked_rays(cuts: &Cuts, inside: [bool; 4], x: usize, y: usize) -> [bool; 4] {
+fn local_blocked_rays(
+    cuts: &ReferenceOrderedCuts,
+    inside: [bool; 4],
+    x: usize,
+    y: usize,
+) -> [bool; 4] {
     [
         cuts.horizontal.contains(&HorizontalUnitCut { x, y }) || inside[1] != inside[2],
         cuts.vertical.contains(&VerticalUnitCut { x, y }) || inside[2] != inside[3],
@@ -1533,7 +1742,7 @@ fn union_roots(roots: &mut [usize; 4], first: usize, second: usize) {
 
 fn extend_simple_chord<C>(
     component: &GridComponent<C>,
-    cuts: &mut Cuts,
+    cuts: &mut ReferenceOrderedCuts,
     point: (usize, usize),
     direction: Direction,
     metrics: &mut CompletionMetrics,
@@ -1613,7 +1822,7 @@ fn extend_simple_chord<C>(
 
 fn perpendicular_boundary_at<C>(
     component: &GridComponent<C>,
-    cuts: &Cuts,
+    cuts: &ReferenceOrderedCuts,
     point: (usize, usize),
     horizontal_chord: bool,
 ) -> bool {
@@ -1634,22 +1843,26 @@ fn perpendicular_boundary_at<C>(
 
 fn rectangles_from_cuts<C>(
     component: &GridComponent<C>,
-    cuts: &Cuts,
+    cuts: &ReferenceOrderedCuts,
     metrics: &mut CompletionMetrics,
 ) -> Result<Vec<GridRect>, SgError> {
     let cell_set = component.cells.iter().copied().collect::<HashSet<_>>();
     let mut unseen = cell_set.clone();
     let mut rectangles = Vec::new();
+    metrics.rectangle_recovery_allocations += 4;
     while let Some(&seed) = unseen.iter().next() {
         unseen.remove(&seed);
         let mut queue = VecDeque::from([seed]);
         let mut region = vec![seed];
+        metrics.rectangle_recovery_queue_pushes += 1;
+        metrics.rectangle_recovery_region_count += 1;
         while let Some(cell) = queue.pop_front() {
             metrics.rectangle_recovery_component_visits += 1;
             for neighbor in uncut_neighbors(cell, component, cuts) {
                 if unseen.remove(&neighbor) {
                     queue.push_back(neighbor);
                     region.push(neighbor);
+                    metrics.rectangle_recovery_queue_pushes += 1;
                 }
             }
         }
@@ -1672,10 +1885,205 @@ fn rectangles_from_cuts<C>(
     Ok(rectangles)
 }
 
+impl RectangleRecoveryBackend for DenseGridRecovery {
+    fn recover(
+        &self,
+        prepared: &PreparedGridComponent,
+        cuts: &DenseCutGrid,
+    ) -> Result<RectangleRecoveryResult, SgError> {
+        dense_rectangles_from_cuts(prepared, cuts)
+    }
+
+    fn name(&self) -> &'static str {
+        "dense-grid"
+    }
+}
+
+impl RectangleRecoveryBackend for ReferenceHashBfsRecovery {
+    fn recover(
+        &self,
+        prepared: &PreparedGridComponent,
+        cuts: &DenseCutGrid,
+    ) -> Result<RectangleRecoveryResult, SgError> {
+        hash_rectangles_from_dense_cuts(prepared, cuts)
+    }
+
+    fn name(&self) -> &'static str {
+        "reference-hash-bfs"
+    }
+}
+
+fn dense_rectangles_from_cuts(
+    prepared: &PreparedGridComponent,
+    cuts: &DenseCutGrid,
+) -> Result<RectangleRecoveryResult, SgError> {
+    let width = prepared.width();
+    let height = prepared.height();
+    let mut visited = vec![false; width * height];
+    let mut queue = VecDeque::<usize>::new();
+    let mut rectangles = Vec::new();
+    let mut result = RectangleRecoveryResult {
+        allocations: 3,
+        ..RectangleRecoveryResult::default()
+    };
+
+    for seed in 0..prepared.occupancy.len() {
+        if !prepared.occupancy[seed] || visited[seed] {
+            continue;
+        }
+        visited[seed] = true;
+        queue.push_back(seed);
+        result.queue_pushes += 1;
+        result.region_count += 1;
+        let seed_x = seed % width;
+        let seed_y = seed / width;
+        let (mut left, mut top, mut right, mut bottom) = (seed_x, seed_y, seed_x + 1, seed_y + 1);
+        let mut region_size = 0;
+
+        while let Some(index) = queue.pop_front() {
+            result.cell_visits += 1;
+            region_size += 1;
+            let local_x = index % width;
+            let local_y = index / width;
+            left = left.min(local_x);
+            top = top.min(local_y);
+            right = right.max(local_x + 1);
+            bottom = bottom.max(local_y + 1);
+            let x = prepared.x0 + local_x;
+            let y = prepared.y0 + local_y;
+
+            let mut visit = |neighbor: usize| {
+                if prepared.occupancy[neighbor] && !visited[neighbor] {
+                    visited[neighbor] = true;
+                    queue.push_back(neighbor);
+                    result.queue_pushes += 1;
+                }
+            };
+            if local_x > 0 && !cuts.contains_vertical(x, y) {
+                visit(index - 1);
+            }
+            if local_x + 1 < width && !cuts.contains_vertical(x + 1, y) {
+                visit(index + 1);
+            }
+            if local_y > 0 && !cuts.contains_horizontal(x, y) {
+                visit(index - width);
+            }
+            if local_y + 1 < height && !cuts.contains_horizontal(x, y + 1) {
+                visit(index + width);
+            }
+        }
+
+        let x0 = prepared.x0 + left;
+        let y0 = prepared.y0 + top;
+        let x1 = prepared.x0 + right;
+        let y1 = prepared.y0 + bottom;
+        let rectangle = GridRect::new(x0, y0, x1, y1)?;
+        if rectangle.area() != region_size
+            || prepared.occupied_cell_count(x0, y0, x1, y1) != region_size
+        {
+            return Err(SgError::NonRectangularCompletionRegion {
+                seed_x: prepared.x0 + seed_x,
+                seed_y: prepared.y0 + seed_y,
+            });
+        }
+        rectangles.push(rectangle);
+    }
+    rectangles.sort_unstable();
+    result.rectangles = rectangles;
+    Ok(result)
+}
+
+fn hash_rectangles_from_dense_cuts(
+    prepared: &PreparedGridComponent,
+    cuts: &DenseCutGrid,
+) -> Result<RectangleRecoveryResult, SgError> {
+    let occupied = prepared
+        .occupancy
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &present)| present.then_some(index))
+        .collect::<HashSet<_>>();
+    let mut unseen = occupied.clone();
+    let mut queue = VecDeque::new();
+    let mut region = Vec::new();
+    let mut result = RectangleRecoveryResult {
+        allocations: 5,
+        ..RectangleRecoveryResult::default()
+    };
+    while let Some(&seed) = unseen.iter().next() {
+        unseen.remove(&seed);
+        queue.push_back(seed);
+        region.clear();
+        result.queue_pushes += 1;
+        result.region_count += 1;
+        while let Some(index) = queue.pop_front() {
+            result.cell_visits += 1;
+            region.push(index);
+            let local_x = index % prepared.width();
+            let local_y = index / prepared.width();
+            let x = prepared.x0 + local_x;
+            let y = prepared.y0 + local_y;
+            let candidates = [
+                (local_x > 0 && !cuts.contains_vertical(x, y)).then_some(index.wrapping_sub(1)),
+                (local_x + 1 < prepared.width() && !cuts.contains_vertical(x + 1, y))
+                    .then_some(index + 1),
+                (local_y > 0 && !cuts.contains_horizontal(x, y))
+                    .then_some(index.wrapping_sub(prepared.width())),
+                (local_y + 1 < prepared.height() && !cuts.contains_horizontal(x, y + 1))
+                    .then_some(index + prepared.width()),
+            ];
+            for neighbor in candidates.into_iter().flatten() {
+                if unseen.remove(&neighbor) {
+                    queue.push_back(neighbor);
+                    result.queue_pushes += 1;
+                }
+            }
+        }
+        let left = region
+            .iter()
+            .map(|index| index % prepared.width())
+            .min()
+            .unwrap();
+        let top = region
+            .iter()
+            .map(|index| index / prepared.width())
+            .min()
+            .unwrap();
+        let right = region
+            .iter()
+            .map(|index| index % prepared.width() + 1)
+            .max()
+            .unwrap();
+        let bottom = region
+            .iter()
+            .map(|index| index / prepared.width() + 1)
+            .max()
+            .unwrap();
+        let rectangle = GridRect::new(
+            prepared.x0 + left,
+            prepared.y0 + top,
+            prepared.x0 + right,
+            prepared.y0 + bottom,
+        )?;
+        if rectangle.area() != region.len()
+            || prepared.occupied_cell_count(rectangle.x0, rectangle.y0, rectangle.x1, rectangle.y1)
+                != region.len()
+        {
+            return Err(SgError::NonRectangularCompletionRegion {
+                seed_x: prepared.x0 + seed % prepared.width(),
+                seed_y: prepared.y0 + seed / prepared.width(),
+            });
+        }
+        result.rectangles.push(rectangle);
+    }
+    result.rectangles.sort_unstable();
+    Ok(result)
+}
+
 fn uncut_neighbors<C>(
     cell: rect_core::Cell,
     component: &GridComponent<C>,
-    cuts: &Cuts,
+    cuts: &ReferenceOrderedCuts,
 ) -> impl Iterator<Item = rect_core::Cell> {
     let mut neighbors = Vec::with_capacity(4);
     if cell.x > 0
@@ -1767,11 +2175,12 @@ pub enum SgError {
 
 #[cfg(test)]
 mod tests {
-    use rect_core::{ColorGrid, GridComponent, validate_dissection};
+    use rect_core::{ColorGrid, GridComponent, validate_dissection, validate_dissection_prepared};
     use rect_oracle_exact_cover as exact_cover;
 
     use super::{
-        EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
+        DenseCutGrid, DenseGridRecovery, EffectiveChordEnumerator, GridInteriorRunEnumerator,
+        IndexedFrontierCompletion, RectangleRecoveryBackend, ReferenceHashBfsRecovery,
         ReferencePairwiseEnumerator, ReferenceRescanCompletion, analyze, complete_with_backend,
         complete_with_chord_families, solve,
     };
@@ -1892,6 +2301,38 @@ mod tests {
         );
         assert_eq!(reference.rectangles, indexed.rectangles);
         assert_eq!(indexed.metrics.full_grid_vertex_scans, 2);
+        let mut dense_cuts = DenseCutGrid::from_selection(
+            &analysis.prepared,
+            &analysis.horizontal_chords,
+            &analysis.vertical_chords,
+            &analysis.selected_horizontal,
+            &analysis.selected_vertical,
+        )
+        .unwrap();
+        for cut in indexed.added_horizontal_unit_cuts {
+            dense_cuts.insert_horizontal(cut);
+        }
+        for cut in indexed.added_vertical_unit_cuts {
+            dense_cuts.insert_vertical(cut);
+        }
+        let hash_recovery = ReferenceHashBfsRecovery
+            .recover(&analysis.prepared, &dense_cuts)
+            .unwrap();
+        let dense_recovery = DenseGridRecovery
+            .recover(&analysis.prepared, &dense_cuts)
+            .unwrap();
+        assert_eq!(hash_recovery.rectangles, dense_recovery.rectangles);
+        let result = rect_core::DissectionResult {
+            optimum_rectangle_count: dense_recovery.rectangles.len(),
+            rectangles: dense_recovery.rectangles,
+            diagnostics: rect_core::Diagnostics::default(),
+            certificate: None,
+        };
+        assert_eq!(validate_dissection(component, &result), Ok(()));
+        assert_eq!(
+            validate_dissection_prepared(&analysis.prepared, &result),
+            Ok(())
+        );
     }
 
     #[test]

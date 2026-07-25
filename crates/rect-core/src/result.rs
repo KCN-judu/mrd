@@ -85,6 +85,14 @@ pub struct Diagnostics {
     pub completion_stale_candidates: Option<usize>,
     pub completion_ray_extension_unit_steps: Option<usize>,
     pub rectangle_recovery_component_visits: Option<usize>,
+    pub rectangle_recovery_queue_pushes: Option<usize>,
+    pub rectangle_recovery_region_count: Option<usize>,
+    pub rectangle_recovery_allocations: Option<usize>,
+    pub prepared_component_build_count: Option<usize>,
+    pub prepared_component_build_microseconds: Option<u128>,
+    pub boundary_extraction_microseconds: Option<u128>,
+    pub reflex_grouping_microseconds: Option<u128>,
+    pub occupancy_bytes: Option<usize>,
     pub owned_allocation_estimates: BTreeMap<String, usize>,
 }
 

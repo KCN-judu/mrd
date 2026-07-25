@@ -11,13 +11,14 @@ use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
-    ValidationError, validate_dissection,
+    PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
+    validate_dissection_prepared,
 };
 use rect_graph::DinicBackend;
 use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, EffectiveChordEnumerator, GridInteriorRunEnumerator,
     IndexedFrontierCompletion, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    complete_with_backend,
+    analyze_prepared_geometry, complete_with_prepared_backend,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -62,6 +63,9 @@ fn completion_diagnostics(metrics: &CompletionMetrics) -> Diagnostics {
         completion_stale_candidates: Some(metrics.stale_candidate_count),
         completion_ray_extension_unit_steps: Some(metrics.ray_extension_unit_steps),
         rectangle_recovery_component_visits: Some(metrics.rectangle_recovery_component_visits),
+        rectangle_recovery_queue_pushes: Some(metrics.rectangle_recovery_queue_pushes),
+        rectangle_recovery_region_count: Some(metrics.rectangle_recovery_region_count),
+        rectangle_recovery_allocations: Some(metrics.rectangle_recovery_allocations),
         ..Diagnostics::default()
     }
 }
@@ -244,6 +248,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
     let flow_at = Instant::now();
     let completion = complete_selected(
         component,
+        &sg_analysis.prepared,
         &sg_analysis.horizontal_chords,
         &sg_analysis.vertical_chords,
         &selected_horizontal,
@@ -427,7 +432,8 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let geometry = rect_oracle_sg::analyze_geometry_with(component, enumerator)?;
+    let context = PreparedComponentContext::new(component).map_err(SgError::from)?;
+    let geometry = analyze_prepared_geometry(context, enumerator)?;
     let geometry_at = Instant::now();
     let embedding =
         DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
@@ -477,6 +483,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
         .ok_or(DominanceError::FormulaUnderflow)?;
     let completion = complete_selected(
         component,
+        &geometry.prepared,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
         &selected_horizontal,
@@ -642,7 +649,17 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             },
             effective_chord_enumerator: Some(enumerator.name().to_owned()),
             effective_chord_enumeration_microseconds: Some(
-                geometry_at.duration_since(started).as_micros(),
+                geometry.effective_chord_enumeration_microseconds,
+            ),
+            prepared_component_build_count: Some(1),
+            prepared_component_build_microseconds: Some(
+                geometry.prepared_component_build_microseconds,
+            ),
+            boundary_extraction_microseconds: Some(geometry.boundary_extraction_microseconds),
+            reflex_grouping_microseconds: Some(geometry.reflex_grouping_microseconds),
+            occupancy_bytes: Some(
+                geometry.prepared.occupancy.len()
+                    + geometry.prepared.occupancy_prefix_sums.len() * size_of::<usize>(),
             ),
             emitted_chord_count: Some(total_chord_count),
             owned_allocation_estimates,
@@ -671,12 +688,13 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             }),
         }),
     };
-    validate_dissection(component, &result)?;
+    validate_dissection_prepared(&geometry.prepared, &result)?;
     Ok(result)
 }
 
 fn complete_selected<C>(
     component: &GridComponent<C>,
+    prepared: &PreparedGridComponent,
     horizontal_chords: &[rect_core::HorizontalChord],
     vertical_chords: &[rect_core::VerticalChord],
     selected_horizontal: &[bool],
@@ -684,16 +702,18 @@ fn complete_selected<C>(
     backend: CompletionBackendKind,
 ) -> Result<rect_oracle_sg::CompletionResult, DominanceError> {
     match backend {
-        CompletionBackendKind::ReferenceRescan => Ok(complete_with_backend(
+        CompletionBackendKind::ReferenceRescan => Ok(complete_with_prepared_backend(
             component,
+            prepared,
             horizontal_chords,
             vertical_chords,
             selected_horizontal,
             selected_vertical,
             &ReferenceRescanCompletion,
         )?),
-        CompletionBackendKind::IndexedFrontier => Ok(complete_with_backend(
+        CompletionBackendKind::IndexedFrontier => Ok(complete_with_prepared_backend(
             component,
+            prepared,
             horizontal_chords,
             vertical_chords,
             selected_horizontal,
