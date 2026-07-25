@@ -49,6 +49,11 @@ components were solved and compared, with 0 timeouts, unsupported components,
 or disagreements. The separate evidence file is
 `results/v0.3-external-oracle.json`; it does not replace the v0.2 population.
 
+The final tagged lineage also reran the seed-42 random suite: 10,000 `8x8`
+inputs, 162,162 components, and 0 counterexamples. The adversarial benchmark
+verified all 19 components from 17 inputs. Their separate evidence files are
+`results/v0.3-random-8x8-seed42.json` and `results/v0.3-adversarial.csv`.
+
 All committed results were produced from Git commit
 `32faff61bc4577ab50010e5d253afe83f7655d83` with
 `rustc 1.89.0 (29483883e 2025-08-04)`, the Cargo release profile, macOS

@@ -2,6 +2,42 @@
   "schema_version": 2,
   "runs": [
     {
+      "git_commit": "b90cde9c711184fe5857dd611e75c37d62035297",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli random --width 8 --height 8 --cases 10000 --seed 42 --output results/v0.3-random-8x8-seed42.json",
+      "seed": 42,
+      "timestamp": 1784946785,
+      "input_count": 10000,
+      "component_count": 162162,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "b90cde9c711184fe5857dd611e75c37d62035297",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite adversarial --output results/v0.3-adversarial.csv",
+      "seed": null,
+      "timestamp": 1784946776,
+      "input_count": 17,
+      "component_count": 19,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
       "git_commit": "04c721c890eefee71dbe333053051bba8cd36374",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "target/release/rect-cli benchmark --suite dense-compact-only --sizes 128,256,512,1024 --output results/v0.3-compact-dense.csv",
@@ -152,6 +188,8 @@
     "results/scope-table.csv",
     "results/paper-tables.md",
     "results/v0.3-compact-dense.csv",
+    "results/v0.3-adversarial.csv",
+    "results/v0.3-random-8x8-seed42.json",
     "results/v0.3-chord-differential.json",
     "results/v0.3-external-oracle.json"
   ]
