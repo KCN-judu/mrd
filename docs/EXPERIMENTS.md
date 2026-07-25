@@ -345,7 +345,7 @@ area-sensitive reference construction rather than the paper's planar sweep.
 
 ## v0.6 true compact path-tree evidence
 
-The v0.6 implementation is committed in `fe9c29d`. CompactOnly path-tree
+The v0.6 implementation and evidence are committed in `b03ae75`. CompactOnly path-tree
 records contain endpoint-only `CompactTreePath` values; explicit
 `ChordTreePath` edge vectors and per-path BFS are retained only by
 FullyAudited. CompactOnly defaults to `BoundaryLaminar`, while

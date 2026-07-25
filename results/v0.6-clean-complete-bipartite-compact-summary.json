@@ -2,7 +2,7 @@
   "schema_version": 1,
   "source_csv": "results/v0.6-clean-complete-bipartite-compact.csv",
   "git_commits": [
-    "fe9c29d132326729935c58c1a29877ea1856e83e"
+    "b03ae75039b4f55a7c8940d41bbcf364d72a2d77"
   ],
   "population": 8,
   "verified": 8,

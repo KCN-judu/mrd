@@ -85,7 +85,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
     "peeled_commit": "PENDING",
     "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
     "result_commits": [
-      "fe9c29d132326729935c58c1a29877ea1856e83e"
+      "b03ae75039b4f55a7c8940d41bbcf364d72a2d77"
     ]
   }
 ]
