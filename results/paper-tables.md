@@ -95,12 +95,13 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "0.7.0",
     "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "3994cb1",
     "evidence": "path-tree structural families, branching witness, orientation-regret audit, axis-view differential, bounded dual differential, Auto fallback, and path-tree-vs-4d comparison",
     "result_commits": [
       "224737f",
       "2028d12",
-      "bd945f5"
+      "bd945f5",
+      "3994cb1"
     ]
   }
 ]
