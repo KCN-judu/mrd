@@ -270,6 +270,60 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "602df9ad4737c067311f438c94ddf880fd6c7ca1",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite completion-heavy --families staircase,spiral --sizes 8,16,32,64 --output results/v0.5-completion-heavy.csv",
+      "seed": null,
+      "timestamp": 1784961946,
+      "input_count": 16,
+      "component_count": 16,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "602df9ad4737c067311f438c94ddf880fd6c7ca1",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite area-heavy --sizes 64,128,256 --output results/v0.5-area-heavy.csv",
+      "seed": null,
+      "timestamp": 1784961946,
+      "input_count": 6,
+      "component_count": 6,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "602df9ad4737c067311f438c94ddf880fd6c7ca1",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite dense-completion --sizes 128,256,512,1024 --output results/v0.5-dense-completion.csv",
+      "seed": null,
+      "timestamp": 1784961947,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {
@@ -327,10 +381,10 @@
     {
       "version": "0.5.0",
       "tag": "v0.5.0-prepared-grid-pipeline",
-      "peeled_commit": "69923ac54bcd7bde452b420a12f3eee38e3e7bdc",
+      "peeled_commit": "602df9ad4737c067311f438c94ddf880fd6c7ca1",
       "evidence": "single-build prepared geometry, prepared-run enumeration, dense cut storage, dense recovery, and exact differential outputs",
       "result_commits": [
-        "09cbb218cb8307e7d1ee3fa56fd198cce6d8fa3f"
+        "602df9ad4737c067311f438c94ddf880fd6c7ca1"
       ]
     }
   ],

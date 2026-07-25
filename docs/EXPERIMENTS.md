@@ -285,10 +285,10 @@ unit cuts for requested sizes 8, 16, 32, and 64; the orthogonal spiral adds 8,
 as regression fixtures but are not claimed as primary completion-heavy data.
 
 At q=4096 on the dense-conflict geometry, reference hash recovery measured
-423,016 microseconds and dense recovery measured 8,441 microseconds. Prepared
-grid-run enumeration measured 263 and 228 microseconds respectively. On the
-256 by 256 solid area workload, recovery measured 15,480 microseconds for the
-reference and 446 microseconds for the dense backend. These are single-run
+470,725 microseconds and dense recovery measured 8,229 microseconds. Prepared
+grid-run enumeration measured 229 and 224 microseconds respectively. On the
+256 by 256 solid area workload, recovery measured 15,942 microseconds for the
+reference and 425 microseconds for the dense backend. These are single-run
 measurements, not portable performance guarantees. Source rows are
 `results/v0.5-completion-heavy.csv`, `results/v0.5-area-heavy.csv`, and
 `results/v0.5-dense-completion.csv`.
