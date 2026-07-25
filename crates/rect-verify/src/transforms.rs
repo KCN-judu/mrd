@@ -152,10 +152,10 @@ impl<C: Clone> TransformedComponent<C> {
             ),
             GridTransform::Scale { factor } => {
                 if factor == 0
-                    || rectangle.x0 % factor != 0
-                    || rectangle.y0 % factor != 0
-                    || rectangle.x1 % factor != 0
-                    || rectangle.y1 % factor != 0
+                    || !rectangle.x0.is_multiple_of(factor)
+                    || !rectangle.y0.is_multiple_of(factor)
+                    || !rectangle.x1.is_multiple_of(factor)
+                    || !rectangle.y1.is_multiple_of(factor)
                 {
                     return Err(TransformError::UnalignedScaledRectangle { rectangle, factor });
                 }

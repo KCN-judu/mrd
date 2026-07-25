@@ -301,11 +301,11 @@ fn random_case(
         3 => (0..cell_count)
             .map(|index| {
                 let x = index % width;
-                x % 2 == 0 || index / width == height / 2
+                x.is_multiple_of(2) || index / width == height / 2
             })
             .collect(),
         4 => (0..cell_count)
-            .map(|index| (index % width + index / width) % 2 == 0)
+            .map(|index| (index % width + index / width).is_multiple_of(2))
             .collect(),
         _ => ring_with_corridor(width, height),
     }
