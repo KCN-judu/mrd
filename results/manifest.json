@@ -360,6 +360,42 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite clean-complete-bipartite --sizes 1,2,3,4 --output results/v0.5-clean-complete-bipartite.csv",
+      "seed": null,
+      "timestamp": 1784972758,
+      "input_count": 4,
+      "component_count": 4,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite path-tree-comparison --sizes 4 --output results/v0.5-path-tree-comparison-4x4.csv.gz",
+      "seed": null,
+      "timestamp": 1784972758,
+      "input_count": 65536,
+      "component_count": 155389,
+      "input_model": "finite-colored-unit-grid-path-tree-comparison",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {

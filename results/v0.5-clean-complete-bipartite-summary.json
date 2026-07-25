@@ -1,0 +1,15 @@
+{
+  "git_commit": "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca",
+  "family": "clean-complete-bipartite",
+  "parameters": [1, 2, 3, 4],
+  "verified_count": 4,
+  "unsupported_count": 0,
+  "solver_error_count": 0,
+  "counterexample_count": 0,
+  "rows": [
+    {"t": 1, "horizontal_chords": 2, "vertical_chords": 2, "conflict_edges": 4},
+    {"t": 2, "horizontal_chords": 4, "vertical_chords": 4, "conflict_edges": 16},
+    {"t": 3, "horizontal_chords": 6, "vertical_chords": 6, "conflict_edges": 36},
+    {"t": 4, "horizontal_chords": 8, "vertical_chords": 8, "conflict_edges": 64}
+  ]
+}

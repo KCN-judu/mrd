@@ -316,8 +316,29 @@ passed cell-exact validation. The evidence is in
 inside FullyAudited Oracle audits. CompactOnly path-tree SVG runs preserve the
 edge-free execution trace.
 
-The reference dual construction is area-sensitive and currently uses the
-vertical-tree/horizontal-path orientation. The paper's symmetric orientation
-selector, planar-sweep dual construction, and integer-grid complete-bipartite
-family remain explicit scope gaps; no unsupported dense approximation is
-included in the evidence.
+The reference dual construction is area-sensitive and, before the final clean
+geometry follow-up, used only the vertical-tree/horizontal-path orientation.
+The planar-sweep dual construction remains outside the artifact scope.
+
+## v0.5 clean geometry completion evidence
+
+Commit `f2742d9` adds the corrected integer-grid complete-bipartite family and
+the symmetric path-tree selector. The clean family campaign covers `t=1,2,3,4`:
+all four fixtures are clean, have exactly `|H|=|V|=2t`, and have exactly
+`|E|=4t^2`, with zero unsupported cases, solver errors, or counterexamples.
+The row-level evidence is `results/v0.5-clean-complete-bipartite.csv` and the
+compact summary is `results/v0.5-clean-complete-bipartite-summary.json`.
+
+The complete binary `4x4` path-tree comparison covers all 65,536 masks and
+155,389 eligible foreground components. Every component has identical path-tree
+and 4D optimum/rectangle output, with 155,389 verified rows and zero
+counterexamples or solver errors. The selected orientation was
+`vertical-tree-horizontal-paths` for all rows because the deterministic sigma
+comparison tied there. The compressed row population is stored as
+`results/v0.5-path-tree-comparison-4x4.csv.gz`, with aggregate ranges in
+`results/v0.5-path-tree-comparison-4x4-summary.json`.
+
+CompactOnly path-tree runs on the clean family retain
+`explicit_conflict_edge_count: null` and all forbidden execution-trace flags
+false. The selector now evaluates both orientations; the grid dual remains an
+area-sensitive reference construction rather than the paper's planar sweep.

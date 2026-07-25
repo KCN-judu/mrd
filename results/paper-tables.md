@@ -132,7 +132,14 @@ rejections; the complete q histogram and chord-mass denominators are generated
 in `results/v0.5-clean-census.json` and `.csv`.
 
 The `3x3` path-tree comparison covers 871 eligible components with zero output
-or optimum disagreements. The reference dual is area-sensitive and uses the
-vertical-tree/horizontal-path orientation. The clean complete-bipartite
-integer-grid family remains an explicit unsupported-scope guard; no fabricated
-dense approximation is included.
+or optimum disagreements. The reference dual is area-sensitive; the final
+backend evaluates both orientations and records the selected one.
+
+## v0.5 clean geometry completion
+
+The final finite-grid clean geometry campaign is bound to commit `f2742d9`.
+The complete-bipartite fixtures for `t=1..4` have exact chord families
+`(2t,2t)` and conflict counts `4t^2`; all four are verified. The full binary
+`4x4` path-tree comparison covers 155,389 eligible components with zero
+counterexamples and zero solver errors. The compressed evidence is in
+`results/v0.5-path-tree-comparison-4x4-summary.json` and the gzipped row table.

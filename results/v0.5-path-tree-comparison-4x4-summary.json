@@ -1,0 +1,24 @@
+{
+  "git_commit": "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca",
+  "input_model": "finite-colored-unit-grid-path-tree-comparison",
+  "input_count": 65536,
+  "eligible_component_count": 155389,
+  "verified_count": 155389,
+  "counterexample_count": 0,
+  "solver_error_count": 0,
+  "orientation_counts": {
+    "vertical-tree-horizontal-paths": 155389
+  },
+  "ranges": {
+    "cell_count": [1, 16],
+    "boundary_complexity": [4, 16],
+    "reflex_vertices": [0, 6],
+    "horizontal_chords": [0, 2],
+    "vertical_chords": [0, 2],
+    "biclique_sigma": [0, 2],
+    "compressed_network_vertices": [2, 5],
+    "compressed_network_arcs": [0, 4],
+    "output_rectangles": [1, 6]
+  },
+  "full_csv": "results/v0.5-path-tree-comparison-4x4.csv.gz"
+}
