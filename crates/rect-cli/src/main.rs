@@ -524,7 +524,18 @@ fn benchmark_command(
             let report =
                 rect_verify::benchmark::benchmark_path_tree_orientation_audit(context, sizes);
             write_text(output, &report.to_csv())?;
-            write_json(&report, Some(&output.with_extension("json")))?;
+            write_json(
+                &serde_json::json!({
+                    "metadata": report.metadata.clone(),
+                    "rows": report.rows.len(),
+                    "exact_matches": report.exact_matches,
+                    "mismatches": report.mismatches,
+                    "tie_orientation_differences": report.tie_orientation_differences,
+                    "maximum_absolute_regret": report.maximum_absolute_regret,
+                    "maximum_regret_ratio": report.maximum_regret_ratio,
+                }),
+                Some(&output.with_extension("json")),
+            )?;
             write_text(&output.with_extension("md"), &report.to_markdown())?;
             if report.mismatches == 0 {
                 return Ok(());
@@ -538,7 +549,16 @@ fn benchmark_command(
             let report =
                 rect_verify::benchmark::benchmark_path_tree_dual_differential(context, sizes);
             write_text(output, &report.to_csv())?;
-            write_json(&report, Some(&output.with_extension("json")))?;
+            write_json(
+                &serde_json::json!({
+                    "metadata": report.metadata.clone(),
+                    "rows": report.rows.len(),
+                    "verified": report.verified,
+                    "counterexamples": report.counterexamples,
+                    "solver_errors": report.solver_errors,
+                }),
+                Some(&output.with_extension("json")),
+            )?;
             if report.counterexamples == 0 && report.solver_errors == 0 {
                 return Ok(());
             }
