@@ -25,6 +25,10 @@
 - Compact biclique validation is an `O(sigma)` coordinate-extrema proof. It
   intentionally does not expand every `A_k x B_k`; fully audited mode retains
   the explicit edge-multiset audit.
+
+- The v0.3 grid-run path is specialized to finite unit-cell components. It is
+  differentially checked against the pairwise reference, but it does not claim
+  the paper's general polygon `O(n log n)` enumerator.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The

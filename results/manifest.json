@@ -2,6 +2,24 @@
   "schema_version": 2,
   "runs": [
     {
+      "git_commit": "20de1aa",
+      "rustc_version": "rustc 1.89.0 (29483883 2025-08-04)",
+      "command": "cargo test -p rect-oracle-sg grid_runs_match_reference_chord_sets_through_four_by_four; rect-cli solve --solver dominance-compact-only",
+      "seed": null,
+      "timestamp": 1784943888,
+      "input_count": 65535,
+      "component_count": 337057,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
       "git_commit": "32faff61bc4577ab50010e5d253afe83f7655d83",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "target/release/rect-cli benchmark --suite adversarial --output results/adversarial.csv",

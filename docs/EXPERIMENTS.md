@@ -2,6 +2,34 @@
 
 Evidence date: 2026-07-25 (Asia/Tokyo).
 
+## v0.3 compact execution evidence
+
+The compact-pipeline hardening and grid-run differential implementation is
+committed in `20de1aa` and the follow-up evidence/documentation commit. The
+reference implementation remains available; CompactOnly uses
+`GridInteriorRunEnumerator` after exact chord-set equality on every binary
+`3x3` and `4x4` component (512 and 65,535 non-empty masks respectively).
+The differential population produced no missing or fabricated chords.
+
+The CompactOnly contract tests assert that pairwise embedding audit, explicit
+conflict graph construction, Hopcroft--Karp, C0 construction, and full edge
+partition expansion are all false. FullyAudited tests assert the corresponding
+operations are true. CompactOnly SVG rendering uses `analyze_geometry_with`
+and the same grid-run families; it does not invoke `rect_oracle_sg::analyze`.
+Every serialized CompactOnly component reports
+`explicit_conflict_edge_count: null` and an execution trace with all forbidden
+flags false.
+
+Geometry-backed dense runs (the generator's horizontal and vertical targets
+are equal, so total `q` is twice the target) recorded the following compact
+path sizes: `q=512` -> `sigma=1,619`, `q=1,024` -> `sigma=3,280`,
+`q=2,048` -> `sigma=6,647`, and `q=4,096` -> `sigma=13,400`. The largest
+completed run had 6,285 compressed vertices and 17,496 arcs. Process peak RSS
+is intentionally not claimed; `peak_memory_bytes` remains null. Result
+diagnostics include labeled owned-allocation estimates for chord vectors,
+embedding points, biclique vectors, and flow storage. These are component-owned
+estimates, not process peak memory.
+
 All committed results were produced from Git commit
 `32faff61bc4577ab50010e5d253afe83f7655d83` with
 `rustc 1.89.0 (29483883e 2025-08-04)`, the Cargo release profile, macOS

@@ -57,3 +57,15 @@
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component |
 | explicit rectangle output | constructive completion | implemented | yes | cell-exact validation |
 | machine-checkable certificates | not an artifact requirement | implemented | yes | matching, partition, flow, cut, and rectangles |
+
+## CompactOnly v0.3 evidence
+
+| total q | horizontal chords | vertical chords | bicliques | sigma | compressed vertices | compressed arcs | enumerator | explicit edges |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 512 | 256 | 256 | 308 | 1619 | 822 | 2131 | grid-interior-runs | null |
+| 1024 | 512 | 512 | 578 | 3280 | 1604 | 4304 | grid-interior-runs | null |
+| 2048 | 1024 | 1024 | 1126 | 6647 | 3176 | 8695 | grid-interior-runs | null |
+| 4096 | 2048 | 2048 | 2187 | 13400 | 6285 | 17496 | grid-interior-runs | null |
+
+The four rows are separate CompactOnly evidence and do not overwrite the v0.2
+population above. Peak RSS is unmeasured; no null value is interpreted as zero.
