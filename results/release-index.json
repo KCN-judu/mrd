@@ -54,7 +54,7 @@
     {
       "version": "0.5.0-clean-hole-free-path-tree",
       "tag": "v0.5.0-clean-hole-free-path-tree",
-      "peeled_commit": "c8646f6",
+      "peeled_commit": "c8646f60c2056c4c87811e4e93ca6e75edd06d6b",
       "evidence": "clean eligibility census, region-dual tree, HLD canonical path partition, representation selection, and differential path-tree audits",
       "result_commits": [
         "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
