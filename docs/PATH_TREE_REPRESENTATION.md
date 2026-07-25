@@ -40,3 +40,10 @@ CompactOnly uses the boundary-laminar vertical orientation without transposing
 the prepared occupancy; its trace records zero area visits, unit-cut records,
 per-path BFS calls, and explicit path-edge materialization. Dinic is still the
 exact practical flow backend.
+
+The horizontal-tree CompactOnly path uses the same boundary builder through an
+axis view: it swaps coordinate roles and maps original chord IDs without
+cloning a transposed `Boundary` or prepared occupancy. The old physical
+transpose remains available only to the FullyAudited reference path. The
+bounded v0.7 differential (`results/v0.7-path-tree-dual-differential.csv`)
+checks the axis view against `ReferenceAreaFloodFill` on 156,267 clean rows.

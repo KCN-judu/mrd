@@ -90,6 +90,24 @@ def main() -> None:
     require((ROOT / "results/v0.6-clean-complete-bipartite-compact-summary.json").exists(), "v0.6 compact summary missing")
     require((ROOT / "results/v0.6-clean-complete-bipartite-compact.md").exists(), "v0.6 compact generated table missing")
     require('"version": "0.6.0"' in tables, "generated v0.6 release summary missing")
+    require('"version": "0.7.0"' in tables, "generated v0.7 release summary missing")
+    require("v0.7 structural path-tree evidence" in experiments, "v0.7 evidence section missing")
+    orientation = json.loads((ROOT / "results/v0.7-path-tree-orientation-audit.json").read_text())
+    require(orientation["mismatches"] == 0, "orientation audit has positive regret")
+    require(orientation["exact_matches"] == orientation["rows"], "orientation audit is incomplete")
+    dual = json.loads((ROOT / "results/v0.7-path-tree-dual-differential.json").read_text())
+    require(dual["counterexamples"] == 0, "dual differential has counterexamples")
+    require(dual["solver_errors"] == 0, "dual differential has solver errors")
+    for artifact in [
+        "results/v0.7-path-tree-orientation-audit.csv",
+        "results/v0.7-path-tree-orientation-audit.json",
+        "results/v0.7-path-tree-orientation-audit.md",
+        "results/v0.7-path-tree-dual-differential.csv",
+        "results/v0.7-path-tree-dual-differential.json",
+        "results/v0.7-auto-fallback.csv",
+    ]:
+        require(artifact in manifest["generated_tables"], f"generated artifact is not indexed: {artifact}")
+        require((ROOT / artifact).exists(), f"generated artifact missing: {artifact}")
     print(f"release consistency: ok (workspace {workspace_version})")
 
 

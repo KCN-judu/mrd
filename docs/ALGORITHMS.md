@@ -71,7 +71,7 @@ paths. FullyAudited retains the `ReferenceAreaFloodFill` dual, explicit
 per-path BFS, physical transpose Oracle, and both orientations as independent
 references. CompactOnly uses the `BoundaryLaminar` dual and endpoint-only HLD
 records (`CompactTreePath`); its axis view avoids occupancy, boundary, and chord
-transposition in the production path. Orientation selection is controlled by
+transposition in the production path for either orientation. Orientation selection is controlled by
 `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`;
 the default remains `build-both` until the v0.7 regret evidence is frozen.
 Heavy-light canonical segment nodes produce the bicliques consumed by the same

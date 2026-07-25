@@ -1,0 +1,2 @@
+git_commit,rustc_version,command,seed,timestamp,masks,components,eligible_components,verified,unsupported,solver_errors,counterexamples,execution_trace_violations,orientation_counts,q_min,q_max,sigma_min,sigma_max
+bd945f504bfa5c7d95c55fe0783f573d24911dd6,rustc 1.89.0 (29483883e 2025-08-04),/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv,,1784994936,65535,168529,155389,155389,0,0,0,0,"{""vertical-tree-horizontal-paths"":155389}",0,3,0,2

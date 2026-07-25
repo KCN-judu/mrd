@@ -174,7 +174,7 @@ def scope_rows() -> list[dict[str, str]]:
 
 def write_csv(path: Path, fields: list[str], rows: list[dict[str, Any]]) -> None:
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -265,15 +265,29 @@ def current_evidence_sections(output_dir: Path) -> list[str]:
         fields = ["family", "instance_name", "q", "q_bucket", "sigma_path_tree", "sigma_4d", "network_arcs_path_tree", "network_arcs_4d", "path_tree_total_microseconds", "four_d_total_microseconds", "optimum_equal", "rectangles_equal", "status"]
         sections.extend(["## v0.7 Path-tree versus 4D", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
     orientation = output_dir / "v0.7-path-tree-orientation-audit.csv"
-    if orientation.exists():
-        rows = read_csv(orientation)
-        fields = ["population", "instance_name", "q", "chosen_orientation", "best_orientation", "selected_sigma", "best_sigma", "absolute_regret", "regret_ratio", "status"]
-        sections.extend(["## v0.7 Orientation regret audit", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    orientation_summary = output_dir / "v0.7-path-tree-orientation-audit.json"
+    if orientation.exists() and orientation_summary.exists():
+        report = read_json(orientation_summary)
+        sections.extend(
+            [
+                "## v0.7 Orientation regret audit",
+                "",
+                f"The row-level CSV contains {report['rows']:,} clean instances. Exact sigma matches: {report['exact_matches']:,}; positive-regret mismatches: {report['mismatches']}; equal-sigma direction ties: {report['tie_orientation_differences']:,}; maximum absolute regret: {report['maximum_absolute_regret']:,}.",
+                "",
+            ]
+        )
     dual = output_dir / "v0.7-path-tree-dual-differential.csv"
-    if dual.exists():
-        rows = read_csv(dual)
-        fields = ["population", "instance_name", "q", "boundary_sigma", "area_sigma", "rectangles_equal", "status"]
-        sections.extend(["## v0.7 BoundaryLaminar versus area dual", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    dual_summary = output_dir / "v0.7-path-tree-dual-differential.json"
+    if dual.exists() and dual_summary.exists():
+        report = read_json(dual_summary)
+        sections.extend(
+            [
+                "## v0.7 BoundaryLaminar versus area dual",
+                "",
+                f"The row-level CSV contains {report['rows']:,} clean instances. Verified: {report['verified']:,}; counterexamples: {report['counterexamples']}; solver errors: {report['solver_errors']}.",
+                "",
+            ]
+        )
     return sections
 
 
@@ -381,6 +395,24 @@ def main() -> None:
         str(args.output_dir / "scope-table.csv"),
         str(args.output_dir / "paper-tables.md"),
     ]
+    for artifact in [
+        "v0.6-clean-boundary-differential.csv",
+        "v0.6-clean-boundary-differential.json",
+        "v0.6-clean-boundary-differential.md",
+        "v0.7-auto-fallback.csv",
+        "v0.7-clean-complete-bipartite-compact.csv",
+        "v0.7-path-tree-dual-differential.csv",
+        "v0.7-path-tree-dual-differential.json",
+        "v0.7-path-tree-families.csv",
+        "v0.7-path-tree-orientation-audit.csv",
+        "v0.7-path-tree-orientation-audit.json",
+        "v0.7-path-tree-orientation-audit.md",
+        "v0.7-path-tree-vs-4d.csv",
+        "v0.7-path-tree-vs-4d.json",
+    ]:
+        candidate = args.output_dir / artifact
+        if candidate.exists():
+            generated.append(str(candidate))
     manifest["generated_tables"] = list(
         dict.fromkeys([*generated, *manifest.get("generated_tables", [])])
     )

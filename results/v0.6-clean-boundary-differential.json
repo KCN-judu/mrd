@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "git_commit": "bd945f504bfa5c7d95c55fe0783f573d24911dd6",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv",
+    "seed": null,
+    "timestamp": 1784994936,
+    "input_count": 65535,
+    "component_count": 168529,
+    "input_model": "finite-colored-unit-grid-binary-4x4-boundary-differential",
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "masks": 65535,
+  "components": 168529,
+  "eligible_components": 155389,
+  "verified": 155389,
+  "unsupported": 0,
+  "solver_errors": 0,
+  "counterexamples": 0,
+  "execution_trace_violations": 0,
+  "orientation_counts": {
+    "vertical-tree-horizontal-paths": 155389
+  },
+  "q_min": 0,
+  "q_max": 3,
+  "sigma_min": 0,
+  "sigma_max": 2
+}

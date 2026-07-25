@@ -452,11 +452,29 @@
       ]
     },
     {
-      "git_commit": "5818aa9338efce45d77cd98ae608852556f35cb7",
+      "git_commit": "bd945f504bfa5c7d95c55fe0783f573d24911dd6",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-complete-bipartite-compact --sizes 1,2,4,8,16,32,64,128 --output results/v0.7-clean-complete-bipartite-compact.csv",
+      "seed": null,
+      "timestamp": 1784994935,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-grid-clean-complete-bipartite-compact",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "bd945f504bfa5c7d95c55fe0783f573d24911dd6",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv",
       "seed": null,
-      "timestamp": 1784992167,
+      "timestamp": 1784994936,
       "input_count": 65535,
       "component_count": 168529,
       "input_model": "finite-colored-unit-grid-binary-4x4-boundary-differential",
@@ -470,14 +488,32 @@
       ]
     },
     {
-      "git_commit": "5818aa9338efce45d77cd98ae608852556f35cb7",
+      "git_commit": "bd945f504bfa5c7d95c55fe0783f573d24911dd6",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-families --sizes 7 --output results/v0.7-path-tree-families.csv",
       "seed": null,
-      "timestamp": 1784992208,
-      "input_count": 65535,
-      "component_count": 168529,
-      "input_model": "finite-colored-unit-grid-binary-4x4-boundary-differential",
+      "timestamp": 1784999063,
+      "input_count": 4,
+      "component_count": 4,
+      "input_model": "finite-colored-unit-grid-path-tree-families",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "bd945f504bfa5c7d95c55fe0783f573d24911dd6",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite auto-fallback --output results/v0.7-auto-fallback.csv",
+      "seed": null,
+      "timestamp": 1784999154,
+      "input_count": 7,
+      "component_count": 7,
+      "input_model": "finite-grid-auto-representation-fallback",
       "unsupported_input_features": [
         "ornaments",
         "isolated-formal-boundary-points",
@@ -553,9 +589,10 @@
       "version": "0.5.0-clean-hole-free-path-tree",
       "tag": "v0.5.0-clean-hole-free-path-tree",
       "peeled_commit": "c8646f60c2056c4c87811e4e93ca6e75edd06d6b",
-      "evidence": "clean census, symmetric path-tree geometry, and complete-bipartite family",
+      "evidence": "clean eligibility census, region-dual tree, symmetric HLD path partition, complete-bipartite family, representation selection, and differential path-tree audits",
       "result_commits": [
         "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
+        "d90acb5",
         "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca"
       ]
     },
@@ -563,7 +600,7 @@
       "version": "0.6.0",
       "tag": "v0.6.0-true-compact-path-tree",
       "peeled_commit": "c6bafda3a0493d60f6468f4298765468376753d8",
-      "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
+      "evidence": "boundary-laminar region dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
       "result_commits": [
         "b03ae75039b4f55a7c8940d41bbcf364d72a2d77",
         "349487ddef9d34b49cf48ac1e0dfc432676aa8b5",
@@ -575,8 +612,12 @@
       "version": "0.7.0",
       "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
       "peeled_commit": "PENDING",
-      "evidence": "path-tree structural families, orientation-policy audit, axis-view differential, and path-tree-vs-4d comparison",
-      "result_commits": []
+      "evidence": "path-tree structural families, branching witness, orientation-regret audit, axis-view differential, bounded dual differential, Auto fallback, and path-tree-vs-4d comparison",
+      "result_commits": [
+        "224737f",
+        "2028d12",
+        "bd945f5"
+      ]
     }
   ],
   "current_release": {
@@ -600,13 +641,21 @@
     "results/compression-table.csv",
     "results/scope-table.csv",
     "results/paper-tables.md",
-    "results/v0.6-clean-complete-bipartite-compact.csv",
-    "results/v0.6-clean-complete-bipartite-compact-summary.json",
-    "results/v0.6-clean-complete-bipartite-compact.md",
     "results/v0.6-clean-boundary-differential.csv",
     "results/v0.6-clean-boundary-differential.json",
     "results/v0.6-clean-boundary-differential.md",
+    "results/v0.7-auto-fallback.csv",
+    "results/v0.7-clean-complete-bipartite-compact.csv",
+    "results/v0.7-path-tree-dual-differential.csv",
+    "results/v0.7-path-tree-dual-differential.json",
     "results/v0.7-path-tree-families.csv",
-    "results/v0.7-path-tree-vs-4d.csv"
+    "results/v0.7-path-tree-orientation-audit.csv",
+    "results/v0.7-path-tree-orientation-audit.json",
+    "results/v0.7-path-tree-orientation-audit.md",
+    "results/v0.7-path-tree-vs-4d.csv",
+    "results/v0.7-path-tree-vs-4d.json",
+    "results/v0.6-clean-complete-bipartite-compact.csv",
+    "results/v0.6-clean-complete-bipartite-compact-summary.json",
+    "results/v0.6-clean-complete-bipartite-compact.md"
   ]
 }

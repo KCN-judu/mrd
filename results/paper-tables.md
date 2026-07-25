@@ -73,9 +73,10 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
     "version": "0.5.0-clean-hole-free-path-tree",
     "tag": "v0.5.0-clean-hole-free-path-tree",
     "peeled_commit": "c8646f60c2056c4c87811e4e93ca6e75edd06d6b",
-    "evidence": "clean census, symmetric path-tree geometry, and complete-bipartite family",
+    "evidence": "clean eligibility census, region-dual tree, symmetric HLD path partition, complete-bipartite family, representation selection, and differential path-tree audits",
     "result_commits": [
       "02f1532fe2caa25a05d04a6990743c4ddac28ec1",
+      "d90acb5",
       "f2742d9e5a578ca3c2f6236aacf8d64a190b06ca"
     ]
   },
@@ -83,12 +84,23 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
     "version": "0.6.0",
     "tag": "v0.6.0-true-compact-path-tree",
     "peeled_commit": "c6bafda3a0493d60f6468f4298765468376753d8",
-    "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
+    "evidence": "boundary-laminar region dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
     "result_commits": [
       "b03ae75039b4f55a7c8940d41bbcf364d72a2d77",
       "349487ddef9d34b49cf48ac1e0dfc432676aa8b5",
       "ce773a21e44cb5ecba6b6442e6c2bb9172f37141",
       "c6bafda3a0493d60f6468f4298765468376753d8"
+    ]
+  },
+  {
+    "version": "0.7.0",
+    "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
+    "peeled_commit": "PENDING",
+    "evidence": "path-tree structural families, branching witness, orientation-regret audit, axis-view differential, bounded dual differential, Auto fallback, and path-tree-vs-4d comparison",
+    "result_commits": [
+      "224737f",
+      "2028d12",
+      "bd945f5"
     ]
   }
 ]
@@ -130,6 +142,9 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component |
 | explicit rectangle output | constructive completion | implemented | yes | cell-exact validation |
 | machine-checkable certificates | not an artifact requirement | implemented | yes | matching, partition, flow, cut, and rectangles |
+| clean hole-free eligibility | Definition 9.1 | integer grid classifier with loop identities | yes | component and chord-mass census; ornaments remain out of model |
+| path-tree biclique partition | Theorems 9.5-9.6 | BoundaryLaminar axis view plus endpoint HLD in CompactOnly; area dual Oracle in FullyAudited | yes | full 4x4 differential and axis-view equality |
+| clean complete-bipartite family | Theorem 9.2 | integer-grid realization | yes | compact campaign through t=128 |
 
 ## CompactOnly v0.3 evidence
 
@@ -145,53 +160,37 @@ Exact chord-family differential comparisons: 253,219 inputs, 0 disagreements.
 The bounded v0.3 CP-SAT rerun compared 27,228 components with 0 disagreements.
 Peak RSS is unmeasured; no null value is interpreted as zero.
 
-## v0.5 clean path-tree evidence
+## v0.6 BoundaryLaminar differential evidence
 
-The binary `4x4` clean census covers 168,529 foreground components: 155,389
-pass the clean certificate, with 19,908 effective chords in the eligible
-population. Rejection counts are 593 hole components and 20,736 shared-endpoint
-rejections; the complete q histogram and chord-mass denominators are generated
-in `results/v0.5-clean-census.json` and `.csv`.
+The full 4x4 campaign covers 65,535 masks and 155,389 clean eligible components. It records 155,389 verified rows, 0 counterexamples, and 0 execution-trace violations.
+Orientation counts: `{"vertical-tree-horizontal-paths": 155389}`; q range `0..3`, sigma range `0..2`.
 
-The `3x3` path-tree comparison covers 871 eligible components with zero output
-or optimum disagreements. The reference dual is area-sensitive; the final
-backend evaluates both orientations and records the selected one.
+## v0.7 Path-tree geometry families
 
-## v0.5 clean geometry completion
+| family | instance_name | status | path_tree_orientation | path_tree_orientation_policy | dual_region_count | dual_tree_max_depth | dual_tree_max_branching_degree | heavy_chain_interval_count | canonical_segment_node_count | path_tree_sigma |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| laminar-chain | laminar-chain-7 | verified | vertical-tree-horizontal-paths | bound-estimate | 15 | 14 | 2 | 14 | 1 | 28 |
+| laminar-star | laminar-star-7 | verified | horizontal-tree-vertical-paths | bound-estimate | 7 | 1 | 6 | 0 | 0 | 0 |
+| balanced-laminar | balanced-laminar-7 | verified | horizontal-tree-vertical-paths | bound-estimate | 8 | 1 | 7 | 0 | 0 | 0 |
+| asymmetric-orientation | asymmetric-orientation-7 | verified | vertical-tree-horizontal-paths | bound-estimate | 2 | 1 | 1 | 1 | 1 | 2 |
 
-The final finite-grid clean geometry campaign is bound to commit `f2742d9`.
-The complete-bipartite fixtures for `t=1..4` have exact chord families
-`(2t,2t)` and conflict counts `4t^2`; all four are verified. The full binary
-`4x4` path-tree comparison covers 155,389 eligible components with zero
-counterexamples and zero solver errors. The compressed evidence is in
-`results/v0.5-path-tree-comparison-4x4-summary.json` and the gzipped row table.
+## v0.7 Path-tree versus 4D
 
-## v0.6 true compact path-tree evidence
+| family | instance_name | q | q_bucket | sigma_path_tree | sigma_4d | network_arcs_path_tree | network_arcs_4d | path_tree_total_microseconds | four_d_total_microseconds | optimum_equal | rectangles_equal | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| laminar-chain | laminar-chain-8 | 32 | 9-32 | 32 | 32 | 64 | 64 | 436 | 2284 | true | true | verified |
+| laminar-star | laminar-star-8 | 7 | 0-8 | 0 | 0 | 7 | 7 | 22 | 122 | true | true | verified |
+| balanced-laminar | balanced-laminar-8 | 8 | 0-8 | 0 | 0 | 8 | 8 | 24 | 155 | true | true | verified |
+| asymmetric-orientation | asymmetric-orientation-8 | 2 | 0-8 | 2 | 2 | 4 | 4 | 8 | 17 | true | true | verified |
+| clean-complete-bipartite | clean-complete-bipartite-t1 | 4 | 0-8 | 4 | 4 | 8 | 8 | 41 | 205 | true | true | verified |
+| clean-complete-bipartite | clean-complete-bipartite-t2 | 8 | 0-8 | 8 | 8 | 16 | 16 | 68 | 383 | true | true | verified |
+| clean-complete-bipartite | clean-complete-bipartite-t4 | 16 | 9-32 | 16 | 16 | 32 | 32 | 150 | 879 | true | true | verified |
+| clean-complete-bipartite | clean-complete-bipartite-t8 | 32 | 9-32 | 32 | 32 | 64 | 64 | 509 | 2413 | true | true | verified |
 
-The generated compact family table is
-`results/v0.6-clean-complete-bipartite-compact.csv`. It covers
-`t=1,2,4,8,16,32,64,128` (`q=4t` through 512), with zero solver errors or
-counterexamples. CompactOnly uses `BoundaryLaminar`; the area dual, per-path
-BFS, explicit path-edge lists, unit chord cuts, and prepared occupancy
-transpose are all disabled and recorded as false in `ExecutionTrace`.
+## v0.7 Orientation regret audit
 
-| t | q | |H| | |V| | dual regions | path records | path-edge incidences | canonical nodes | sigma | explicit E |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 4 | 2 | 2 | 3 | 2 | 4 | 1 | 4 | null |
-| 2 | 8 | 4 | 4 | 5 | 4 | 16 | 1 | 8 | null |
-| 4 | 16 | 8 | 8 | 9 | 8 | 64 | 1 | 16 | null |
-| 8 | 32 | 16 | 16 | 17 | 16 | 256 | 1 | 32 | null |
-| 16 | 64 | 32 | 32 | 33 | 32 | 1024 | 1 | 64 | null |
-| 32 | 128 | 64 | 64 | 65 | 64 | 4096 | 1 | 128 | null |
-| 64 | 256 | 128 | 128 | 129 | 128 | 16384 | 1 | 256 | null |
-| 128 | 512 | 256 | 256 | 257 | 256 | 65536 | 1 | 512 | null |
+The row-level CSV contains 160,443 clean instances. Exact sigma matches: 160,443; positive-regret mismatches: 0; equal-sigma direction ties: 409; maximum absolute regret: 0.
 
-The path-edge incidence column is a metric, not materialized storage: the
-CompactOnly certificate contains zero explicit path-edge records. Owned
-allocation estimates are serialized in the CSV; process peak RSS remains
-unmeasured and is never interpreted as zero.
+## v0.7 BoundaryLaminar versus area dual
 
-The table and summary above are regenerated by
-`tools/generate_path_tree_tables.py`; the canonical generated artifacts are
-`results/v0.6-clean-complete-bipartite-compact-summary.json` and
-`results/v0.6-clean-complete-bipartite-compact.md`.
+The row-level CSV contains 156,267 clean instances. Verified: 156,267; counterexamples: 0; solver errors: 0.
