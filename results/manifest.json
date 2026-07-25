@@ -508,11 +508,12 @@
     {
       "version": "0.6.0",
       "tag": "v0.6.0-true-compact-path-tree",
-      "peeled_commit": "349487ddef9d34b49cf48ac1e0dfc432676aa8b5",
+      "peeled_commit": "ce773a21e44cb5ecba6b6442e6c2bb9172f37141",
       "evidence": "boundary-laminar dual, endpoint-only HLD, compact path certificates, and scaled clean-family campaign",
       "result_commits": [
         "b03ae75039b4f55a7c8940d41bbcf364d72a2d77",
-        "349487ddef9d34b49cf48ac1e0dfc432676aa8b5"
+        "349487ddef9d34b49cf48ac1e0dfc432676aa8b5",
+        "ce773a21e44cb5ecba6b6442e6c2bb9172f37141"
       ]
     }
   ],
