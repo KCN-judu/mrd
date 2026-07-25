@@ -2,6 +2,8 @@ pub mod biclique;
 pub mod compressed_flow;
 pub mod embedding;
 
+use std::collections::BTreeMap;
+use std::mem::size_of;
 use std::time::Instant;
 
 use biclique::{BicliqueError, BicliquePartition};
@@ -236,6 +238,7 @@ pub fn solve<C>(
             horizontal_interior_run_count: None,
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: None,
+            owned_allocation_estimates: BTreeMap::new(),
         },
         certificate: Some(Certificate {
             kind: match mode {
@@ -341,6 +344,24 @@ fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResul
         .filter_map(|(index, &selected)| selected.then_some(index))
         .collect::<Vec<_>>();
     let biclique_total_size = partition.total_vertex_occurrences();
+    let mut owned_allocation_estimates = BTreeMap::new();
+    owned_allocation_estimates.insert(
+        "chord_vectors".to_owned(),
+        total_chord_count * size_of::<rect_core::HorizontalChord>(),
+    );
+    owned_allocation_estimates.insert(
+        "embedding_point_arrays".to_owned(),
+        total_chord_count * size_of::<embedding::DominancePoint>(),
+    );
+    owned_allocation_estimates.insert(
+        "biclique_vectors".to_owned(),
+        partition.bicliques.len() * size_of::<biclique::Biclique>()
+            + biclique_total_size * size_of::<usize>(),
+    );
+    owned_allocation_estimates.insert(
+        "flow_graph_storage".to_owned(),
+        (flow_solution.network_vertex_count + flow_solution.network_arc_count) * size_of::<usize>(),
+    );
     let result = DissectionResult {
         optimum_rectangle_count,
         rectangles,
@@ -403,6 +424,7 @@ fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResul
                 geometry_at.duration_since(started).as_micros(),
             ),
             emitted_chord_count: Some(total_chord_count),
+            owned_allocation_estimates,
             horizontal_interior_run_count: None,
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: None,

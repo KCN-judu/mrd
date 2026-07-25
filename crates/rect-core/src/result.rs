@@ -67,6 +67,7 @@ pub struct Diagnostics {
     pub vertical_interior_run_count: Option<usize>,
     pub candidate_reflex_pair_count: Option<usize>,
     pub emitted_chord_count: Option<usize>,
+    pub owned_allocation_estimates: BTreeMap<String, usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
