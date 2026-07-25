@@ -245,7 +245,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,dual_region_count,path_count,path_edge_incidence_count,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,dual_region_count,path_count,path_edge_incidence_count,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -371,6 +371,19 @@ impl BenchmarkReport {
                     .map(|bytes| bytes.to_string())
                     .unwrap_or_default(),
                 owned_allocation_estimates,
+                row.diagnostics
+                    .region_dual_backend
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(row.diagnostics.region_dual_construction_microseconds),
+                optional_number(row.diagnostics.dual_tree_edge_count),
+                optional_number(row.diagnostics.dual_allocated_bytes),
+                optional_number(row.diagnostics.dual_unit_cut_count),
+                optional_number(row.diagnostics.dual_area_cell_visits),
+                optional_number(row.diagnostics.dual_interval_count),
+                optional_number(row.diagnostics.dual_maximum_nesting_depth),
+                optional_number(row.diagnostics.hld_interval_count),
+                optional_number(row.diagnostics.explicit_path_records_materialized),
             ];
             writeln!(
                 csv,
@@ -750,6 +763,99 @@ pub fn benchmark_clean_complete_bipartite(
         .filter_map(|&size| clean_complete_bipartite_grid(size).ok())
         .collect::<Vec<_>>();
     benchmark_instances(context, &instances, 40)
+}
+
+/// Measures the true compact path-tree pipeline without invoking the
+/// area-sensitive SG/matching or explicit 4D audit paths.  The general 4D
+/// `CompactOnly` result is retained as an independent output oracle.
+#[must_use]
+pub fn benchmark_clean_complete_bipartite_compact(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> BenchmarkReport {
+    let mut rows = Vec::new();
+    for &size in sizes {
+        let Ok(instance) = clean_complete_bipartite_grid(size) else {
+            continue;
+        };
+        let Ok(components) = instance.foreground_components() else {
+            continue;
+        };
+        for component in components {
+            let path = rect_dominance::solve_with_representation(
+                &component,
+                VerificationMode::CompactOnly,
+                rect_dominance::ConflictRepresentationBackend::CleanHoleFreePathTree,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+            );
+            let general = rect_dominance::solve_with_representation(
+                &component,
+                VerificationMode::CompactOnly,
+                rect_dominance::ConflictRepresentationBackend::GeneralDominance4D,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+            );
+            let (status, message, diagnostics) = match (path, general) {
+                (Ok(path), Ok(general))
+                    if path.optimum_rectangle_count == general.optimum_rectangle_count
+                        && path.rectangles == general.rectangles
+                        && path.diagnostics.explicit_conflict_edge_count.is_none()
+                        && !path
+                            .diagnostics
+                            .execution_trace
+                            .full_tree_path_edge_lists_materialized =>
+                {
+                    ("verified".to_owned(), None, path.diagnostics)
+                }
+                (Ok(path), Ok(_)) => (
+                    "counterexample".to_owned(),
+                    Some("compact path-tree and compact 4D outputs differ".to_owned()),
+                    path.diagnostics,
+                ),
+                (Err(error), _) | (_, Err(error)) => (
+                    "solver-error".to_owned(),
+                    Some(error.to_string()),
+                    Diagnostics {
+                        cell_count: component.cell_count(),
+                        ..Diagnostics::default()
+                    },
+                ),
+            };
+            rows.push(BenchmarkRow {
+                instance_name: instance.name.clone(),
+                family: "clean-complete-bipartite-compact".to_owned(),
+                parameters: instance.parameters.clone(),
+                component_id: component.id.0,
+                status,
+                message,
+                exact_cover_compared: false,
+                diagnostics,
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
+                compact_only_phase_microseconds: BTreeMap::new(),
+            });
+        }
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: rows.len(),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-grid-clean-complete-bipartite-compact".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
+        counterexample_count: count_status(&rows, "counterexample"),
+        failure_fixtures: Vec::new(),
+        rows,
+    }
 }
 
 #[must_use]

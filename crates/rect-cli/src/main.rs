@@ -174,6 +174,7 @@ enum BenchmarkSuiteArg {
     Adversarial,
     CleanCensus,
     CleanCompleteBipartite,
+    CleanCompleteBipartiteCompact,
     DenseConflict,
     DenseCompactOnly,
     DenseCompletion,
@@ -447,6 +448,9 @@ fn benchmark_command(
         BenchmarkSuiteArg::CleanCompleteBipartite => {
             rect_verify::benchmark::benchmark_clean_complete_bipartite(context, sizes)
         }
+        BenchmarkSuiteArg::CleanCompleteBipartiteCompact => {
+            rect_verify::benchmark::benchmark_clean_complete_bipartite_compact(context, sizes)
+        }
         BenchmarkSuiteArg::PathTreeComparison => {
             rect_verify::benchmark::benchmark_path_tree_comparison(context, sizes)
         }
@@ -710,10 +714,7 @@ fn solve_component<C>(
             representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
             dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise)),
             completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
-            region_dual.map_or(
-                RegionDualBackend::ReferenceAreaFloodFill,
-                region_dual_kind,
-            ),
+            region_dual.map_or(RegionDualBackend::ReferenceAreaFloodFill, region_dual_kind),
         )
         .map_err(|error| CliError::Solver(error.to_string())),
         SolverArg::DominanceCompactOnly => solve_with_representation_and_region_dual(
