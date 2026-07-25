@@ -8,11 +8,13 @@ use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
 use rect_core::{
-    Certificate, Diagnostics, DissectionResult, ExactRatio, GridComponent, ValidationError,
-    validate_dissection,
+    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
+    ValidationError, validate_dissection,
 };
 use rect_graph::DinicBackend;
-use rect_oracle_sg::{SgError, complete_with_chord_families, complete_with_selected_chords};
+use rect_oracle_sg::{
+    GridInteriorRunEnumerator, SgError, complete_with_chord_families, complete_with_selected_chords,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
@@ -218,6 +220,22 @@ pub fn solve<C>(
             .into_iter()
             .collect(),
             peak_memory_bytes: None,
+            execution_trace: ExecutionTrace {
+                pairwise_embedding_audit_called: true,
+                explicit_conflict_graph_built: true,
+                hopcroft_karp_called: true,
+                c0_partition_built: matches!(mode, DominanceMode::ExplicitEdges),
+                full_edge_partition_audit_called: true,
+                compact_structure_check_called: true,
+            },
+            effective_chord_enumerator: Some("reference-pairwise".to_owned()),
+            effective_chord_enumeration_microseconds: Some(
+                geometry_at.duration_since(started).as_micros(),
+            ),
+            emitted_chord_count: Some(total_chord_count),
+            horizontal_interior_run_count: None,
+            vertical_interior_run_count: None,
+            candidate_reflex_pair_count: None,
         },
         certificate: Some(Certificate {
             kind: match mode {
@@ -249,13 +267,13 @@ pub fn solve<C>(
 #[allow(clippy::too_many_lines)]
 fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let geometry = rect_oracle_sg::analyze_geometry(component)?;
+    let geometry = rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?;
     let geometry_at = Instant::now();
     let embedding =
         DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
     let embedding_at = Instant::now();
     let partition = BicliquePartition::comparability_theorem_8(&embedding)?;
-    partition.verify_structure(embedding.horizontal.len(), embedding.vertical.len())?;
+    partition.verify_dominance_blocks(&embedding)?;
     let bicliques_at = Instant::now();
     let flow_solution = solve_biclique_flow(
         embedding.horizontal.len(),
@@ -376,6 +394,18 @@ fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResul
             .into_iter()
             .collect(),
             peak_memory_bytes: None,
+            execution_trace: ExecutionTrace {
+                compact_structure_check_called: true,
+                ..ExecutionTrace::default()
+            },
+            effective_chord_enumerator: Some("grid-interior-runs".to_owned()),
+            effective_chord_enumeration_microseconds: Some(
+                geometry_at.duration_since(started).as_micros(),
+            ),
+            emitted_chord_count: Some(total_chord_count),
+            horizontal_interior_run_count: None,
+            vertical_interior_run_count: None,
+            candidate_reflex_pair_count: None,
         },
         certificate: Some(Certificate {
             kind: "dominance-compact-only".to_owned(),

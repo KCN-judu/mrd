@@ -12,5 +12,5 @@ pub use geometry::{
     Segment, VerticalChord, VerticalChordId, closed_chords_intersect,
 };
 pub use grid::{Cell, ColorGrid, ComponentId, GridComponent, GridError};
-pub use result::{Certificate, Diagnostics, DissectionResult, ExactRatio};
+pub use result::{Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace};
 pub use validation::{ValidationError, validate_dissection};

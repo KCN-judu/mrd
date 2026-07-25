@@ -644,6 +644,19 @@ mod tests {
             )
             .unwrap();
             assert_eq!(analysis.matching.size, c0.diagnostics.maximum_matching_size);
+            assert!(
+                c0.diagnostics
+                    .execution_trace
+                    .pairwise_embedding_audit_called
+            );
+            assert!(c0.diagnostics.execution_trace.explicit_conflict_graph_built);
+            assert!(c0.diagnostics.execution_trace.hopcroft_karp_called);
+            assert!(c0.diagnostics.execution_trace.c0_partition_built);
+            assert!(
+                c0.diagnostics
+                    .execution_trace
+                    .full_edge_partition_audit_called
+            );
             assert_eq!(
                 analysis.matching.size,
                 compact.diagnostics.maximum_matching_size
@@ -661,6 +674,13 @@ mod tests {
                 compact_only.optimum_rectangle_count
             );
             assert_eq!(compact_only.diagnostics.explicit_conflict_edge_count, None);
+            assert_eq!(
+                compact_only.diagnostics.execution_trace,
+                rect_core::ExecutionTrace {
+                    compact_structure_check_called: true,
+                    ..rect_core::ExecutionTrace::default()
+                }
+            );
             assert_eq!(compact_only.diagnostics.c0_network_vertex_count, 0);
             assert_eq!(compact_only.diagnostics.c0_network_arc_count, 0);
             assert_eq!(

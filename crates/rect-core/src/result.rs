@@ -25,6 +25,17 @@ impl ExactRatio {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ExecutionTrace {
+    pub pairwise_embedding_audit_called: bool,
+    pub explicit_conflict_graph_built: bool,
+    pub hopcroft_karp_called: bool,
+    pub c0_partition_built: bool,
+    pub full_edge_partition_audit_called: bool,
+    pub compact_structure_check_called: bool,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostics {
     pub cell_count: usize,
     pub boundary_complexity: usize,
@@ -49,6 +60,13 @@ pub struct Diagnostics {
     pub output_rectangle_count: usize,
     pub phase_microseconds: BTreeMap<String, u128>,
     pub peak_memory_bytes: Option<usize>,
+    pub execution_trace: ExecutionTrace,
+    pub effective_chord_enumerator: Option<String>,
+    pub effective_chord_enumeration_microseconds: Option<u128>,
+    pub horizontal_interior_run_count: Option<usize>,
+    pub vertical_interior_run_count: Option<usize>,
+    pub candidate_reflex_pair_count: Option<usize>,
+    pub emitted_chord_count: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
