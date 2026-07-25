@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
+use std::time::Instant;
 
 use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::{
@@ -46,6 +47,138 @@ pub struct CleanBoundaryDifferentialReport {
     pub q_max: Option<usize>,
     pub sigma_min: Option<usize>,
     pub sigma_max: Option<usize>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OrientationAuditRow {
+    pub population: String,
+    pub instance_name: String,
+    pub q: usize,
+    pub horizontal_chords: usize,
+    pub vertical_chords: usize,
+    pub chosen_orientation: String,
+    pub best_orientation: String,
+    pub selected_sigma: usize,
+    pub best_sigma: usize,
+    pub absolute_regret: usize,
+    pub regret_ratio: Option<ExactRatio>,
+    pub bound_construction_microseconds: u128,
+    pub build_both_construction_microseconds: u128,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OrientationAuditReport {
+    pub metadata: BenchmarkMetadata,
+    pub rows: Vec<OrientationAuditRow>,
+    pub exact_matches: usize,
+    pub mismatches: usize,
+    pub tie_orientation_differences: usize,
+    pub maximum_absolute_regret: usize,
+    pub maximum_regret_ratio: Option<ExactRatio>,
+}
+
+impl OrientationAuditReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "population,instance_name,q,horizontal_chords,vertical_chords,chosen_orientation,best_orientation,selected_sigma,best_sigma,absolute_regret,regret_ratio,bound_construction_microseconds,build_both_construction_microseconds,status\n",
+        );
+        for row in &self.rows {
+            let ratio = row.regret_ratio.map_or_else(String::new, |ratio| {
+                format!("{}/{}", ratio.numerator, ratio.denominator)
+            });
+            let fields = [
+                row.population.clone(),
+                row.instance_name.clone(),
+                row.q.to_string(),
+                row.horizontal_chords.to_string(),
+                row.vertical_chords.to_string(),
+                row.chosen_orientation.clone(),
+                row.best_orientation.clone(),
+                row.selected_sigma.to_string(),
+                row.best_sigma.to_string(),
+                row.absolute_regret.to_string(),
+                ratio,
+                row.bound_construction_microseconds.to_string(),
+                row.build_both_construction_microseconds.to_string(),
+                row.status.clone(),
+            ];
+            let _ = writeln!(
+                csv,
+                "{}",
+                fields
+                    .iter()
+                    .map(|field| escape_csv(field))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        csv
+    }
+
+    #[must_use]
+    pub fn to_markdown(&self) -> String {
+        format!(
+            "# v0.7 Path-tree orientation audit\n\n- Rows: {}\n- Exact sigma matches: {}\n- Regret mismatches: {}\n- Tie orientation differences: {}\n- Maximum absolute regret: {}\n- Maximum regret ratio: {:?}\n",
+            self.rows.len(),
+            self.exact_matches,
+            self.mismatches,
+            self.tie_orientation_differences,
+            self.maximum_absolute_regret,
+            self.maximum_regret_ratio,
+        )
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathTreeDualDifferentialRow {
+    pub population: String,
+    pub instance_name: String,
+    pub q: usize,
+    pub boundary_sigma: Option<usize>,
+    pub area_sigma: Option<usize>,
+    pub rectangles_equal: bool,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathTreeDualDifferentialReport {
+    pub metadata: BenchmarkMetadata,
+    pub rows: Vec<PathTreeDualDifferentialRow>,
+    pub verified: usize,
+    pub counterexamples: usize,
+    pub solver_errors: usize,
+}
+
+impl PathTreeDualDifferentialReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "population,instance_name,q,boundary_sigma,area_sigma,rectangles_equal,status\n",
+        );
+        for row in &self.rows {
+            let fields = [
+                row.population.clone(),
+                row.instance_name.clone(),
+                row.q.to_string(),
+                optional_number(row.boundary_sigma),
+                optional_number(row.area_sigma),
+                row.rectangles_equal.to_string(),
+                row.status.clone(),
+            ];
+            let _ = writeln!(
+                csv,
+                "{}",
+                fields
+                    .iter()
+                    .map(|field| escape_csv(field))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        csv
+    }
 }
 
 impl CleanBoundaryDifferentialReport {
@@ -243,6 +376,444 @@ pub fn clean_boundary_differential_4x4(
         q_max,
         sigma_min,
         sigma_max,
+    }
+}
+
+fn append_orientation_audit_component<C>(
+    rows: &mut Vec<OrientationAuditRow>,
+    population: &str,
+    instance_name: &str,
+    component: &rect_core::GridComponent<C>,
+) where
+    C: Clone + Eq,
+{
+    let Ok(geometry) = rect_oracle_sg::analyze_geometry_with(
+        component,
+        &rect_oracle_sg::GridInteriorRunEnumerator,
+    ) else {
+        return;
+    };
+    let certificate = rect_oracle_sg::classify_clean_hole_free(
+        component,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+    );
+    if !certificate.eligible {
+        return;
+    }
+    let q = geometry
+        .horizontal_chords
+        .len()
+        .saturating_add(geometry.vertical_chords.len());
+    let build_both_started = Instant::now();
+    let exact = rect_dominance::path_tree::build_path_tree_partition_with_orientation_policy(
+        &geometry.prepared,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        certificate.clone(),
+        false,
+        rect_dominance::RegionDualBackend::BoundaryLaminar,
+        rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
+    );
+    let build_both_construction_microseconds = build_both_started.elapsed().as_micros();
+    let bound_started = Instant::now();
+    let estimated = rect_dominance::path_tree::build_path_tree_partition_with_orientation_policy(
+        &geometry.prepared,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        certificate,
+        false,
+        rect_dominance::RegionDualBackend::BoundaryLaminar,
+        rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
+    );
+    let bound_construction_microseconds = bound_started.elapsed().as_micros();
+    let (Ok(exact), Ok(estimated)) = (exact, estimated) else {
+        rows.push(OrientationAuditRow {
+            population: population.to_owned(),
+            instance_name: instance_name.to_owned(),
+            q,
+            horizontal_chords: geometry.horizontal_chords.len(),
+            vertical_chords: geometry.vertical_chords.len(),
+            chosen_orientation: String::new(),
+            best_orientation: String::new(),
+            selected_sigma: 0,
+            best_sigma: 0,
+            absolute_regret: 0,
+            regret_ratio: None,
+            bound_construction_microseconds,
+            build_both_construction_microseconds,
+            status: "solver-error".to_owned(),
+        });
+        return;
+    };
+    let best_sigma = exact.biclique_partition.total_vertex_occurrences();
+    let selected_sigma = estimated.biclique_partition.total_vertex_occurrences();
+    let absolute_regret = selected_sigma.saturating_sub(best_sigma);
+    let regret_ratio = ExactRatio::new(absolute_regret as u128, best_sigma as u128);
+    let status = if absolute_regret != 0 {
+        "mismatch"
+    } else if estimated.orientation == exact.orientation {
+        "verified"
+    } else {
+        "tie-different-orientation"
+    };
+    rows.push(OrientationAuditRow {
+        population: population.to_owned(),
+        instance_name: instance_name.to_owned(),
+        q,
+        horizontal_chords: geometry.horizontal_chords.len(),
+        vertical_chords: geometry.vertical_chords.len(),
+        chosen_orientation: estimated.orientation.name().to_owned(),
+        best_orientation: exact.orientation.name().to_owned(),
+        selected_sigma,
+        best_sigma,
+        absolute_regret,
+        regret_ratio,
+        bound_construction_microseconds,
+        build_both_construction_microseconds,
+        status: status.to_owned(),
+    });
+}
+
+fn append_orientation_audit_instance(
+    rows: &mut Vec<OrientationAuditRow>,
+    population: &str,
+    instance: &AdversarialInstance,
+) {
+    if let Ok(components) = instance.foreground_components() {
+        for component in components {
+            append_orientation_audit_component(rows, population, &instance.name, &component);
+        }
+    }
+}
+
+/// Compares the paper-shaped orientation bound with the exact two-orientation
+/// selector on reproducible clean finite-grid populations.
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn benchmark_path_tree_orientation_audit(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> OrientationAuditReport {
+    let mut rows = Vec::new();
+    for side in [3usize, 4] {
+        let bit_count = side * side;
+        for mask in 1_u32..(1_u32 << bit_count) {
+            let cells = (0..bit_count)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            if let Ok(grid) = ColorGrid::new(side, side, cells) {
+                for component in grid
+                    .four_connected_components()
+                    .into_iter()
+                    .filter(|component| component.color)
+                {
+                    append_orientation_audit_component(
+                        &mut rows,
+                        &format!("clean-{side}x{side}"),
+                        &format!("binary-{side}x{side}-{mask:x}"),
+                        &component,
+                    );
+                }
+            }
+        }
+    }
+    let scale = sizes.iter().copied().max().unwrap_or(7).max(3);
+    for instance in crate::adversarial::path_tree_geometry_families(scale) {
+        append_orientation_audit_instance(&mut rows, "structural-family", &instance);
+    }
+    for &size in sizes {
+        if let Ok(instance) = clean_complete_bipartite_grid(size) {
+            append_orientation_audit_instance(&mut rows, "complete-bipartite", &instance);
+        }
+    }
+    for level in enumerate_free_polyominoes(10) {
+        for polyomino in level {
+            let instance = polyomino.to_instance(
+                format!("free-polyomino-{}", polyomino.canonical_key()),
+                "free-polyomino",
+            );
+            append_orientation_audit_instance(&mut rows, "free-polyomino", &instance);
+        }
+    }
+    let mut state = 0x5eed_u64;
+    for case in 0..256usize {
+        let mut cells = Vec::with_capacity(64);
+        for _ in 0..64 {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            cells.push((state >> 63) != 0);
+        }
+        if let Ok(grid) = ColorGrid::new(8, 8, cells) {
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                append_orientation_audit_component(
+                    &mut rows,
+                    "random-clean-candidate",
+                    &format!("random-{case}"),
+                    &component,
+                );
+            }
+        }
+    }
+    let exact_matches = rows.iter().filter(|row| row.absolute_regret == 0).count();
+    let mismatches = rows.iter().filter(|row| row.status == "mismatch").count();
+    let tie_orientation_differences = rows
+        .iter()
+        .filter(|row| row.status == "tie-different-orientation")
+        .count();
+    let maximum_absolute_regret = rows
+        .iter()
+        .map(|row| row.absolute_regret)
+        .max()
+        .unwrap_or(0);
+    let maximum_regret_ratio =
+        rows.iter()
+            .filter_map(|row| row.regret_ratio)
+            .max_by(|left, right| {
+                (left.numerator.saturating_mul(right.denominator))
+                    .cmp(&right.numerator.saturating_mul(left.denominator))
+            });
+    OrientationAuditReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: rows.len(),
+            component_count: rows.len(),
+            input_model: "finite-grid-path-tree-orientation-audit".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        rows,
+        exact_matches,
+        mismatches,
+        tie_orientation_differences,
+        maximum_absolute_regret,
+        maximum_regret_ratio,
+    }
+}
+
+fn collect_dual_differential_instances(sizes: &[usize]) -> Vec<(String, AdversarialInstance)> {
+    let mut instances = Vec::new();
+    for side in [3usize, 4] {
+        let bit_count = side * side;
+        for mask in 1_u32..(1_u32 << bit_count) {
+            let cells = (0..bit_count)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            instances.push((
+                format!("clean-{side}x{side}"),
+                AdversarialInstance {
+                    name: format!("binary-{side}x{side}-{mask:x}"),
+                    family: "binary-clean".to_owned(),
+                    width: side,
+                    height: side,
+                    cells,
+                    parameters: [("side".to_owned(), side)].into_iter().collect(),
+                },
+            ));
+        }
+    }
+    let scale = sizes.iter().copied().max().unwrap_or(5).max(3);
+    instances.extend(
+        crate::adversarial::path_tree_geometry_families(scale)
+            .into_iter()
+            .map(|instance| ("structural-family".to_owned(), instance)),
+    );
+    for &size in sizes.iter().filter(|&&size| size <= 4) {
+        if let Ok(instance) = clean_complete_bipartite_grid(size) {
+            instances.push(("complete-bipartite".to_owned(), instance));
+        }
+    }
+    instances
+}
+
+/// Compares the compact boundary dual with the independent area-flood-fill
+/// dual on a bounded audited population.
+#[must_use]
+pub fn benchmark_path_tree_dual_differential(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> PathTreeDualDifferentialReport {
+    let mut rows = Vec::new();
+    for (population, instance) in collect_dual_differential_instances(sizes) {
+        let Ok(components) = instance.foreground_components() else {
+            continue;
+        };
+        for component in components {
+            let Ok(geometry) = rect_oracle_sg::analyze_geometry_with(
+                &component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            ) else {
+                continue;
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            if !certificate.eligible {
+                continue;
+            }
+            let boundary = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
+            );
+            let area = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::ReferenceAreaFloodFill,
+                rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
+            );
+            let q = geometry.horizontal_chords.len() + geometry.vertical_chords.len();
+            match (boundary, area) {
+                (Ok(boundary), Ok(area)) => {
+                    let rectangles_equal = boundary.rectangles == area.rectangles
+                        && boundary.optimum_rectangle_count == area.optimum_rectangle_count;
+                    rows.push(PathTreeDualDifferentialRow {
+                        population: population.clone(),
+                        instance_name: instance.name.clone(),
+                        q,
+                        boundary_sigma: boundary.diagnostics.path_tree_sigma,
+                        area_sigma: area.diagnostics.path_tree_sigma,
+                        rectangles_equal,
+                        status: if rectangles_equal {
+                            "verified".to_owned()
+                        } else {
+                            "counterexample".to_owned()
+                        },
+                    });
+                }
+                (Err(error), _) | (_, Err(error)) => rows.push(PathTreeDualDifferentialRow {
+                    population: population.clone(),
+                    instance_name: instance.name.clone(),
+                    q,
+                    boundary_sigma: None,
+                    area_sigma: None,
+                    rectangles_equal: false,
+                    status: format!("solver-error: {error}"),
+                }),
+            }
+        }
+    }
+    PathTreeDualDifferentialReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: rows.len(),
+            component_count: rows.len(),
+            input_model: "finite-grid-boundary-laminar-vs-area-dual".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified: rows.iter().filter(|row| row.status == "verified").count(),
+        counterexamples: rows
+            .iter()
+            .filter(|row| row.status == "counterexample")
+            .count(),
+        solver_errors: rows
+            .iter()
+            .filter(|row| row.status.starts_with("solver-error"))
+            .count(),
+        rows,
+    }
+}
+
+/// Exercises the Auto representation on clean and non-clean finite-grid
+/// fixtures, recording the path-tree selection or compact 4D fallback.
+#[must_use]
+pub fn benchmark_auto_fallback(context: BenchmarkContext) -> BenchmarkReport {
+    let instances = endpoint_contact_instances()
+        .into_iter()
+        .chain([crate::adversarial::one_hole_ring(5, 5)])
+        .chain(crate::adversarial::path_tree_geometry_families(7))
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for instance in &instances {
+        let Ok(components) = instance.foreground_components() else {
+            continue;
+        };
+        for component in components {
+            let result = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::Auto,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
+            );
+            rows.push(match result {
+                Ok(result) => BenchmarkRow {
+                    instance_name: instance.name.clone(),
+                    family: "auto-fallback".to_owned(),
+                    parameters: instance.parameters.clone(),
+                    component_id: component.id.0,
+                    status: "verified".to_owned(),
+                    message: result.diagnostics.conflict_representation.clone(),
+                    exact_cover_compared: false,
+                    diagnostics: result.diagnostics,
+                    c0_phase_microseconds: BTreeMap::new(),
+                    compressed_phase_microseconds: BTreeMap::new(),
+                    compact_only_phase_microseconds: BTreeMap::new(),
+                },
+                Err(error) => BenchmarkRow {
+                    instance_name: instance.name.clone(),
+                    family: "auto-fallback".to_owned(),
+                    parameters: instance.parameters.clone(),
+                    component_id: component.id.0,
+                    status: "solver-error".to_owned(),
+                    message: Some(error.to_string()),
+                    exact_cover_compared: false,
+                    diagnostics: Diagnostics {
+                        cell_count: component.cell_count(),
+                        ..Diagnostics::default()
+                    },
+                    c0_phase_microseconds: BTreeMap::new(),
+                    compressed_phase_microseconds: BTreeMap::new(),
+                    compact_only_phase_microseconds: BTreeMap::new(),
+                },
+            });
+        }
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: instances.len(),
+            component_count: rows.len(),
+            input_model: "finite-grid-auto-representation-fallback".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
+        counterexample_count: 0,
+        failure_fixtures: Vec::new(),
+        rows,
     }
 }
 
@@ -1261,6 +1832,7 @@ pub struct PathTreeVs4dRow {
     pub family: String,
     pub instance_name: String,
     pub q: usize,
+    pub q_bucket: String,
     pub horizontal_chords: usize,
     pub vertical_chords: usize,
     pub boundary_complexity: usize,
@@ -1301,13 +1873,14 @@ impl PathTreeVs4dReport {
     #[must_use]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "family,instance_name,q,horizontal_chords,vertical_chords,boundary_complexity,clean_eligible,orientation_policy,path_tree_orientation,sigma_path_tree,sigma_4d,biclique_count_path_tree,biclique_count_4d,network_vertices_path_tree,network_arcs_path_tree,network_vertices_4d,network_arcs_4d,path_tree_construction_microseconds,four_d_representation_microseconds,path_tree_flow_microseconds,four_d_flow_microseconds,path_tree_completion_microseconds,four_d_completion_microseconds,path_tree_total_microseconds,four_d_total_microseconds,owned_path_tree,owned_4d,optimum_equal,rectangles_equal,status\n",
+            "family,instance_name,q,q_bucket,horizontal_chords,vertical_chords,boundary_complexity,clean_eligible,orientation_policy,path_tree_orientation,sigma_path_tree,sigma_4d,biclique_count_path_tree,biclique_count_4d,network_vertices_path_tree,network_arcs_path_tree,network_vertices_4d,network_arcs_4d,path_tree_construction_microseconds,four_d_representation_microseconds,path_tree_flow_microseconds,four_d_flow_microseconds,path_tree_completion_microseconds,four_d_completion_microseconds,path_tree_total_microseconds,four_d_total_microseconds,owned_path_tree,owned_4d,optimum_equal,rectangles_equal,status\n",
         );
         for row in &self.rows {
             let fields = [
                 row.family.clone(),
                 row.instance_name.clone(),
                 row.q.to_string(),
+                row.q_bucket.clone(),
                 row.horizontal_chords.to_string(),
                 row.vertical_chords.to_string(),
                 row.boundary_complexity.to_string(),
@@ -1369,6 +1942,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                     family: instance.family,
                     instance_name: instance.name,
                     q: 0,
+                    q_bucket: q_bucket(0).to_owned(),
                     horizontal_chords: 0,
                     vertical_chords: 0,
                     boundary_complexity: 0,
@@ -1422,6 +1996,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                     family: instance.family.clone(),
                     instance_name: instance.name.clone(),
                     q,
+                    q_bucket: q_bucket(q).to_owned(),
                     horizontal_chords: geometry.horizontal_chords.len(),
                     vertical_chords: geometry.vertical_chords.len(),
                     boundary_complexity: geometry.boundary.boundary_complexity(),
@@ -1476,6 +2051,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                         family: instance.family.clone(),
                         instance_name: instance.name.clone(),
                         q,
+                        q_bucket: q_bucket(q).to_owned(),
                         horizontal_chords: geometry.horizontal_chords.len(),
                         vertical_chords: geometry.vertical_chords.len(),
                         boundary_complexity: geometry.boundary.boundary_complexity(),
@@ -1519,6 +2095,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                 family: instance.family.clone(),
                 instance_name: instance.name.clone(),
                 q,
+                q_bucket: q_bucket(q).to_owned(),
                 horizontal_chords: geometry.horizontal_chords.len(),
                 vertical_chords: geometry.vertical_chords.len(),
                 boundary_complexity: geometry.boundary.boundary_complexity(),
@@ -1604,6 +2181,16 @@ fn path_tree_growth_guards(diagnostics: &Diagnostics) -> bool {
     diagnostics.heavy_chain_interval_count.unwrap_or(0) <= interval_bound
         && diagnostics.canonical_segment_node_count.unwrap_or(0) <= canonical_bound
         && diagnostics.tree_edge_occurrences.unwrap_or(0) <= tree_edge_bound
+}
+
+fn q_bucket(q: usize) -> &'static str {
+    match q {
+        0..=8 => "0-8",
+        9..=32 => "9-32",
+        33..=128 => "33-128",
+        129..=512 => "129-512",
+        _ => "513+",
+    }
 }
 
 #[must_use]

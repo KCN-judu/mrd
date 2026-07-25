@@ -1844,8 +1844,8 @@ mod tests {
     use super::{
         DualRegionId, DualTreeEdge, HeavyLightDecomposition, PathTreeOrientation,
         PathTreeOrientationPolicy, RegionDualBackend, RegionDualTree, VerticalChordId,
-        build_oriented_path_tree_partition, build_path_tree_partition,
-        build_path_tree_partition_with_backend,
+        build_boundary_laminar_dual_tree, build_oriented_path_tree_partition,
+        build_path_tree_partition, build_path_tree_partition_with_backend,
     };
 
     fn synthetic_tree(node_count: usize, edges: &[(usize, usize)]) -> RegionDualTree {
@@ -1949,11 +1949,11 @@ mod tests {
     #[test]
     fn clean_dual_tree_paths_match_geometry_on_small_grids() {
         let mut audited = 0;
-        for mask in 1_u16..(1_u16 << 9) {
-            let cells = (0..9)
-                .map(|index| mask & (1_u16 << index) != 0)
+        for mask in 1_u32..(1_u32 << 16) {
+            let cells = (0..16)
+                .map(|index| mask & (1_u32 << index) != 0)
                 .collect::<Vec<_>>();
-            for component in ColorGrid::new(3, 3, cells)
+            for component in ColorGrid::new(4, 4, cells)
                 .unwrap()
                 .four_connected_components()
                 .into_iter()
@@ -2064,6 +2064,49 @@ mod tests {
             }
         }
         assert!(compared > 0);
+    }
+
+    #[test]
+    fn inspect_clean_dual_branching_population() {
+        let mut maximum = 0;
+        let mut witness = None;
+        for mask in 1_u32..(1_u32 << 16) {
+            let cells = (0..16)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(4, 4, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let Ok(geometry) = analyze_geometry(&component) else {
+                    continue;
+                };
+                let certificate = classify_clean_hole_free(
+                    &component,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                );
+                if !certificate.eligible || geometry.vertical_chords.is_empty() {
+                    continue;
+                }
+                let tree = build_boundary_laminar_dual_tree(
+                    &geometry.boundary,
+                    &geometry.vertical_chords,
+                    &certificate,
+                )
+                .unwrap();
+                let branching = tree.adjacency.iter().map(Vec::len).max().unwrap_or(0);
+                if branching > maximum {
+                    maximum = branching;
+                    witness = Some(mask);
+                }
+            }
+        }
+        println!("clean 4x4 max dual branching={maximum}, witness={witness:?}");
+        assert!(maximum >= 2);
     }
 
     #[test]

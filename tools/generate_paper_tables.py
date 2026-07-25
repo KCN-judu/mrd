@@ -167,8 +167,8 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "explicit rectangle output", "theoretical paper": "constructive completion", "current Rust artifact": "implemented", "tested": "yes", "notes": "cell-exact validation"},
         {"feature": "machine-checkable certificates", "theoretical paper": "not an artifact requirement", "current Rust artifact": "implemented", "tested": "yes", "notes": "matching, partition, flow, cut, and rectangles"},
         {"feature": "clean hole-free eligibility", "theoretical paper": "Definition 9.1", "current Rust artifact": "integer grid classifier with loop identities", "tested": "yes", "notes": "component and chord-mass census; ornaments remain out of model"},
-        {"feature": "path-tree biclique partition", "theoretical paper": "Theorems 9.5-9.6", "current Rust artifact": "area-sensitive vertical dual plus HLD", "tested": "yes", "notes": "FullyAudited path-neighbor and edge-partition audits"},
-        {"feature": "clean complete-bipartite family", "theoretical paper": "Theorem 9.2", "current Rust artifact": "unsupported integer-grid realization", "tested": "scope rejection", "notes": "no fabricated dense approximation is emitted"},
+        {"feature": "path-tree biclique partition", "theoretical paper": "Theorems 9.5-9.6", "current Rust artifact": "BoundaryLaminar axis view plus endpoint HLD in CompactOnly; area dual Oracle in FullyAudited", "tested": "yes", "notes": "full 4x4 differential and axis-view equality"},
+        {"feature": "clean complete-bipartite family", "theoretical paper": "Theorem 9.2", "current Rust artifact": "integer-grid realization", "tested": "yes", "notes": "compact campaign through t=128"},
     ]
 
 
@@ -238,6 +238,43 @@ def compact_v03_section(output_dir: Path) -> list[str]:
         f"The bounded v0.3 CP-SAT rerun compared {external['component_count']:,} components with {external['disagreement_component_count']} disagreements.",
         "Peak RSS is unmeasured; no null value is interpreted as zero.", "",
     ]
+
+
+def current_evidence_sections(output_dir: Path) -> list[str]:
+    sections: list[str] = []
+    differential = output_dir / "v0.6-clean-boundary-differential.json"
+    if differential.exists():
+        report = read_json(differential)
+        sections.extend(
+            [
+                "## v0.6 BoundaryLaminar differential evidence",
+                "",
+                f"The full 4x4 campaign covers {report['masks']:,} masks and {report['eligible_components']:,} clean eligible components. It records {report['verified']:,} verified rows, {report['counterexamples']} counterexamples, and {report['execution_trace_violations']} execution-trace violations.",
+                f"Orientation counts: `{json.dumps(report['orientation_counts'], sort_keys=True)}`; q range `{report['q_min']}..{report['q_max']}`, sigma range `{report['sigma_min']}..{report['sigma_max']}`.",
+                "",
+            ]
+        )
+    families = output_dir / "v0.7-path-tree-families.csv"
+    if families.exists():
+        rows = read_csv(families)
+        fields = ["family", "instance_name", "status", "path_tree_orientation", "path_tree_orientation_policy", "dual_region_count", "dual_tree_max_depth", "dual_tree_max_branching_degree", "heavy_chain_interval_count", "canonical_segment_node_count", "path_tree_sigma"]
+        sections.extend(["## v0.7 Path-tree geometry families", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    comparison = output_dir / "v0.7-path-tree-vs-4d.csv"
+    if comparison.exists():
+        rows = read_csv(comparison)
+        fields = ["family", "instance_name", "q", "q_bucket", "sigma_path_tree", "sigma_4d", "network_arcs_path_tree", "network_arcs_4d", "path_tree_total_microseconds", "four_d_total_microseconds", "optimum_equal", "rectangles_equal", "status"]
+        sections.extend(["## v0.7 Path-tree versus 4D", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    orientation = output_dir / "v0.7-path-tree-orientation-audit.csv"
+    if orientation.exists():
+        rows = read_csv(orientation)
+        fields = ["population", "instance_name", "q", "chosen_orientation", "best_orientation", "selected_sigma", "best_sigma", "absolute_regret", "regret_ratio", "status"]
+        sections.extend(["## v0.7 Orientation regret audit", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    dual = output_dir / "v0.7-path-tree-dual-differential.csv"
+    if dual.exists():
+        rows = read_csv(dual)
+        fields = ["population", "instance_name", "q", "boundary_sigma", "area_sigma", "rectangles_equal", "status"]
+        sections.extend(["## v0.7 BoundaryLaminar versus area dual", "", markdown_table(fields, [{field: row.get(field, "") for field in fields} for row in rows]), ""])
+    return sections
 
 
 def main() -> None:
@@ -329,12 +366,14 @@ def main() -> None:
         markdown_table(SCOPE_FIELDS, scope),
         "",
         *compact_v03_section(args.output_dir),
+        *current_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
     manifest = read_json(args.manifest)
-    manifest["schema_version"] = 2
-    manifest["release_metadata"] = metadata
+    manifest["schema_version"] = 3
+    manifest["historical_release_metadata"] = metadata
+    manifest.pop("release_metadata", None)
     manifest["release_summaries"] = release_summaries
     generated = [
         str(args.output_dir / "correctness-table.csv"),

@@ -196,6 +196,9 @@ enum BenchmarkSuiteArg {
     PathTreeComparison,
     PathTreeFamilies,
     PathTreeVs4d,
+    PathTreeOrientationAudit,
+    PathTreeDualDifferential,
+    AutoFallback,
     Polyomino,
 }
 
@@ -517,6 +520,34 @@ fn benchmark_command(
                 )))
             };
         }
+        BenchmarkSuiteArg::PathTreeOrientationAudit => {
+            let report =
+                rect_verify::benchmark::benchmark_path_tree_orientation_audit(context, sizes);
+            write_text(output, &report.to_csv())?;
+            write_json(&report, Some(&output.with_extension("json")))?;
+            write_text(&output.with_extension("md"), &report.to_markdown())?;
+            if report.mismatches == 0 {
+                return Ok(());
+            }
+            return Err(CliError::Verification(format!(
+                "path-tree orientation mismatches: {}",
+                report.mismatches
+            )));
+        }
+        BenchmarkSuiteArg::PathTreeDualDifferential => {
+            let report =
+                rect_verify::benchmark::benchmark_path_tree_dual_differential(context, sizes);
+            write_text(output, &report.to_csv())?;
+            write_json(&report, Some(&output.with_extension("json")))?;
+            if report.counterexamples == 0 && report.solver_errors == 0 {
+                return Ok(());
+            }
+            return Err(CliError::Verification(format!(
+                "path-tree dual differential failures: {} counterexamples, {} solver errors",
+                report.counterexamples, report.solver_errors
+            )));
+        }
+        BenchmarkSuiteArg::AutoFallback => rect_verify::benchmark::benchmark_auto_fallback(context),
         BenchmarkSuiteArg::DenseConflict => {
             rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
         }

@@ -46,6 +46,11 @@ jobs:
           target/release/rect-cli benchmark --suite clean-boundary-differential --output artifacts/clean-boundary-differential.csv 2>&1 | tee artifacts/logs/clean-boundary-differential.log
           target/release/rect-cli benchmark --suite clean-complete-bipartite-compact --sizes 1,2,4,8,16,32,64,128 --output artifacts/clean-complete-bipartite-compact.csv 2>&1 | tee artifacts/logs/clean-complete-bipartite-compact.log
           target/release/rect-cli benchmark --suite path-tree-comparison --sizes 3 --output artifacts/path-tree-comparison-3x3.csv 2>&1 | tee artifacts/logs/path-tree-comparison-3x3.log
+          target/release/rect-cli benchmark --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-orientation-audit.csv 2>&1 | tee artifacts/logs/path-tree-orientation-audit.log
+          target/release/rect-cli benchmark --suite path-tree-dual-differential --sizes 1,2,4 --output artifacts/path-tree-dual-differential.csv 2>&1 | tee artifacts/logs/path-tree-dual-differential.log
+          target/release/rect-cli benchmark --suite path-tree-vs-4d --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-vs-4d.csv 2>&1 | tee artifacts/logs/path-tree-vs-4d.log
+          target/release/rect-cli benchmark --suite auto-fallback --output artifacts/auto-fallback.csv 2>&1 | tee artifacts/logs/auto-fallback.log
+          python3 tools/check_release_consistency.py 2>&1 | tee artifacts/logs/release-consistency.log
       - name: Run bounded external CP-SAT population
         shell: bash
         run: |

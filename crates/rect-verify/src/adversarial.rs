@@ -739,9 +739,69 @@ mod tests {
     use super::{
         clean_complete_bipartite_grid, contains_complete_bipartite, dense_conflict_grid,
         endpoint_chord_cases, endpoint_contact_instances, external_oracle_adversarial_instances,
-        topological_stress_instances,
+        path_tree_geometry_families, topological_stress_instances,
     };
     use crate::verify_component;
+
+    #[test]
+    fn clean_geometry_family_branching_probe() {
+        let mut maximum = 0;
+        let mut witness = String::new();
+        for instance in topological_stress_instances()
+            .into_iter()
+            .chain(path_tree_geometry_families(9))
+        {
+            for component in instance.foreground_components().unwrap() {
+                let Ok(geometry) =
+                    rect_oracle_sg::analyze_geometry_with(&component, &GridInteriorRunEnumerator)
+                else {
+                    continue;
+                };
+                let certificate = rect_oracle_sg::classify_clean_hole_free(
+                    &component,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                );
+                if !certificate.eligible {
+                    continue;
+                }
+                for orientation in [
+                    rect_dominance::PathTreeOrientation::VerticalTreeHorizontalPaths,
+                    rect_dominance::PathTreeOrientation::HorizontalTreeVerticalPaths,
+                ] {
+                    let Ok(partition) =
+                        rect_dominance::path_tree::build_oriented_path_tree_partition_with_backend(
+                            &geometry.prepared,
+                            &geometry.boundary,
+                            &geometry.horizontal_chords,
+                            &geometry.vertical_chords,
+                            certificate.clone(),
+                            orientation,
+                            false,
+                            rect_dominance::RegionDualBackend::BoundaryLaminar,
+                        )
+                    else {
+                        continue;
+                    };
+                    let branching = partition
+                        .path_tree
+                        .tree
+                        .adjacency
+                        .iter()
+                        .map(Vec::len)
+                        .max()
+                        .unwrap_or(0);
+                    if branching > maximum {
+                        maximum = branching;
+                        witness = format!("{} ({})", instance.name, orientation.name());
+                    }
+                }
+            }
+        }
+        println!("clean geometry max branching={maximum}, witness={witness}");
+        assert!(maximum >= 2);
+    }
     #[test]
     fn endpoint_cases_preserve_independent_geometry_embedding_equivalence() {
         for case in endpoint_chord_cases() {
