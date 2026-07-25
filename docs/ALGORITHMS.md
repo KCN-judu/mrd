@@ -58,7 +58,11 @@ effective chords -> 4D embedding -> Theorem 8 partition
 It does not call pairwise embedding equivalence, explicit graph construction,
 Hopcroft--Karp, C0 construction, or full edge-partition audit. Cross-side
 coordinate equality is checked with per-coordinate value indexes, and block
-structure is checked in `O(sigma)` without expanding any block product.
+structure is checked in `O(sigma)` by coordinate extrema: for each block and
+coordinate, the maximum left embedding value must be strictly below the
+minimum right value. This proves every Cartesian-product pair is a valid
+dominance edge without expanding the product. Index bounds and duplicate IDs
+are checked in the same pass.
 Compact-only diagnostics serialize `explicit_conflict_edge_count` as `null`.
 
 Stage C0 creates one biclique per explicit dominance edge. Stage C1 implements
@@ -131,9 +135,11 @@ biclique vertex occurrences.
 | Geometric completion, SG Section 10 | `rect-oracle-sg` | `complete_with_selected_chords` | explicit integer cut insertion and cell-region recovery | linear completion after chord choice in the source construction | formula count and metamorphic mapped-back outputs | exact cover and CP-SAT selected rectangles | ordinary grid regions only |
 | Final dissection validation | `rect-core::validation` | `validate_dissection` | linear in component cells plus enumerated rectangle area | verification layer, not paper runtime | invoked for every solver output | independently produced outputs use same exact cell contract | integer-grid rectangles only |
 
-The current effective-chord enumerator is exact for the supported grid model,
-but it is not an implementation of the `O(n log n)` Soltan--Gorpinevich
-enumeration algorithm.
+The current effective-chord implementation has interchangeable
+`ReferencePairwiseEnumerator` and `GridInteriorRunEnumerator` paths. The latter
+is a grid-specialized `O(N + r log r + q)` run-index algorithm; it is not an
+implementation of the general `O(n log n)` Soltan--Gorpinevich enumeration
+algorithm. See `docs/GRID_CHORD_ENUMERATION.md`.
 
 Dinic is the practical implemented flow backend. The almost-linear exact
 max-flow result is cited only for the paper's asymptotic theorem and is not

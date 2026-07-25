@@ -21,6 +21,10 @@
   certificate invariants remain checked in both modes.
 - Portable process peak-memory measurement is not implemented. A null
   `peak_memory_bytes` diagnostic means unmeasured, not zero.
+
+- Compact biclique validation is an `O(sigma)` coordinate-extrema proof. It
+  intentionally does not expand every `A_k x B_k`; fully audited mode retains
+  the explicit edge-multiset audit.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The

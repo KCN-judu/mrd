@@ -1,6 +1,6 @@
 //! Explicit Soltan--Gorpinevich oracle for ordinary grid-cell polygons.
 
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 use std::time::Instant;
 
 use rect_core::{
@@ -33,6 +33,34 @@ pub struct SgGeometry {
     pub vertical_chords: Vec<VerticalChord>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EffectiveChordFamilies {
+    pub horizontal: Vec<HorizontalChord>,
+    pub vertical: Vec<VerticalChord>,
+}
+
+pub trait EffectiveChordEnumerator {
+    /// Enumerates the effective chord families for a supported component.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] when a chord coordinate cannot be represented or
+    /// chord construction fails.
+    fn enumerate<C>(
+        &self,
+        component: &GridComponent<C>,
+        boundary: &Boundary,
+    ) -> Result<EffectiveChordFamilies, SgError>;
+
+    fn name(&self) -> &'static str;
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReferencePairwiseEnumerator;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GridInteriorRunEnumerator;
+
 /// Extracts the supported boundary and effective chord families without
 /// constructing the conflict graph or running a matching algorithm.
 ///
@@ -41,17 +69,29 @@ pub struct SgGeometry {
 /// Returns [`SgError`] when boundary extraction, topology validation, or
 /// effective-chord enumeration fails.
 pub fn analyze_geometry<C>(component: &GridComponent<C>) -> Result<SgGeometry, SgError> {
+    analyze_geometry_with(component, &ReferencePairwiseEnumerator)
+}
+
+/// Extracts geometry with a selected effective-chord enumerator.
+///
+/// # Errors
+///
+/// Returns [`SgError`] when boundary extraction or enumeration fails.
+pub fn analyze_geometry_with<C, E: EffectiveChordEnumerator>(
+    component: &GridComponent<C>,
+    enumerator: &E,
+) -> Result<SgGeometry, SgError> {
     let boundary = Boundary::from_component(component)?;
     if boundary.outer_loop_count() != 1 {
         return Err(SgError::UnsupportedBoundaryTopology {
             outer_loops: boundary.outer_loop_count(),
         });
     }
-    let (horizontal_chords, vertical_chords) = enumerate_effective_chords(component, &boundary)?;
+    let families = enumerator.enumerate(component, &boundary)?;
     Ok(SgGeometry {
         boundary,
-        horizontal_chords,
-        vertical_chords,
+        horizontal_chords: families.horizontal,
+        vertical_chords: families.vertical,
     })
 }
 
@@ -210,47 +250,192 @@ pub fn enumerate_effective_chords<C>(
     component: &GridComponent<C>,
     boundary: &Boundary,
 ) -> Result<(Vec<HorizontalChord>, Vec<VerticalChord>), SgError> {
-    let points = boundary
-        .reflex_vertices
-        .iter()
-        .map(|vertex| vertex.point)
-        .collect::<Vec<_>>();
-    let mut horizontal_records = BTreeSet::new();
-    let mut vertical_records = BTreeSet::new();
-    for first_index in 0..points.len() {
-        for second_index in (first_index + 1)..points.len() {
-            let first = points[first_index];
-            let second = points[second_index];
-            if first.y == second.y {
-                let left = first.x.min(second.x);
-                let right = first.x.max(second.x);
-                if horizontal_open_interval_is_interior(component, left, right, first.y)? {
-                    horizontal_records.insert((first.y, left, right));
+    let families = ReferencePairwiseEnumerator.enumerate(component, boundary)?;
+    Ok((families.horizontal, families.vertical))
+}
+
+impl EffectiveChordEnumerator for ReferencePairwiseEnumerator {
+    fn enumerate<C>(
+        &self,
+        component: &GridComponent<C>,
+        boundary: &Boundary,
+    ) -> Result<EffectiveChordFamilies, SgError> {
+        let points = boundary
+            .reflex_vertices
+            .iter()
+            .map(|vertex| vertex.point)
+            .collect::<Vec<_>>();
+        let mut horizontal_records = BTreeSet::new();
+        let mut vertical_records = BTreeSet::new();
+        for first_index in 0..points.len() {
+            for second_index in (first_index + 1)..points.len() {
+                let first = points[first_index];
+                let second = points[second_index];
+                if first.y == second.y {
+                    let left = first.x.min(second.x);
+                    let right = first.x.max(second.x);
+                    if horizontal_open_interval_is_interior(component, left, right, first.y)? {
+                        horizontal_records.insert((first.y, left, right));
+                    }
                 }
-            }
-            if first.x == second.x {
-                let bottom = first.y.min(second.y);
-                let top = first.y.max(second.y);
-                if vertical_open_interval_is_interior(component, first.x, bottom, top)? {
-                    vertical_records.insert((first.x, bottom, top));
+                if first.x == second.x {
+                    let bottom = first.y.min(second.y);
+                    let top = first.y.max(second.y);
+                    if vertical_open_interval_is_interior(component, first.x, bottom, top)? {
+                        vertical_records.insert((first.x, bottom, top));
+                    }
                 }
             }
         }
+
+        let horizontal_chords = horizontal_records
+            .into_iter()
+            .enumerate()
+            .map(|(index, (y, left, right))| {
+                HorizontalChord::new(HorizontalChordId(index), left, right, y)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let vertical_chords = vertical_records
+            .into_iter()
+            .enumerate()
+            .map(|(index, (x, bottom, top))| {
+                VerticalChord::new(VerticalChordId(index), x, bottom, top)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(EffectiveChordFamilies {
+            horizontal: horizontal_chords,
+            vertical: vertical_chords,
+        })
     }
 
-    let horizontal_chords = horizontal_records
-        .into_iter()
-        .enumerate()
-        .map(|(index, (y, left, right))| {
-            HorizontalChord::new(HorizontalChordId(index), left, right, y)
+    fn name(&self) -> &'static str {
+        "reference-pairwise"
+    }
+}
+
+impl EffectiveChordEnumerator for GridInteriorRunEnumerator {
+    fn enumerate<C>(
+        &self,
+        component: &GridComponent<C>,
+        boundary: &Boundary,
+    ) -> Result<EffectiveChordFamilies, SgError> {
+        let points = boundary
+            .reflex_vertices
+            .iter()
+            .map(|vertex| vertex.point)
+            .collect::<Vec<_>>();
+        let mut horizontal_records = BTreeSet::new();
+        let mut vertical_records = BTreeSet::new();
+        let mask = component
+            .cells
+            .iter()
+            .map(|cell| (cell.x, cell.y))
+            .collect::<HashSet<_>>();
+        let mut horizontal_points = BTreeMap::<Coord, Vec<Coord>>::new();
+        let mut vertical_points = BTreeMap::<Coord, Vec<Coord>>::new();
+        for point in points {
+            horizontal_points.entry(point.y).or_default().push(point.x);
+            vertical_points.entry(point.x).or_default().push(point.y);
+        }
+        for (y, mut xs) in horizontal_points {
+            xs.sort_unstable();
+            for (left_run, right_run) in
+                two_sided_runs(&mask, component.grid_width, component.grid_height, y, true)
+            {
+                let aligned = xs
+                    .iter()
+                    .copied()
+                    .filter(|&x| left_run <= x && x <= right_run)
+                    .collect::<Vec<_>>();
+                for (index, &left) in aligned.iter().enumerate() {
+                    for &right in &aligned[index + 1..] {
+                        horizontal_records.insert((y, left, right));
+                    }
+                }
+            }
+        }
+        for (x, mut ys) in vertical_points {
+            ys.sort_unstable();
+            for (bottom_run, top_run) in
+                two_sided_runs(&mask, component.grid_width, component.grid_height, x, false)
+            {
+                let aligned = ys
+                    .iter()
+                    .copied()
+                    .filter(|&y| bottom_run <= y && y <= top_run)
+                    .collect::<Vec<_>>();
+                for (index, &bottom) in aligned.iter().enumerate() {
+                    for &top in &aligned[index + 1..] {
+                        vertical_records.insert((x, bottom, top));
+                    }
+                }
+            }
+        }
+        let horizontal = horizontal_records
+            .into_iter()
+            .enumerate()
+            .map(|(index, (y, left, right))| {
+                HorizontalChord::new(HorizontalChordId(index), left, right, y)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let vertical = vertical_records
+            .into_iter()
+            .enumerate()
+            .map(|(index, (x, bottom, top))| {
+                VerticalChord::new(VerticalChordId(index), x, bottom, top)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(EffectiveChordFamilies {
+            horizontal,
+            vertical,
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let vertical_chords = vertical_records
-        .into_iter()
-        .enumerate()
-        .map(|(index, (x, bottom, top))| VerticalChord::new(VerticalChordId(index), x, bottom, top))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok((horizontal_chords, vertical_chords))
+    }
+
+    fn name(&self) -> &'static str {
+        "grid-interior-runs"
+    }
+}
+
+fn two_sided_runs(
+    mask: &HashSet<(usize, usize)>,
+    width: usize,
+    height: usize,
+    line: Coord,
+    horizontal: bool,
+) -> Vec<(Coord, Coord)> {
+    let line = usize::try_from(line).unwrap_or(usize::MAX);
+    let limit = if horizontal { width } else { height };
+    let mut runs = Vec::new();
+    let mut start = None;
+    for offset in 0..=limit {
+        let interior = if offset < limit && line > 0 {
+            if horizontal {
+                mask.contains(&(offset, line - 1)) && mask.contains(&(offset, line))
+            } else {
+                mask.contains(&(line - 1, offset)) && mask.contains(&(line, offset))
+            }
+        } else {
+            false
+        };
+        match (start, interior) {
+            (None, true) => start = Some(offset),
+            (Some(begin), false) => {
+                runs.push((
+                    Coord::try_from(begin).unwrap(),
+                    Coord::try_from(offset).unwrap(),
+                ));
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    if !horizontal && line >= width {
+        return Vec::new();
+    }
+    if horizontal && line >= height {
+        return Vec::new();
+    }
+    runs
 }
 
 fn horizontal_open_interval_is_interior<C>(
@@ -856,7 +1041,9 @@ mod tests {
     use rect_core::{ColorGrid, GridComponent, validate_dissection};
     use rect_oracle_exact_cover as exact_cover;
 
-    use super::solve;
+    use super::{
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator, solve,
+    };
 
     fn foreground_component(width: usize, height: usize, cells: Vec<bool>) -> GridComponent<bool> {
         ColorGrid::new(width, height, cells)
@@ -916,6 +1103,54 @@ mod tests {
                     "mask {mask:#05x}, component {:?}",
                     component.cells
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn grid_runs_match_reference_chord_sets_through_three_by_three() {
+        for mask in 1_u16..(1_u16 << 9) {
+            let cells = (0..9)
+                .map(|index| mask & (1_u16 << index) != 0)
+                .collect::<Vec<_>>();
+            let grid = ColorGrid::new(3, 3, cells).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = rect_core::Boundary::from_component(&component).unwrap();
+                let reference = ReferencePairwiseEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                let optimized = GridInteriorRunEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                assert_eq!(reference, optimized, "mask {mask:#05x}");
+            }
+        }
+    }
+
+    #[test]
+    fn grid_runs_match_reference_chord_sets_through_four_by_four() {
+        for mask in 1_u32..(1_u32 << 16) {
+            let cells = (0..16)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            let grid = ColorGrid::new(4, 4, cells).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = rect_core::Boundary::from_component(&component).unwrap();
+                let reference = ReferencePairwiseEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                let optimized = GridInteriorRunEnumerator
+                    .enumerate(&component, &boundary)
+                    .unwrap();
+                assert_eq!(reference, optimized, "mask {mask:#06x}");
             }
         }
     }
