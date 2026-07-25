@@ -12,7 +12,7 @@ use rect_dominance::{
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -171,6 +171,40 @@ struct JsonGrid {
     width: usize,
     height: usize,
     cells: Vec<Value>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct PreservedExperimentManifest {
+    schema_version: usize,
+    runs: Vec<rect_verify::benchmark::BenchmarkMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    release_metadata: Option<ReleaseMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    release_summaries: Option<Vec<ReleaseSummary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    generated_tables: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ReleaseMetadata {
+    git_commit: String,
+    rustc_version: String,
+    operating_system: String,
+    cpu: String,
+    build_profile: String,
+    random_seed: u64,
+    cp_sat_seed: u64,
+    cp_sat_timeout_seconds_per_component: f64,
+    commands: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ReleaseSummary {
+    version: String,
+    tag: String,
+    peeled_commit: String,
+    evidence: String,
+    result_commits: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -730,15 +764,17 @@ fn update_manifest(
     metadata: rect_verify::benchmark::BenchmarkMetadata,
 ) -> Result<(), CliError> {
     let mut manifest = if path.exists() {
-        serde_json::from_slice::<Value>(&fs::read(path)?)?
+        serde_json::from_slice::<PreservedExperimentManifest>(&fs::read(path)?)?
     } else {
-        json!({ "schema_version": 1, "runs": [] })
+        PreservedExperimentManifest {
+            schema_version: 1,
+            runs: Vec::new(),
+            release_metadata: None,
+            release_summaries: None,
+            generated_tables: None,
+        }
     };
-    let runs = manifest
-        .get_mut("runs")
-        .and_then(Value::as_array_mut)
-        .ok_or_else(|| CliError::Output("experiment manifest has no runs array".to_owned()))?;
-    runs.push(serde_json::to_value(metadata)?);
+    manifest.runs.push(metadata);
     write_json(&manifest, Some(path))
 }
 
