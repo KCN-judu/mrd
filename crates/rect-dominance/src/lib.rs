@@ -158,6 +158,11 @@ pub fn solve_with_representation_and_region_dual<C>(
 }
 
 /// Solver entry point with an explicit path-tree orientation policy.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when geometry, representation, flow,
+/// completion, or validation invariants fail.
 pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
     component: &GridComponent<C>,
     mode: VerificationMode,

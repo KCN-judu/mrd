@@ -195,6 +195,7 @@ enum BenchmarkSuiteArg {
     AreaHeavy,
     PathTreeComparison,
     PathTreeFamilies,
+    PathTreeVs4d,
     Polyomino,
 }
 
@@ -446,6 +447,7 @@ fn export_adversarial(output_dir: &Path) -> Result<(), CliError> {
     write_json(&instances, Some(&output_dir.join("index.json")))
 }
 
+#[allow(clippy::too_many_lines)]
 fn benchmark_command(
     suite: BenchmarkSuiteArg,
     max_cells: usize,
@@ -502,6 +504,19 @@ fn benchmark_command(
                 sizes.iter().copied().max().unwrap_or(5),
             )
         }
+        BenchmarkSuiteArg::PathTreeVs4d => {
+            let report = rect_verify::benchmark::benchmark_path_tree_vs_4d(context, sizes);
+            write_text(output, &report.to_csv())?;
+            write_json(&report, Some(&output.with_extension("json")))?;
+            return if report.counterexamples == 0 {
+                Ok(())
+            } else {
+                Err(CliError::Solver(format!(
+                    "path-tree-vs-4d counterexamples: {}",
+                    report.counterexamples
+                )))
+            };
+        }
         BenchmarkSuiteArg::DenseConflict => {
             rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
         }
@@ -520,8 +535,9 @@ fn benchmark_command(
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
         }
-        BenchmarkSuiteArg::CleanCensus => unreachable!(),
-        BenchmarkSuiteArg::CleanBoundaryDifferential => unreachable!(),
+        BenchmarkSuiteArg::CleanCensus | BenchmarkSuiteArg::CleanBoundaryDifferential => {
+            unreachable!()
+        }
     };
     let csv = report
         .to_csv()

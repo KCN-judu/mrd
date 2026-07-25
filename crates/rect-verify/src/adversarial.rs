@@ -586,22 +586,22 @@ pub fn path_tree_geometry_families(scale: usize) -> Vec<AdversarialInstance> {
     let scale = scale.max(3);
     let mut chain = staircase(scale);
     chain.name = format!("laminar-chain-{scale}");
-    chain.family = "laminar-chain".to_owned();
+    "laminar-chain".clone_into(&mut chain.family);
     chain.parameters.insert("scale".to_owned(), scale);
 
     let mut star = comb(scale, scale.max(3));
     star.name = format!("laminar-star-{scale}");
-    star.family = "laminar-star".to_owned();
+    "laminar-star".clone_into(&mut star.family);
     star.parameters.insert("scale".to_owned(), scale);
 
-    let mut balanced = double_comb(scale, scale.saturating_add(3));
+    let mut balanced = comb(scale.saturating_add(1), scale.saturating_add(2));
     balanced.name = format!("balanced-laminar-{scale}");
-    balanced.family = "balanced-laminar".to_owned();
+    "balanced-laminar".clone_into(&mut balanced.family);
     balanced.parameters.insert("scale".to_owned(), scale);
 
     let mut asymmetric = alternating_notch_corridor(scale);
     asymmetric.name = format!("asymmetric-orientation-{scale}");
-    asymmetric.family = "asymmetric-orientation".to_owned();
+    "asymmetric-orientation".clone_into(&mut asymmetric.family);
     asymmetric.parameters.insert("scale".to_owned(), scale);
 
     vec![chain, star, balanced, asymmetric]

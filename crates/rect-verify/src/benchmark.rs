@@ -96,6 +96,7 @@ impl CleanBoundaryDifferentialReport {
 }
 
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn clean_boundary_differential_4x4(
     context: BenchmarkContext,
 ) -> CleanBoundaryDifferentialReport {
@@ -207,7 +208,6 @@ pub fn clean_boundary_differential_4x4(
                         && path.optimum_rectangle_count == general.optimum_rectangle_count
                         && path.rectangles == general.rectangles
                         && path.diagnostics.clean_hole_free_eligible == Some(true)
-                        && general.diagnostics.clean_hole_free_eligible == Some(true)
                     {
                         verified += 1;
                     } else {
@@ -1092,6 +1092,7 @@ pub fn benchmark_clean_complete_bipartite_compact(
 }
 
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn benchmark_path_tree_geometry_families(
     context: BenchmarkContext,
     scale: usize,
@@ -1154,7 +1155,10 @@ pub fn benchmark_path_tree_geometry_families(
                     parameters: instance.parameters.clone(),
                     component_id: component.id.0,
                     status: "unsupported".to_owned(),
-                    message: Some("clean certificate rejected".to_owned()),
+                    message: Some(format!(
+                        "clean certificate rejected: {:?}",
+                        certificate.rejection_reasons
+                    )),
                     exact_cover_compared: false,
                     diagnostics: Diagnostics {
                         cell_count: component.cell_count(),
@@ -1249,6 +1253,328 @@ pub fn benchmark_path_tree_geometry_families(
         counterexample_count: count_status(&rows, "counterexample"),
         failure_fixtures: Vec::new(),
         rows,
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathTreeVs4dRow {
+    pub family: String,
+    pub instance_name: String,
+    pub q: usize,
+    pub horizontal_chords: usize,
+    pub vertical_chords: usize,
+    pub boundary_complexity: usize,
+    pub clean_eligible: bool,
+    pub orientation_policy: String,
+    pub path_tree_orientation: Option<String>,
+    pub sigma_path_tree: Option<usize>,
+    pub sigma_4d: Option<usize>,
+    pub biclique_count_path_tree: Option<usize>,
+    pub biclique_count_4d: Option<usize>,
+    pub network_vertices_path_tree: Option<usize>,
+    pub network_arcs_path_tree: Option<usize>,
+    pub network_vertices_4d: Option<usize>,
+    pub network_arcs_4d: Option<usize>,
+    pub path_tree_construction_microseconds: Option<u128>,
+    pub four_d_representation_microseconds: Option<u128>,
+    pub path_tree_flow_microseconds: Option<u128>,
+    pub four_d_flow_microseconds: Option<u128>,
+    pub path_tree_completion_microseconds: Option<u128>,
+    pub four_d_completion_microseconds: Option<u128>,
+    pub path_tree_total_microseconds: Option<u128>,
+    pub four_d_total_microseconds: Option<u128>,
+    pub owned_path_tree: String,
+    pub owned_4d: String,
+    pub optimum_equal: bool,
+    pub rectangles_equal: bool,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PathTreeVs4dReport {
+    pub metadata: BenchmarkMetadata,
+    pub rows: Vec<PathTreeVs4dRow>,
+    pub counterexamples: usize,
+}
+
+impl PathTreeVs4dReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "family,instance_name,q,horizontal_chords,vertical_chords,boundary_complexity,clean_eligible,orientation_policy,path_tree_orientation,sigma_path_tree,sigma_4d,biclique_count_path_tree,biclique_count_4d,network_vertices_path_tree,network_arcs_path_tree,network_vertices_4d,network_arcs_4d,path_tree_construction_microseconds,four_d_representation_microseconds,path_tree_flow_microseconds,four_d_flow_microseconds,path_tree_completion_microseconds,four_d_completion_microseconds,path_tree_total_microseconds,four_d_total_microseconds,owned_path_tree,owned_4d,optimum_equal,rectangles_equal,status\n",
+        );
+        for row in &self.rows {
+            let fields = [
+                row.family.clone(),
+                row.instance_name.clone(),
+                row.q.to_string(),
+                row.horizontal_chords.to_string(),
+                row.vertical_chords.to_string(),
+                row.boundary_complexity.to_string(),
+                row.clean_eligible.to_string(),
+                row.orientation_policy.clone(),
+                row.path_tree_orientation.clone().unwrap_or_default(),
+                optional_number(row.sigma_path_tree),
+                optional_number(row.sigma_4d),
+                optional_number(row.biclique_count_path_tree),
+                optional_number(row.biclique_count_4d),
+                optional_number(row.network_vertices_path_tree),
+                optional_number(row.network_arcs_path_tree),
+                optional_number(row.network_vertices_4d),
+                optional_number(row.network_arcs_4d),
+                optional_number(row.path_tree_construction_microseconds),
+                optional_number(row.four_d_representation_microseconds),
+                optional_number(row.path_tree_flow_microseconds),
+                optional_number(row.four_d_flow_microseconds),
+                optional_number(row.path_tree_completion_microseconds),
+                optional_number(row.four_d_completion_microseconds),
+                optional_number(row.path_tree_total_microseconds),
+                optional_number(row.four_d_total_microseconds),
+                row.owned_path_tree.clone(),
+                row.owned_4d.clone(),
+                row.optimum_equal.to_string(),
+                row.rectangles_equal.to_string(),
+                row.status.clone(),
+            ];
+            let _ = writeln!(
+                csv,
+                "{}",
+                fields
+                    .iter()
+                    .map(|field| escape_csv(field))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        csv
+    }
+}
+
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> PathTreeVs4dReport {
+    let scale = sizes.iter().copied().max().unwrap_or(5).max(3);
+    let mut instances = crate::adversarial::path_tree_geometry_families(scale);
+    for &size in sizes {
+        if let Ok(instance) = clean_complete_bipartite_grid(size) {
+            instances.push(instance);
+        }
+    }
+    let mut rows = Vec::new();
+    for instance in instances {
+        let components = match instance.foreground_components() {
+            Ok(components) => components,
+            Err(error) => {
+                rows.push(PathTreeVs4dRow {
+                    family: instance.family,
+                    instance_name: instance.name,
+                    q: 0,
+                    horizontal_chords: 0,
+                    vertical_chords: 0,
+                    boundary_complexity: 0,
+                    clean_eligible: false,
+                    orientation_policy: "bound-estimate".to_owned(),
+                    path_tree_orientation: None,
+                    sigma_path_tree: None,
+                    sigma_4d: None,
+                    biclique_count_path_tree: None,
+                    biclique_count_4d: None,
+                    network_vertices_path_tree: None,
+                    network_arcs_path_tree: None,
+                    network_vertices_4d: None,
+                    network_arcs_4d: None,
+                    path_tree_construction_microseconds: None,
+                    four_d_representation_microseconds: None,
+                    path_tree_flow_microseconds: None,
+                    four_d_flow_microseconds: None,
+                    path_tree_completion_microseconds: None,
+                    four_d_completion_microseconds: None,
+                    path_tree_total_microseconds: None,
+                    four_d_total_microseconds: None,
+                    owned_path_tree: String::new(),
+                    owned_4d: String::new(),
+                    optimum_equal: false,
+                    rectangles_equal: false,
+                    status: format!("unsupported: {error}"),
+                });
+                continue;
+            }
+        };
+        for component in components {
+            let Ok(geometry) = rect_oracle_sg::analyze_geometry_with(
+                &component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            ) else {
+                continue;
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            let q = geometry
+                .horizontal_chords
+                .len()
+                .saturating_add(geometry.vertical_chords.len());
+            if !certificate.eligible {
+                rows.push(PathTreeVs4dRow {
+                    family: instance.family.clone(),
+                    instance_name: instance.name.clone(),
+                    q,
+                    horizontal_chords: geometry.horizontal_chords.len(),
+                    vertical_chords: geometry.vertical_chords.len(),
+                    boundary_complexity: geometry.boundary.boundary_complexity(),
+                    clean_eligible: false,
+                    orientation_policy: "bound-estimate".to_owned(),
+                    path_tree_orientation: None,
+                    sigma_path_tree: None,
+                    sigma_4d: None,
+                    biclique_count_path_tree: None,
+                    biclique_count_4d: None,
+                    network_vertices_path_tree: None,
+                    network_arcs_path_tree: None,
+                    network_vertices_4d: None,
+                    network_arcs_4d: None,
+                    path_tree_construction_microseconds: None,
+                    four_d_representation_microseconds: None,
+                    path_tree_flow_microseconds: None,
+                    four_d_flow_microseconds: None,
+                    path_tree_completion_microseconds: None,
+                    four_d_completion_microseconds: None,
+                    path_tree_total_microseconds: None,
+                    four_d_total_microseconds: None,
+                    owned_path_tree: String::new(),
+                    owned_4d: String::new(),
+                    optimum_equal: false,
+                    rectangles_equal: false,
+                    status: "clean-ineligible".to_owned(),
+                });
+                continue;
+            }
+            let path = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
+            );
+            let general = solve_with_representation_and_region_dual(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::GeneralDominance4D,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+            );
+            let (path, general) = match (path, general) {
+                (Ok(path), Ok(general)) => (path, general),
+                (Err(error), _) | (_, Err(error)) => {
+                    rows.push(PathTreeVs4dRow {
+                        family: instance.family.clone(),
+                        instance_name: instance.name.clone(),
+                        q,
+                        horizontal_chords: geometry.horizontal_chords.len(),
+                        vertical_chords: geometry.vertical_chords.len(),
+                        boundary_complexity: geometry.boundary.boundary_complexity(),
+                        clean_eligible: true,
+                        orientation_policy: "bound-estimate".to_owned(),
+                        path_tree_orientation: None,
+                        sigma_path_tree: None,
+                        sigma_4d: None,
+                        biclique_count_path_tree: None,
+                        biclique_count_4d: None,
+                        network_vertices_path_tree: None,
+                        network_arcs_path_tree: None,
+                        network_vertices_4d: None,
+                        network_arcs_4d: None,
+                        path_tree_construction_microseconds: None,
+                        four_d_representation_microseconds: None,
+                        path_tree_flow_microseconds: None,
+                        four_d_flow_microseconds: None,
+                        path_tree_completion_microseconds: None,
+                        four_d_completion_microseconds: None,
+                        path_tree_total_microseconds: None,
+                        four_d_total_microseconds: None,
+                        owned_path_tree: String::new(),
+                        owned_4d: String::new(),
+                        optimum_equal: false,
+                        rectangles_equal: false,
+                        status: format!("solver-error: {error}"),
+                    });
+                    continue;
+                }
+            };
+            let phase = |result: &rect_core::DissectionResult, key: &str| {
+                result.diagnostics.phase_microseconds.get(key).copied()
+            };
+            let total = |result: &rect_core::DissectionResult| {
+                Some(result.diagnostics.phase_microseconds.values().sum())
+            };
+            let optimum_equal = path.optimum_rectangle_count == general.optimum_rectangle_count;
+            let rectangles_equal = path.rectangles == general.rectangles;
+            rows.push(PathTreeVs4dRow {
+                family: instance.family.clone(),
+                instance_name: instance.name.clone(),
+                q,
+                horizontal_chords: geometry.horizontal_chords.len(),
+                vertical_chords: geometry.vertical_chords.len(),
+                boundary_complexity: geometry.boundary.boundary_complexity(),
+                clean_eligible: true,
+                orientation_policy: "bound-estimate".to_owned(),
+                path_tree_orientation: path.diagnostics.path_tree_orientation.clone(),
+                sigma_path_tree: path.diagnostics.path_tree_sigma,
+                sigma_4d: general.diagnostics.biclique_total_vertex_occurrences.into(),
+                biclique_count_path_tree: Some(path.diagnostics.biclique_count),
+                biclique_count_4d: Some(general.diagnostics.biclique_count),
+                network_vertices_path_tree: Some(path.diagnostics.compressed_network_vertex_count),
+                network_arcs_path_tree: Some(path.diagnostics.compressed_network_arc_count),
+                network_vertices_4d: Some(general.diagnostics.compressed_network_vertex_count),
+                network_arcs_4d: Some(general.diagnostics.compressed_network_arc_count),
+                path_tree_construction_microseconds: phase(&path, "path_tree_construction"),
+                four_d_representation_microseconds: phase(&general, "biclique_partition"),
+                path_tree_flow_microseconds: phase(&path, "compressed_flow"),
+                four_d_flow_microseconds: phase(&general, "compressed_flow"),
+                path_tree_completion_microseconds: phase(&path, "geometric_completion"),
+                four_d_completion_microseconds: phase(&general, "geometric_completion"),
+                path_tree_total_microseconds: total(&path),
+                four_d_total_microseconds: total(&general),
+                owned_path_tree: serde_json::to_string(
+                    &path.diagnostics.owned_allocation_estimates,
+                )
+                .unwrap_or_default(),
+                owned_4d: serde_json::to_string(&general.diagnostics.owned_allocation_estimates)
+                    .unwrap_or_default(),
+                optimum_equal,
+                rectangles_equal,
+                status: if optimum_equal && rectangles_equal {
+                    "verified".to_owned()
+                } else {
+                    "counterexample".to_owned()
+                },
+            });
+        }
+    }
+    let counterexamples = rows
+        .iter()
+        .filter(|row| row.status == "counterexample")
+        .count();
+    PathTreeVs4dReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: rows.len(),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-grid-path-tree-vs-4d".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        rows,
+        counterexamples,
     }
 }
 

@@ -1559,6 +1559,7 @@ pub fn build_best_path_tree_partition_with_backend(
 /// smaller actual sigma, preserving the historical behavior. `BoundEstimate`
 /// computes the paper-shaped orientation bounds first and constructs only the
 /// selected orientation. Ties use the vertical-tree orientation.
+#[allow(clippy::too_many_arguments)]
 pub fn build_path_tree_partition_with_orientation_policy(
     prepared: &PreparedGridComponent,
     boundary: &Boundary,
