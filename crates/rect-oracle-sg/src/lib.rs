@@ -9,7 +9,7 @@ use rect_core::{
     ValidationError, VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
 };
 use rect_graph::{BipartiteGraph, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 
@@ -174,12 +174,19 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
     let started = Instant::now();
     let analysis = analyze(component)?;
     let analyzed_at = Instant::now();
-    let rectangles = complete_dissection(component, &analysis)?;
+    let completion = complete_with_backend(
+        component,
+        &analysis.horizontal_chords,
+        &analysis.vertical_chords,
+        &analysis.selected_horizontal,
+        &analysis.selected_vertical,
+        &ReferenceRescanCompletion,
+    )?;
     let completed_at = Instant::now();
-    if rectangles.len() != analysis.optimum_rectangle_count {
+    if completion.rectangles.len() != analysis.optimum_rectangle_count {
         return Err(SgError::CompletionCount {
             expected: analysis.optimum_rectangle_count,
-            actual: rectangles.len(),
+            actual: completion.rectangles.len(),
         });
     }
 
@@ -205,7 +212,7 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
 
     let result = DissectionResult {
         optimum_rectangle_count: analysis.optimum_rectangle_count,
-        rectangles,
+        rectangles: completion.rectangles,
         diagnostics: Diagnostics {
             cell_count: component.cell_count(),
             boundary_complexity: analysis.boundary.boundary_complexity(),
@@ -224,19 +231,12 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
             maximum_matching_size: analysis.matching.size,
             minimum_vertex_cover_size: analysis.vertex_cover.size,
             output_rectangle_count: analysis.optimum_rectangle_count,
-            phase_microseconds: [
-                (
-                    "boundary_chords_matching".to_owned(),
-                    analyzed_at.duration_since(started).as_micros(),
-                ),
-                (
-                    "geometric_completion".to_owned(),
-                    completed_at.duration_since(analyzed_at).as_micros(),
-                ),
-            ]
-            .into_iter()
-            .collect(),
-            ..Diagnostics::default()
+            phase_microseconds: completion_phase_timings(
+                analyzed_at.duration_since(started).as_micros(),
+                completed_at.duration_since(analyzed_at).as_micros(),
+                &completion.metrics,
+            ),
+            ..completion_diagnostics(&completion.metrics, ReferenceRescanCompletion.name())
         },
         certificate: Some(Certificate {
             kind: "soltan-gorpinevich-explicit".to_owned(),
@@ -260,6 +260,69 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
     };
     validate_dissection(component, &result)?;
     Ok(result)
+}
+
+fn completion_diagnostics(metrics: &CompletionMetrics, backend: &str) -> Diagnostics {
+    Diagnostics {
+        completion_backend: Some(backend.to_owned()),
+        selected_chord_cut_materialization_microseconds: Some(
+            metrics.selected_chord_cut_materialization_microseconds,
+        ),
+        horizontal_simple_chord_completion_microseconds: Some(
+            metrics.horizontal_simple_chord_completion_microseconds,
+        ),
+        vertical_simple_chord_completion_microseconds: Some(
+            metrics.vertical_simple_chord_completion_microseconds,
+        ),
+        rectangle_recovery_microseconds: Some(metrics.rectangle_recovery_microseconds),
+        final_output_validation_microseconds: Some(metrics.final_output_validation_microseconds),
+        initial_horizontal_unit_cut_count: Some(metrics.initial_horizontal_unit_cut_count),
+        initial_vertical_unit_cut_count: Some(metrics.initial_vertical_unit_cut_count),
+        added_horizontal_unit_cut_count: Some(metrics.added_horizontal_unit_cut_count),
+        added_vertical_unit_cut_count: Some(metrics.added_vertical_unit_cut_count),
+        horizontal_simple_chord_count: Some(metrics.horizontal_simple_chord_count),
+        vertical_simple_chord_count: Some(metrics.vertical_simple_chord_count),
+        completion_candidate_queries: Some(metrics.concave_candidate_queries),
+        completion_full_grid_scans: Some(metrics.full_grid_vertex_scans),
+        completion_candidate_revalidations: Some(metrics.candidate_revalidations),
+        completion_stale_candidates: Some(metrics.stale_candidate_count),
+        completion_ray_extension_unit_steps: Some(metrics.ray_extension_unit_steps),
+        rectangle_recovery_component_visits: Some(metrics.rectangle_recovery_component_visits),
+        ..Diagnostics::default()
+    }
+}
+
+fn completion_phase_timings(
+    prefix_microseconds: u128,
+    aggregate_microseconds: u128,
+    metrics: &CompletionMetrics,
+) -> BTreeMap<String, u128> {
+    [
+        ("boundary_chords_matching".to_owned(), prefix_microseconds),
+        ("geometric_completion".to_owned(), aggregate_microseconds),
+        (
+            "selected_chord_cut_materialization".to_owned(),
+            metrics.selected_chord_cut_materialization_microseconds,
+        ),
+        (
+            "horizontal_simple_chord_completion".to_owned(),
+            metrics.horizontal_simple_chord_completion_microseconds,
+        ),
+        (
+            "vertical_simple_chord_completion".to_owned(),
+            metrics.vertical_simple_chord_completion_microseconds,
+        ),
+        (
+            "rectangle_recovery".to_owned(),
+            metrics.rectangle_recovery_microseconds,
+        ),
+        (
+            "final_output_validation".to_owned(),
+            metrics.final_output_validation_microseconds,
+        ),
+    ]
+    .into_iter()
+    .collect()
 }
 
 /// Enumerates Definition 7 effective chords for an ordinary grid-cell polygon.
@@ -583,16 +646,78 @@ pub fn validate_analysis<C>(
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-struct HorizontalUnitCut {
-    x: usize,
-    y: usize,
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct HorizontalUnitCut {
+    pub x: usize,
+    pub y: usize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-struct VerticalUnitCut {
-    x: usize,
-    y: usize,
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct VerticalUnitCut {
+    pub x: usize,
+    pub y: usize,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompletionMetrics {
+    pub selected_chord_cut_materialization_microseconds: u128,
+    pub horizontal_simple_chord_completion_microseconds: u128,
+    pub vertical_simple_chord_completion_microseconds: u128,
+    pub rectangle_recovery_microseconds: u128,
+    pub final_output_validation_microseconds: u128,
+    pub initial_horizontal_unit_cut_count: usize,
+    pub initial_vertical_unit_cut_count: usize,
+    pub added_horizontal_unit_cut_count: usize,
+    pub added_vertical_unit_cut_count: usize,
+    pub horizontal_simple_chord_count: usize,
+    pub vertical_simple_chord_count: usize,
+    pub concave_candidate_queries: usize,
+    pub full_grid_vertex_scans: usize,
+    pub candidate_revalidations: usize,
+    pub stale_candidate_count: usize,
+    pub ray_extension_unit_steps: usize,
+    pub rectangle_recovery_component_visits: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompletionResult {
+    pub rectangles: Vec<GridRect>,
+    pub selected_horizontal_unit_cuts: Vec<HorizontalUnitCut>,
+    pub selected_vertical_unit_cuts: Vec<VerticalUnitCut>,
+    pub added_horizontal_unit_cuts: Vec<HorizontalUnitCut>,
+    pub added_vertical_unit_cuts: Vec<VerticalUnitCut>,
+    pub metrics: CompletionMetrics,
+}
+
+pub trait GeometricCompletionBackend {
+    /// Completes the selected effective chords into a rectangular dissection.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] for invalid selections or completion invariants.
+    fn complete<C>(
+        &self,
+        component: &GridComponent<C>,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<CompletionResult, SgError>;
+
+    fn name(&self) -> &'static str;
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReferenceRescanCompletion;
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IndexedFrontierCompletion;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompletionBackendKind {
+    ReferenceRescan,
+    IndexedFrontier,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -647,18 +772,6 @@ impl Direction {
     }
 }
 
-fn complete_dissection<C>(
-    component: &GridComponent<C>,
-    analysis: &SgAnalysis,
-) -> Result<Vec<GridRect>, SgError> {
-    complete_with_selected_chords(
-        component,
-        analysis,
-        &analysis.selected_horizontal,
-        &analysis.selected_vertical,
-    )
-}
-
 /// Performs the classical horizontal-then-vertical simple-chord completion.
 ///
 /// # Errors
@@ -694,26 +807,127 @@ pub fn complete_with_chord_families<C>(
     selected_horizontal: &[bool],
     selected_vertical: &[bool],
 ) -> Result<Vec<GridRect>, SgError> {
-    if selected_horizontal.len() != horizontal_chords.len()
-        || selected_vertical.len() != vertical_chords.len()
-    {
-        return Err(SgError::SelectionLengthMismatch);
-    }
-    let mut cuts = Cuts::from_selection(
+    Ok(complete_with_backend(
+        component,
         horizontal_chords,
         vertical_chords,
         selected_horizontal,
         selected_vertical,
-    )?;
-    complete_axis(component, &mut cuts, true)?;
-    complete_axis(component, &mut cuts, false)?;
-    rectangles_from_cuts(component, &cuts)
+        &ReferenceRescanCompletion,
+    )?
+    .rectangles)
+}
+
+/// Performs geometric completion with an explicitly selected backend.
+///
+/// # Errors
+///
+/// Returns [`SgError`] for dimension mismatches or completion invariants.
+pub fn complete_with_backend<C, B: GeometricCompletionBackend>(
+    component: &GridComponent<C>,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    selected_horizontal: &[bool],
+    selected_vertical: &[bool],
+    backend: &B,
+) -> Result<CompletionResult, SgError> {
+    backend.complete(
+        component,
+        horizontal_chords,
+        vertical_chords,
+        selected_horizontal,
+        selected_vertical,
+    )
+}
+
+impl GeometricCompletionBackend for ReferenceRescanCompletion {
+    fn complete<C>(
+        &self,
+        component: &GridComponent<C>,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<CompletionResult, SgError> {
+        if selected_horizontal.len() != horizontal_chords.len()
+            || selected_vertical.len() != vertical_chords.len()
+        {
+            return Err(SgError::SelectionLengthMismatch);
+        }
+        let started = Instant::now();
+        let mut cuts = Cuts::from_selection(
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )?;
+        let selected_at = Instant::now();
+        let selected_horizontal_unit_cuts = cuts.horizontal.iter().copied().collect::<Vec<_>>();
+        let selected_vertical_unit_cuts = cuts.vertical.iter().copied().collect::<Vec<_>>();
+        let mut metrics = CompletionMetrics {
+            selected_chord_cut_materialization_microseconds: selected_at
+                .duration_since(started)
+                .as_micros(),
+            initial_horizontal_unit_cut_count: cuts.horizontal.len(),
+            initial_vertical_unit_cut_count: cuts.vertical.len(),
+            ..CompletionMetrics::default()
+        };
+        complete_axis(component, &mut cuts, true, &mut metrics)?;
+        let horizontal_at = Instant::now();
+        metrics.horizontal_simple_chord_completion_microseconds =
+            horizontal_at.duration_since(selected_at).as_micros();
+        complete_axis(component, &mut cuts, false, &mut metrics)?;
+        let vertical_at = Instant::now();
+        metrics.vertical_simple_chord_completion_microseconds =
+            vertical_at.duration_since(horizontal_at).as_micros();
+        let rectangles = rectangles_from_cuts(component, &cuts, &mut metrics)?;
+        let rectangles_at = Instant::now();
+        metrics.rectangle_recovery_microseconds =
+            rectangles_at.duration_since(vertical_at).as_micros();
+        validate_dissection(
+            component,
+            &DissectionResult {
+                optimum_rectangle_count: rectangles.len(),
+                rectangles: rectangles.clone(),
+                diagnostics: Diagnostics::default(),
+                certificate: None,
+            },
+        )?;
+        metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
+        let added_horizontal_unit_cuts = cuts
+            .horizontal
+            .iter()
+            .filter(|cut| selected_horizontal_unit_cuts.binary_search(cut).is_err())
+            .copied()
+            .collect::<Vec<_>>();
+        let added_vertical_unit_cuts = cuts
+            .vertical
+            .iter()
+            .filter(|cut| selected_vertical_unit_cuts.binary_search(cut).is_err())
+            .copied()
+            .collect::<Vec<_>>();
+        metrics.added_horizontal_unit_cut_count = added_horizontal_unit_cuts.len();
+        metrics.added_vertical_unit_cut_count = added_vertical_unit_cuts.len();
+        Ok(CompletionResult {
+            rectangles,
+            selected_horizontal_unit_cuts,
+            selected_vertical_unit_cuts,
+            added_horizontal_unit_cuts,
+            added_vertical_unit_cuts,
+            metrics,
+        })
+    }
+
+    fn name(&self) -> &'static str {
+        "reference-rescan"
+    }
 }
 
 fn complete_axis<C>(
     component: &GridComponent<C>,
     cuts: &mut Cuts,
     horizontal: bool,
+    metrics: &mut CompletionMetrics,
 ) -> Result<(), SgError> {
     let horizontal_height = component
         .grid_height
@@ -734,12 +948,18 @@ fn complete_axis<C>(
         .checked_add(vertical_slots)
         .ok_or(SgError::CompletionDidNotTerminate)?;
     for _ in 0..=maximum_unit_cuts {
-        let Some((point, direction)) = find_concave_ray(component, cuts, horizontal) else {
+        let Some((point, direction)) = find_concave_ray(component, cuts, horizontal, metrics)
+        else {
             return Ok(());
         };
-        let added = extend_simple_chord(component, cuts, point, direction);
+        let added = extend_simple_chord(component, cuts, point, direction, metrics);
         if added == 0 {
             return Err(SgError::InvalidSimpleChord { point });
+        }
+        if horizontal {
+            metrics.horizontal_simple_chord_count += 1;
+        } else {
+            metrics.vertical_simple_chord_count += 1;
         }
     }
     Err(SgError::CompletionDidNotTerminate)
@@ -749,7 +969,9 @@ fn find_concave_ray<C>(
     component: &GridComponent<C>,
     cuts: &Cuts,
     horizontal: bool,
+    metrics: &mut CompletionMetrics,
 ) -> Option<((usize, usize), Direction)> {
+    metrics.full_grid_vertex_scans += 1;
     for y in 0..=component.grid_height {
         for x in 0..=component.grid_width {
             let inside = local_quadrants(component, x, y);
@@ -767,6 +989,7 @@ fn find_concave_ray<C>(
                 if direction.is_horizontal() != horizontal {
                     continue;
                 }
+                metrics.concave_candidate_queries += 1;
                 let ray_index = match direction {
                     Direction::East => 0,
                     Direction::North => 1,
@@ -846,11 +1069,13 @@ fn extend_simple_chord<C>(
     cuts: &mut Cuts,
     point: (usize, usize),
     direction: Direction,
+    metrics: &mut CompletionMetrics,
 ) -> usize {
     let mut horizontal_additions = Vec::new();
     let mut vertical_additions = Vec::new();
     let (mut x, mut y) = point;
     loop {
+        metrics.ray_extension_unit_steps += 1;
         let next = match direction {
             Direction::East => {
                 if y == 0
@@ -943,6 +1168,7 @@ fn perpendicular_boundary_at<C>(
 fn rectangles_from_cuts<C>(
     component: &GridComponent<C>,
     cuts: &Cuts,
+    metrics: &mut CompletionMetrics,
 ) -> Result<Vec<GridRect>, SgError> {
     let cell_set = component.cells.iter().copied().collect::<HashSet<_>>();
     let mut unseen = cell_set.clone();
@@ -952,6 +1178,7 @@ fn rectangles_from_cuts<C>(
         let mut queue = VecDeque::from([seed]);
         let mut region = vec![seed];
         while let Some(cell) = queue.pop_front() {
+            metrics.rectangle_recovery_component_visits += 1;
             for neighbor in uncut_neighbors(cell, component, cuts) {
                 if unseen.remove(&neighbor) {
                     queue.push_back(neighbor);
@@ -1075,7 +1302,9 @@ mod tests {
     use rect_oracle_exact_cover as exact_cover;
 
     use super::{
-        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator, solve,
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
+        ReferenceRescanCompletion, analyze, complete_with_backend, complete_with_chord_families,
+        solve,
     };
 
     fn foreground_component(width: usize, height: usize, cells: Vec<bool>) -> GridComponent<bool> {
@@ -1113,6 +1342,47 @@ mod tests {
             );
             validate_dissection(&component, &actual).unwrap();
         }
+    }
+
+    #[test]
+    fn reference_completion_reports_real_scan_and_recovery_metrics() {
+        let component = foreground_component(
+            3,
+            3,
+            vec![false, true, false, true, true, true, false, true, false],
+        );
+        let analysis = analyze(&component).unwrap();
+        let completion = complete_with_backend(
+            &component,
+            &analysis.horizontal_chords,
+            &analysis.vertical_chords,
+            &analysis.selected_horizontal,
+            &analysis.selected_vertical,
+            &ReferenceRescanCompletion,
+        )
+        .unwrap();
+        let legacy = complete_with_chord_families(
+            &component,
+            &analysis.horizontal_chords,
+            &analysis.vertical_chords,
+            &analysis.selected_horizontal,
+            &analysis.selected_vertical,
+        )
+        .unwrap();
+        assert_eq!(completion.rectangles, legacy);
+        assert_eq!(
+            completion.metrics.rectangle_recovery_component_visits,
+            component.cell_count()
+        );
+        assert!(completion.metrics.full_grid_vertex_scans >= 2);
+        assert_eq!(
+            completion.metrics.added_horizontal_unit_cut_count,
+            completion.added_horizontal_unit_cuts.len()
+        );
+        assert_eq!(
+            completion.metrics.added_vertical_unit_cut_count,
+            completion.added_vertical_unit_cuts.len()
+        );
     }
 
     #[test]

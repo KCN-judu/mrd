@@ -15,8 +15,9 @@ use rect_core::{
 };
 use rect_graph::DinicBackend;
 use rect_oracle_sg::{
-    EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator, SgError,
-    complete_with_chord_families, complete_with_selected_chords,
+    CompletionMetrics, EffectiveChordEnumerator, GeometricCompletionBackend,
+    GridInteriorRunEnumerator, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
+    complete_with_backend,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -34,6 +35,35 @@ pub enum DominanceMode {
 pub enum VerificationMode {
     FullyAudited,
     CompactOnly,
+}
+
+fn completion_diagnostics(metrics: &CompletionMetrics) -> Diagnostics {
+    Diagnostics {
+        selected_chord_cut_materialization_microseconds: Some(
+            metrics.selected_chord_cut_materialization_microseconds,
+        ),
+        horizontal_simple_chord_completion_microseconds: Some(
+            metrics.horizontal_simple_chord_completion_microseconds,
+        ),
+        vertical_simple_chord_completion_microseconds: Some(
+            metrics.vertical_simple_chord_completion_microseconds,
+        ),
+        rectangle_recovery_microseconds: Some(metrics.rectangle_recovery_microseconds),
+        final_output_validation_microseconds: Some(metrics.final_output_validation_microseconds),
+        initial_horizontal_unit_cut_count: Some(metrics.initial_horizontal_unit_cut_count),
+        initial_vertical_unit_cut_count: Some(metrics.initial_vertical_unit_cut_count),
+        added_horizontal_unit_cut_count: Some(metrics.added_horizontal_unit_cut_count),
+        added_vertical_unit_cut_count: Some(metrics.added_vertical_unit_cut_count),
+        horizontal_simple_chord_count: Some(metrics.horizontal_simple_chord_count),
+        vertical_simple_chord_count: Some(metrics.vertical_simple_chord_count),
+        completion_candidate_queries: Some(metrics.concave_candidate_queries),
+        completion_full_grid_scans: Some(metrics.full_grid_vertex_scans),
+        completion_candidate_revalidations: Some(metrics.candidate_revalidations),
+        completion_stale_candidates: Some(metrics.stale_candidate_count),
+        completion_ray_extension_unit_steps: Some(metrics.ray_extension_unit_steps),
+        rectangle_recovery_component_visits: Some(metrics.rectangle_recovery_component_visits),
+        ..Diagnostics::default()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -180,16 +210,18 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
         .map(|covered| !covered)
         .collect::<Vec<_>>();
     let flow_at = Instant::now();
-    let rectangles = complete_with_selected_chords(
+    let completion = complete_with_backend(
         component,
-        &sg_analysis,
+        &sg_analysis.horizontal_chords,
+        &sg_analysis.vertical_chords,
         &selected_horizontal,
         &selected_vertical,
+        &ReferenceRescanCompletion,
     )?;
-    if rectangles.len() != sg_analysis.optimum_rectangle_count {
+    if completion.rectangles.len() != sg_analysis.optimum_rectangle_count {
         return Err(DominanceError::CompletionCount {
             expected: sg_analysis.optimum_rectangle_count,
-            actual: rectangles.len(),
+            actual: completion.rectangles.len(),
         });
     }
     let completed_at = Instant::now();
@@ -226,7 +258,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
     };
     let result = DissectionResult {
         optimum_rectangle_count: sg_analysis.optimum_rectangle_count,
-        rectangles,
+        rectangles: completion.rectangles,
         diagnostics: Diagnostics {
             cell_count: component.cell_count(),
             boundary_complexity: sg_analysis.boundary.boundary_complexity(),
@@ -279,6 +311,32 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
                     "geometric_completion".to_owned(),
                     completed_at.duration_since(flow_at).as_micros(),
                 ),
+                (
+                    "selected_chord_cut_materialization".to_owned(),
+                    completion
+                        .metrics
+                        .selected_chord_cut_materialization_microseconds,
+                ),
+                (
+                    "horizontal_simple_chord_completion".to_owned(),
+                    completion
+                        .metrics
+                        .horizontal_simple_chord_completion_microseconds,
+                ),
+                (
+                    "vertical_simple_chord_completion".to_owned(),
+                    completion
+                        .metrics
+                        .vertical_simple_chord_completion_microseconds,
+                ),
+                (
+                    "rectangle_recovery".to_owned(),
+                    completion.metrics.rectangle_recovery_microseconds,
+                ),
+                (
+                    "final_output_validation".to_owned(),
+                    completion.metrics.final_output_validation_microseconds,
+                ),
             ]
             .into_iter()
             .collect(),
@@ -300,6 +358,8 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: None,
             owned_allocation_estimates: BTreeMap::new(),
+            completion_backend: Some(ReferenceRescanCompletion.name().to_owned()),
+            ..completion_diagnostics(&completion.metrics)
         },
         certificate: Some(Certificate {
             kind: match mode {
@@ -382,17 +442,18 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     let optimum_rectangle_count = formula_base
         .checked_sub(independent_count)
         .ok_or(DominanceError::FormulaUnderflow)?;
-    let rectangles = complete_with_chord_families(
+    let completion = complete_with_backend(
         component,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
         &selected_horizontal,
         &selected_vertical,
+        &ReferenceRescanCompletion,
     )?;
-    if rectangles.len() != optimum_rectangle_count {
+    if completion.rectangles.len() != optimum_rectangle_count {
         return Err(DominanceError::CompletionCount {
             expected: optimum_rectangle_count,
-            actual: rectangles.len(),
+            actual: completion.rectangles.len(),
         });
     }
     let completed_at = Instant::now();
@@ -440,7 +501,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     );
     let result = DissectionResult {
         optimum_rectangle_count,
-        rectangles,
+        rectangles: completion.rectangles,
         diagnostics: Diagnostics {
             cell_count: component.cell_count(),
             boundary_complexity: geometry.boundary.boundary_complexity(),
@@ -487,6 +548,32 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
                     "geometric_completion".to_owned(),
                     completed_at.duration_since(flow_at).as_micros(),
                 ),
+                (
+                    "selected_chord_cut_materialization".to_owned(),
+                    completion
+                        .metrics
+                        .selected_chord_cut_materialization_microseconds,
+                ),
+                (
+                    "horizontal_simple_chord_completion".to_owned(),
+                    completion
+                        .metrics
+                        .horizontal_simple_chord_completion_microseconds,
+                ),
+                (
+                    "vertical_simple_chord_completion".to_owned(),
+                    completion
+                        .metrics
+                        .vertical_simple_chord_completion_microseconds,
+                ),
+                (
+                    "rectangle_recovery".to_owned(),
+                    completion.metrics.rectangle_recovery_microseconds,
+                ),
+                (
+                    "final_output_validation".to_owned(),
+                    completion.metrics.final_output_validation_microseconds,
+                ),
             ]
             .into_iter()
             .collect(),
@@ -504,6 +591,8 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             horizontal_interior_run_count: geometry.horizontal_interior_run_count,
             vertical_interior_run_count: geometry.vertical_interior_run_count,
             candidate_reflex_pair_count: geometry.candidate_reflex_pair_count,
+            completion_backend: Some(ReferenceRescanCompletion.name().to_owned()),
+            ..completion_diagnostics(&completion.metrics)
         },
         certificate: Some(Certificate {
             kind: "dominance-compact-only".to_owned(),
