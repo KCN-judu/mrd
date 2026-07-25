@@ -577,10 +577,13 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
         let height = y1 - y0;
         owned_allocation_estimates.insert(
             "completion_dense_arrays_estimate".to_owned(),
-            width * height
-                + width * (height + 1)
+            width * (height + 1)
                 + (width + 1) * height
                 + (width + 1) * (height + 1) * size_of::<u64>(),
+        );
+        owned_allocation_estimates.insert(
+            "rectangle_recovery_dense_storage_estimate".to_owned(),
+            width * height + component.cell_count() * size_of::<usize>(),
         );
     }
     let result = DissectionResult {
