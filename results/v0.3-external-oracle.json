@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "git_commit": "e79b218dc4b785243bf08cbe675b97edf8c7e96b",
+  "git_commit": "4bee682ae9e4851d57b438d31cb612d08dd6a883",
   "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-  "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-v03-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --exact-cover-cell-limit 40 --max-time-seconds 30 --work-dir /tmp/mrd-v03-external-full --output /tmp/mrd-v03-external-full.json",
+  "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-v03-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --exact-cover-cell-limit 40 --max-time-seconds 30 --work-dir /tmp/mrd-v03-external-tagged --output /tmp/mrd-v03-external-tagged.json",
   "seed": 0,
-  "timestamp": 1784945074,
+  "timestamp": 1784947702,
   "input_count": 6998,
   "component_count": 27228,
   "cp_sat_solved_component_count": 27228,
@@ -81,7 +81,7 @@
       }
     }
   },
-  "runtime_seconds": 39.861439917003736,
+  "runtime_seconds": 39.28981704200851,
   "cases": [
     {
       "suite": "exhaustive-binary",
