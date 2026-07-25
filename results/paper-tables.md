@@ -75,3 +75,9 @@ nonempty `4x4` masks, and 100,000 deterministic connected larger regions. All
 166,046 inputs had exact horizontal and vertical family equality, with no
 missing or fabricated chord. The v0.3 CP-SAT rerun verified 6,998 inputs and
 27,228 components with zero disagreement.
+
+The final `q=4096` run measured 285,717 microseconds for boundary plus grid-run
+enumeration, 201 for embedding, 2,716 for biclique construction, 539 for flow,
+and 1,088,822 for geometric completion. Owned estimates were 131,072 bytes for
+chords, 262,144 for embedding points, 229,672 for bicliques, 190,248 for flow
+storage, and 591,248 for the certificate payload. These are not peak RSS.

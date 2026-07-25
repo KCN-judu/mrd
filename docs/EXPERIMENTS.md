@@ -34,6 +34,14 @@ diagnostics include labeled owned-allocation estimates for chord vectors,
 embedding points, biclique vectors, and flow storage. These are component-owned
 estimates, not process peak memory.
 
+The dedicated `dense-compact-only` benchmark ran targets `128,256,512,1024`,
+corresponding to total chord counts `q=512,1024,2048,4096`. Chord enumeration
+took 3,958, 13,691, 56,780, and 285,717 microseconds respectively. At `q=4096`
+the owned estimates were 131,072 bytes for chord vectors, 262,144 for embedding
+points, 229,672 for biclique vectors, 190,248 for flow storage, and 591,248 for
+the certificate payload. The complete per-phase CSV is
+`results/v0.3-compact-dense.csv`.
+
 The bounded external OR-Tools 9.15 CP-SAT population was rerun for v0.3:
 6,998 inputs and 27,228 components, including all `3x3` binary grids, free
 polyominoes through 10 cells, and 13 selected adversarial grids. All 27,228

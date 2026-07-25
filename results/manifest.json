@@ -2,6 +2,24 @@
   "schema_version": 2,
   "runs": [
     {
+      "git_commit": "04c721c890eefee71dbe333053051bba8cd36374",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite dense-compact-only --sizes 128,256,512,1024 --output results/v0.3-compact-dense.csv",
+      "seed": null,
+      "timestamp": 1784946309,
+      "input_count": 4,
+      "component_count": 4,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
       "git_commit": "e90f18f",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "cargo test --release -p rect-oracle-sg grid_runs_match_reference_on_one_hundred_thousand_connected_regions",
@@ -132,6 +150,9 @@
     "results/correctness-table.csv",
     "results/compression-table.csv",
     "results/scope-table.csv",
-    "results/paper-tables.md"
+    "results/paper-tables.md",
+    "results/v0.3-compact-dense.csv",
+    "results/v0.3-chord-differential.json",
+    "results/v0.3-external-oracle.json"
   ]
 }

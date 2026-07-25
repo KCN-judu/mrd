@@ -44,6 +44,9 @@ cargo run --release -p rect-cli -- polyomino --max-cells 12 \
 cargo run --release -p rect-cli -- benchmark --suite adversarial \
   --output adversarial.csv
 
+cargo run --release -p rect-cli -- benchmark --suite dense-compact-only \
+  --sizes 128,256,512,1024 --output compact-dense.csv
+
 cargo run --release -p rect-cli -- generate --family dense-conflict \
   --horizontal 1024 --vertical 1024 \
   --json /tmp/dense-1024.json --svg /tmp/dense-1024.svg
