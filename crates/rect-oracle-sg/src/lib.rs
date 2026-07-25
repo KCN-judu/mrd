@@ -2419,7 +2419,9 @@ pub enum SgError {
 
 #[cfg(test)]
 mod tests {
-    use rect_core::{ColorGrid, GridComponent, validate_dissection, validate_dissection_prepared};
+    use rect_core::{
+        ColorGrid, GridComponent, Point, validate_dissection, validate_dissection_prepared,
+    };
     use rect_oracle_exact_cover as exact_cover;
 
     use super::{
@@ -2427,7 +2429,8 @@ mod tests {
         EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
         RectangleRecoveryBackend, ReferenceHashBfsRecovery, ReferencePairwiseEnumerator,
         ReferenceRescanCompletion, analyze, analyze_geometry, classify_clean_hole_free,
-        complete_with_backend, complete_with_chord_families, endpoints_alternate, solve,
+        complete_with_backend, complete_with_chord_families, endpoints_alternate,
+        horizontal_chord_endpoints, solve, vertical_chord_endpoints,
     };
 
     fn foreground_component(width: usize, height: usize, cells: Vec<bool>) -> GridComponent<bool> {
@@ -2503,6 +2506,38 @@ mod tests {
         );
         assert!(certificate.all_chords_proper);
         assert!(certificate.distinct_boundary_endpoints);
+    }
+
+    #[test]
+    fn endpoint_lookup_round_trips_normalized_loop_identity() {
+        let component = foreground_component(
+            3,
+            3,
+            vec![false, true, false, true, true, true, false, true, false],
+        );
+        let geometry = analyze_geometry(&component).unwrap();
+        for &chord in &geometry.horizontal_chords {
+            let endpoints = horizontal_chord_endpoints(&geometry.boundary, chord).unwrap();
+            assert_eq!(
+                geometry.boundary.vertex(endpoints.first),
+                Some(Point::new(chord.left(), chord.y()))
+            );
+            assert_eq!(
+                geometry.boundary.vertex(endpoints.second),
+                Some(Point::new(chord.right(), chord.y()))
+            );
+        }
+        for &chord in &geometry.vertical_chords {
+            let endpoints = vertical_chord_endpoints(&geometry.boundary, chord).unwrap();
+            assert_eq!(
+                geometry.boundary.vertex(endpoints.first),
+                Some(Point::new(chord.x(), chord.bottom()))
+            );
+            assert_eq!(
+                geometry.boundary.vertex(endpoints.second),
+                Some(Point::new(chord.x(), chord.top()))
+            );
+        }
     }
 
     #[test]

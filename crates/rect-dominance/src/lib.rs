@@ -1,6 +1,7 @@
 pub mod biclique;
 pub mod compressed_flow;
 pub mod embedding;
+pub mod path_tree;
 
 use std::collections::BTreeMap;
 use std::mem::size_of;
@@ -9,12 +10,13 @@ use std::time::Instant;
 use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
+use path_tree::{PathTreeError, build_path_tree_partition};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
     PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
     validate_dissection_prepared,
 };
-use rect_graph::DinicBackend;
+use rect_graph::{DinicBackend, hopcroft_karp};
 use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, EffectiveChordEnumerator, GridInteriorRunEnumerator,
     IndexedFrontierCompletion, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
@@ -75,6 +77,104 @@ fn completion_diagnostics(metrics: &CompletionMetrics) -> Diagnostics {
 pub enum ChordEnumerator {
     ReferencePairwise,
     GridInteriorRuns,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConflictRepresentationBackend {
+    GeneralDominance4D,
+    CleanHoleFreePathTree,
+    Auto,
+}
+
+impl ConflictRepresentationBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::GeneralDominance4D => "dominance-4d",
+            Self::CleanHoleFreePathTree => "path-tree",
+            Self::Auto => "auto",
+        }
+    }
+}
+
+/// Solves with an explicit conflict-representation backend.
+///
+/// Existing solver wrappers continue to use the general four-dimensional
+/// representation. `Auto` selects the geometry-derived path/tree backend only
+/// when the clean certificate is valid.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when eligibility, representation, flow,
+/// completion, or validation invariants fail.
+pub fn solve_with_representation<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    representation: ConflictRepresentationBackend,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+) -> Result<DissectionResult, DominanceError> {
+    match representation {
+        ConflictRepresentationBackend::GeneralDominance4D => {
+            solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+                component,
+                mode,
+                enumerator,
+                completion_backend,
+            )
+            .map(|result| annotate_general_representation(result, None))
+        }
+        ConflictRepresentationBackend::CleanHoleFreePathTree => {
+            solve_path_tree_dispatch(component, mode, enumerator, completion_backend)
+        }
+        ConflictRepresentationBackend::Auto => {
+            let geometry = match enumerator {
+                ChordEnumerator::ReferencePairwise => {
+                    rect_oracle_sg::analyze_geometry_with(component, &ReferencePairwiseEnumerator)?
+                }
+                ChordEnumerator::GridInteriorRuns => {
+                    rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?
+                }
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            if certificate.eligible {
+                solve_path_tree_with_geometry(
+                    component,
+                    &geometry,
+                    &certificate,
+                    mode,
+                    completion_backend,
+                )
+            } else {
+                solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+                    component,
+                    mode,
+                    enumerator,
+                    completion_backend,
+                )
+                .map(|result| annotate_general_representation(result, Some(false)))
+            }
+        }
+    }
+}
+
+fn annotate_general_representation(
+    mut result: DissectionResult,
+    clean_hole_free_eligible: Option<bool>,
+) -> DissectionResult {
+    result.diagnostics.conflict_representation = Some(
+        ConflictRepresentationBackend::GeneralDominance4D
+            .name()
+            .to_owned(),
+    );
+    result.diagnostics.clean_hole_free_eligible = clean_hole_free_eligible;
+    result
 }
 
 /// Solves with either the fully audited compact pipeline or the compact-only
@@ -390,6 +490,11 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
             effective_chord_enumeration_microseconds: Some(
                 geometry_at.duration_since(started).as_micros(),
             ),
+            conflict_representation: Some(
+                ConflictRepresentationBackend::GeneralDominance4D
+                    .name()
+                    .to_owned(),
+            ),
             emitted_chord_count: Some(total_chord_count),
             horizontal_interior_run_count: None,
             vertical_interior_run_count: None,
@@ -689,6 +794,11 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             effective_chord_enumeration_microseconds: Some(
                 geometry.effective_chord_enumeration_microseconds,
             ),
+            conflict_representation: Some(
+                ConflictRepresentationBackend::GeneralDominance4D
+                    .name()
+                    .to_owned(),
+            ),
             prepared_component_build_count: Some(1),
             prepared_component_build_microseconds: Some(
                 geometry.prepared_component_build_microseconds,
@@ -719,6 +829,257 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
                 "internal_capacity": flow_solution.internal_capacity,
                 "internal_cut_arc_count": flow_solution.internal_cut_arc_count,
                 "min_cut_source_side": flow_solution.flow.source_side,
+                "cover_left": flow_solution.vertex_cover.left,
+                "cover_right": flow_solution.vertex_cover.right,
+                "selected_horizontal": selected_horizontal_indices,
+                "selected_vertical": selected_vertical_indices,
+            }),
+        }),
+    };
+    validate_dissection_prepared(&geometry.prepared, &result)?;
+    Ok(result)
+}
+
+fn solve_path_tree_dispatch<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+) -> Result<DissectionResult, DominanceError> {
+    let geometry = match enumerator {
+        ChordEnumerator::ReferencePairwise => {
+            rect_oracle_sg::analyze_geometry_with(component, &ReferencePairwiseEnumerator)?
+        }
+        ChordEnumerator::GridInteriorRuns => {
+            rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?
+        }
+    };
+    let certificate = rect_oracle_sg::classify_clean_hole_free(
+        component,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+    );
+    if !certificate.eligible {
+        return Err(DominanceError::PathTreeIneligible(certificate));
+    }
+    solve_path_tree_with_geometry(component, &geometry, &certificate, mode, completion_backend)
+}
+
+#[allow(clippy::too_many_lines)]
+fn solve_path_tree_with_geometry<C>(
+    component: &GridComponent<C>,
+    geometry: &rect_oracle_sg::SgGeometry,
+    certificate: &rect_oracle_sg::CleanHoleFreeCertificate,
+    mode: VerificationMode,
+    completion_backend: CompletionBackendKind,
+) -> Result<DissectionResult, DominanceError> {
+    let started = Instant::now();
+    let path_tree = build_path_tree_partition(
+        &geometry.prepared,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        certificate.clone(),
+    )?;
+    path_tree.verify_paths(&geometry.horizontal_chords, &geometry.vertical_chords)?;
+    let path_audit =
+        path_tree.audit_edge_partition(&geometry.horizontal_chords, &geometry.vertical_chords)?;
+    let path_tree_at = Instant::now();
+    let mut four_d_sigma = None;
+    let mut audited_matching_size = None;
+    if mode == VerificationMode::FullyAudited {
+        let graph = rect_oracle_sg::build_conflict_graph(
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+        )?;
+        path_tree
+            .biclique_partition
+            .verify_exact_partition(&graph)?;
+        let embedding =
+            DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
+        embedding
+            .assert_pairwise_equivalence(&geometry.horizontal_chords, &geometry.vertical_chords)?;
+        let four_d = BicliquePartition::comparability_theorem_8(&embedding)?;
+        four_d.verify_exact_partition(&graph)?;
+        four_d_sigma = Some(four_d.total_vertex_occurrences());
+        audited_matching_size = Some(hopcroft_karp(&graph).size);
+        for &horizontal in &geometry.horizontal_chords {
+            let horizontal_endpoints =
+                rect_oracle_sg::horizontal_chord_endpoints(&geometry.boundary, horizontal)?;
+            for &vertical in &geometry.vertical_chords {
+                let vertical_endpoints =
+                    rect_oracle_sg::vertical_chord_endpoints(&geometry.boundary, vertical)?;
+                let loop_len = geometry
+                    .boundary
+                    .loop_len(horizontal_endpoints.first.loop_id)
+                    .ok_or(DominanceError::PathTreeAlternationMismatch)?;
+                if rect_core::closed_chords_intersect(horizontal, vertical)
+                    != rect_oracle_sg::endpoints_alternate(
+                        horizontal_endpoints,
+                        vertical_endpoints,
+                        loop_len,
+                    )
+                {
+                    return Err(DominanceError::PathTreeAlternationMismatch);
+                }
+            }
+        }
+    }
+    let flow_solution = solve_biclique_flow(
+        geometry.horizontal_chords.len(),
+        geometry.vertical_chords.len(),
+        &path_tree.biclique_partition,
+        &DinicBackend,
+    )?;
+    let flow_value = usize::try_from(flow_solution.flow.value)
+        .map_err(|_| DominanceError::FlowValueConversion)?;
+    if let Some(matching) = audited_matching_size
+        && matching != flow_value
+    {
+        return Err(DominanceError::MatchingFlowMismatch {
+            matching,
+            flow: flow_value,
+        });
+    }
+    let selected_horizontal = flow_solution
+        .vertex_cover
+        .left
+        .iter()
+        .map(|covered| !covered)
+        .collect::<Vec<_>>();
+    let selected_vertical = flow_solution
+        .vertex_cover
+        .right
+        .iter()
+        .map(|covered| !covered)
+        .collect::<Vec<_>>();
+    let flow_at = Instant::now();
+    let total_chord_count = geometry
+        .horizontal_chords
+        .len()
+        .checked_add(geometry.vertical_chords.len())
+        .ok_or(DominanceError::MetricOverflow)?;
+    let independent_count = total_chord_count
+        .checked_sub(flow_value)
+        .ok_or(DominanceError::FormulaUnderflow)?;
+    let formula_base = geometry
+        .boundary
+        .reflex_vertices
+        .len()
+        .checked_add(1)
+        .ok_or(DominanceError::FormulaUnderflow)?;
+    let optimum_rectangle_count = formula_base
+        .checked_sub(independent_count)
+        .ok_or(DominanceError::FormulaUnderflow)?;
+    let completion = complete_selected(
+        component,
+        &geometry.prepared,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        &selected_horizontal,
+        &selected_vertical,
+        completion_backend,
+    )?;
+    if completion.rectangles.len() != optimum_rectangle_count {
+        return Err(DominanceError::CompletionCount {
+            expected: optimum_rectangle_count,
+            actual: completion.rectangles.len(),
+        });
+    }
+    let completed_at = Instant::now();
+    let selected_horizontal_indices = selected_horizontal
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &selected)| selected.then_some(index))
+        .collect::<Vec<_>>();
+    let selected_vertical_indices = selected_vertical
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &selected)| selected.then_some(index))
+        .collect::<Vec<_>>();
+    let sigma = path_tree.biclique_partition.total_vertex_occurrences();
+    let result = DissectionResult {
+        optimum_rectangle_count,
+        rectangles: completion.rectangles,
+        diagnostics: Diagnostics {
+            cell_count: component.cell_count(),
+            boundary_complexity: geometry.boundary.boundary_complexity(),
+            outer_loop_count: geometry.boundary.outer_loop_count(),
+            hole_count: geometry.boundary.hole_count(),
+            reflex_vertex_count: geometry.boundary.reflex_vertices.len(),
+            horizontal_chord_count: geometry.horizontal_chords.len(),
+            vertical_chord_count: geometry.vertical_chords.len(),
+            total_chord_count,
+            explicit_conflict_edge_count: (mode == VerificationMode::FullyAudited)
+                .then_some(path_audit.explicit_edge_count),
+            biclique_count: path_tree.biclique_partition.bicliques.len(),
+            biclique_total_vertex_occurrences: sigma,
+            biclique_size_per_chord: ExactRatio::new(sigma as u128, total_chord_count as u128),
+            compressed_network_vertex_count: flow_solution.network_vertex_count,
+            compressed_network_arc_count: flow_solution.network_arc_count,
+            maximum_matching_size: flow_value,
+            minimum_vertex_cover_size: flow_solution.vertex_cover.size,
+            output_rectangle_count: optimum_rectangle_count,
+            phase_microseconds: [
+                (
+                    "path_tree_construction".to_owned(),
+                    path_tree_at.duration_since(started).as_micros(),
+                ),
+                (
+                    "compressed_flow".to_owned(),
+                    flow_at.duration_since(path_tree_at).as_micros(),
+                ),
+                (
+                    "geometric_completion".to_owned(),
+                    completed_at.duration_since(flow_at).as_micros(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            execution_trace: ExecutionTrace {
+                pairwise_embedding_audit_called: mode == VerificationMode::FullyAudited,
+                explicit_conflict_graph_built: mode == VerificationMode::FullyAudited,
+                hopcroft_karp_called: mode == VerificationMode::FullyAudited,
+                full_edge_partition_audit_called: mode == VerificationMode::FullyAudited,
+                compact_structure_check_called: true,
+                ..ExecutionTrace::default()
+            },
+            effective_chord_enumerator: Some("prepared-path-tree-input".to_owned()),
+            effective_chord_enumeration_microseconds: Some(
+                geometry.effective_chord_enumeration_microseconds,
+            ),
+            prepared_component_build_count: Some(1),
+            prepared_component_build_microseconds: Some(
+                geometry.prepared_component_build_microseconds,
+            ),
+            boundary_extraction_microseconds: Some(geometry.boundary_extraction_microseconds),
+            reflex_grouping_microseconds: Some(geometry.reflex_grouping_microseconds),
+            occupancy_bytes: Some(geometry.prepared.occupancy.len()),
+            conflict_representation: Some(
+                ConflictRepresentationBackend::CleanHoleFreePathTree
+                    .name()
+                    .to_owned(),
+            ),
+            clean_hole_free_eligible: Some(true),
+            path_tree_orientation: Some("vertical-tree-horizontal-paths".to_owned()),
+            dual_region_count: Some(path_tree.tree.region_count),
+            path_count: Some(path_tree.paths.len()),
+            path_edge_incidence_count: Some(path_tree.total_path_edge_incidences),
+            canonical_segment_node_count: Some(path_tree.canonical_segment_node_count),
+            path_tree_sigma: Some(sigma),
+            four_d_sigma,
+            ..completion_diagnostics(&completion.metrics)
+        },
+        certificate: Some(Certificate {
+            kind: "clean-hole-free-path-tree".to_owned(),
+            payload: json!({
+                "verification_mode": mode,
+                "clean_certificate": path_tree.certificate,
+                "region_dual_tree": path_tree.tree,
+                "chord_tree_paths": path_tree.paths,
+                "biclique_partition": path_tree.biclique_partition,
+                "flow_value": flow_value,
                 "cover_left": flow_solution.vertex_cover.left,
                 "cover_right": flow_solution.vertex_cover.right,
                 "selected_horizontal": selected_horizontal_indices,
@@ -771,6 +1132,8 @@ pub enum DominanceError {
     Biclique(#[from] BicliqueError),
     #[error(transparent)]
     CompressedFlow(#[from] CompressedFlowError),
+    #[error(transparent)]
+    PathTree(#[from] PathTreeError),
     #[error("solver produced an invalid dissection: {0}")]
     InvalidOutput(#[from] ValidationError),
     #[error("geometric conflict graph differs from the explicit dominance graph")]
@@ -789,4 +1152,10 @@ pub enum DominanceError {
     CompletionCount { expected: usize, actual: usize },
     #[error("rectangular-dissection formula underflowed")]
     FormulaUnderflow,
+    #[error(
+        "clean hole-free path-tree representation was requested for an ineligible component: {0:?}"
+    )]
+    PathTreeIneligible(rect_oracle_sg::CleanHoleFreeCertificate),
+    #[error("circle alternation does not match closed chord intersection")]
+    PathTreeAlternationMismatch,
 }

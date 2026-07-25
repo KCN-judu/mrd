@@ -7,8 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
 use rect_dominance::{
-    ChordEnumerator, DominanceMode, VerificationMode,
-    solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
+    ChordEnumerator, ConflictRepresentationBackend, DominanceMode, VerificationMode,
+    solve_with_representation,
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
@@ -43,6 +43,8 @@ enum Command {
         chord_enumerator: Option<ChordEnumeratorArg>,
         #[arg(long, value_enum)]
         completion_backend: Option<CompletionBackendArg>,
+        #[arg(long, value_enum)]
+        representation: Option<RepresentationArg>,
     },
     Verify {
         #[arg(long)]
@@ -115,8 +117,10 @@ enum Command {
         #[arg(long, value_enum)]
         family: GenerateFamilyArg,
         #[arg(long)]
+        t: Option<usize>,
+        #[arg(long, default_value_t = 1)]
         horizontal: usize,
-        #[arg(long)]
+        #[arg(long, default_value_t = 1)]
         vertical: usize,
         #[arg(long)]
         json: PathBuf,
@@ -151,18 +155,29 @@ enum CompletionBackendArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum RepresentationArg {
+    Dominance4d,
+    PathTree,
+    Auto,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
+    CleanCensus,
+    CleanCompleteBipartite,
     DenseConflict,
     DenseCompactOnly,
     DenseCompletion,
     CompletionHeavy,
     AreaHeavy,
+    PathTreeComparison,
     Polyomino,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum GenerateFamilyArg {
+    CleanCompleteBipartite,
     DenseConflict,
 }
 
@@ -230,6 +245,7 @@ fn main() {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn run() -> Result<(), CliError> {
     let cli = Cli::parse();
     match cli.command {
@@ -240,10 +256,12 @@ fn run() -> Result<(), CliError> {
             svg,
             chord_enumerator,
             completion_backend,
+            representation,
         } => solve_command(
             solver,
             chord_enumerator,
             completion_backend,
+            representation,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -323,11 +341,12 @@ fn run() -> Result<(), CliError> {
         }
         Command::Generate {
             family,
+            t,
             horizontal,
             vertical,
             json,
             svg,
-        } => generate_command(family, horizontal, vertical, &json, &svg),
+        } => generate_command(family, t, horizontal, vertical, &json, &svg),
         Command::ExportAdversarial { output_dir } => export_adversarial(&output_dir),
     }
 }
@@ -400,8 +419,27 @@ fn benchmark_command(
         ));
     }
     let context = benchmark_context()?;
+    if suite == BenchmarkSuiteArg::CleanCensus {
+        let census = rect_verify::benchmark::clean_census_4x4(context);
+        write_text(output, &census.to_csv())?;
+        let json_path = output.with_extension("json");
+        write_json(&census, Some(&json_path))?;
+        write_text(&output.with_extension("md"), &census.to_markdown())?;
+        let manifest_path = output
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("manifest.json");
+        update_manifest(&manifest_path, census.metadata)?;
+        return Ok(());
+    }
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
+        BenchmarkSuiteArg::CleanCompleteBipartite => {
+            rect_verify::benchmark::benchmark_clean_complete_bipartite(context, sizes)
+        }
+        BenchmarkSuiteArg::PathTreeComparison => {
+            rect_verify::benchmark::benchmark_path_tree_comparison(context, sizes)
+        }
         BenchmarkSuiteArg::DenseConflict => {
             rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
         }
@@ -420,6 +458,7 @@ fn benchmark_command(
         BenchmarkSuiteArg::Polyomino => {
             rect_verify::benchmark::benchmark_polyomino(context, max_cells, oracle_cell_limit)
         }
+        BenchmarkSuiteArg::CleanCensus => unreachable!(),
     };
     let csv = report
         .to_csv()
@@ -501,17 +540,24 @@ fn compare_external_command(
 
 fn generate_command(
     family: GenerateFamilyArg,
+    t: Option<usize>,
     horizontal: usize,
     vertical: usize,
     json_path: &Path,
     svg_path: &Path,
 ) -> Result<(), CliError> {
-    if horizontal == 0 || vertical == 0 {
+    if matches!(family, GenerateFamilyArg::DenseConflict) && (horizontal == 0 || vertical == 0) {
         return Err(CliError::Input(
             "dense-conflict chord targets must be positive".to_owned(),
         ));
     }
     let instance = match family {
+        GenerateFamilyArg::CleanCompleteBipartite => {
+            rect_verify::adversarial::clean_complete_bipartite_grid(t.ok_or_else(|| {
+                CliError::Input("clean-complete-bipartite requires --t".to_owned())
+            })?)
+            .map_err(|error| CliError::Input(error.to_string()))?
+        }
         GenerateFamilyArg::DenseConflict => {
             rect_verify::adversarial::dense_conflict_grid(horizontal, vertical)
         }
@@ -529,7 +575,7 @@ fn generate_command(
         .map_err(|error| CliError::Input(error.to_string()))?;
     let [component] = components.as_slice() else {
         return Err(CliError::Input(format!(
-            "dense-conflict generator produced {} foreground components",
+            "generator produced {} foreground components",
             components.len()
         )));
     };
@@ -569,6 +615,7 @@ fn solve_command(
     solver: SolverArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
+    representation: Option<RepresentationArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -577,7 +624,13 @@ fn solve_command(
     let components = grid.four_connected_components();
     let mut solutions = Vec::with_capacity(components.len());
     for component in &components {
-        let result = solve_component(component, solver, chord_enumerator, completion_backend)?;
+        let result = solve_component(
+            component,
+            solver,
+            chord_enumerator,
+            completion_backend,
+            representation,
+        )?;
         solutions.push(ComponentSolution {
             component_id: component.id.0,
             color: component.color.clone(),
@@ -604,43 +657,55 @@ fn solve_component<C>(
     solver: SolverArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
+    representation: Option<RepresentationArg>,
 ) -> Result<DissectionResult, CliError> {
     let completion_backend = completion_backend.map(completion_backend_kind);
     match solver {
-        SolverArg::ExactCover => rect_oracle_exact_cover::solve(component)
-            .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::SgExplicit => {
-            if completion_backend.is_some() {
+        SolverArg::ExactCover => {
+            if completion_backend.is_some() || representation.is_some() {
                 return Err(CliError::Input(
-                    "--completion-backend applies only to dominance solvers".to_owned(),
+                    "completion and representation options apply only to dominance solvers"
+                        .to_owned(),
+                ));
+            }
+            rect_oracle_exact_cover::solve(component)
+                .map_err(|error| CliError::Solver(error.to_string()))
+        }
+        SolverArg::SgExplicit => {
+            if completion_backend.is_some() || representation.is_some() {
+                return Err(CliError::Input(
+                    "completion and representation options apply only to dominance solvers"
+                        .to_owned(),
                 ));
             }
             rect_oracle_sg::solve(component).map_err(|error| CliError::Solver(error.to_string()))
         }
-        SolverArg::DominanceC0 => rect_dominance::solve(component, DominanceMode::ExplicitEdges)
-            .map_err(|error| CliError::Solver(error.to_string())),
-        SolverArg::DominanceCompressed => {
-            solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
-                component,
-                VerificationMode::FullyAudited,
-                dominance_enumerator(
-                    chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise),
-                ),
-                completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
-            )
-            .map_err(|error| CliError::Solver(error.to_string()))
+        SolverArg::DominanceC0 => {
+            if completion_backend.is_some() || representation.is_some() {
+                return Err(CliError::Input(
+                    "completion and representation options apply only to dominance solvers"
+                        .to_owned(),
+                ));
+            }
+            rect_dominance::solve(component, DominanceMode::ExplicitEdges)
+                .map_err(|error| CliError::Solver(error.to_string()))
         }
-        SolverArg::DominanceCompactOnly => {
-            solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
-                component,
-                VerificationMode::CompactOnly,
-                dominance_enumerator(
-                    chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns),
-                ),
-                completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
-            )
-            .map_err(|error| CliError::Solver(error.to_string()))
-        }
+        SolverArg::DominanceCompressed => solve_with_representation(
+            component,
+            VerificationMode::FullyAudited,
+            representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+            dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise)),
+            completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
+        )
+        .map_err(|error| CliError::Solver(error.to_string())),
+        SolverArg::DominanceCompactOnly => solve_with_representation(
+            component,
+            VerificationMode::CompactOnly,
+            representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+            dominance_enumerator(chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns)),
+            completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
+        )
+        .map_err(|error| CliError::Solver(error.to_string())),
     }
 }
 
@@ -655,6 +720,14 @@ const fn dominance_enumerator(enumerator: ChordEnumeratorArg) -> ChordEnumerator
     match enumerator {
         ChordEnumeratorArg::ReferencePairwise => ChordEnumerator::ReferencePairwise,
         ChordEnumeratorArg::GridInteriorRuns => ChordEnumerator::GridInteriorRuns,
+    }
+}
+
+const fn representation_kind(representation: RepresentationArg) -> ConflictRepresentationBackend {
+    match representation {
+        RepresentationArg::Dominance4d => ConflictRepresentationBackend::GeneralDominance4D,
+        RepresentationArg::PathTree => ConflictRepresentationBackend::CleanHoleFreePathTree,
+        RepresentationArg::Auto => ConflictRepresentationBackend::Auto,
     }
 }
 
@@ -927,7 +1000,9 @@ mod tests {
 
     use serde_json::Value;
 
-    use super::{ChordEnumeratorArg, CompletionBackendArg, SolverArg, solve_command};
+    use super::{
+        ChordEnumeratorArg, CompletionBackendArg, RepresentationArg, SolverArg, solve_command,
+    };
 
     #[test]
     fn compact_only_svg_keeps_forbidden_execution_trace_false() {
@@ -946,9 +1021,10 @@ mod tests {
             SolverArg::DominanceCompactOnly,
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
-            &input,
-            Some(&output),
-            Some(&svg),
+            Some(RepresentationArg::Dominance4d),
+            input.as_path(),
+            Some(output.as_path()),
+            Some(svg.as_path()),
         )
         .unwrap();
         let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();

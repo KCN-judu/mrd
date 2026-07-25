@@ -93,6 +93,15 @@ pub struct Diagnostics {
     pub boundary_extraction_microseconds: Option<u128>,
     pub reflex_grouping_microseconds: Option<u128>,
     pub occupancy_bytes: Option<usize>,
+    pub conflict_representation: Option<String>,
+    pub clean_hole_free_eligible: Option<bool>,
+    pub path_tree_orientation: Option<String>,
+    pub dual_region_count: Option<usize>,
+    pub path_count: Option<usize>,
+    pub path_edge_incidence_count: Option<usize>,
+    pub canonical_segment_node_count: Option<usize>,
+    pub path_tree_sigma: Option<usize>,
+    pub four_d_sigma: Option<usize>,
     pub owned_allocation_estimates: BTreeMap<String, usize>,
 }
 
