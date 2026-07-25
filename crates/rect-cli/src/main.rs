@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -193,6 +194,7 @@ enum BenchmarkSuiteArg {
     CompletionHeavy,
     AreaHeavy,
     PathTreeComparison,
+    PathTreeFamilies,
     Polyomino,
 }
 
@@ -213,10 +215,16 @@ struct JsonGrid {
 struct PreservedExperimentManifest {
     schema_version: usize,
     runs: Vec<rect_verify::benchmark::BenchmarkMetadata>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    release_metadata: Option<ReleaseMetadata>,
+    #[serde(
+        default,
+        alias = "release_metadata",
+        skip_serializing_if = "Option::is_none"
+    )]
+    historical_release_metadata: Option<ReleaseMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
     release_summaries: Option<Vec<ReleaseSummary>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    current_release: Option<CurrentRelease>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generated_tables: Option<Vec<String>>,
 }
@@ -241,6 +249,14 @@ struct ReleaseSummary {
     peeled_commit: String,
     evidence: String,
     result_commits: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CurrentRelease {
+    version: String,
+    tag: String,
+    peeled_commit: String,
+    defaults: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -479,6 +495,12 @@ fn benchmark_command(
         }
         BenchmarkSuiteArg::PathTreeComparison => {
             rect_verify::benchmark::benchmark_path_tree_comparison(context, sizes)
+        }
+        BenchmarkSuiteArg::PathTreeFamilies => {
+            rect_verify::benchmark::benchmark_path_tree_geometry_families(
+                context,
+                sizes.iter().copied().max().unwrap_or(5),
+            )
         }
         BenchmarkSuiteArg::DenseConflict => {
             rect_verify::benchmark::benchmark_dense_conflict(context, sizes)
@@ -936,13 +958,15 @@ fn update_manifest(
         serde_json::from_slice::<PreservedExperimentManifest>(&fs::read(path)?)?
     } else {
         PreservedExperimentManifest {
-            schema_version: 1,
+            schema_version: 3,
             runs: Vec::new(),
-            release_metadata: None,
+            historical_release_metadata: None,
             release_summaries: None,
+            current_release: None,
             generated_tables: None,
         }
     };
+    manifest.schema_version = 3;
     manifest.runs.push(metadata);
     write_json(&manifest, Some(path))
 }
@@ -1097,7 +1121,8 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        ChordEnumeratorArg, CompletionBackendArg, RepresentationArg, SolverArg, solve_command,
+        ChordEnumeratorArg, CompletionBackendArg, PathTreeOrientationArg, RegionDualArg,
+        RepresentationArg, SolverArg, solve_command,
     };
 
     #[test]
@@ -1139,6 +1164,52 @@ mod tests {
             assert_eq!(trace[key], false, "forbidden trace flag {key}");
         }
         assert_eq!(trace["compact_structure_check_called"], true);
+        assert!(!fs::read(&svg).unwrap().is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn compact_path_tree_svg_uses_axis_view_without_transpose() {
+        let root = std::env::temp_dir().join(format!(
+            "mrd-compact-path-tree-svg-regression-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("input.json");
+        let output = root.join("output.json");
+        let svg = root.join("output.svg");
+        fs::write(
+            &input,
+            br#"{"width":3,"height":3,"cells":["a","a","a","a","a","a","a","a","a"]}"#,
+        )
+        .unwrap();
+        solve_command(
+            SolverArg::DominanceCompactOnly,
+            Some(ChordEnumeratorArg::GridInteriorRuns),
+            Some(CompletionBackendArg::IndexedFrontier),
+            Some(RepresentationArg::PathTree),
+            Some(RegionDualArg::BoundaryLaminar),
+            Some(PathTreeOrientationArg::HorizontalTree),
+            input.as_path(),
+            Some(output.as_path()),
+            Some(svg.as_path()),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        let diagnostics = &value["components"][0]["result"]["diagnostics"];
+        assert_eq!(diagnostics["region_dual_backend"], "boundary-laminar");
+        assert_eq!(
+            diagnostics["path_tree_orientation_policy"],
+            "horizontal-tree"
+        );
+        assert_eq!(
+            diagnostics["execution_trace"]["prepared_occupancy_transposed"],
+            false
+        );
+        assert_eq!(
+            diagnostics["execution_trace"]["area_flood_fill_dual_built"],
+            false
+        );
         assert!(!fs::read(&svg).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }

@@ -5,6 +5,7 @@ use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
     solve_with_representation_and_region_dual,
+    solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
@@ -464,7 +465,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,dual_region_count,path_count,path_edge_incidence_count,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -554,9 +555,22 @@ impl BenchmarkReport {
                     .path_tree_orientation
                     .clone()
                     .unwrap_or_default(),
+                row.diagnostics
+                    .path_tree_orientation_policy
+                    .clone()
+                    .unwrap_or_default(),
                 optional_number(row.diagnostics.dual_region_count),
+                optional_number(row.diagnostics.dual_tree_vertex_count),
                 optional_number(row.diagnostics.path_count),
                 optional_number(row.diagnostics.path_edge_incidence_count),
+                optional_number(row.diagnostics.total_path_length_metric),
+                optional_number(row.diagnostics.dual_tree_max_depth),
+                optional_number(row.diagnostics.dual_tree_max_branching_degree),
+                optional_number(row.diagnostics.heavy_chain_count),
+                optional_number(row.diagnostics.heavy_chain_interval_count),
+                optional_number(row.diagnostics.tree_edge_occurrences),
+                optional_number(row.diagnostics.theoretical_path_occurrence_bound),
+                optional_number(row.diagnostics.theoretical_tree_edge_occurrence_bound),
                 optional_number(row.diagnostics.canonical_segment_node_count),
                 optional_number(row.diagnostics.path_tree_sigma),
                 optional_number(row.diagnostics.four_d_sigma),
@@ -1075,6 +1089,195 @@ pub fn benchmark_clean_complete_bipartite_compact(
         failure_fixtures: Vec::new(),
         rows,
     }
+}
+
+#[must_use]
+pub fn benchmark_path_tree_geometry_families(
+    context: BenchmarkContext,
+    scale: usize,
+) -> BenchmarkReport {
+    let instances = crate::adversarial::path_tree_geometry_families(scale);
+    let mut rows = Vec::new();
+    for instance in instances {
+        let components = match instance.foreground_components() {
+            Ok(components) => components,
+            Err(error) => {
+                rows.push(BenchmarkRow {
+                    instance_name: instance.name,
+                    family: instance.family,
+                    parameters: instance.parameters,
+                    component_id: 0,
+                    status: "unsupported".to_owned(),
+                    message: Some(error.to_string()),
+                    exact_cover_compared: false,
+                    diagnostics: Diagnostics::default(),
+                    c0_phase_microseconds: BTreeMap::new(),
+                    compressed_phase_microseconds: BTreeMap::new(),
+                    compact_only_phase_microseconds: BTreeMap::new(),
+                });
+                continue;
+            }
+        };
+        for component in components {
+            let geometry = match rect_oracle_sg::analyze_geometry_with(
+                &component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            ) {
+                Ok(geometry) => geometry,
+                Err(error) => {
+                    rows.push(BenchmarkRow {
+                        instance_name: instance.name.clone(),
+                        family: instance.family.clone(),
+                        parameters: instance.parameters.clone(),
+                        component_id: component.id.0,
+                        status: "solver-error".to_owned(),
+                        message: Some(error.to_string()),
+                        exact_cover_compared: false,
+                        diagnostics: Diagnostics::default(),
+                        c0_phase_microseconds: BTreeMap::new(),
+                        compressed_phase_microseconds: BTreeMap::new(),
+                        compact_only_phase_microseconds: BTreeMap::new(),
+                    });
+                    continue;
+                }
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            if !certificate.eligible {
+                rows.push(BenchmarkRow {
+                    instance_name: instance.name.clone(),
+                    family: instance.family.clone(),
+                    parameters: instance.parameters.clone(),
+                    component_id: component.id.0,
+                    status: "unsupported".to_owned(),
+                    message: Some("clean certificate rejected".to_owned()),
+                    exact_cover_compared: false,
+                    diagnostics: Diagnostics {
+                        cell_count: component.cell_count(),
+                        ..Diagnostics::default()
+                    },
+                    c0_phase_microseconds: BTreeMap::new(),
+                    compressed_phase_microseconds: BTreeMap::new(),
+                    compact_only_phase_microseconds: BTreeMap::new(),
+                });
+                continue;
+            }
+            let build_both = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
+            );
+            let bound = solve_with_representation_and_region_dual_and_orientation_policy(
+                &component,
+                VerificationMode::CompactOnly,
+                ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::IndexedFrontier,
+                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
+            );
+            let (status, message, diagnostics) = match (build_both, bound) {
+                (Ok(exact), Ok(estimated))
+                    if exact.optimum_rectangle_count == estimated.optimum_rectangle_count
+                        && exact.rectangles == estimated.rectangles
+                        && exact.diagnostics.path_tree_sigma
+                            == estimated.diagnostics.path_tree_sigma
+                        && path_tree_growth_guards(&estimated.diagnostics)
+                        && estimated.diagnostics.execution_trace
+                            == rect_core::ExecutionTrace {
+                                compact_structure_check_called: true,
+                                ..rect_core::ExecutionTrace::default()
+                            } =>
+                {
+                    ("verified".to_owned(), None, estimated.diagnostics)
+                }
+                (Ok(exact), Ok(estimated)) => (
+                    "counterexample".to_owned(),
+                    Some(format!(
+                        "bound estimate differs: exact sigma {:?}, selected sigma {:?}",
+                        exact.diagnostics.path_tree_sigma, estimated.diagnostics.path_tree_sigma
+                    )),
+                    estimated.diagnostics,
+                ),
+                (Err(error), _) | (_, Err(error)) => (
+                    "solver-error".to_owned(),
+                    Some(error.to_string()),
+                    Diagnostics {
+                        cell_count: component.cell_count(),
+                        ..Diagnostics::default()
+                    },
+                ),
+            };
+            rows.push(BenchmarkRow {
+                instance_name: instance.name.clone(),
+                family: instance.family.clone(),
+                parameters: instance.parameters.clone(),
+                component_id: component.id.0,
+                status,
+                message,
+                exact_cover_compared: false,
+                diagnostics,
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
+                compact_only_phase_microseconds: BTreeMap::new(),
+            });
+        }
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: 4,
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-grid-path-tree-families".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
+        counterexample_count: count_status(&rows, "counterexample"),
+        failure_fixtures: Vec::new(),
+        rows,
+    }
+}
+
+fn path_tree_growth_guards(diagnostics: &Diagnostics) -> bool {
+    let q = diagnostics.total_chord_count;
+    let l = if q == 0 {
+        0
+    } else {
+        usize::BITS as usize - q.leading_zeros() as usize
+    };
+    let interval_bound = diagnostics
+        .path_count
+        .unwrap_or(0)
+        .saturating_mul(l)
+        .saturating_mul(4);
+    let canonical_bound = diagnostics
+        .path_count
+        .unwrap_or(0)
+        .saturating_mul(l)
+        .saturating_mul(l)
+        .saturating_mul(4);
+    let tree_edge_bound = diagnostics
+        .dual_tree_edge_count
+        .unwrap_or(0)
+        .saturating_mul(l)
+        .saturating_mul(4);
+    diagnostics.heavy_chain_interval_count.unwrap_or(0) <= interval_bound
+        && diagnostics.canonical_segment_node_count.unwrap_or(0) <= canonical_bound
+        && diagnostics.tree_edge_occurrences.unwrap_or(0) <= tree_edge_bound
 }
 
 #[must_use]
