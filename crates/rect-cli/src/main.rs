@@ -12,7 +12,7 @@ use rect_dominance::{
 };
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -730,11 +730,15 @@ fn update_manifest(
     metadata: rect_verify::benchmark::BenchmarkMetadata,
 ) -> Result<(), CliError> {
     let mut manifest = if path.exists() {
-        serde_json::from_slice::<rect_verify::benchmark::ExperimentManifest>(&fs::read(path)?)?
+        serde_json::from_slice::<Value>(&fs::read(path)?)?
     } else {
-        rect_verify::benchmark::ExperimentManifest::default()
+        json!({ "schema_version": 1, "runs": [] })
     };
-    manifest.runs.push(metadata);
+    let runs = manifest
+        .get_mut("runs")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| CliError::Output("experiment manifest has no runs array".to_owned()))?;
+    runs.push(serde_json::to_value(metadata)?);
     write_json(&manifest, Some(path))
 }
 
