@@ -29,7 +29,11 @@ path-tree     require a clean-hole-free certificate
 auto          path-tree when eligible, otherwise compact 4D fallback
 ```
 
-The CLI exposes the selector as `--representation`. The current reference
-implementation records `vertical-tree-horizontal-paths`; a symmetric
-orientation and planar-sweep dual construction remain follow-up work. Dinic is
-still the exact practical flow backend.
+The CLI exposes the selector as `--representation`. For an eligible component,
+the path-tree backend constructs both orientations on the prepared occupancy
+and deterministically keeps the one with smaller biclique vertex-occurrence
+size, breaking ties in favor of `vertical-tree-horizontal-paths`. The selected
+orientation is recorded in `diagnostics.path_tree_orientation` and in the
+certificate. Both orientations reuse the same grid reference dual and HLD
+implementation; the dual construction remains area-sensitive rather than the
+paper's planar sweep. Dinic is still the exact practical flow backend.

@@ -77,6 +77,34 @@ pub struct PathTreePartition {
     pub canonical_segment_node_count: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PathTreeOrientation {
+    VerticalTreeHorizontalPaths,
+    HorizontalTreeVerticalPaths,
+}
+
+impl PathTreeOrientation {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::VerticalTreeHorizontalPaths => "vertical-tree-horizontal-paths",
+            Self::HorizontalTreeVerticalPaths => "horizontal-tree-vertical-paths",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct OrientedPathTreePartition {
+    pub orientation: PathTreeOrientation,
+    pub path_tree: PathTreePartition,
+    pub biclique_partition: BicliquePartition,
+    pub total_path_edge_incidences: usize,
+    pub canonical_segment_node_count: usize,
+    pub dual_region_count: usize,
+    pub path_count: usize,
+}
+
 #[derive(Debug, Error)]
 pub enum PathTreeError {
     #[error("path-tree construction requires a clean hole-free certificate")]
@@ -93,6 +121,8 @@ pub enum PathTreeError {
     MissingTreePath,
     #[error("path-tree edge partition audit failed: {audit:?}")]
     PartitionAudit { audit: PathTreeAudit },
+    #[error("transposed path-tree chord construction failed")]
+    InvalidTransposedChord,
 }
 
 /// Builds the vertical-chord region dual from prepared occupancy.
@@ -499,6 +529,167 @@ pub fn build_path_tree_partition(
     })
 }
 
+fn transpose_prepared(prepared: &PreparedGridComponent) -> PreparedGridComponent {
+    let width = prepared.width();
+    let height = prepared.height();
+    let mut occupancy = vec![false; width * height];
+    for y in 0..height {
+        for x in 0..width {
+            occupancy[x * height + y] = prepared.occupancy[y * width + x];
+        }
+    }
+    PreparedGridComponent {
+        x0: prepared.y0,
+        y0: prepared.x0,
+        x1: prepared.y1,
+        y1: prepared.x1,
+        occupancy,
+        occupancy_prefix_sums: vec![0; (height + 1) * (width + 1)],
+        horizontal_interior_runs: vec![Vec::new(); width + 1],
+        vertical_interior_runs: vec![Vec::new(); height + 1],
+    }
+}
+
+fn transpose_chords(
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+) -> Result<(Vec<HorizontalChord>, Vec<VerticalChord>), PathTreeError> {
+    let horizontal = vertical_chords
+        .iter()
+        .map(|&chord| {
+            HorizontalChord::new(
+                HorizontalChordId(chord.id().0),
+                chord.bottom(),
+                chord.top(),
+                chord.x(),
+            )
+            .map_err(|_| PathTreeError::InvalidTransposedChord)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let vertical = horizontal_chords
+        .iter()
+        .map(|&chord| {
+            VerticalChord::new(
+                VerticalChordId(chord.id().0),
+                chord.y(),
+                chord.left(),
+                chord.right(),
+            )
+            .map_err(|_| PathTreeError::InvalidTransposedChord)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((horizontal, vertical))
+}
+
+/// Builds a path-tree partition in either orientation.
+///
+/// The horizontal-tree orientation is constructed by transposing the prepared
+/// occupancy and chord coordinates, reusing the same reference dual and HLD
+/// code, and swapping the resulting biclique sides back to the original H/V
+/// convention.  The two orientations therefore have identical edge semantics
+/// while exposing different compact-size tradeoffs.
+pub fn build_oriented_path_tree_partition(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    orientation: PathTreeOrientation,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
+    match orientation {
+        PathTreeOrientation::VerticalTreeHorizontalPaths => {
+            let partition = build_path_tree_partition(
+                prepared,
+                boundary,
+                horizontal_chords,
+                vertical_chords,
+                certificate,
+            )?;
+            let biclique_partition = partition.biclique_partition.clone();
+            let dual_region_count = partition.tree.region_count;
+            let path_count = partition.paths.len();
+            let total_path_edge_incidences = partition.total_path_edge_incidences;
+            let canonical_segment_node_count = partition.canonical_segment_node_count;
+            Ok(OrientedPathTreePartition {
+                orientation,
+                path_tree: partition,
+                dual_region_count,
+                path_count,
+                total_path_edge_incidences,
+                canonical_segment_node_count,
+                biclique_partition,
+            })
+        }
+        PathTreeOrientation::HorizontalTreeVerticalPaths => {
+            let transposed_prepared = transpose_prepared(prepared);
+            let (transposed_horizontal, transposed_vertical) =
+                transpose_chords(horizontal_chords, vertical_chords)?;
+            let transposed = build_path_tree_partition(
+                &transposed_prepared,
+                boundary,
+                &transposed_horizontal,
+                &transposed_vertical,
+                certificate,
+            )?;
+            let mut transposed = transposed;
+            let bicliques = std::mem::take(&mut transposed.biclique_partition.bicliques)
+                .into_iter()
+                .map(|biclique| Biclique {
+                    id: biclique.id,
+                    left: biclique.right,
+                    right: biclique.left,
+                })
+                .collect();
+            let biclique_partition = BicliquePartition { bicliques };
+            transposed.biclique_partition = biclique_partition.clone();
+            Ok(OrientedPathTreePartition {
+                orientation,
+                dual_region_count: transposed.tree.region_count,
+                path_count: transposed.paths.len(),
+                total_path_edge_incidences: transposed.total_path_edge_incidences,
+                canonical_segment_node_count: transposed.canonical_segment_node_count,
+                biclique_partition,
+                path_tree: transposed,
+            })
+        }
+    }
+}
+
+/// Builds both orientations and returns the one with the smaller compact
+/// vertex-occurrence size. Ties are resolved in favor of the historical
+/// vertical-tree orientation for stable certificates.
+pub fn build_best_path_tree_partition(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
+    let vertical = build_oriented_path_tree_partition(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate.clone(),
+        PathTreeOrientation::VerticalTreeHorizontalPaths,
+    )?;
+    let horizontal = build_oriented_path_tree_partition(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        PathTreeOrientation::HorizontalTreeVerticalPaths,
+    )?;
+    if horizontal.biclique_partition.total_vertex_occurrences()
+        < vertical.biclique_partition.total_vertex_occurrences()
+    {
+        Ok(horizontal)
+    } else {
+        Ok(vertical)
+    }
+}
+
 impl PathTreePartition {
     /// Audits the tree-derived edge partition against chord geometry.
     ///
@@ -585,8 +776,8 @@ mod tests {
     use rect_oracle_sg::{analyze_geometry, classify_clean_hole_free};
 
     use super::{
-        DualRegionId, DualTreeEdge, HeavyLightDecomposition, RegionDualTree, VerticalChordId,
-        build_path_tree_partition,
+        DualRegionId, DualTreeEdge, HeavyLightDecomposition, PathTreeOrientation, RegionDualTree,
+        VerticalChordId, build_oriented_path_tree_partition, build_path_tree_partition,
     };
 
     fn synthetic_tree(node_count: usize, edges: &[(usize, usize)]) -> RegionDualTree {
@@ -710,6 +901,63 @@ mod tests {
             }
         }
         assert!(audited > 0);
+    }
+
+    #[test]
+    fn both_path_tree_orientations_partition_clean_conflicts() {
+        let mut compared = 0;
+        for mask in 1_u32..(1_u32 << 16) {
+            let cells = (0..16)
+                .map(|index| mask & (1_u32 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(4, 4, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let Ok(geometry) = analyze_geometry(&component) else {
+                    continue;
+                };
+                let certificate = classify_clean_hole_free(
+                    &component,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                );
+                if !certificate.eligible
+                    || geometry.horizontal_chords.is_empty()
+                    || geometry.vertical_chords.is_empty()
+                {
+                    continue;
+                }
+                let graph = rect_oracle_sg::build_conflict_graph(
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                )
+                .unwrap();
+                for orientation in [
+                    PathTreeOrientation::VerticalTreeHorizontalPaths,
+                    PathTreeOrientation::HorizontalTreeVerticalPaths,
+                ] {
+                    let partition = build_oriented_path_tree_partition(
+                        &geometry.prepared,
+                        &geometry.boundary,
+                        &geometry.horizontal_chords,
+                        &geometry.vertical_chords,
+                        certificate.clone(),
+                        orientation,
+                    )
+                    .unwrap();
+                    partition
+                        .biclique_partition
+                        .verify_exact_partition(&graph)
+                        .unwrap();
+                }
+                compared += 1;
+            }
+        }
+        assert!(compared > 0);
     }
 
     #[test]

@@ -66,12 +66,14 @@ are checked in the same pass.
 Compact-only diagnostics serialize `explicit_conflict_edge_count` as `null`.
 
 On a clean hole-free component, `--representation path-tree` replaces the
-four-dimensional edge partition with a geometry-derived vertical region dual
-and horizontal tree paths. Heavy-light canonical segment nodes produce the
-bicliques consumed by the same compressed flow backend. `--representation auto`
-selects this representation only when the clean certificate passes and records
-a compact 4D fallback otherwise. The grid dual builder is area-sensitive and
-does not claim the paper's planar-sweep construction; see
+four-dimensional edge partition with a geometry-derived region dual and tree
+paths. Both vertical-tree/horizontal-path and horizontal-tree/vertical-path
+orientations are constructed, and the smaller biclique partition is selected
+deterministically. Heavy-light canonical segment nodes produce the bicliques
+consumed by the same compressed flow backend. `--representation auto` selects
+this representation only when the clean certificate passes and records a
+compact 4D fallback otherwise. The grid dual builders are area-sensitive and
+do not claim the paper's planar-sweep construction; see
 `docs/CLEAN_HOLE_FREE.md` and `docs/PATH_TREE_REPRESENTATION.md`.
 
 Stage C0 creates one biclique per explicit dominance edge. Stage C1 implements

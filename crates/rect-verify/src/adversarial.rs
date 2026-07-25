@@ -18,31 +18,96 @@ pub struct AdversarialInstance {
     pub parameters: BTreeMap<String, usize>,
 }
 
-/// Attempts to return a clean complete-bipartite grid realization.
+/// Returns an integer-grid realization of the clean complete-bipartite family.
 ///
-/// The continuous construction from the paper is not yet encoded in the
-/// supported finite-grid model, so requests are rejected explicitly rather
-/// than emitting a non-clean dense approximation.
+/// The construction uses disjoint one-cell notch intervals in a rectangular
+/// background.  The horizontal notch pairs produce two horizontal chords per
+/// interval, and the vertical notch pairs produce two vertical chords per
+/// interval.  All four families are separated by a wide integer margin, so
+/// the only cross-orientation intersections are the intended complete
+/// bipartite ones.
 ///
 /// # Errors
 ///
-/// Returns [`CleanCompleteBipartiteError`] because no supported integer-grid
-/// realization has yet been proved.
+///
+/// # Errors
+///
+/// Returns [`CleanCompleteBipartiteError`] when `t` is zero or the generated
+/// dimensions overflow `usize`.
 pub fn clean_complete_bipartite_grid(
     t: usize,
 ) -> Result<AdversarialInstance, CleanCompleteBipartiteError> {
     if t == 0 {
         return Err(CleanCompleteBipartiteError::ZeroParameter);
     }
-    Err(CleanCompleteBipartiteError::UnsupportedScale { t })
+    let margin = t
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(6))
+        .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+    let span = t
+        .checked_mul(3)
+        .and_then(|value| value.checked_add(2))
+        .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+    let width = margin
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(span))
+        .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+    let height = width;
+    let cell_count = width
+        .checked_mul(height)
+        .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+    let mut cells = vec![true; cell_count];
+
+    for index in 0..t {
+        let interval_start = margin
+            + index
+                .checked_mul(3)
+                .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+        let left_depth = 2 + index;
+        let right_depth = 2 + t + index;
+        for y in interval_start..interval_start + 1 {
+            for x in 0..left_depth {
+                set_cell(&mut cells, width, x, y, false);
+            }
+            for x in width - right_depth..width {
+                set_cell(&mut cells, width, x, y, false);
+            }
+        }
+    }
+
+    for index in 0..t {
+        let interval_start = margin
+            + index
+                .checked_mul(3)
+                .ok_or(CleanCompleteBipartiteError::DimensionOverflow)?;
+        let bottom_depth = 2 + index;
+        let top_depth = 2 + t + index;
+        for x in interval_start..interval_start + 1 {
+            for y in 0..bottom_depth {
+                set_cell(&mut cells, width, x, y, false);
+            }
+            for y in height - top_depth..height {
+                set_cell(&mut cells, width, x, y, false);
+            }
+        }
+    }
+
+    Ok(AdversarialInstance {
+        name: format!("clean-complete-bipartite-t{t}"),
+        family: "clean-complete-bipartite".to_owned(),
+        width,
+        height,
+        cells,
+        parameters: [("t".to_owned(), t)].into_iter().collect(),
+    })
 }
 
 #[derive(Debug, Error)]
 pub enum CleanCompleteBipartiteError {
     #[error("complete-bipartite parameter t must be positive")]
     ZeroParameter,
-    #[error("no finite-grid clean complete-bipartite realization is encoded for t={t}")]
-    UnsupportedScale { t: usize },
+    #[error("complete-bipartite dimensions overflow usize")]
+    DimensionOverflow,
 }
 
 impl AdversarialInstance {
@@ -641,8 +706,8 @@ mod tests {
     };
 
     use super::{
-        contains_complete_bipartite, dense_conflict_grid, endpoint_chord_cases,
-        endpoint_contact_instances, external_oracle_adversarial_instances,
+        clean_complete_bipartite_grid, contains_complete_bipartite, dense_conflict_grid,
+        endpoint_chord_cases, endpoint_contact_instances, external_oracle_adversarial_instances,
         topological_stress_instances,
     };
     use crate::verify_component;
@@ -861,6 +926,72 @@ mod tests {
                 compact_only.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
                 0
             );
+        }
+    }
+
+    #[test]
+    fn clean_complete_bipartite_family_is_exact_and_clean() {
+        for t in 1..=4 {
+            let instance = clean_complete_bipartite_grid(t).unwrap();
+            let components = instance.foreground_components().unwrap();
+            assert_eq!(components.len(), 1, "t={t}");
+            let component = &components[0];
+            let geometry =
+                rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)
+                    .unwrap();
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            assert!(certificate.eligible, "t={t}: {certificate:?}");
+            assert_eq!(geometry.horizontal_chords.len(), 2 * t, "t={t}");
+            assert_eq!(geometry.vertical_chords.len(), 2 * t, "t={t}");
+            let analysis =
+                rect_oracle_sg::analyze_with(component, &GridInteriorRunEnumerator).unwrap();
+            assert_eq!(analysis.conflict_graph.edge_count(), 4 * t * t, "t={t}");
+            assert!(contains_complete_bipartite(
+                &analysis.conflict_graph,
+                2 * t,
+                2 * t
+            ));
+            let path_tree = rect_dominance::solve_with_representation(
+                component,
+                rect_dominance::VerificationMode::FullyAudited,
+                rect_dominance::ConflictRepresentationBackend::CleanHoleFreePathTree,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                rect_oracle_sg::CompletionBackendKind::ReferenceRescan,
+            );
+            assert!(path_tree.is_ok(), "t={t}: {path_tree:?}");
+        }
+    }
+
+    #[test]
+    fn clean_path_tree_compact_execution_remains_edge_free() {
+        for t in 1..=3 {
+            let instance = clean_complete_bipartite_grid(t).unwrap();
+            let component = instance.foreground_components().unwrap().remove(0);
+            let result = rect_dominance::solve_with_representation(
+                &component,
+                rect_dominance::VerificationMode::CompactOnly,
+                rect_dominance::ConflictRepresentationBackend::CleanHoleFreePathTree,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                rect_oracle_sg::CompletionBackendKind::IndexedFrontier,
+            )
+            .unwrap();
+            assert_eq!(result.diagnostics.explicit_conflict_edge_count, None);
+            assert_eq!(
+                result.diagnostics.execution_trace,
+                rect_core::ExecutionTrace {
+                    compact_structure_check_called: true,
+                    ..rect_core::ExecutionTrace::default()
+                }
+            );
+            assert!(matches!(
+                result.diagnostics.path_tree_orientation.as_deref(),
+                Some("vertical-tree-horizontal-paths") | Some("horizontal-tree-vertical-paths")
+            ));
         }
     }
 

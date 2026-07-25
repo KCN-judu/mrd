@@ -10,7 +10,7 @@ use std::time::Instant;
 use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
-use path_tree::{PathTreeError, build_path_tree_partition};
+use path_tree::{PathTreeError, build_best_path_tree_partition};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
     PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
@@ -875,19 +875,17 @@ fn solve_path_tree_with_geometry<C>(
     completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let path_tree = build_path_tree_partition(
+    let path_tree = build_best_path_tree_partition(
         &geometry.prepared,
         &geometry.boundary,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
         certificate.clone(),
     )?;
-    path_tree.verify_paths(&geometry.horizontal_chords, &geometry.vertical_chords)?;
-    let path_audit =
-        path_tree.audit_edge_partition(&geometry.horizontal_chords, &geometry.vertical_chords)?;
     let path_tree_at = Instant::now();
     let mut four_d_sigma = None;
     let mut audited_matching_size = None;
+    let mut audited_edge_count = None;
     if mode == VerificationMode::FullyAudited {
         let graph = rect_oracle_sg::build_conflict_graph(
             &geometry.horizontal_chords,
@@ -896,6 +894,7 @@ fn solve_path_tree_with_geometry<C>(
         path_tree
             .biclique_partition
             .verify_exact_partition(&graph)?;
+        audited_edge_count = Some(graph.edge_count());
         let embedding =
             DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
         embedding
@@ -1011,8 +1010,7 @@ fn solve_path_tree_with_geometry<C>(
             horizontal_chord_count: geometry.horizontal_chords.len(),
             vertical_chord_count: geometry.vertical_chords.len(),
             total_chord_count,
-            explicit_conflict_edge_count: (mode == VerificationMode::FullyAudited)
-                .then_some(path_audit.explicit_edge_count),
+            explicit_conflict_edge_count: audited_edge_count,
             biclique_count: path_tree.biclique_partition.bicliques.len(),
             biclique_total_vertex_occurrences: sigma,
             biclique_size_per_chord: ExactRatio::new(sigma as u128, total_chord_count as u128),
@@ -1062,9 +1060,9 @@ fn solve_path_tree_with_geometry<C>(
                     .to_owned(),
             ),
             clean_hole_free_eligible: Some(true),
-            path_tree_orientation: Some("vertical-tree-horizontal-paths".to_owned()),
-            dual_region_count: Some(path_tree.tree.region_count),
-            path_count: Some(path_tree.paths.len()),
+            path_tree_orientation: Some(path_tree.orientation.name().to_owned()),
+            dual_region_count: Some(path_tree.dual_region_count),
+            path_count: Some(path_tree.path_count),
             path_edge_incidence_count: Some(path_tree.total_path_edge_incidences),
             canonical_segment_node_count: Some(path_tree.canonical_segment_node_count),
             path_tree_sigma: Some(sigma),
@@ -1075,9 +1073,10 @@ fn solve_path_tree_with_geometry<C>(
             kind: "clean-hole-free-path-tree".to_owned(),
             payload: json!({
                 "verification_mode": mode,
-                "clean_certificate": path_tree.certificate,
-                "region_dual_tree": path_tree.tree,
-                "chord_tree_paths": path_tree.paths,
+                "clean_certificate": path_tree.path_tree.certificate,
+                "region_dual_tree": path_tree.path_tree.tree,
+                "chord_tree_paths": path_tree.path_tree.paths,
+                "orientation": path_tree.orientation,
                 "biclique_partition": path_tree.biclique_partition,
                 "flow_value": flow_value,
                 "cover_left": flow_solution.vertex_cover.left,
