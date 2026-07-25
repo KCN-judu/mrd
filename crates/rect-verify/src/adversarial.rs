@@ -577,7 +577,8 @@ mod tests {
     use rect_core::closed_chords_intersect;
     use rect_dominance::embedding::{DominanceEmbedding, strict_dominance};
     use rect_oracle_sg::{
-        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
+        ReferencePairwiseEnumerator, ReferenceRescanCompletion, analyze, complete_with_backend,
     };
 
     use super::{
@@ -616,6 +617,54 @@ mod tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn completion_backends_match_on_topological_and_dense_adversaries() {
+        let instances = endpoint_contact_instances()
+            .into_iter()
+            .chain(topological_stress_instances())
+            .chain(external_oracle_adversarial_instances())
+            .chain([dense_conflict_grid(4, 5), dense_conflict_grid(8, 8)]);
+        for instance in instances {
+            for component in instance.foreground_components().unwrap() {
+                let analysis = analyze(&component).unwrap();
+                let reference = complete_with_backend(
+                    &component,
+                    &analysis.horizontal_chords,
+                    &analysis.vertical_chords,
+                    &analysis.selected_horizontal,
+                    &analysis.selected_vertical,
+                    &ReferenceRescanCompletion,
+                )
+                .unwrap();
+                let indexed = complete_with_backend(
+                    &component,
+                    &analysis.horizontal_chords,
+                    &analysis.vertical_chords,
+                    &analysis.selected_horizontal,
+                    &analysis.selected_vertical,
+                    &IndexedFrontierCompletion,
+                )
+                .unwrap();
+                assert_eq!(
+                    reference.added_horizontal_unit_cuts, indexed.added_horizontal_unit_cuts,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(
+                    reference.added_vertical_unit_cuts, indexed.added_vertical_unit_cuts,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(
+                    reference.rectangles, indexed.rectangles,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(indexed.metrics.full_grid_vertex_scans, 2);
             }
         }
     }

@@ -404,7 +404,8 @@ fn normalize(mut cells: Vec<SignedCell>) -> Vec<SignedCell> {
 #[cfg(test)]
 mod tests {
     use rect_oracle_sg::{
-        EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator,
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
+        ReferencePairwiseEnumerator, ReferenceRescanCompletion, analyze, complete_with_backend,
     };
 
     use super::{
@@ -471,6 +472,56 @@ mod tests {
                 assert_eq!(
                     reference.vertical, grid_runs.vertical,
                     "vertical family mismatch for {}",
+                    instance.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn completion_backends_match_for_all_polyominoes_through_twelve_cells() {
+        let instances = enumerate_free_polyominoes(12)
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(index, polyomino)| {
+                polyomino.to_instance(format!("completion-differential-{index}"), "free-polyomino")
+            })
+            .chain(explicit_hole_polyominoes(12));
+        for instance in instances {
+            for component in instance.foreground_components().unwrap() {
+                let analysis = analyze(&component).unwrap();
+                let reference = complete_with_backend(
+                    &component,
+                    &analysis.horizontal_chords,
+                    &analysis.vertical_chords,
+                    &analysis.selected_horizontal,
+                    &analysis.selected_vertical,
+                    &ReferenceRescanCompletion,
+                )
+                .unwrap();
+                let indexed = complete_with_backend(
+                    &component,
+                    &analysis.horizontal_chords,
+                    &analysis.vertical_chords,
+                    &analysis.selected_horizontal,
+                    &analysis.selected_vertical,
+                    &IndexedFrontierCompletion,
+                )
+                .unwrap();
+                assert_eq!(
+                    reference.added_horizontal_unit_cuts, indexed.added_horizontal_unit_cuts,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(
+                    reference.added_vertical_unit_cuts, indexed.added_vertical_unit_cuts,
+                    "{}",
+                    instance.name
+                );
+                assert_eq!(
+                    reference.rectangles, indexed.rectangles,
+                    "{}",
                     instance.name
                 );
             }

@@ -66,11 +66,12 @@ impl BenchmarkReport {
     /// # Errors
     ///
     /// Returns `fmt::Error` if writing to the in-memory string fails.
+    #[allow(clippy::too_many_lines)]
     pub fn to_csv(&self) -> Result<String, std::fmt::Error> {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -143,6 +144,29 @@ impl BenchmarkReport {
                 row.diagnostics.maximum_matching_size.to_string(),
                 row.diagnostics.minimum_vertex_cover_size.to_string(),
                 row.diagnostics.output_rectangle_count.to_string(),
+                row.diagnostics
+                    .completion_backend
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(
+                    row.diagnostics
+                        .selected_chord_cut_materialization_microseconds,
+                ),
+                optional_number(
+                    row.diagnostics
+                        .horizontal_simple_chord_completion_microseconds,
+                ),
+                optional_number(
+                    row.diagnostics
+                        .vertical_simple_chord_completion_microseconds,
+                ),
+                optional_number(row.diagnostics.rectangle_recovery_microseconds),
+                optional_number(row.diagnostics.final_output_validation_microseconds),
+                optional_number(row.diagnostics.completion_candidate_queries),
+                optional_number(row.diagnostics.completion_full_grid_scans),
+                optional_number(row.diagnostics.added_horizontal_unit_cut_count),
+                optional_number(row.diagnostics.added_vertical_unit_cut_count),
+                optional_number(row.diagnostics.completion_stale_candidates),
                 c0_phases,
                 compressed_phases,
                 compact_only_phases,
