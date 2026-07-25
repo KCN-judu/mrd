@@ -6,7 +6,9 @@ pub mod grid;
 pub mod result;
 pub mod validation;
 
-pub use boundary::{Boundary, BoundaryError, BoundaryLoop, ReflexVertex};
+pub use boundary::{
+    Boundary, BoundaryError, BoundaryLoop, BoundaryLoopId, BoundaryVertexId, ReflexVertex,
+};
 pub use context::{PreparedComponentContext, PreparedContextError};
 pub use formats::{FormatError, SvgOverlay, render_dissection_svg};
 pub use geometry::{

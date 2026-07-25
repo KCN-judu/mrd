@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet, VecDeque};
 use std::time::Instant;
 
 use rect_core::{
-    Boundary, BoundaryError, Certificate, Coord, Diagnostics, DissectionResult, ExactRatio,
-    GeometryError, GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point,
+    Boundary, BoundaryError, BoundaryVertexId, Certificate, Coord, Diagnostics, DissectionResult,
+    ExactRatio, GeometryError, GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point,
     PreparedComponentContext, PreparedContextError, PreparedGridComponent, ValidationError,
     VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
 };
@@ -51,6 +51,248 @@ pub struct EffectiveChordFamilies {
     pub horizontal_interior_run_count: Option<usize>,
     pub vertical_interior_run_count: Option<usize>,
     pub candidate_reflex_pair_count: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub enum ChordRef {
+    Horizontal(HorizontalChordId),
+    Vertical(VerticalChordId),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct ChordBoundaryEndpoints {
+    pub first: BoundaryVertexId,
+    pub second: BoundaryVertexId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EffectiveChordGeometry<C> {
+    pub chord: C,
+    pub endpoints: ChordBoundaryEndpoints,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CleanHoleFreeCertificate {
+    pub eligible: bool,
+    pub outer_loop_count: usize,
+    pub hole_count: usize,
+    pub all_chords_proper: bool,
+    pub distinct_boundary_endpoints: bool,
+    pub rejection_reasons: Vec<CleanRejectionReason>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CleanRejectionReason {
+    MultipleOuterLoops {
+        count: usize,
+    },
+    HasHole {
+        count: usize,
+    },
+    UnsupportedOrnamentModel,
+    NonProperHorizontalChord(HorizontalChordId),
+    NonProperVerticalChord(VerticalChordId),
+    EndpointNotOnBoundary,
+    SharedBoundaryEndpoint {
+        first: ChordRef,
+        second: ChordRef,
+        endpoint: BoundaryVertexId,
+    },
+}
+
+/// Returns deterministic boundary identities for a horizontal chord.
+///
+/// # Errors
+///
+/// Returns [`SgError::EndpointNotOnBoundary`] when either endpoint is not a
+/// normalized boundary vertex.
+pub fn horizontal_chord_endpoints(
+    boundary: &Boundary,
+    chord: HorizontalChord,
+) -> Result<ChordBoundaryEndpoints, SgError> {
+    let first = boundary
+        .vertex_id(Point::new(chord.left(), chord.y()))
+        .ok_or(SgError::EndpointNotOnBoundary)?;
+    let second = boundary
+        .vertex_id(Point::new(chord.right(), chord.y()))
+        .ok_or(SgError::EndpointNotOnBoundary)?;
+    Ok(ChordBoundaryEndpoints { first, second })
+}
+
+/// Returns deterministic boundary identities for a vertical chord.
+///
+/// # Errors
+///
+/// Returns [`SgError::EndpointNotOnBoundary`] when either endpoint is not a
+/// normalized boundary vertex.
+pub fn vertical_chord_endpoints(
+    boundary: &Boundary,
+    chord: VerticalChord,
+) -> Result<ChordBoundaryEndpoints, SgError> {
+    let first = boundary
+        .vertex_id(Point::new(chord.x(), chord.bottom()))
+        .ok_or(SgError::EndpointNotOnBoundary)?;
+    let second = boundary
+        .vertex_id(Point::new(chord.x(), chord.top()))
+        .ok_or(SgError::EndpointNotOnBoundary)?;
+    Ok(ChordBoundaryEndpoints { first, second })
+}
+
+/// Tests strict cyclic alternation on one normalized boundary loop.
+#[must_use]
+pub fn endpoints_alternate(
+    first: ChordBoundaryEndpoints,
+    second: ChordBoundaryEndpoints,
+    loop_len: usize,
+) -> bool {
+    if loop_len == 0
+        || first.first.loop_id != first.second.loop_id
+        || first.first.loop_id != second.first.loop_id
+        || second.first.loop_id != second.second.loop_id
+        || [first.first, first.second, second.first, second.second]
+            .iter()
+            .enumerate()
+            .any(|(index, endpoint)| {
+                [first.first, first.second, second.first, second.second]
+                    .iter()
+                    .skip(index + 1)
+                    .any(|other| endpoint == other)
+            })
+    {
+        return false;
+    }
+    let between = |start: usize, end: usize, point: usize| {
+        let end_distance = (end + loop_len - start) % loop_len;
+        let point_distance = (point + loop_len - start) % loop_len;
+        point_distance > 0 && point_distance < end_distance
+    };
+    between(
+        first.first.cyclic_index,
+        first.second.cyclic_index,
+        second.first.cyclic_index,
+    ) != between(
+        first.first.cyclic_index,
+        first.second.cyclic_index,
+        second.second.cyclic_index,
+    )
+}
+
+/// Classifies the ordinary finite-grid component under Definition 9.1.
+///
+/// The supported input model has no ornament object; the classifier therefore
+/// records no ornament rejection for a value that cannot express ornaments.
+#[must_use]
+pub fn classify_clean_hole_free<C>(
+    component: &GridComponent<C>,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+) -> CleanHoleFreeCertificate {
+    let mut rejection_reasons = Vec::new();
+    let outer_loop_count = boundary.outer_loop_count();
+    let hole_count = boundary.hole_count();
+    if outer_loop_count != 1 {
+        rejection_reasons.push(CleanRejectionReason::MultipleOuterLoops {
+            count: outer_loop_count,
+        });
+    }
+    if hole_count != 0 {
+        rejection_reasons.push(CleanRejectionReason::HasHole { count: hole_count });
+    }
+    let mut endpoint_entries = Vec::<(ChordRef, ChordBoundaryEndpoints)>::new();
+    let mut all_chords_proper = true;
+    for &chord in horizontal_chords {
+        let proper = horizontal_chord_is_proper(component, boundary, chord);
+        all_chords_proper &= proper;
+        if !proper {
+            rejection_reasons.push(CleanRejectionReason::NonProperHorizontalChord(chord.id()));
+        }
+        if let Ok(endpoints) = horizontal_chord_endpoints(boundary, chord) {
+            endpoint_entries.push((ChordRef::Horizontal(chord.id()), endpoints));
+        } else {
+            rejection_reasons.push(CleanRejectionReason::EndpointNotOnBoundary);
+        }
+    }
+    for &chord in vertical_chords {
+        let proper = vertical_chord_is_proper(component, boundary, chord);
+        all_chords_proper &= proper;
+        if !proper {
+            rejection_reasons.push(CleanRejectionReason::NonProperVerticalChord(chord.id()));
+        }
+        if let Ok(endpoints) = vertical_chord_endpoints(boundary, chord) {
+            endpoint_entries.push((ChordRef::Vertical(chord.id()), endpoints));
+        } else {
+            rejection_reasons.push(CleanRejectionReason::EndpointNotOnBoundary);
+        }
+    }
+    let mut distinct_boundary_endpoints = true;
+    for first in 0..endpoint_entries.len() {
+        for second in first + 1..endpoint_entries.len() {
+            for endpoint in [
+                endpoint_entries[first].1.first,
+                endpoint_entries[first].1.second,
+            ] {
+                if endpoint == endpoint_entries[second].1.first
+                    || endpoint == endpoint_entries[second].1.second
+                {
+                    distinct_boundary_endpoints = false;
+                    rejection_reasons.push(CleanRejectionReason::SharedBoundaryEndpoint {
+                        first: endpoint_entries[first].0,
+                        second: endpoint_entries[second].0,
+                        endpoint,
+                    });
+                }
+            }
+        }
+    }
+    CleanHoleFreeCertificate {
+        eligible: rejection_reasons.is_empty(),
+        outer_loop_count,
+        hole_count,
+        all_chords_proper,
+        distinct_boundary_endpoints,
+        rejection_reasons,
+    }
+}
+
+fn horizontal_chord_is_proper<C>(
+    component: &GridComponent<C>,
+    boundary: &Boundary,
+    chord: HorizontalChord,
+) -> bool {
+    horizontal_chord_endpoints(boundary, chord).is_ok()
+        && usize::try_from(chord.left()).is_ok()
+        && usize::try_from(chord.right()).is_ok()
+        && usize::try_from(chord.y()).is_ok()
+        && (chord.left()..chord.right()).all(|x| {
+            let Ok(x) = usize::try_from(x) else {
+                return false;
+            };
+            let Ok(y) = usize::try_from(chord.y()) else {
+                return false;
+            };
+            y > 0 && component.contains_cell(x, y - 1) && component.contains_cell(x, y)
+        })
+}
+
+fn vertical_chord_is_proper<C>(
+    component: &GridComponent<C>,
+    boundary: &Boundary,
+    chord: VerticalChord,
+) -> bool {
+    vertical_chord_endpoints(boundary, chord).is_ok()
+        && usize::try_from(chord.x()).is_ok()
+        && usize::try_from(chord.bottom()).is_ok()
+        && usize::try_from(chord.top()).is_ok()
+        && (chord.bottom()..chord.top()).all(|y| {
+            let Ok(x) = usize::try_from(chord.x()) else {
+                return false;
+            };
+            let Ok(y) = usize::try_from(y) else {
+                return false;
+            };
+            x > 0 && component.contains_cell(x - 1, y) && component.contains_cell(x, y)
+        })
 }
 
 pub trait EffectiveChordEnumerator {
@@ -2149,6 +2391,8 @@ pub enum SgError {
     InvalidOutput(#[from] ValidationError),
     #[error("grid coordinate {value} cannot be represented as usize")]
     CoordinateConversion { value: Coord },
+    #[error("effective chord endpoint is not a normalized boundary vertex")]
+    EndpointNotOnBoundary,
     #[error("ordinary grid component unexpectedly has {outer_loops} outer loops")]
     UnsupportedBoundaryTopology { outer_loops: usize },
     #[error("rectangle-count formula underflowed; geometric invariants are inconsistent")]
@@ -2179,10 +2423,11 @@ mod tests {
     use rect_oracle_exact_cover as exact_cover;
 
     use super::{
-        DenseCutGrid, DenseGridRecovery, EffectiveChordEnumerator, GridInteriorRunEnumerator,
-        IndexedFrontierCompletion, RectangleRecoveryBackend, ReferenceHashBfsRecovery,
-        ReferencePairwiseEnumerator, ReferenceRescanCompletion, analyze, complete_with_backend,
-        complete_with_chord_families, solve,
+        ChordBoundaryEndpoints, CleanRejectionReason, DenseCutGrid, DenseGridRecovery,
+        EffectiveChordEnumerator, GridInteriorRunEnumerator, IndexedFrontierCompletion,
+        RectangleRecoveryBackend, ReferenceHashBfsRecovery, ReferencePairwiseEnumerator,
+        ReferenceRescanCompletion, analyze, analyze_geometry, classify_clean_hole_free,
+        complete_with_backend, complete_with_chord_families, endpoints_alternate, solve,
     };
 
     fn foreground_component(width: usize, height: usize, cells: Vec<bool>) -> GridComponent<bool> {
@@ -2193,6 +2438,71 @@ mod tests {
             .filter(|component| component.color)
             .max_by_key(GridComponent::cell_count)
             .unwrap()
+    }
+
+    fn endpoint(loop_index: usize, index: usize) -> rect_core::BoundaryVertexId {
+        rect_core::BoundaryVertexId {
+            loop_id: rect_core::BoundaryLoopId(loop_index),
+            cyclic_index: index,
+        }
+    }
+
+    #[test]
+    fn endpoint_alternation_handles_wraparound_and_nested_intervals() {
+        let crossing = ChordBoundaryEndpoints {
+            first: endpoint(0, 7),
+            second: endpoint(0, 2),
+        };
+        let alternating = ChordBoundaryEndpoints {
+            first: endpoint(0, 0),
+            second: endpoint(0, 5),
+        };
+        let nested = ChordBoundaryEndpoints {
+            first: endpoint(0, 0),
+            second: endpoint(0, 1),
+        };
+        assert!(endpoints_alternate(crossing, alternating, 8));
+        assert!(!endpoints_alternate(crossing, nested, 8));
+        assert!(!endpoints_alternate(
+            crossing,
+            ChordBoundaryEndpoints {
+                first: endpoint(0, 7),
+                second: endpoint(0, 4),
+            },
+            8
+        ));
+        assert!(!endpoints_alternate(
+            crossing,
+            ChordBoundaryEndpoints {
+                first: endpoint(1, 0),
+                second: endpoint(1, 2),
+            },
+            8
+        ));
+    }
+
+    #[test]
+    fn clean_classifier_rejects_ordinary_holes() {
+        let component = foreground_component(
+            3,
+            3,
+            vec![true, true, true, true, false, true, true, true, true],
+        );
+        let geometry = analyze_geometry(&component).unwrap();
+        let certificate = classify_clean_hole_free(
+            &component,
+            &geometry.boundary,
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+        );
+        assert!(!certificate.eligible);
+        assert!(
+            certificate
+                .rejection_reasons
+                .contains(&CleanRejectionReason::HasHole { count: 1 })
+        );
+        assert!(certificate.all_chords_proper);
+        assert!(certificate.distinct_boundary_endpoints);
     }
 
     #[test]

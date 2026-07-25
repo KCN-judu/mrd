@@ -13,6 +13,15 @@ pub struct BoundaryLoop {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct BoundaryLoopId(pub usize);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct BoundaryVertexId {
+    pub loop_id: BoundaryLoopId,
+    pub cyclic_index: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct ReflexVertex {
     pub point: Point,
 }
@@ -145,6 +154,39 @@ impl Boundary {
     #[must_use]
     pub fn boundary_complexity(&self) -> usize {
         self.loops.iter().map(|item| item.vertices.len()).sum()
+    }
+
+    /// Returns the stable loop-local identity of a normalized boundary point.
+    #[must_use]
+    pub fn vertex_id(&self, point: Point) -> Option<BoundaryVertexId> {
+        self.loops
+            .iter()
+            .enumerate()
+            .find_map(|(loop_index, boundary_loop)| {
+                boundary_loop
+                    .vertices
+                    .iter()
+                    .position(|&vertex| vertex == point)
+                    .map(|cyclic_index| BoundaryVertexId {
+                        loop_id: BoundaryLoopId(loop_index),
+                        cyclic_index,
+                    })
+            })
+    }
+
+    #[must_use]
+    pub fn loop_len(&self, loop_id: BoundaryLoopId) -> Option<usize> {
+        self.loops
+            .get(loop_id.0)
+            .map(|boundary_loop| boundary_loop.vertices.len())
+    }
+
+    #[must_use]
+    pub fn vertex(&self, id: BoundaryVertexId) -> Option<Point> {
+        self.loops
+            .get(id.loop_id.0)
+            .and_then(|boundary_loop| boundary_loop.vertices.get(id.cyclic_index))
+            .copied()
     }
 }
 
