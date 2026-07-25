@@ -1,8 +1,10 @@
 //! Geometry-derived clean hole-free path/tree representation.
 //!
-//! The builder is intentionally a grid-specific reference implementation. It
-//! uses local occupancy flood-fill and therefore documents an area-sensitive
-//! construction; it is not the paper's planar sweep implementation.
+//! `ReferenceAreaFloodFill` is the deliberately redundant audited Oracle: it
+//! labels the dual by cutting unit cell sides and flood-filling local
+//! occupancy. `BoundaryLaminar` is the compact finite-grid backend: it derives
+//! the dual from normalized boundary endpoint intervals and does not inspect
+//! area cells. Neither backend claims the paper's general polygon sweep.
 
 #![allow(clippy::missing_errors_doc)]
 
@@ -327,6 +329,133 @@ pub fn build_boundary_laminar_dual_tree(
     })
 }
 
+/// Axis-view counterpart of [`build_boundary_laminar_dual_tree`] for a
+/// horizontal tree. The tree edge IDs retain the original horizontal chord
+/// indices in the `VerticalChordId` carrier used by the generic HLD storage;
+/// the oriented builder swaps the biclique sides back to H/V afterwards.
+#[allow(clippy::too_many_lines)]
+fn build_horizontal_boundary_laminar_dual_tree(
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    certificate: &CleanHoleFreeCertificate,
+) -> Result<RegionDualTree, PathTreeError> {
+    if !certificate.eligible
+        || certificate.outer_loop_count != 1
+        || certificate.hole_count != 0
+        || boundary.loops.len() != 1
+    {
+        return Err(PathTreeError::InvalidBoundaryDual);
+    }
+    let vertices = &boundary.loops[0].vertices;
+    let n = vertices.len();
+    if n < 4 {
+        return Err(PathTreeError::InvalidBoundaryDual);
+    }
+    let mut endpoint_indices = BTreeSet::new();
+    let mut endpoint_pairs = Vec::with_capacity(horizontal_chords.len());
+    for &chord in horizontal_chords {
+        let endpoints = rect_oracle_sg::horizontal_chord_endpoints(boundary, chord)
+            .map_err(|_| PathTreeError::InvalidBoundaryDual)?;
+        if endpoints.first.loop_id.0 != 0
+            || endpoints.second.loop_id.0 != 0
+            || endpoints.first == endpoints.second
+        {
+            return Err(PathTreeError::InvalidBoundaryDual);
+        }
+        endpoint_indices.insert(endpoints.first.cyclic_index);
+        endpoint_indices.insert(endpoints.second.cyclic_index);
+        endpoint_pairs.push((
+            endpoints.first.cyclic_index,
+            endpoints.second.cyclic_index,
+            VerticalChordId(chord.id().0),
+        ));
+    }
+    let root_gap = (0..n)
+        .find(|gap| !endpoint_indices.contains(gap))
+        .ok_or(PathTreeError::InvalidBoundaryDual)?;
+    let origin = (root_gap + 1) % n;
+    let rotate = |index: usize| (index + n - origin) % n;
+    let mut intervals = endpoint_pairs
+        .into_iter()
+        .map(|(first, second, chord)| {
+            let first = rotate(first);
+            let second = rotate(second);
+            if first < second {
+                BoundaryInterval {
+                    start: first,
+                    end: second,
+                    chord,
+                }
+            } else {
+                BoundaryInterval {
+                    start: second,
+                    end: first,
+                    chord,
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    intervals.sort_unstable_by_key(|interval| {
+        (
+            interval.start,
+            std::cmp::Reverse(interval.end),
+            interval.chord,
+        )
+    });
+    let mut edges = Vec::with_capacity(intervals.len());
+    let mut stack = Vec::<(usize, DualRegionId)>::new();
+    let mut depths = Vec::with_capacity(intervals.len());
+    for interval in intervals.iter().copied() {
+        while stack.last().is_some_and(|(end, _)| *end <= interval.start) {
+            stack.pop();
+        }
+        if let Some((end, _)) = stack.last()
+            && interval.end > *end
+        {
+            return Err(PathTreeError::NonLaminarBoundaryIntervals);
+        }
+        let parent = stack.last().map_or(DualRegionId(0), |(_, region)| *region);
+        let region = DualRegionId(edges.len() + 1);
+        edges.push(DualTreeEdge {
+            chord: interval.chord,
+            first: parent,
+            second: region,
+        });
+        depths.push(stack.len() + 1);
+        stack.push((interval.end, region));
+    }
+    let region_count = edges.len() + 1;
+    let mut adjacency = vec![Vec::new(); region_count];
+    for edge in &edges {
+        adjacency[edge.first.0].push((edge.second, edge.chord));
+        adjacency[edge.second.0].push((edge.first, edge.chord));
+    }
+    for neighbors in &mut adjacency {
+        neighbors.sort_unstable();
+    }
+    let mut rotated_gap_regions = vec![DualRegionId(0); n];
+    for (gap, label) in rotated_gap_regions.iter_mut().enumerate() {
+        let mut best = (0usize, DualRegionId(0));
+        for (index, interval) in intervals.iter().enumerate() {
+            if interval.start <= gap && gap < interval.end && depths[index] >= best.0 {
+                *label = DualRegionId(index + 1);
+                best = (depths[index], *label);
+            }
+        }
+    }
+    let mut boundary_gap_regions = vec![DualRegionId(0); n];
+    for original_gap in 0..n {
+        boundary_gap_regions[original_gap] = rotated_gap_regions[rotate(original_gap)];
+    }
+    Ok(RegionDualTree {
+        region_count,
+        edges,
+        adjacency,
+        cell_region_ids: Vec::new(),
+        boundary_gap_regions,
+    })
+}
+
 /// Builds the vertical-chord region dual from prepared occupancy.
 ///
 /// # Errors
@@ -485,6 +614,41 @@ impl RegionDualTree {
             .ok_or(PathTreeError::MissingPathEndpoint)
     }
 
+    fn region_at_vertical_endpoint_boundary(
+        &self,
+        boundary: &Boundary,
+        chord: VerticalChord,
+        first: bool,
+    ) -> Result<DualRegionId, PathTreeError> {
+        let point =
+            rect_core::Point::new(chord.x(), if first { chord.bottom() } else { chord.top() });
+        let vertex_id = boundary
+            .vertex_id(point)
+            .ok_or(PathTreeError::MissingPathEndpoint)?;
+        let loop_vertices = boundary
+            .loops
+            .get(vertex_id.loop_id.0)
+            .ok_or(PathTreeError::MissingPathEndpoint)?
+            .vertices
+            .as_slice();
+        let n = loop_vertices.len();
+        let index = vertex_id.cyclic_index;
+        let previous = loop_vertices[(index + n - 1) % n];
+        let current = loop_vertices[index];
+        let next = loop_vertices[(index + 1) % n];
+        let gap = if previous.x == current.x {
+            (index + n - 1) % n
+        } else if current.x == next.x {
+            index
+        } else {
+            return Err(PathTreeError::MissingPathEndpoint);
+        };
+        self.boundary_gap_regions
+            .get(gap)
+            .copied()
+            .ok_or(PathTreeError::MissingPathEndpoint)
+    }
+
     pub fn horizontal_endpoint_paths_boundary(
         &self,
         boundary: &Boundary,
@@ -499,6 +663,25 @@ impl RegionDualTree {
                         .region_at_horizontal_endpoint_boundary(boundary, chord, true)?,
                     end_region: self
                         .region_at_horizontal_endpoint_boundary(boundary, chord, false)?,
+                })
+            })
+            .collect()
+    }
+
+    fn vertical_endpoint_paths_boundary(
+        &self,
+        boundary: &Boundary,
+        vertical_chords: &[VerticalChord],
+    ) -> Result<Vec<CompactTreePath>, PathTreeError> {
+        vertical_chords
+            .iter()
+            .map(|&chord| {
+                Ok(CompactTreePath {
+                    chord_index: chord.id().0,
+                    start_region: self
+                        .region_at_vertical_endpoint_boundary(boundary, chord, true)?,
+                    end_region: self
+                        .region_at_vertical_endpoint_boundary(boundary, chord, false)?,
                 })
             })
             .collect()
@@ -978,6 +1161,15 @@ pub fn build_path_tree_partition_with_backend(
     } else {
         Vec::new()
     };
+    build_partition_from_compact_paths(certificate, tree, compact_paths, paths)
+}
+
+fn build_partition_from_compact_paths(
+    certificate: CleanHoleFreeCertificate,
+    tree: RegionDualTree,
+    compact_paths: Vec<CompactTreePath>,
+    paths: Vec<ChordTreePath>,
+) -> Result<PathTreePartition, PathTreeError> {
     let hld = HeavyLightDecomposition::new(&tree)?;
     let mut grouped = BTreeMap::<(usize, usize, usize), Vec<usize>>::new();
     let mut total_path_edge_incidences: usize = 0;
@@ -1016,6 +1208,38 @@ pub fn build_path_tree_partition_with_backend(
         canonical_segment_node_count: bicliques.len(),
         total_path_edge_incidences,
         biclique_partition: BicliquePartition { bicliques },
+    })
+}
+
+fn build_horizontal_axis_view_partition(
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
+    let tree =
+        build_horizontal_boundary_laminar_dual_tree(boundary, horizontal_chords, &certificate)?;
+    let compact_paths = tree.vertical_endpoint_paths_boundary(boundary, vertical_chords)?;
+    let mut partition =
+        build_partition_from_compact_paths(certificate, tree, compact_paths, Vec::new())?;
+    let bicliques = std::mem::take(&mut partition.biclique_partition.bicliques)
+        .into_iter()
+        .map(|biclique| Biclique {
+            id: biclique.id,
+            left: biclique.right,
+            right: biclique.left,
+        })
+        .collect();
+    let biclique_partition = BicliquePartition { bicliques };
+    partition.biclique_partition = biclique_partition.clone();
+    Ok(OrientedPathTreePartition {
+        orientation: PathTreeOrientation::HorizontalTreeVerticalPaths,
+        dual_region_count: partition.tree.region_count,
+        path_count: partition.compact_paths.len(),
+        total_path_edge_incidences: partition.total_path_edge_incidences,
+        canonical_segment_node_count: partition.canonical_segment_node_count,
+        biclique_partition,
+        path_tree: partition,
     })
 }
 
@@ -1205,6 +1429,14 @@ pub fn build_oriented_path_tree_partition_with_backend(
             })
         }
         PathTreeOrientation::HorizontalTreeVerticalPaths => {
+            if dual_backend == RegionDualBackend::BoundaryLaminar && !materialize_explicit_paths {
+                return build_horizontal_axis_view_partition(
+                    boundary,
+                    horizontal_chords,
+                    vertical_chords,
+                    certificate,
+                );
+            }
             let (transposed_horizontal, transposed_vertical) =
                 transpose_chords(horizontal_chords, vertical_chords)?;
             let transposed_boundary = transpose_boundary(boundary);
@@ -1757,6 +1989,80 @@ mod tests {
             }
         }
         assert!(audited > 0);
+    }
+
+    #[test]
+    fn boundary_axis_view_matches_transposed_reference_on_small_clean_population() {
+        let mut compared = 0;
+        for mask in 1_u16..(1_u16 << 9) {
+            let cells = (0..9)
+                .map(|index| mask & (1_u16 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(3, 3, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let Ok(geometry) = analyze_geometry(&component) else {
+                    continue;
+                };
+                let certificate = classify_clean_hole_free(
+                    &component,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                );
+                if !certificate.eligible {
+                    continue;
+                }
+                let axis = super::build_oriented_path_tree_partition_with_backend(
+                    &geometry.prepared,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                    certificate.clone(),
+                    PathTreeOrientation::HorizontalTreeVerticalPaths,
+                    false,
+                    RegionDualBackend::BoundaryLaminar,
+                )
+                .unwrap();
+                let reference = super::build_oriented_path_tree_partition_with_backend(
+                    &geometry.prepared,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                    certificate,
+                    PathTreeOrientation::HorizontalTreeVerticalPaths,
+                    false,
+                    RegionDualBackend::ReferenceAreaFloodFill,
+                )
+                .unwrap();
+                let normalize = |partition: &super::BicliquePartition| {
+                    let mut rows = partition
+                        .bicliques
+                        .iter()
+                        .map(|biclique| (biclique.left.clone(), biclique.right.clone()))
+                        .collect::<Vec<_>>();
+                    rows.sort_unstable();
+                    rows
+                };
+                assert_eq!(
+                    normalize(&axis.biclique_partition),
+                    normalize(&reference.biclique_partition)
+                );
+                assert_eq!(
+                    axis.total_path_edge_incidences,
+                    reference.total_path_edge_incidences
+                );
+                assert_eq!(
+                    axis.biclique_partition.total_vertex_occurrences(),
+                    reference.biclique_partition.total_vertex_occurrences()
+                );
+                compared += 1;
+            }
+        }
+        assert!(compared > 0);
     }
 
     #[test]

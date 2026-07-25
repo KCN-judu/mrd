@@ -231,6 +231,14 @@ const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientati
     }
 }
 
+const fn ceil_log2(value: usize) -> usize {
+    if value <= 1 {
+        0
+    } else {
+        usize::BITS as usize - (value - 1).leading_zeros() as usize
+    }
+}
+
 fn annotate_general_representation(
     mut result: DissectionResult,
     clean_hole_free_eligible: Option<bool>,
@@ -1098,6 +1106,44 @@ fn solve_path_tree_with_geometry<C>(
         .filter_map(|(index, &selected)| selected.then_some(index))
         .collect::<Vec<_>>();
     let sigma = path_tree.biclique_partition.total_vertex_occurrences();
+    let q = total_chord_count;
+    let log_q = ceil_log2(q.saturating_add(1));
+    let mut heavy_chain_interval_count = 0usize;
+    for compact_path in &path_tree.path_tree.compact_paths {
+        heavy_chain_interval_count = heavy_chain_interval_count
+            .checked_add(
+                path_tree
+                    .path_tree
+                    .hld
+                    .decompose_path_endpoints(compact_path.start_region, compact_path.end_region)?
+                    .len(),
+            )
+            .ok_or(DominanceError::MetricOverflow)?;
+    }
+    let tree_edge_occurrences =
+        if path_tree.orientation == path_tree::PathTreeOrientation::VerticalTreeHorizontalPaths {
+            path_tree
+                .biclique_partition
+                .bicliques
+                .iter()
+                .map(|biclique| biclique.right.len())
+                .sum()
+        } else {
+            path_tree
+                .biclique_partition
+                .bicliques
+                .iter()
+                .map(|biclique| biclique.left.len())
+                .sum()
+        };
+    let path_occurrence_bound = path_tree.path_count.saturating_mul(log_q).saturating_mul(4);
+    let tree_edge_occurrence_bound = path_tree
+        .path_tree
+        .tree
+        .edges
+        .len()
+        .saturating_mul(log_q)
+        .saturating_mul(4);
     let result = DissectionResult {
         optimum_rectangle_count,
         rectangles: completion.rectangles,
@@ -1171,8 +1217,23 @@ fn solve_path_tree_with_geometry<C>(
             path_tree_orientation: Some(path_tree.orientation.name().to_owned()),
             path_tree_orientation_policy: Some(orientation_policy.name().to_owned()),
             dual_region_count: Some(path_tree.dual_region_count),
+            dual_tree_vertex_count: Some(path_tree.path_tree.tree.region_count),
             path_count: Some(path_tree.path_count),
             path_edge_incidence_count: Some(path_tree.total_path_edge_incidences),
+            total_path_length_metric: Some(path_tree.total_path_edge_incidences),
+            dual_tree_max_depth: path_tree.path_tree.hld.depth.iter().copied().max(),
+            dual_tree_max_branching_degree: path_tree
+                .path_tree
+                .tree
+                .adjacency
+                .iter()
+                .map(Vec::len)
+                .max(),
+            heavy_chain_count: Some(path_tree.path_tree.hld.chain_edges.len()),
+            heavy_chain_interval_count: Some(heavy_chain_interval_count),
+            tree_edge_occurrences: Some(tree_edge_occurrences),
+            theoretical_path_occurrence_bound: Some(path_occurrence_bound),
+            theoretical_tree_edge_occurrence_bound: Some(tree_edge_occurrence_bound),
             canonical_segment_node_count: Some(path_tree.canonical_segment_node_count),
             path_tree_sigma: Some(sigma),
             four_d_sigma,
