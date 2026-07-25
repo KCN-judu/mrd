@@ -551,6 +551,25 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
                 * size_of::<rect_oracle_sg::VerticalUnitCut>()
             + completion.rectangles.len() * size_of::<rect_core::GridRect>(),
     );
+    owned_allocation_estimates.insert(
+        "prepared_grid_storage_estimate".to_owned(),
+        geometry.prepared.occupancy.len()
+            + geometry.prepared.occupancy_prefix_sums.len() * size_of::<usize>()
+            + geometry
+                .prepared
+                .horizontal_interior_runs
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>()
+                * size_of::<(usize, usize)>()
+            + geometry
+                .prepared
+                .vertical_interior_runs
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>()
+                * size_of::<(usize, usize)>(),
+    );
     if completion_backend == CompletionBackendKind::IndexedFrontier
         && let Some((x0, y0, x1, y1)) = component.bounds()
     {
@@ -596,6 +615,22 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
                 (
                     "boundary_effective_chords".to_owned(),
                     geometry_at.duration_since(started).as_micros(),
+                ),
+                (
+                    "component_preparation".to_owned(),
+                    geometry.prepared_component_build_microseconds,
+                ),
+                (
+                    "boundary_extraction".to_owned(),
+                    geometry.boundary_extraction_microseconds,
+                ),
+                (
+                    "reflex_grouping".to_owned(),
+                    geometry.reflex_grouping_microseconds,
+                ),
+                (
+                    "effective_chord_enumeration".to_owned(),
+                    geometry.effective_chord_enumeration_microseconds,
                 ),
                 (
                     "dominance_embedding".to_owned(),
