@@ -139,7 +139,9 @@ The current effective-chord implementation has interchangeable
 `ReferencePairwiseEnumerator` and `GridInteriorRunEnumerator` paths. The latter
 is a grid-specialized `O(N + r log r + q)` run-index algorithm; it is not an
 implementation of the general `O(n log n)` Soltan--Gorpinevich enumeration
-algorithm. See `docs/GRID_CHORD_ENUMERATION.md`.
+algorithm. CompactOnly defaults to grid runs and the CLI override
+`--chord-enumerator reference-pairwise|grid-interior-runs` remains available.
+See `docs/GRID_CHORD_ENUMERATION.md`.
 
 Dinic is the practical implemented flow backend. The almost-linear exact
 max-flow result is cited only for the paper's asymptotic theorem and is not

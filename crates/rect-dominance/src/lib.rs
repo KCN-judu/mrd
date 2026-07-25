@@ -15,7 +15,8 @@ use rect_core::{
 };
 use rect_graph::DinicBackend;
 use rect_oracle_sg::{
-    GridInteriorRunEnumerator, SgError, complete_with_chord_families, complete_with_selected_chords,
+    EffectiveChordEnumerator, GridInteriorRunEnumerator, ReferencePairwiseEnumerator, SgError,
+    complete_with_chord_families, complete_with_selected_chords,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -35,6 +36,13 @@ pub enum VerificationMode {
     CompactOnly,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ChordEnumerator {
+    ReferencePairwise,
+    GridInteriorRuns,
+}
+
 /// Solves with either the fully audited compact pipeline or the compact-only
 /// execution path that never materializes the conflict edge set.
 ///
@@ -46,9 +54,34 @@ pub fn solve_with_verification_mode<C>(
     component: &GridComponent<C>,
     mode: VerificationMode,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_with_verification_mode_and_chord_enumerator(
+        component,
+        mode,
+        ChordEnumerator::GridInteriorRuns,
+    )
+}
+
+/// Solves with an explicit verification mode and effective-chord enumerator.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when geometry, dominance, flow, completion, or
+/// output validation fails.
+pub fn solve_with_verification_mode_and_chord_enumerator<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    enumerator: ChordEnumerator,
+) -> Result<DissectionResult, DominanceError> {
     match mode {
         VerificationMode::FullyAudited => solve(component, DominanceMode::Compact),
-        VerificationMode::CompactOnly => solve_compact_only(component),
+        VerificationMode::CompactOnly => match enumerator {
+            ChordEnumerator::ReferencePairwise => {
+                solve_compact_only_with(component, &ReferencePairwiseEnumerator)
+            }
+            ChordEnumerator::GridInteriorRuns => {
+                solve_compact_only_with(component, &GridInteriorRunEnumerator)
+            }
+        },
     }
 }
 
@@ -268,9 +301,12 @@ pub fn solve<C>(
 }
 
 #[allow(clippy::too_many_lines)]
-fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResult, DominanceError> {
+fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
+    component: &GridComponent<C>,
+    enumerator: &E,
+) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let geometry = rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?;
+    let geometry = rect_oracle_sg::analyze_geometry_with(component, enumerator)?;
     let geometry_at = Instant::now();
     let embedding =
         DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
@@ -419,7 +455,7 @@ fn solve_compact_only<C>(component: &GridComponent<C>) -> Result<DissectionResul
                 compact_structure_check_called: true,
                 ..ExecutionTrace::default()
             },
-            effective_chord_enumerator: Some("grid-interior-runs".to_owned()),
+            effective_chord_enumerator: Some(enumerator.name().to_owned()),
             effective_chord_enumeration_microseconds: Some(
                 geometry_at.duration_since(started).as_micros(),
             ),

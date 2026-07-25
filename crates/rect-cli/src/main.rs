@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
-use rect_dominance::{DominanceMode, VerificationMode};
+use rect_dominance::{ChordEnumerator, DominanceMode, VerificationMode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -35,6 +35,8 @@ enum Command {
         output: Option<PathBuf>,
         #[arg(long)]
         svg: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = ChordEnumeratorArg::GridInteriorRuns)]
+        chord_enumerator: ChordEnumeratorArg,
     },
     Verify {
         #[arg(long)]
@@ -126,6 +128,12 @@ enum SolverArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum ChordEnumeratorArg {
+    ReferencePairwise,
+    GridInteriorRuns,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     DenseConflict,
@@ -175,7 +183,14 @@ fn run() -> Result<(), CliError> {
             input,
             output,
             svg,
-        } => solve_command(solver, &input, output.as_deref(), svg.as_deref()),
+            chord_enumerator,
+        } => solve_command(
+            solver,
+            chord_enumerator,
+            &input,
+            output.as_deref(),
+            svg.as_deref(),
+        ),
         Command::Verify {
             input,
             all_solvers: _,
@@ -465,6 +480,7 @@ fn generate_command(
 
 fn solve_command(
     solver: SolverArg,
+    chord_enumerator: ChordEnumeratorArg,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -473,7 +489,7 @@ fn solve_command(
     let components = grid.four_connected_components();
     let mut solutions = Vec::with_capacity(components.len());
     for component in &components {
-        let result = solve_component(component, solver)?;
+        let result = solve_component(component, solver, chord_enumerator)?;
         solutions.push(ComponentSolution {
             component_id: component.id.0,
             color: component.color.clone(),
@@ -498,6 +514,7 @@ fn solve_command(
 fn solve_component<C>(
     component: &GridComponent<C>,
     solver: SolverArg,
+    chord_enumerator: ChordEnumeratorArg,
 ) -> Result<DissectionResult, CliError> {
     match solver {
         SolverArg::ExactCover => rect_oracle_exact_cover::solve(component)
@@ -510,8 +527,16 @@ fn solve_component<C>(
         SolverArg::DominanceCompressed => rect_dominance::solve(component, DominanceMode::Compact)
             .map_err(|error| CliError::Solver(error.to_string())),
         SolverArg::DominanceCompactOnly => {
-            rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
-                .map_err(|error| CliError::Solver(error.to_string()))
+            let enumerator = match chord_enumerator {
+                ChordEnumeratorArg::ReferencePairwise => ChordEnumerator::ReferencePairwise,
+                ChordEnumeratorArg::GridInteriorRuns => ChordEnumerator::GridInteriorRuns,
+            };
+            rect_dominance::solve_with_verification_mode_and_chord_enumerator(
+                component,
+                VerificationMode::CompactOnly,
+                enumerator,
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))
         }
     }
 }

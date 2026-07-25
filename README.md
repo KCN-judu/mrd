@@ -33,6 +33,12 @@ cargo run --release -p rect-cli -- solve \
   --solver dominance-compact-only \
   --input test-data/example.json
 
+# Keep the pairwise reference enumerator available for differential debugging.
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only \
+  --chord-enumerator reference-pairwise \
+  --input test-data/example.json
+
 cargo run --release -p rect-cli -- verify \
   --input test-data/example.json \
   --all-solvers
