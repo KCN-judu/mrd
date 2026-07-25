@@ -21,6 +21,38 @@
 }
 ```
 
+The metadata above belongs to the historical v0.2 paper-table population. Later release evidence retains its own producing commits.
+
+## Release summaries
+
+```json
+[
+  {
+    "version": "0.2.0",
+    "tag": "v0.2.0-adversarial-validation",
+    "peeled_commit": "a7766ef0245799d19a5282ec9e8a00015269cec6",
+    "evidence": "historical v0.2 result population",
+    "result_commits": [
+      "32faff61bc4577ab50010e5d253afe83f7655d83"
+    ]
+  },
+  {
+    "version": "0.3.0",
+    "tag": "v0.3.0-compact-execution",
+    "peeled_commit": "7e30fa8b15d870f3fa1ed92272e8236a72f1815a",
+    "evidence": "compact execution, exact grid-run chord differential, dense CompactOnly, random, adversarial, and CP-SAT reruns",
+    "result_commits": [
+      "20de1aafb8bcef2537495171720c21f969f84445",
+      "e90f18f1313a25a91c9151f734f17ab663049a69",
+      "04c721c890eefee71dbe333053051bba8cd36374",
+      "b90cde9c711184fe5857dd611e75c37d62035297",
+      "8100fd8aa7a4745615f450fd70ac2629c6d0561b",
+      "4bee682ae9e4851d57b438d31cb612d08dd6a883"
+    ]
+  }
+]
+```
+
 ## Correctness
 
 | suite | grids | components | exact-cover comparisons | CP-SAT comparisons | SG comparisons | C0 comparisons | compressed comparisons | counterexamples |
@@ -51,7 +83,7 @@
 | ordinary holes | supported | supported for grid-cell regions | yes | rings and separated holes |
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
-| fast chord enumeration | O(n log n) | exact aligned-reflex pair tests | yes | classical sweep not implemented |
+| fast chord enumeration | O(n log n) | GridInteriorRunEnumerator, O(N + r log r + q) | exact differential | CompactOnly default; pairwise reference retained |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component |
@@ -67,18 +99,7 @@
 | 2048 | 1024 | 1024 | 1126 | 6647 | 3176 | 8695 | grid-interior-runs | null |
 | 4096 | 2048 | 2048 | 2187 | 13400 | 6285 | 17496 | grid-interior-runs | null |
 
-The four rows are separate CompactOnly evidence and do not overwrite the v0.2
-population above. Peak RSS is unmeasured; no null value is interpreted as zero.
-
-Chord-family differential evidence covers 511 nonempty `3x3` masks, 65,535
-nonempty `4x4` masks, 100,000 deterministic connected larger regions, 87,148
-polyomino/hole fixtures, and 25 adversarial fixtures. All 253,219 inputs had
-exact horizontal and vertical family equality, with no missing or fabricated
-chord. The v0.3 CP-SAT rerun verified 6,998 inputs and 27,228 components with
-zero disagreement.
-
-The final `q=4096` run measured 285,717 microseconds for boundary plus grid-run
-enumeration, 201 for embedding, 2,716 for biclique construction, 539 for flow,
-and 1,088,822 for geometric completion. Owned estimates were 131,072 bytes for
-chords, 262,144 for embedding points, 229,672 for bicliques, 190,248 for flow
-storage, and 591,248 for the certificate payload. These are not peak RSS.
+These rows are separate v0.3 CompactOnly evidence and do not overwrite the historical v0.2 population.
+Exact chord-family differential comparisons: 253,219 inputs, 0 disagreements.
+The bounded v0.3 CP-SAT rerun compared 27,228 components with 0 disagreements.
+Peak RSS is unmeasured; no null value is interpreted as zero.

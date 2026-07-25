@@ -1,4 +1,4 @@
-# Reproducible v0.2 experiments
+# Reproducible release experiments
 
 Evidence date: 2026-07-25 (Asia/Tokyo).
 
@@ -60,7 +60,10 @@ inputs, 162,162 components, and 0 counterexamples. The adversarial benchmark
 verified all 19 components from 17 inputs. Their separate evidence files are
 `results/v0.3-random-8x8-seed42.json` and `results/v0.3-adversarial.csv`.
 
-All committed results were produced from Git commit
+## Historical v0.2 evidence
+
+The original v0.2 paper-table population and the commands in Sections 1--8
+below were produced from Git commit
 `32faff61bc4577ab50010e5d253afe83f7655d83` with
 `rustc 1.89.0 (29483883e 2025-08-04)`, the Cargo release profile, macOS
 26.5 on an Apple M4, and integer-only correctness paths. The random seed was
@@ -74,7 +77,9 @@ generated table paths are in `results/manifest.json`. Paper-ready correctness,
 compression, and scope tables are generated in `results/paper-tables.md` and
 the adjacent CSV files. Those files are the source of truth for tabular
 numbers; this report explains their populations and limits rather than
-maintaining duplicate tables.
+maintaining duplicate tables. The later v0.3 files named above retain their
+own producing commits; `results/release-index.json` separates those release
+populations explicitly.
 
 ## Quality gates
 

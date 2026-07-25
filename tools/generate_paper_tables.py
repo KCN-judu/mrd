@@ -50,6 +50,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--external", type=Path, required=True)
     parser.add_argument("--dense", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--release-index", type=Path, default=Path("results/release-index.json")
+    )
     return parser.parse_args()
 
 
@@ -157,7 +160,7 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "ordinary holes", "theoretical paper": "supported", "current Rust artifact": "supported for grid-cell regions", "tested": "yes", "notes": "rings and separated holes"},
         {"feature": "degenerate holes", "theoretical paper": "formal model", "current Rust artifact": "unsupported", "tested": "scope rejection", "notes": "point, segment, and arbitrary formal holes excluded"},
         {"feature": "endpoint contacts", "theoretical paper": "closed-chord conflicts", "current Rust artifact": "integer parity embedding", "tested": "yes", "notes": "pairwise geometry iff strict dominance"},
-        {"feature": "fast chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "exact aligned-reflex pair tests", "tested": "yes", "notes": "classical sweep not implemented"},
+        {"feature": "fast chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator, O(N + r log r + q)", "tested": "exact differential", "notes": "CompactOnly default; pairwise reference retained"},
         {"feature": "compact biclique partition", "theoretical paper": "O(q log^4 q) for d=4", "current Rust artifact": "constructive Theorem 8 recursion", "tested": "yes", "notes": "edge multiplicity audited exactly once"},
         {"feature": "practical Dinic backend", "theoretical paper": "replaceable exact flow", "current Rust artifact": "implemented", "tested": "yes", "notes": "integral flow and residual cut"},
         {"feature": "almost-linear theoretical flow backend", "theoretical paper": "used asymptotically", "current Rust artifact": "not implemented", "tested": "no", "notes": "citation-only complexity component"},
@@ -192,6 +195,46 @@ def cpu_name() -> str:
     if sys.platform == "darwin":
         return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()
     return platform.processor() or "unknown"
+
+
+def compact_v03_section(output_dir: Path) -> list[str]:
+    dense_path = output_dir / "v0.3-compact-dense.csv"
+    differential_path = output_dir / "v0.3-chord-differential.json"
+    external_path = output_dir / "v0.3-external-oracle.json"
+    if not all(path.exists() for path in (dense_path, differential_path, external_path)):
+        return []
+    dense = read_csv(dense_path)
+    differential = read_json(differential_path)
+    external = read_json(external_path)
+    differential_inputs = sum(row["input_count"] for row in differential["populations"])
+    differential_disagreements = sum(
+        row["disagreement_count"] for row in differential["populations"]
+    )
+    fields = [
+        "total q", "horizontal chords", "vertical chords", "bicliques", "sigma",
+        "compressed vertices", "compressed arcs", "enumerator", "explicit edges",
+    ]
+    rows = [
+        {
+            "total q": row["total_chord_count"],
+            "horizontal chords": row["horizontal_chord_count"],
+            "vertical chords": row["vertical_chord_count"],
+            "bicliques": row["biclique_count"],
+            "sigma": row["biclique_total_vertex_occurrences"],
+            "compressed vertices": row["compressed_network_vertex_count"],
+            "compressed arcs": row["compressed_network_arc_count"],
+            "enumerator": row["effective_chord_enumerator"],
+            "explicit edges": row["explicit_conflict_edge_count"] or "null",
+        }
+        for row in dense
+    ]
+    return [
+        "## CompactOnly v0.3 evidence", "", markdown_table(fields, rows), "",
+        "These rows are separate v0.3 CompactOnly evidence and do not overwrite the historical v0.2 population.",
+        f"Exact chord-family differential comparisons: {differential_inputs:,} inputs, {differential_disagreements} disagreements.",
+        f"The bounded v0.3 CP-SAT rerun compared {external['component_count']:,} components with {external['disagreement_component_count']} disagreements.",
+        "Peak RSS is unmeasured; no null value is interpreted as zero.", "",
+    ]
 
 
 def main() -> None:
@@ -252,11 +295,22 @@ def main() -> None:
             dense[0]["command"],
         ],
     }
+    release_index = read_json(args.release_index)
+    release_summaries = release_index["releases"]
     markdown = [
         "# Generated paper tables",
         "",
         "```json",
         json.dumps(metadata, indent=2),
+        "```",
+        "",
+        "The metadata above belongs to the historical v0.2 paper-table population."
+        " Later release evidence retains its own producing commits.",
+        "",
+        "## Release summaries",
+        "",
+        "```json",
+        json.dumps(release_summaries, indent=2),
         "```",
         "",
         "## Correctness",
@@ -271,18 +325,23 @@ def main() -> None:
         "",
         markdown_table(SCOPE_FIELDS, scope),
         "",
+        *compact_v03_section(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
     manifest = read_json(args.manifest)
     manifest["schema_version"] = 2
     manifest["release_metadata"] = metadata
-    manifest["generated_tables"] = [
+    manifest["release_summaries"] = release_summaries
+    generated = [
         str(args.output_dir / "correctness-table.csv"),
         str(args.output_dir / "compression-table.csv"),
         str(args.output_dir / "scope-table.csv"),
         str(args.output_dir / "paper-tables.md"),
     ]
+    manifest["generated_tables"] = list(
+        dict.fromkeys([*generated, *manifest.get("generated_tables", [])])
+    )
     args.manifest.write_text(json.dumps(manifest, indent=2) + "\n")
 
 

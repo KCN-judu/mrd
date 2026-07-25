@@ -2,7 +2,7 @@ feature,theoretical paper,current Rust artifact,tested,notes
 ordinary holes,supported,supported for grid-cell regions,yes,rings and separated holes
 degenerate holes,formal model,unsupported,scope rejection,"point, segment, and arbitrary formal holes excluded"
 endpoint contacts,closed-chord conflicts,integer parity embedding,yes,pairwise geometry iff strict dominance
-fast chord enumeration,O(n log n),exact aligned-reflex pair tests,yes,classical sweep not implemented
+fast chord enumeration,O(n log n),"GridInteriorRunEnumerator, O(N + r log r + q)",exact differential,CompactOnly default; pairwise reference retained
 compact biclique partition,O(q log^4 q) for d=4,constructive Theorem 8 recursion,yes,edge multiplicity audited exactly once
 practical Dinic backend,replaceable exact flow,implemented,yes,integral flow and residual cut
 almost-linear theoretical flow backend,used asymptotically,not implemented,no,citation-only complexity component

@@ -210,5 +210,30 @@
     "results/v0.3-random-8x8-seed42.json",
     "results/v0.3-chord-differential.json",
     "results/v0.3-external-oracle.json"
+  ],
+  "release_summaries": [
+    {
+      "version": "0.2.0",
+      "tag": "v0.2.0-adversarial-validation",
+      "peeled_commit": "a7766ef0245799d19a5282ec9e8a00015269cec6",
+      "evidence": "historical v0.2 result population",
+      "result_commits": [
+        "32faff61bc4577ab50010e5d253afe83f7655d83"
+      ]
+    },
+    {
+      "version": "0.3.0",
+      "tag": "v0.3.0-compact-execution",
+      "peeled_commit": "7e30fa8b15d870f3fa1ed92272e8236a72f1815a",
+      "evidence": "compact execution, exact grid-run chord differential, dense CompactOnly, random, adversarial, and CP-SAT reruns",
+      "result_commits": [
+        "20de1aafb8bcef2537495171720c21f969f84445",
+        "e90f18f1313a25a91c9151f734f17ab663049a69",
+        "04c721c890eefee71dbe333053051bba8cd36374",
+        "b90cde9c711184fe5857dd611e75c37d62035297",
+        "8100fd8aa7a4745615f450fd70ac2629c6d0561b",
+        "4bee682ae9e4851d57b438d31cb612d08dd6a883"
+      ]
+    }
   ]
 }

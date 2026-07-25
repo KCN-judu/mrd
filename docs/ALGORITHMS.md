@@ -20,8 +20,8 @@ For ordinary polygons formed by unit grid cells, `rect-oracle-sg` performs:
 1. cancel shared oriented cell edges and trace boundary loops;
 2. identify local-nonconvexity vertices by right turns with formal interior on
    the left;
-3. enumerate aligned reflex-vertex pairs satisfying Definition 7 in this grid
-   model: every open unit subinterval has component cells on both sides;
+3. enumerate effective chords with the grid interior-run algorithm by default,
+   retaining the aligned-reflex pair implementation as a reference Oracle;
 4. build every closed horizontal--vertical intersection edge explicitly;
 5. run Hopcroft--Karp and alternating-reachability minimum-cover recovery;
 6. select the complement independent chord family;
@@ -122,7 +122,7 @@ biclique vertex occurrences.
 | Paper theorem or construction | Source module | Main public function | Runtime used in implementation | Theoretical runtime from paper | Correctness test | Independent oracle | Known limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Colored component extraction | `rect-core::grid` | `ColorGrid::four_connected_components` | `O(N)` flood fill | Input-adapter step, not the paper bottleneck | corner contact splits | Python oracle connectivity | finite grids only |
-| Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `Boundary::from_component`, `enumerate_effective_chords` | exact boundary cancellation plus aligned-reflex pair and span tests | `O(n log n)` enumeration in Soltan--Gorpinevich | rings, topology families, exhaustive grids | exact cover and CP-SAT optima | no ornaments or degenerate formal holes |
+| Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `Boundary::from_component`, `GridInteriorRunEnumerator::enumerate` | grid-specialized `O(N + r log r + q)` interior-run indexing; pairwise reference retained | `O(n log n)` enumeration in Soltan--Gorpinevich | exact chord-family equality on exhaustive, polyomino, hole, adversarial, dense, and random populations | `ReferencePairwiseEnumerator` | no ornaments, degenerate formal holes, or general polygon sweep |
 | Closed horizontal/vertical chord intersection | `rect-core::geometry` | `closed_chords_intersect` | `O(1)` integer comparisons | `O(1)` predicate | every endpoint case and signed exhaustive segment range | independently coded strict dominance | closed chords; endpoint contact conflicts |
 | Endpoint-preserving 4D parity embedding | `rect-dominance::embedding` | `DominanceEmbedding::new`, `assert_pairwise_equivalence` | `O(q log q)` construction; FullyAudited adds `O(h*v)` pairwise audit | rank embedding plus dominance reporting | endpoint and metamorphic suites | closed geometric predicate | pairwise audit is excluded from CompactOnly |
 | Explicit conflict graph | `rect-oracle-sg`, `rect-dominance::embedding` | `build_conflict_graph`, `explicit_graph` | `O(h*v)` | output-sensitive reporting in the paper pipeline | edge equality in FullyAudited | independently built geometric graph | excluded from CompactOnly |
