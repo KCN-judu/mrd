@@ -132,6 +132,91 @@ pub struct GridComponent<C> {
     pub cells: Vec<Cell>,
 }
 
+/// Component-local geometry prepared for repeated grid algorithms.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PreparedGridComponent {
+    pub x0: usize,
+    pub y0: usize,
+    pub x1: usize,
+    pub y1: usize,
+    pub occupancy: Vec<bool>,
+    pub horizontal_interior_runs: Vec<Vec<(usize, usize)>>,
+    pub vertical_interior_runs: Vec<Vec<(usize, usize)>>,
+}
+
+impl PreparedGridComponent {
+    /// Builds a component-local occupancy mask and maximal two-sided runs.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GridError`] for an empty component or dimension overflow.
+    pub fn from_component<C>(component: &GridComponent<C>) -> Result<Self, GridError> {
+        let (x0, y0, x1, y1) = component.bounds().ok_or(GridError::EmptyComponent)?;
+        let width = x1 - x0;
+        let height = y1 - y0;
+        let mut occupancy = vec![
+            false;
+            width
+                .checked_mul(height)
+                .ok_or(GridError::DimensionOverflow)?
+        ];
+        for cell in &component.cells {
+            occupancy[(cell.y - y0) * width + cell.x - x0] = true;
+        }
+        let mut horizontal_interior_runs = vec![Vec::new(); height + 1];
+        for y in 0..=height {
+            let mut x = 0;
+            while x < width {
+                if y > 0 && y < height && occupancy[(y - 1) * width + x] && occupancy[y * width + x]
+                {
+                    let start = x;
+                    x += 1;
+                    while x < width && occupancy[(y - 1) * width + x] && occupancy[y * width + x] {
+                        x += 1;
+                    }
+                    horizontal_interior_runs[y].push((start + x0, x + x0));
+                } else {
+                    x += 1;
+                }
+            }
+        }
+        let mut vertical_interior_runs = vec![Vec::new(); width + 1];
+        for x in 0..=width {
+            let mut y = 0;
+            while y < height {
+                if x > 0 && x < width && occupancy[y * width + x - 1] && occupancy[y * width + x] {
+                    let start = y;
+                    y += 1;
+                    while y < height && occupancy[y * width + x - 1] && occupancy[y * width + x] {
+                        y += 1;
+                    }
+                    vertical_interior_runs[x].push((start + y0, y + y0));
+                } else {
+                    y += 1;
+                }
+            }
+        }
+        Ok(Self {
+            x0,
+            y0,
+            x1,
+            y1,
+            occupancy,
+            horizontal_interior_runs,
+            vertical_interior_runs,
+        })
+    }
+
+    #[must_use]
+    pub fn contains_cell(&self, x: usize, y: usize) -> bool {
+        x >= self.x0
+            && x < self.x1
+            && y >= self.y0
+            && y < self.y1
+            && self.occupancy[(y - self.y0) * (self.x1 - self.x0) + x - self.x0]
+    }
+}
+
 impl<C> GridComponent<C> {
     #[must_use]
     pub fn contains_cell(&self, x: usize, y: usize) -> bool {
@@ -166,16 +251,35 @@ pub enum GridError {
     DimensionOverflow,
     #[error("expected {expected} cells but received {actual}")]
     CellCount { expected: usize, actual: usize },
+    #[error("cannot prepare an empty component")]
+    EmptyComponent,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::ColorGrid;
+    use super::{ColorGrid, PreparedGridComponent};
 
     #[test]
     fn corner_contact_is_not_connectivity() {
         let grid = ColorGrid::new(2, 2, vec![true, false, false, true]).unwrap();
         let components = grid.four_connected_components();
         assert_eq!(components.len(), 4);
+    }
+
+    #[test]
+    fn prepared_component_builds_local_runs() {
+        let grid = ColorGrid::new(3, 2, vec![true, true, false, true, true, false]).unwrap();
+        let component = grid
+            .four_connected_components()
+            .into_iter()
+            .find(|component| component.color)
+            .unwrap();
+        let prepared = PreparedGridComponent::from_component(&component).unwrap();
+        assert_eq!(
+            (prepared.x0, prepared.y0, prepared.x1, prepared.y1),
+            (0, 0, 2, 2)
+        );
+        assert!(prepared.contains_cell(1, 1));
+        assert_eq!(prepared.horizontal_interior_runs[1], vec![(0, 2)]);
     }
 }

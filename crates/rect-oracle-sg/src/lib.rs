@@ -7,7 +7,8 @@ use std::time::Instant;
 use rect_core::{
     Boundary, BoundaryError, Certificate, Coord, Diagnostics, DissectionResult, ExactRatio,
     GeometryError, GridComponent, GridRect, HorizontalChord, HorizontalChordId, Point,
-    ValidationError, VerticalChord, VerticalChordId, closed_chords_intersect, validate_dissection,
+    PreparedGridComponent, ValidationError, VerticalChord, VerticalChordId,
+    closed_chords_intersect, validate_dissection,
 };
 use rect_graph::{BipartiteGraph, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover};
 use serde::{Deserialize, Serialize};
@@ -815,15 +816,12 @@ struct CompletionState {
 
 impl CompletionState {
     fn new<C>(component: &GridComponent<C>, cuts: Cuts) -> Result<Self, SgError> {
-        let (x0, y0, x1, y1) = component
-            .bounds()
-            .ok_or(SgError::CompletionDidNotTerminate)?;
+        let prepared = PreparedGridComponent::from_component(component)
+            .map_err(|_| SgError::CompletionDidNotTerminate)?;
+        let (x0, y0, x1, y1) = (prepared.x0, prepared.y0, prepared.x1, prepared.y1);
         let width = x1 - x0;
         let height = y1 - y0;
-        let mut occupancy = vec![false; width * height];
-        for cell in &component.cells {
-            occupancy[(cell.y - y0) * width + cell.x - x0] = true;
-        }
+        let occupancy = prepared.occupancy.clone();
         let mut state = Self {
             x0,
             y0,
