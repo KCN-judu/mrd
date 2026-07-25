@@ -105,37 +105,10 @@ impl BicliquePartition {
     /// Returns [`BicliqueError`] for duplicate IDs, invalid endpoints, a
     /// non-biclique block, omitted edges, fabricated edges, or duplicates.
     pub fn verify_exact_partition(&self, graph: &BipartiteGraph) -> Result<(), BicliqueError> {
+        self.verify_structure(graph.left_size(), graph.right_size())?;
         for biclique in &self.bicliques {
-            if biclique.left.is_empty() || biclique.right.is_empty() {
-                return Err(BicliqueError::EmptySide { id: biclique.id });
-            }
-            if biclique.left.iter().copied().collect::<BTreeSet<_>>().len() != biclique.left.len() {
-                return Err(BicliqueError::DuplicateLeftVertex { id: biclique.id });
-            }
-            if biclique
-                .right
-                .iter()
-                .copied()
-                .collect::<BTreeSet<_>>()
-                .len()
-                != biclique.right.len()
-            {
-                return Err(BicliqueError::DuplicateRightVertex { id: biclique.id });
-            }
             for &left in &biclique.left {
-                if left >= graph.left_size() {
-                    return Err(BicliqueError::LeftOutOfBounds {
-                        id: biclique.id,
-                        left,
-                    });
-                }
                 for &right in &biclique.right {
-                    if right >= graph.right_size() {
-                        return Err(BicliqueError::RightOutOfBounds {
-                            id: biclique.id,
-                            right,
-                        });
-                    }
                     if !graph.neighbors(left).contains(&right) {
                         return Err(BicliqueError::SpuriousEdge {
                             id: biclique.id,
@@ -161,6 +134,54 @@ impl BicliquePartition {
             return Err(BicliqueError::DuplicateEdges {
                 count: audit.duplicate_edge_count,
             });
+        }
+        Ok(())
+    }
+
+    /// Verifies the compact representation without expanding block products.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] for empty sides, duplicate vertex IDs, or
+    /// endpoints outside the declared chord families.
+    pub fn verify_structure(
+        &self,
+        horizontal_count: usize,
+        vertical_count: usize,
+    ) -> Result<(), BicliqueError> {
+        for biclique in &self.bicliques {
+            if biclique.left.is_empty() || biclique.right.is_empty() {
+                return Err(BicliqueError::EmptySide { id: biclique.id });
+            }
+            if biclique.left.iter().copied().collect::<BTreeSet<_>>().len() != biclique.left.len() {
+                return Err(BicliqueError::DuplicateLeftVertex { id: biclique.id });
+            }
+            if biclique
+                .right
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len()
+                != biclique.right.len()
+            {
+                return Err(BicliqueError::DuplicateRightVertex { id: biclique.id });
+            }
+            for &left in &biclique.left {
+                if left >= horizontal_count {
+                    return Err(BicliqueError::LeftOutOfBounds {
+                        id: biclique.id,
+                        left,
+                    });
+                }
+            }
+            for &right in &biclique.right {
+                if right >= vertical_count {
+                    return Err(BicliqueError::RightOutOfBounds {
+                        id: biclique.id,
+                        right,
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -339,16 +360,20 @@ fn partition_recursive(
 fn verify_coordinate_order_assumptions(
     embedding: &DominanceEmbedding,
 ) -> Result<(), BicliqueError> {
-    for (left, horizontal) in embedding.horizontal.iter().enumerate() {
+    for coordinate in 0..4 {
+        let horizontal_by_value = embedding
+            .horizontal
+            .iter()
+            .enumerate()
+            .map(|(left, point)| (point.coordinates[coordinate], left))
+            .collect::<HashMap<_, _>>();
         for (right, vertical) in embedding.vertical.iter().enumerate() {
-            for coordinate in 0..4 {
-                if horizontal.coordinates[coordinate] == vertical.coordinates[coordinate] {
-                    return Err(BicliqueError::CrossSideCoordinateEquality {
-                        left,
-                        right,
-                        coordinate,
-                    });
-                }
+            if let Some(&left) = horizontal_by_value.get(&vertical.coordinates[coordinate]) {
+                return Err(BicliqueError::CrossSideCoordinateEquality {
+                    left,
+                    right,
+                    coordinate,
+                });
             }
         }
     }

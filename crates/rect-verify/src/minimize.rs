@@ -3,7 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rect_core::{ColorGrid, Diagnostics, DissectionResult, SvgOverlay, render_dissection_svg};
-use rect_dominance::{DominanceMode, biclique::BicliquePartition, embedding::DominanceEmbedding};
+use rect_dominance::{
+    DominanceMode, VerificationMode, biclique::BicliquePartition, embedding::DominanceEmbedding,
+};
 use serde_json::{Value, json};
 use thiserror::Error;
 
@@ -166,6 +168,13 @@ fn collect_solver_outputs(fixture: &GridFixture) -> Result<Value, MinimizeError>
         solvers.insert(
             "dominance-compressed",
             result_value(rect_dominance::solve(&component, DominanceMode::Compact)),
+        );
+        solvers.insert(
+            "dominance-compact-only",
+            result_value(rect_dominance::solve_with_verification_mode(
+                &component,
+                VerificationMode::CompactOnly,
+            )),
         );
         components.insert(component.id.0.to_string(), json!(solvers));
     }

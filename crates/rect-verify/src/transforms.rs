@@ -262,7 +262,7 @@ pub enum TransformError {
 #[cfg(test)]
 mod tests {
     use rect_core::{ColorGrid, GridComponent};
-    use rect_dominance::DominanceMode;
+    use rect_dominance::{DominanceMode, VerificationMode};
 
     use super::{GridTransform, TransformedComponent};
 
@@ -303,6 +303,11 @@ mod tests {
                 rect_dominance::solve(&transformed.component, DominanceMode::ExplicitEdges)
                     .unwrap(),
                 rect_dominance::solve(&transformed.component, DominanceMode::Compact).unwrap(),
+                rect_dominance::solve_with_verification_mode(
+                    &transformed.component,
+                    VerificationMode::CompactOnly,
+                )
+                .unwrap(),
             ];
             for result in results {
                 assert_eq!(result.optimum_rectangle_count, expected, "{transform:?}");

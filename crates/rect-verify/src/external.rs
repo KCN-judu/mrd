@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use rect_core::{
-    ColorGrid, Diagnostics, DissectionResult, GridRect, ValidationError, validate_dissection,
+    ColorGrid, Diagnostics, DissectionResult, GridComponent, GridRect, ValidationError,
+    validate_dissection,
 };
-use rect_dominance::DominanceMode;
+use rect_dominance::{DominanceMode, VerificationMode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -103,40 +104,8 @@ pub fn compare_external(
         } else {
             false
         };
-        let mut rust_results = vec![
-            (
-                "sg-explicit",
-                rect_oracle_sg::solve(component).map_err(|error| error.to_string()),
-            ),
-            (
-                "dominance-c0",
-                rect_dominance::solve(component, DominanceMode::ExplicitEdges)
-                    .map_err(|error| error.to_string()),
-            ),
-            (
-                "dominance-compressed",
-                rect_dominance::solve(component, DominanceMode::Compact)
-                    .map_err(|error| error.to_string()),
-            ),
-        ];
-        let mut rust_skipped_solvers = Vec::new();
-        if component.cell_count() <= exact_cover_cell_limit {
-            rust_results.push((
-                "exact-cover",
-                rect_oracle_exact_cover::solve(component).map_err(|error| error.to_string()),
-            ));
-        } else {
-            rust_skipped_solvers.push("exact-cover".to_owned());
-        }
-        let mut rust_optima = BTreeMap::new();
-        for (name, result) in rust_results {
-            let result = result.map_err(|message| ExternalComparisonError::RustSolver {
-                component: component.id.0,
-                solver: name,
-                message,
-            })?;
-            rust_optima.insert(name.to_owned(), result.optimum_rectangle_count);
-        }
+        let (rust_optima, rust_skipped_solvers) =
+            collect_rust_optima(component, exact_cover_cell_limit)?;
         let agrees = external_component.status == "optimal"
             && external_optimum.is_some()
             && rust_optima
@@ -159,6 +128,52 @@ pub fn compare_external(
         all_agree: comparisons.iter().all(|comparison| comparison.agrees),
         components: comparisons,
     })
+}
+
+fn collect_rust_optima(
+    component: &GridComponent<Value>,
+    exact_cover_cell_limit: usize,
+) -> Result<(BTreeMap<String, usize>, Vec<String>), ExternalComparisonError> {
+    let mut rust_results = vec![
+        (
+            "sg-explicit",
+            rect_oracle_sg::solve(component).map_err(|error| error.to_string()),
+        ),
+        (
+            "dominance-c0",
+            rect_dominance::solve(component, DominanceMode::ExplicitEdges)
+                .map_err(|error| error.to_string()),
+        ),
+        (
+            "dominance-compressed",
+            rect_dominance::solve(component, DominanceMode::Compact)
+                .map_err(|error| error.to_string()),
+        ),
+        (
+            "dominance-compact-only",
+            rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
+                .map_err(|error| error.to_string()),
+        ),
+    ];
+    let mut skipped = Vec::new();
+    if component.cell_count() <= exact_cover_cell_limit {
+        rust_results.push((
+            "exact-cover",
+            rect_oracle_exact_cover::solve(component).map_err(|error| error.to_string()),
+        ));
+    } else {
+        skipped.push("exact-cover".to_owned());
+    }
+    let mut optima = BTreeMap::new();
+    for (name, result) in rust_results {
+        let result = result.map_err(|message| ExternalComparisonError::RustSolver {
+            component: component.id.0,
+            solver: name,
+            message,
+        })?;
+        optima.insert(name.to_owned(), result.optimum_rectangle_count);
+    }
+    Ok((optima, skipped))
 }
 
 #[derive(Debug, Error)]

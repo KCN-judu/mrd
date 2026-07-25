@@ -34,7 +34,7 @@ pub struct Diagnostics {
     pub horizontal_chord_count: usize,
     pub vertical_chord_count: usize,
     pub total_chord_count: usize,
-    pub explicit_conflict_edge_count: usize,
+    pub explicit_conflict_edge_count: Option<usize>,
     pub conflict_edge_density: Option<ExactRatio>,
     pub biclique_count: usize,
     pub biclique_total_vertex_occurrences: usize,

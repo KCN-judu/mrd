@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use rect_core::GridComponent;
-use rect_dominance::DominanceMode;
+use rect_dominance::{DominanceMode, VerificationMode};
 use serde::{Deserialize, Serialize};
 
 use crate::adversarial::{AdversarialInstance, one_hole_ring};
@@ -283,6 +283,11 @@ fn solve_component(
         (
             "dominance-compressed",
             rect_dominance::solve(component, DominanceMode::Compact)
+                .map_err(|error| error.to_string()),
+        ),
+        (
+            "dominance-compact-only",
+            rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
                 .map_err(|error| error.to_string()),
         ),
     ] {

@@ -638,6 +638,11 @@ mod tests {
                     .unwrap();
             let compact =
                 rect_dominance::solve(&component, rect_dominance::DominanceMode::Compact).unwrap();
+            let compact_only = rect_dominance::solve_with_verification_mode(
+                &component,
+                rect_dominance::VerificationMode::CompactOnly,
+            )
+            .unwrap();
             assert_eq!(analysis.matching.size, c0.diagnostics.maximum_matching_size);
             assert_eq!(
                 analysis.matching.size,
@@ -648,7 +653,26 @@ mod tests {
                 compact.diagnostics.maximum_matching_size
             );
             assert_eq!(
+                compact.diagnostics.maximum_matching_size,
+                compact_only.diagnostics.maximum_matching_size
+            );
+            assert_eq!(
+                compact.optimum_rectangle_count,
+                compact_only.optimum_rectangle_count
+            );
+            assert_eq!(compact_only.diagnostics.explicit_conflict_edge_count, None);
+            assert_eq!(compact_only.diagnostics.c0_network_vertex_count, 0);
+            assert_eq!(compact_only.diagnostics.c0_network_arc_count, 0);
+            assert_eq!(
+                compact_only.certificate.as_ref().unwrap().payload["verification_mode"],
+                "compact-only"
+            );
+            assert_eq!(
                 compact.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
+                0
+            );
+            assert_eq!(
+                compact_only.certificate.as_ref().unwrap().payload["internal_cut_arc_count"],
                 0
             );
         }

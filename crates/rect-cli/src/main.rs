@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
-use rect_dominance::DominanceMode;
+use rect_dominance::{DominanceMode, VerificationMode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -122,6 +122,7 @@ enum SolverArg {
     SgExplicit,
     DominanceC0,
     DominanceCompressed,
+    DominanceCompactOnly,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -430,17 +431,22 @@ fn generate_command(
             components.len()
         )));
     };
-    let analysis =
-        rect_oracle_sg::analyze(component).map_err(|error| CliError::Solver(error.to_string()))?;
-    let result = rect_dominance::solve(component, DominanceMode::Compact)
+    let geometry = rect_oracle_sg::analyze_geometry(component)
         .map_err(|error| CliError::Solver(error.to_string()))?;
-    let (selected_horizontal, selected_vertical) = selected_chords(&result, &analysis)?;
+    let result =
+        rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
+            .map_err(|error| CliError::Solver(error.to_string()))?;
+    let (selected_horizontal, selected_vertical) = selected_chords(
+        &result,
+        geometry.horizontal_chords.len(),
+        geometry.vertical_chords.len(),
+    )?;
     let svg = render_dissection_svg(
         component,
         &result,
         &SvgOverlay {
-            horizontal_chords: &analysis.horizontal_chords,
-            vertical_chords: &analysis.vertical_chords,
+            horizontal_chords: &geometry.horizontal_chords,
+            vertical_chords: &geometry.vertical_chords,
             selected_horizontal: &selected_horizontal,
             selected_vertical: &selected_vertical,
         },
@@ -500,6 +506,10 @@ fn solve_component<C>(
             .map_err(|error| CliError::Solver(error.to_string())),
         SolverArg::DominanceCompressed => rect_dominance::solve(component, DominanceMode::Compact)
             .map_err(|error| CliError::Solver(error.to_string())),
+        SolverArg::DominanceCompactOnly => {
+            rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
+                .map_err(|error| CliError::Solver(error.to_string()))
+        }
     }
 }
 
@@ -634,8 +644,11 @@ fn write_svg_files(
         } else {
             let analysis = rect_oracle_sg::analyze(component)
                 .map_err(|error| CliError::Solver(error.to_string()))?;
-            let (selected_horizontal, selected_vertical) =
-                selected_chords(&solution.result, &analysis)?;
+            let (selected_horizontal, selected_vertical) = selected_chords(
+                &solution.result,
+                analysis.horizontal_chords.len(),
+                analysis.vertical_chords.len(),
+            )?;
             render_dissection_svg(
                 component,
                 &solution.result,
@@ -654,7 +667,8 @@ fn write_svg_files(
 
 fn selected_chords(
     result: &DissectionResult,
-    analysis: &rect_oracle_sg::SgAnalysis,
+    horizontal_count: usize,
+    vertical_count: usize,
 ) -> Result<(Vec<bool>, Vec<bool>), CliError> {
     let payload = &result
         .certificate
@@ -669,8 +683,8 @@ fn selected_chords(
         .get("selected_vertical")
         .and_then(Value::as_array)
         .ok_or_else(|| CliError::Certificate("missing selected_vertical".to_owned()))?;
-    let mut horizontal = vec![false; analysis.horizontal_chords.len()];
-    let mut vertical = vec![false; analysis.vertical_chords.len()];
+    let mut horizontal = vec![false; horizontal_count];
+    let mut vertical = vec![false; vertical_count];
     for value in horizontal_indices {
         let index = value
             .as_u64()

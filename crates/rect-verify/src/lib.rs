@@ -6,7 +6,7 @@ pub mod polyomino;
 pub mod transforms;
 
 use rect_core::{ColorGrid, DissectionResult, GridComponent};
-use rect_dominance::DominanceMode;
+use rect_dominance::{DominanceMode, VerificationMode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -18,6 +18,7 @@ pub struct ComponentVerification {
     pub sg_explicit: DissectionResult,
     pub dominance_c0: DissectionResult,
     pub dominance_compact: DissectionResult,
+    pub dominance_compact_only: DissectionResult,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -83,6 +84,12 @@ pub fn verify_component<C>(
                 message: error.to_string(),
             }
         })?;
+    let dominance_compact_only =
+        rect_dominance::solve_with_verification_mode(component, VerificationMode::CompactOnly)
+            .map_err(|error| VerificationError::Solver {
+                solver: "dominance-compact-only",
+                message: error.to_string(),
+            })?;
 
     let expected = exact_cover
         .as_ref()
@@ -95,6 +102,10 @@ pub fn verify_component<C>(
         (
             "dominance-compact",
             dominance_compact.optimum_rectangle_count,
+        ),
+        (
+            "dominance-compact-only",
+            dominance_compact_only.optimum_rectangle_count,
         ),
     ] {
         if actual != expected {
@@ -113,6 +124,7 @@ pub fn verify_component<C>(
         sg_explicit,
         dominance_c0,
         dominance_compact,
+        dominance_compact_only,
     })
 }
 

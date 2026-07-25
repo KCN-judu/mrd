@@ -26,12 +26,21 @@ pub struct SgAnalysis {
     pub optimum_rectangle_count: usize,
 }
 
-/// Builds and verifies the complete explicit classical reduction.
+#[derive(Clone, Debug)]
+pub struct SgGeometry {
+    pub boundary: Boundary,
+    pub horizontal_chords: Vec<HorizontalChord>,
+    pub vertical_chords: Vec<VerticalChord>,
+}
+
+/// Extracts the supported boundary and effective chord families without
+/// constructing the conflict graph or running a matching algorithm.
 ///
 /// # Errors
 ///
-/// Returns [`SgError`] when a boundary, chord, graph, or formula invariant fails.
-pub fn analyze<C>(component: &GridComponent<C>) -> Result<SgAnalysis, SgError> {
+/// Returns [`SgError`] when boundary extraction, topology validation, or
+/// effective-chord enumeration fails.
+pub fn analyze_geometry<C>(component: &GridComponent<C>) -> Result<SgGeometry, SgError> {
     let boundary = Boundary::from_component(component)?;
     if boundary.outer_loop_count() != 1 {
         return Err(SgError::UnsupportedBoundaryTopology {
@@ -39,6 +48,23 @@ pub fn analyze<C>(component: &GridComponent<C>) -> Result<SgAnalysis, SgError> {
         });
     }
     let (horizontal_chords, vertical_chords) = enumerate_effective_chords(component, &boundary)?;
+    Ok(SgGeometry {
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+    })
+}
+
+/// Builds and verifies the complete explicit classical reduction.
+///
+/// # Errors
+///
+/// Returns [`SgError`] when a boundary, chord, graph, or formula invariant fails.
+pub fn analyze<C>(component: &GridComponent<C>) -> Result<SgAnalysis, SgError> {
+    let geometry = analyze_geometry(component)?;
+    let boundary = geometry.boundary;
+    let horizontal_chords = geometry.horizontal_chords;
+    let vertical_chords = geometry.vertical_chords;
     let conflict_graph = build_conflict_graph(&horizontal_chords, &vertical_chords)?;
     let matching = hopcroft_karp(&conflict_graph);
     let vertex_cover = minimum_vertex_cover(&conflict_graph, &matching);
@@ -127,7 +153,7 @@ pub fn solve<C>(component: &GridComponent<C>) -> Result<DissectionResult, SgErro
             horizontal_chord_count: analysis.horizontal_chords.len(),
             vertical_chord_count: analysis.vertical_chords.len(),
             total_chord_count: analysis.horizontal_chords.len() + analysis.vertical_chords.len(),
-            explicit_conflict_edge_count: analysis.conflict_graph.edge_count(),
+            explicit_conflict_edge_count: Some(analysis.conflict_graph.edge_count()),
             conflict_edge_density: ExactRatio::new(
                 analysis.conflict_graph.edge_count() as u128,
                 (analysis.horizontal_chords.len() as u128)
@@ -427,14 +453,37 @@ pub fn complete_with_selected_chords<C>(
     selected_horizontal: &[bool],
     selected_vertical: &[bool],
 ) -> Result<Vec<GridRect>, SgError> {
-    if selected_horizontal.len() != analysis.horizontal_chords.len()
-        || selected_vertical.len() != analysis.vertical_chords.len()
+    complete_with_chord_families(
+        component,
+        &analysis.horizontal_chords,
+        &analysis.vertical_chords,
+        selected_horizontal,
+        selected_vertical,
+    )
+}
+
+/// Performs geometric completion from chord families without requiring an
+/// explicit conflict graph or matching object.
+///
+/// # Errors
+///
+/// Returns [`SgError`] for dimension mismatches, invalid simple chords,
+/// nontermination, or nonrectangular final regions.
+pub fn complete_with_chord_families<C>(
+    component: &GridComponent<C>,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    selected_horizontal: &[bool],
+    selected_vertical: &[bool],
+) -> Result<Vec<GridRect>, SgError> {
+    if selected_horizontal.len() != horizontal_chords.len()
+        || selected_vertical.len() != vertical_chords.len()
     {
         return Err(SgError::SelectionLengthMismatch);
     }
     let mut cuts = Cuts::from_selection(
-        &analysis.horizontal_chords,
-        &analysis.vertical_chords,
+        horizontal_chords,
+        vertical_chords,
         selected_horizontal,
         selected_vertical,
     )?;
