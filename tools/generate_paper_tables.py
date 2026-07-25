@@ -166,6 +166,9 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "almost-linear theoretical flow backend", "theoretical paper": "used asymptotically", "current Rust artifact": "not implemented", "tested": "no", "notes": "citation-only complexity component"},
         {"feature": "explicit rectangle output", "theoretical paper": "constructive completion", "current Rust artifact": "implemented", "tested": "yes", "notes": "cell-exact validation"},
         {"feature": "machine-checkable certificates", "theoretical paper": "not an artifact requirement", "current Rust artifact": "implemented", "tested": "yes", "notes": "matching, partition, flow, cut, and rectangles"},
+        {"feature": "clean hole-free eligibility", "theoretical paper": "Definition 9.1", "current Rust artifact": "integer grid classifier with loop identities", "tested": "yes", "notes": "component and chord-mass census; ornaments remain out of model"},
+        {"feature": "path-tree biclique partition", "theoretical paper": "Theorems 9.5-9.6", "current Rust artifact": "area-sensitive vertical dual plus HLD", "tested": "yes", "notes": "FullyAudited path-neighbor and edge-partition audits"},
+        {"feature": "clean complete-bipartite family", "theoretical paper": "Theorem 9.2", "current Rust artifact": "unsupported integer-grid realization", "tested": "scope rejection", "notes": "no fabricated dense approximation is emitted"},
     ]
 
 

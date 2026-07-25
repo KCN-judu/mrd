@@ -18,6 +18,33 @@ pub struct AdversarialInstance {
     pub parameters: BTreeMap<String, usize>,
 }
 
+/// Attempts to return a clean complete-bipartite grid realization.
+///
+/// The continuous construction from the paper is not yet encoded in the
+/// supported finite-grid model, so requests are rejected explicitly rather
+/// than emitting a non-clean dense approximation.
+///
+/// # Errors
+///
+/// Returns [`CleanCompleteBipartiteError`] because no supported integer-grid
+/// realization has yet been proved.
+pub fn clean_complete_bipartite_grid(
+    t: usize,
+) -> Result<AdversarialInstance, CleanCompleteBipartiteError> {
+    if t == 0 {
+        return Err(CleanCompleteBipartiteError::ZeroParameter);
+    }
+    Err(CleanCompleteBipartiteError::UnsupportedScale { t })
+}
+
+#[derive(Debug, Error)]
+pub enum CleanCompleteBipartiteError {
+    #[error("complete-bipartite parameter t must be positive")]
+    ZeroParameter,
+    #[error("no finite-grid clean complete-bipartite realization is encoded for t={t}")]
+    UnsupportedScale { t: usize },
+}
+
 impl AdversarialInstance {
     /// Converts the fixture to the common exact JSON-grid model.
     ///
@@ -619,7 +646,6 @@ mod tests {
         topological_stress_instances,
     };
     use crate::verify_component;
-
     #[test]
     fn endpoint_cases_preserve_independent_geometry_embedding_equivalence() {
         for case in endpoint_chord_cases() {

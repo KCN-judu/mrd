@@ -122,3 +122,17 @@ These rows are separate v0.3 CompactOnly evidence and do not overwrite the histo
 Exact chord-family differential comparisons: 253,219 inputs, 0 disagreements.
 The bounded v0.3 CP-SAT rerun compared 27,228 components with 0 disagreements.
 Peak RSS is unmeasured; no null value is interpreted as zero.
+
+## v0.5 clean path-tree evidence
+
+The binary `4x4` clean census covers 168,529 foreground components: 155,389
+pass the clean certificate, with 19,908 effective chords in the eligible
+population. Rejection counts are 593 hole components and 20,736 shared-endpoint
+rejections; the complete q histogram and chord-mass denominators are generated
+in `results/v0.5-clean-census.json` and `.csv`.
+
+The `3x3` path-tree comparison covers 871 eligible components with zero output
+or optimum disagreements. The reference dual is area-sensitive and uses the
+vertical-tree/horizontal-path orientation. The clean complete-bipartite
+integer-grid family remains an explicit unsupported-scope guard; no fabricated
+dense approximation is included.

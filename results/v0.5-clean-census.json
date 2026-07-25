@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "git_commit": "9c826593d98f5349fa1a9accd2089ee5c5746623",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite clean-census --output results/v0.5-clean-census.csv",
+    "seed": null,
+    "timestamp": 1784966444,
+    "input_count": 65535,
+    "component_count": 168529,
+    "input_model": "finite-colored-unit-grid-binary-4x4",
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "total_components": 168529,
+  "hole_free_components": 167936,
+  "eligible_components": 155389,
+  "total_chord_count": 55296,
+  "eligible_chord_count": 19908,
+  "rejection_counts": {
+    "has-hole": 593,
+    "shared-boundary-endpoint": 20736
+  },
+  "eligible_q_histogram": {
+    "0": 137221,
+    "1": 16452,
+    "2": 1692,
+    "3": 24
+  }
+}

@@ -324,6 +324,24 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "9c826593d98f5349fa1a9accd2089ee5c5746623",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-comparison --sizes 3 --output results/v0.5-path-tree-comparison.csv",
+      "seed": null,
+      "timestamp": 1784966444,
+      "input_count": 512,
+      "component_count": 871,
+      "input_model": "finite-colored-unit-grid-path-tree-comparison",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {

@@ -11,6 +11,9 @@ monochromatic rectangular partitions of finite colored grids:
   biclique partition and the compressed Dinic network, available as both a
   fully audited path and a compact-only path that does not materialize conflict
   edges.
+- `--representation path-tree|auto`: the clean hole-free region-dual tree
+  representation, with an explicit eligibility certificate and compact 4D
+  fallback.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs
@@ -62,6 +65,10 @@ cargo run --release -p rect-cli -- benchmark \
 cargo run --release -p rect-cli -- generate \
   --family dense-conflict --horizontal 32 --vertical 32 \
   --json /tmp/dense-32.json --svg /tmp/dense-32.svg
+
+cargo run --release -p rect-cli -- generate \
+  --family clean-complete-bipartite --t 1 \
+  --json /tmp/clean-k2-2.json --svg /tmp/clean-k2-2.svg
 ```
 
 Add `--svg dissection.svg` to `solve` to render the source cells, boundary,

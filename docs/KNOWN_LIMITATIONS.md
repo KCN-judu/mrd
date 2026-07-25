@@ -34,6 +34,14 @@
   exact differential equality on the recorded v0.4 populations. The
   reference-rescan backend remains selectable as an Oracle and FullyAudited
   continues to use it by default.
+- The clean-hole-free path-tree representation is an additional specialized
+  backend. Its grid reference dual is area-sensitive, currently uses the
+  vertical-tree/horizontal-path orientation, and does not implement the
+  paper's planar-sweep construction or a symmetric orientation selector.
+- The complete-bipartite geometry generator is currently an explicit
+  unsupported-scope guard: no clean integer unit-cell realization has been
+  proved, so all requested scales are rejected until unintended chords and
+  endpoint sharing are resolved.
 - Prepared occupancy, cut arrays, recovery state, and validation are dense in
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less

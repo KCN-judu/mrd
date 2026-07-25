@@ -1,17 +1,190 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
-use rect_core::{Diagnostics, ExactRatio, GridComponent};
+use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::VerificationMode;
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 
 use crate::adversarial::{
-    AdversarialInstance, alternating_notch_corridor, comb, dense_conflict_grid, double_comb,
-    endpoint_contact_instances, orthogonal_spiral, staircase, topological_stress_instances,
+    AdversarialInstance, alternating_notch_corridor, clean_complete_bipartite_grid, comb,
+    dense_conflict_grid, double_comb, endpoint_contact_instances, orthogonal_spiral, staircase,
+    topological_stress_instances,
 };
 use crate::polyomino::{enumerate_free_polyominoes, explicit_hole_polyominoes};
 use crate::{GridFixture, VerificationError, verify_component};
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CleanCensusReport {
+    pub metadata: BenchmarkMetadata,
+    pub total_components: usize,
+    pub hole_free_components: usize,
+    pub eligible_components: usize,
+    pub total_chord_count: usize,
+    pub eligible_chord_count: usize,
+    pub rejection_counts: BTreeMap<String, usize>,
+    pub eligible_q_histogram: BTreeMap<usize, usize>,
+}
+
+impl CleanCensusReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "git_commit,rustc_version,command,seed,timestamp,total_components,hole_free_components,eligible_components,total_chord_count,eligible_chord_count,rejection_reason,count,eligible_q,eligible_q_count\n",
+        );
+        let mut reasons = self.rejection_counts.iter();
+        let mut histogram = self.eligible_q_histogram.iter();
+        loop {
+            let reason = reasons.next();
+            let q = histogram.next();
+            if reason.is_none() && q.is_none() {
+                break;
+            }
+            let (reason_name, reason_count) = reason
+                .map_or((String::new(), String::new()), |(name, count)| {
+                    (name.clone(), count.to_string())
+                });
+            let (q_value, q_count) = q.map_or((String::new(), String::new()), |(value, count)| {
+                (value.to_string(), count.to_string())
+            });
+            let _ = writeln!(
+                csv,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                self.metadata.git_commit,
+                self.metadata.rustc_version,
+                escape_csv(&self.metadata.command),
+                self.metadata
+                    .seed
+                    .map_or_else(String::new, |seed| seed.to_string()),
+                self.metadata.timestamp,
+                self.total_components,
+                self.hole_free_components,
+                self.eligible_components,
+                self.total_chord_count,
+                self.eligible_chord_count,
+                escape_csv(&reason_name),
+                reason_count,
+                q_value,
+                q_count,
+            );
+        }
+        csv
+    }
+
+    #[must_use]
+    pub fn to_markdown(&self) -> String {
+        format!(
+            "# v0.5 Clean Census\n\n- Components: {}\n- Hole-free: {}\n- Clean eligible: {}\n- Total chord mass: {}\n- Eligible chord mass: {}\n- Component fraction: {}/{}\n- Chord-mass fraction: {}/{}\n\nRejection counts and eligible-q histogram are generated in the companion CSV/JSON files.\n",
+            self.total_components,
+            self.hole_free_components,
+            self.eligible_components,
+            self.total_chord_count,
+            self.eligible_chord_count,
+            self.eligible_components,
+            self.total_components.max(1),
+            self.eligible_chord_count,
+            self.total_chord_count.max(1),
+        )
+    }
+}
+
+#[must_use]
+pub fn clean_census_4x4(context: BenchmarkContext) -> CleanCensusReport {
+    let mut total_components = 0;
+    let mut hole_free_components = 0;
+    let mut eligible_components = 0;
+    let mut total_chord_count = 0;
+    let mut eligible_chord_count = 0;
+    let mut rejection_counts = BTreeMap::new();
+    let mut eligible_q_histogram = BTreeMap::new();
+    for mask in 1_u32..(1_u32 << 16) {
+        let cells = (0..16)
+            .map(|index| mask & (1_u32 << index) != 0)
+            .collect::<Vec<_>>();
+        let Ok(grid) = ColorGrid::new(4, 4, cells) else {
+            continue;
+        };
+        for component in grid
+            .four_connected_components()
+            .into_iter()
+            .filter(|component| component.color)
+        {
+            let Ok(geometry) = rect_oracle_sg::analyze_geometry_with(
+                &component,
+                &rect_oracle_sg::GridInteriorRunEnumerator,
+            ) else {
+                continue;
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            let q = geometry.horizontal_chords.len() + geometry.vertical_chords.len();
+            total_components += 1;
+            total_chord_count += q;
+            if certificate.hole_count == 0 {
+                hole_free_components += 1;
+            }
+            if certificate.eligible {
+                eligible_components += 1;
+                eligible_chord_count += q;
+                *eligible_q_histogram.entry(q).or_default() += 1;
+            } else {
+                for reason in certificate.rejection_reasons {
+                    *rejection_counts
+                        .entry(clean_rejection_name(&reason))
+                        .or_default() += 1;
+                }
+            }
+        }
+    }
+    CleanCensusReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: (1_u32 << 16) as usize - 1,
+            component_count: total_components,
+            input_model: "finite-colored-unit-grid-binary-4x4".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        total_components,
+        hole_free_components,
+        eligible_components,
+        total_chord_count,
+        eligible_chord_count,
+        rejection_counts,
+        eligible_q_histogram,
+    }
+}
+
+fn clean_rejection_name(reason: &rect_oracle_sg::CleanRejectionReason) -> String {
+    match reason {
+        rect_oracle_sg::CleanRejectionReason::MultipleOuterLoops { .. } => {
+            "multiple-outer-loops".to_owned()
+        }
+        rect_oracle_sg::CleanRejectionReason::HasHole { .. } => "has-hole".to_owned(),
+        rect_oracle_sg::CleanRejectionReason::UnsupportedOrnamentModel => {
+            "unsupported-ornament-model".to_owned()
+        }
+        rect_oracle_sg::CleanRejectionReason::NonProperHorizontalChord(_) => {
+            "non-proper-horizontal-chord".to_owned()
+        }
+        rect_oracle_sg::CleanRejectionReason::NonProperVerticalChord(_) => {
+            "non-proper-vertical-chord".to_owned()
+        }
+        rect_oracle_sg::CleanRejectionReason::EndpointNotOnBoundary => {
+            "endpoint-not-on-boundary".to_owned()
+        }
+        rect_oracle_sg::CleanRejectionReason::SharedBoundaryEndpoint { .. } => {
+            "shared-boundary-endpoint".to_owned()
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BenchmarkContext {
@@ -551,6 +724,132 @@ pub fn benchmark_dense_conflict(context: BenchmarkContext, sizes: &[usize]) -> B
         .map(|&size| dense_conflict_grid(size, size))
         .collect::<Vec<_>>();
     benchmark_instances(context, &instances, 0)
+}
+
+#[must_use]
+pub fn benchmark_clean_complete_bipartite(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> BenchmarkReport {
+    let instances = sizes
+        .iter()
+        .filter_map(|&size| clean_complete_bipartite_grid(size).ok())
+        .collect::<Vec<_>>();
+    benchmark_instances(context, &instances, 40)
+}
+
+#[must_use]
+#[allow(clippy::too_many_lines)]
+pub fn benchmark_path_tree_comparison(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> BenchmarkReport {
+    let requested = sizes.iter().copied().max().unwrap_or(3).min(4);
+    let side = requested.max(3);
+    let bit_count = side * side;
+    let mut rows = Vec::new();
+    for mask in 1_u32..(1_u32 << bit_count) {
+        let cells = (0..bit_count)
+            .map(|index| mask & (1_u32 << index) != 0)
+            .collect::<Vec<_>>();
+        let Ok(grid) = ColorGrid::new(side, side, cells) else {
+            continue;
+        };
+        for component in grid
+            .four_connected_components()
+            .into_iter()
+            .filter(|component| component.color)
+        {
+            let Ok(geometry) = rect_oracle_sg::analyze_geometry(&component) else {
+                continue;
+            };
+            let certificate = rect_oracle_sg::classify_clean_hole_free(
+                &component,
+                &geometry.boundary,
+                &geometry.horizontal_chords,
+                &geometry.vertical_chords,
+            );
+            if !certificate.eligible {
+                continue;
+            }
+            let path = rect_dominance::solve_with_representation(
+                &component,
+                rect_dominance::VerificationMode::FullyAudited,
+                rect_dominance::ConflictRepresentationBackend::CleanHoleFreePathTree,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::ReferenceRescan,
+            );
+            let general = rect_dominance::solve_with_representation(
+                &component,
+                rect_dominance::VerificationMode::FullyAudited,
+                rect_dominance::ConflictRepresentationBackend::GeneralDominance4D,
+                rect_dominance::ChordEnumerator::GridInteriorRuns,
+                CompletionBackendKind::ReferenceRescan,
+            );
+            let (status, message, diagnostics) = match (path, general) {
+                (Ok(path), Ok(general))
+                    if path.optimum_rectangle_count == general.optimum_rectangle_count
+                        && path.rectangles == general.rectangles =>
+                {
+                    ("verified".to_owned(), None, path.diagnostics)
+                }
+                (Ok(path), Ok(_general)) => (
+                    "counterexample".to_owned(),
+                    Some("path-tree and 4D outputs differ".to_owned()),
+                    path.diagnostics,
+                ),
+                (Err(error), _) | (_, Err(error)) => (
+                    "solver-error".to_owned(),
+                    Some(error.to_string()),
+                    Diagnostics {
+                        cell_count: component.cell_count(),
+                        ..Diagnostics::default()
+                    },
+                ),
+            };
+            rows.push(BenchmarkRow {
+                instance_name: format!("binary-{side}x{side}-{mask:x}"),
+                family: "path-tree-comparison".to_owned(),
+                parameters: [("side".to_owned(), side)].into_iter().collect(),
+                component_id: component.id.0,
+                status,
+                message,
+                exact_cover_compared: false,
+                diagnostics,
+                c0_phase_microseconds: BTreeMap::new(),
+                compressed_phase_microseconds: BTreeMap::new(),
+                compact_only_phase_microseconds: BTreeMap::new(),
+            });
+        }
+    }
+    let verified_count = count_status(&rows, "verified");
+    let unsupported_count = count_status(&rows, "unsupported");
+    let solver_error_count = count_status(&rows, "solver-error");
+    let counterexample_count = count_status(&rows, "counterexample");
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: usize::try_from(
+                1_u32
+                    .checked_shl(u32::try_from(bit_count).unwrap_or(32))
+                    .unwrap_or(0),
+            )
+            .unwrap_or(0),
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-grid-path-tree-comparison".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count,
+        unsupported_count,
+        solver_error_count,
+        counterexample_count,
+        failure_fixtures: Vec::new(),
+        rows,
+    }
 }
 
 fn benchmark_instances(

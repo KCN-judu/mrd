@@ -56,11 +56,15 @@ def main() -> None:
     scope = (ROOT / "results/scope-table.csv").read_text()
     require("GridInteriorRunEnumerator" in algorithms, "algorithm enumerator label is stale")
     require("GridInteriorRunEnumerator" in scope, "generated scope enumerator label is stale")
+    require("path-tree" in algorithms, "path-tree representation label is stale")
+    require((ROOT / "docs/CLEAN_HOLE_FREE.md").exists(), "clean eligibility document missing")
+    require((ROOT / "docs/PATH_TREE_REPRESENTATION.md").exists(), "path-tree document missing")
     require("v0.3 compact execution evidence" in experiments, "v0.3 evidence section missing")
     require('"version": "0.3.0"' in tables, "generated v0.3 release summary missing")
     require(index["defaults"]["compact_chord_enumerator"] == "grid-interior-runs", "wrong CompactOnly enumerator default")
     require(index["defaults"]["compact_completion_backend"] in {"reference-rescan", "indexed-frontier"}, "unknown completion backend label")
     require(index["defaults"]["compact_rectangle_recovery_backend"] == "dense-grid", "wrong CompactOnly recovery backend")
+    require(index["defaults"].get("compact_conflict_representation", "dominance-4d") in {"dominance-4d", "auto", "path-tree"}, "unknown conflict representation label")
     print(f"release consistency: ok (workspace {workspace_version})")
 
 

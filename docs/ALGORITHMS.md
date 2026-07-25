@@ -65,6 +65,15 @@ dominance edge without expanding the product. Index bounds and duplicate IDs
 are checked in the same pass.
 Compact-only diagnostics serialize `explicit_conflict_edge_count` as `null`.
 
+On a clean hole-free component, `--representation path-tree` replaces the
+four-dimensional edge partition with a geometry-derived vertical region dual
+and horizontal tree paths. Heavy-light canonical segment nodes produce the
+bicliques consumed by the same compressed flow backend. `--representation auto`
+selects this representation only when the clean certificate passes and records
+a compact 4D fallback otherwise. The grid dual builder is area-sensitive and
+does not claim the paper's planar-sweep construction; see
+`docs/CLEAN_HOLE_FREE.md` and `docs/PATH_TREE_REPRESENTATION.md`.
+
 Stage C0 creates one biclique per explicit dominance edge. Stage C1 implements
 the proof recursion of Cardinal--Yuditsky Theorem 8: split points by the current
 coordinate, recurse on low-left/high-right after dropping that coordinate, and
@@ -135,6 +144,8 @@ biclique vertex occurrences.
 | Geometric completion, SG Section 10 | `rect-oracle-sg` | `complete_with_prepared_backend`, `DenseCutGrid` | indexed component-local frontier with dense cuts by default; ordered reference retained | linear completion after chord choice in the source construction | exact selected/added cut and canonical-rectangle differential populations | `ReferenceRescanCompletion` | ordinary grid regions only |
 | Rectangle recovery | `rect-oracle-sg` | `DenseGridRecovery` | dense visited mask, reusable integer queue, prefix-sum rectangularity proof | verification/output layer | exact rectangle equality against `ReferenceHashBfsRecovery` | hash BFS | component-local area storage |
 | Final dissection validation | `rect-core::validation` | `validate_dissection_prepared` | reuses prepared occupancy; linear in local area plus rectangle area | verification layer, not paper runtime | ordinary and prepared validators agree | independently produced outputs use same exact cell contract | integer-grid rectangles only |
+| Clean eligibility and endpoint alternation | `rect-oracle-sg` | `classify_clean_hole_free`, `endpoints_alternate` | integer loop IDs and modular interval tests | Definition 9.1 / Theorem 9.4 scope for supported grid model | endpoint and hole fixtures | closed chord predicate | ornaments and degenerate formal holes unsupported |
+| Region-dual path-tree partition | `rect-dominance::path_tree` | `build_path_tree_partition` | area-sensitive dual, HLD canonical intervals | `O(q log^2 q)` structural biclique bound; dual sweep bound not implemented | tree/path/partition audits in FullyAudited | explicit graph only as Oracle | vertical-tree reference orientation |
 
 The current effective-chord implementation has interchangeable
 `ReferencePairwiseEnumerator` and `GridInteriorRunEnumerator` paths. The latter
