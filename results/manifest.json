@@ -216,6 +216,60 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "09cbb218cb8307e7d1ee3fa56fd198cce6d8fa3f",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite completion-heavy --families staircase,spiral --sizes 8,16,32,64 --output results/v0.5-completion-heavy.csv",
+      "seed": null,
+      "timestamp": 1784961512,
+      "input_count": 16,
+      "component_count": 16,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "09cbb218cb8307e7d1ee3fa56fd198cce6d8fa3f",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite area-heavy --sizes 64,128,256 --output results/v0.5-area-heavy.csv",
+      "seed": null,
+      "timestamp": 1784961512,
+      "input_count": 6,
+      "component_count": 6,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "09cbb218cb8307e7d1ee3fa56fd198cce6d8fa3f",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite dense-completion --sizes 128,256,512,1024 --output results/v0.5-dense-completion.csv",
+      "seed": null,
+      "timestamp": 1784961513,
+      "input_count": 8,
+      "component_count": 8,
+      "input_model": "finite-colored-unit-cell-grid",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "release_metadata": {

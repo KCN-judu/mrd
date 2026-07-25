@@ -96,3 +96,7 @@ CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;
 see `docs/GEOMETRIC_COMPLETION.md` for the deterministic policy and exact
 cut-family acceptance contract.
+
+The CompactOnly geometry path now shares one component-local prepared context
+across grid-run chord enumeration, dense cut completion, dense rectangle
+recovery, and final validation. See `docs/PREPARED_GRID_PIPELINE.md`.

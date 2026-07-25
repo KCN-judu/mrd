@@ -1,5 +1,11 @@
 # Grid Interior-Run Chord Enumeration
 
+The production enumerator receives maximal runs and row/column reflex groups
+from `PreparedComponentContext`. It obtains each run's coordinate slice with
+`partition_point`; it does not rebuild a cell hash set, rediscover runs, or
+allocate a filtered vector per run. `ReferencePairwiseEnumerator` remains the
+independent chord-set Oracle.
+
 This workspace supports ordinary finite unit-cell components. For a horizontal
 grid line `y`, the open segment between reflex vertices `(a,y)` and `(b,y)` is
 an effective chord exactly when every integer `x` in `[a,b)` has both cells

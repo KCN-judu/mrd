@@ -55,6 +55,12 @@ regions. Each region must equal its integer bounding rectangle. Rectangles are
 sorted canonically, and the solver-independent cell-exact validator checks
 positive area, containment, non-overlap, and exact coverage.
 
+The production indexed path stores cuts only in `DenseCutGrid` and recovers
+regions with `DenseGridRecovery`. Dense recovery uses local integer indices, a
+visited mask, one reusable queue, and occupancy prefix sums. The preserved
+`ReferenceHashBfsRecovery` constructs hash sets and remains a differential
+Oracle, not a CompactOnly production dependency.
+
 Differential acceptance compares all four artifacts exactly:
 
 - selected horizontal and vertical unit cuts;

@@ -34,6 +34,10 @@
   exact differential equality on the recorded v0.4 populations. The
   reference-rescan backend remains selectable as an Oracle and FullyAudited
   continues to use it by default.
+- Prepared occupancy, cut arrays, recovery state, and validation are dense in
+  the component-local bounding box. Very sparse components with a large local
+  box can therefore use `O(A)` memory even when their cell count is much less
+  than `A`.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The
