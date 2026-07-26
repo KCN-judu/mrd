@@ -4,6 +4,7 @@ pub mod external;
 pub mod minimize;
 pub mod polyomino;
 pub mod transforms;
+pub mod witness;
 
 use rect_core::{ColorGrid, DissectionResult, GridComponent};
 use rect_dominance::{DominanceMode, VerificationMode};

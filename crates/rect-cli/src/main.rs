@@ -137,6 +137,30 @@ enum Command {
         #[arg(long)]
         output_dir: PathBuf,
     },
+    SearchPathTreeWitness {
+        #[arg(long, default_value_t = 12)]
+        max_width: usize,
+        #[arg(long, default_value_t = 12)]
+        max_height: usize,
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        #[arg(long, default_value_t = false)]
+        require_clean: bool,
+        #[arg(long, default_value_t = 2)]
+        min_horizontal_chords: usize,
+        #[arg(long, default_value_t = 2)]
+        min_vertical_chords: usize,
+        #[arg(long, default_value_t = 3)]
+        min_dual_branching: usize,
+        #[arg(long, default_value_t = 3)]
+        min_path_count: usize,
+        #[arg(long, default_value_t = 4)]
+        min_heavy_chain_intervals: usize,
+        #[arg(long, default_value_t = 2)]
+        min_canonical_nodes: usize,
+        #[arg(long)]
+        output_dir: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -195,7 +219,9 @@ enum BenchmarkSuiteArg {
     AreaHeavy,
     PathTreeComparison,
     PathTreeFamilies,
+    PathTreeScaling,
     PathTreeVs4d,
+    PathTreeAdvantage,
     PathTreeOrientationAudit,
     PathTreeDualDifferential,
     AutoFallback,
@@ -393,6 +419,31 @@ fn run() -> Result<(), CliError> {
             svg,
         } => generate_command(family, t, horizontal, vertical, &json, &svg),
         Command::ExportAdversarial { output_dir } => export_adversarial(&output_dir),
+        Command::SearchPathTreeWitness {
+            max_width,
+            max_height,
+            seed,
+            require_clean,
+            min_horizontal_chords,
+            min_vertical_chords,
+            min_dual_branching,
+            min_path_count,
+            min_heavy_chain_intervals,
+            min_canonical_nodes,
+            output_dir,
+        } => search_path_tree_witness_command(
+            max_width,
+            max_height,
+            seed,
+            require_clean,
+            min_horizontal_chords,
+            min_vertical_chords,
+            min_dual_branching,
+            min_path_count,
+            min_heavy_chain_intervals,
+            min_canonical_nodes,
+            &output_dir,
+        ),
     }
 }
 
@@ -448,6 +499,37 @@ fn export_adversarial(output_dir: &Path) -> Result<(), CliError> {
             .map_err(|error| CliError::Output(error.to_string()))?;
     }
     write_json(&instances, Some(&output_dir.join("index.json")))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_path_tree_witness_command(
+    max_width: usize,
+    max_height: usize,
+    seed: u64,
+    require_clean: bool,
+    min_horizontal_chords: usize,
+    min_vertical_chords: usize,
+    min_dual_branching: usize,
+    min_path_count: usize,
+    min_heavy_chain_intervals: usize,
+    min_canonical_nodes: usize,
+    output_dir: &Path,
+) -> Result<(), CliError> {
+    let report = rect_verify::witness::search_path_tree_witnesses(
+        max_width,
+        max_height,
+        seed,
+        require_clean,
+        min_horizontal_chords,
+        min_vertical_chords,
+        min_dual_branching,
+        min_path_count,
+        min_heavy_chain_intervals,
+        min_canonical_nodes,
+        output_dir,
+    )
+    .map_err(|error| CliError::Output(error.to_string()))?;
+    write_json(&report, Some(&output_dir.join("report.json")))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -507,6 +589,9 @@ fn benchmark_command(
                 sizes.iter().copied().max().unwrap_or(5),
             )
         }
+        BenchmarkSuiteArg::PathTreeScaling => {
+            rect_verify::benchmark::benchmark_path_tree_geometry_scaling(context, sizes)
+        }
         BenchmarkSuiteArg::PathTreeVs4d => {
             let report = rect_verify::benchmark::benchmark_path_tree_vs_4d(context, sizes);
             write_text(output, &report.to_csv())?;
@@ -519,6 +604,13 @@ fn benchmark_command(
                     report.counterexamples
                 )))
             };
+        }
+        BenchmarkSuiteArg::PathTreeAdvantage => {
+            let report = rect_verify::benchmark::benchmark_path_tree_advantage(&context, sizes, 16);
+            write_text(output, &report.to_csv())?;
+            write_json(&report, Some(&output.with_extension("json")))?;
+            write_text(&output.with_extension("md"), &report.to_markdown())?;
+            return Ok(());
         }
         BenchmarkSuiteArg::PathTreeOrientationAudit => {
             let report =
@@ -799,13 +891,14 @@ fn solve_component<C>(
     let completion_backend = completion_backend.map(completion_backend_kind);
     match solver {
         SolverArg::ExactCover => {
-            if completion_backend.is_some()
+            if chord_enumerator.is_some()
+                || completion_backend.is_some()
                 || representation.is_some()
                 || region_dual.is_some()
                 || path_tree_orientation.is_some()
             {
                 return Err(CliError::Input(
-                    "completion and representation options apply only to dominance solvers"
+                    "chord, completion, and representation options apply only to dominance solvers"
                         .to_owned(),
                 ));
             }
@@ -813,26 +906,28 @@ fn solve_component<C>(
                 .map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::SgExplicit => {
-            if completion_backend.is_some()
+            if chord_enumerator.is_some()
+                || completion_backend.is_some()
                 || representation.is_some()
                 || region_dual.is_some()
                 || path_tree_orientation.is_some()
             {
                 return Err(CliError::Input(
-                    "completion and representation options apply only to dominance solvers"
+                    "chord, completion, and representation options apply only to dominance solvers"
                         .to_owned(),
                 ));
             }
             rect_oracle_sg::solve(component).map_err(|error| CliError::Solver(error.to_string()))
         }
         SolverArg::DominanceC0 => {
-            if completion_backend.is_some()
+            if chord_enumerator.is_some()
+                || completion_backend.is_some()
                 || representation.is_some()
                 || region_dual.is_some()
                 || path_tree_orientation.is_some()
             {
                 return Err(CliError::Input(
-                    "completion and representation options apply only to dominance solvers"
+                    "chord, completion, and representation options apply only to dominance solvers"
                         .to_owned(),
                 ));
             }
@@ -867,7 +962,7 @@ fn solve_component<C>(
                 completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
                 region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
                 path_tree_orientation.map_or(
-                    PathTreeOrientationPolicy::BuildBothExact,
+                    PathTreeOrientationPolicy::BoundEstimate,
                     path_tree_orientation_kind,
                 ),
             )

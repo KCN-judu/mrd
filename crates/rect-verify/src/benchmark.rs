@@ -1036,7 +1036,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,completion_candidate_queries,completion_full_grid_scans,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,completion_stale_candidates,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_index_build_count,boundary_index_build_microseconds,boundary_index_entries,boundary_index_owned_bytes,linear_boundary_vertex_lookup_count,gap_interval_membership_tests,gap_event_push_count,gap_event_pop_count,clean_endpoint_pair_comparisons,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,initial_horizontal_unit_cut_count,initial_vertical_unit_cut_count,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,horizontal_simple_chord_count,vertical_simple_chord_count,completion_candidate_queries,completion_full_grid_scans,completion_candidate_revalidations,completion_stale_candidates,completion_ray_extension_unit_steps,rectangle_recovery_component_visits,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -1087,6 +1087,15 @@ impl BenchmarkReport {
                 optional_number(row.diagnostics.effective_chord_enumeration_microseconds),
                 optional_number(row.diagnostics.prepared_component_build_count),
                 optional_number(row.diagnostics.prepared_component_build_microseconds),
+                optional_number(row.diagnostics.boundary_index_build_count),
+                optional_number(row.diagnostics.boundary_index_build_microseconds),
+                optional_number(row.diagnostics.boundary_index_entries),
+                optional_number(row.diagnostics.boundary_index_owned_bytes),
+                optional_number(row.diagnostics.linear_boundary_vertex_lookup_count),
+                optional_number(row.diagnostics.gap_interval_membership_tests),
+                optional_number(row.diagnostics.gap_event_push_count),
+                optional_number(row.diagnostics.gap_event_pop_count),
+                optional_number(row.diagnostics.clean_endpoint_pair_comparisons),
                 optional_number(row.diagnostics.boundary_extraction_microseconds),
                 optional_number(row.diagnostics.reflex_grouping_microseconds),
                 optional_number(row.diagnostics.occupancy_bytes),
@@ -1159,11 +1168,18 @@ impl BenchmarkReport {
                 ),
                 optional_number(row.diagnostics.rectangle_recovery_microseconds),
                 optional_number(row.diagnostics.final_output_validation_microseconds),
-                optional_number(row.diagnostics.completion_candidate_queries),
-                optional_number(row.diagnostics.completion_full_grid_scans),
+                optional_number(row.diagnostics.initial_horizontal_unit_cut_count),
+                optional_number(row.diagnostics.initial_vertical_unit_cut_count),
                 optional_number(row.diagnostics.added_horizontal_unit_cut_count),
                 optional_number(row.diagnostics.added_vertical_unit_cut_count),
+                optional_number(row.diagnostics.horizontal_simple_chord_count),
+                optional_number(row.diagnostics.vertical_simple_chord_count),
+                optional_number(row.diagnostics.completion_candidate_queries),
+                optional_number(row.diagnostics.completion_full_grid_scans),
+                optional_number(row.diagnostics.completion_candidate_revalidations),
                 optional_number(row.diagnostics.completion_stale_candidates),
+                optional_number(row.diagnostics.completion_ray_extension_unit_steps),
+                optional_number(row.diagnostics.rectangle_recovery_component_visits),
                 optional_number(row.diagnostics.rectangle_recovery_queue_pushes),
                 optional_number(row.diagnostics.rectangle_recovery_region_count),
                 optional_number(row.diagnostics.rectangle_recovery_allocations),
@@ -1827,10 +1843,45 @@ pub fn benchmark_path_tree_geometry_families(
     }
 }
 
+/// Runs the geometry-backed family suite at every requested scale. Keeping
+/// each scale as a separate row prevents a large instance from hiding whether
+/// dual and HLD structural quantities actually grow with the parameter.
+#[must_use]
+pub fn benchmark_path_tree_geometry_scaling(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> BenchmarkReport {
+    let mut rows = Vec::new();
+    for &scale in sizes {
+        rows.extend(benchmark_path_tree_geometry_families(context.clone(), scale).rows);
+    }
+    BenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count: sizes.len().saturating_mul(4),
+            component_count: rows.len(),
+            input_model: "finite-grid-scaled-path-tree-geometry-families".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: count_status(&rows, "verified"),
+        unsupported_count: count_status(&rows, "unsupported"),
+        solver_error_count: count_status(&rows, "solver-error"),
+        counterexample_count: count_status(&rows, "counterexample"),
+        failure_fixtures: Vec::new(),
+        rows,
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PathTreeVs4dRow {
     pub family: String,
     pub instance_name: String,
+    /// Dihedral-canonical foreground-cell key for replayable fixture identity.
+    pub canonical_key: String,
     pub q: usize,
     pub q_bucket: String,
     pub horizontal_chords: usize,
@@ -1869,16 +1920,115 @@ pub struct PathTreeVs4dReport {
     pub counterexamples: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RepresentationAdvantageRow {
+    pub family: String,
+    pub instance_name: String,
+    pub canonical_key: String,
+    pub q: usize,
+    pub horizontal_chords: usize,
+    pub vertical_chords: usize,
+    pub sigma_path_tree: usize,
+    pub sigma_4d: usize,
+    pub sigma_4d_over_path_tree: ExactRatio,
+    pub sigma_path_tree_over_4d: ExactRatio,
+    pub network_arcs_path_tree: usize,
+    pub network_arcs_4d: usize,
+    pub owned_path_tree_bytes: usize,
+    pub owned_4d_bytes: usize,
+    pub optimum_equal: bool,
+    pub rectangles_equal: bool,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RepresentationAdvantageReport {
+    pub metadata: BenchmarkMetadata,
+    pub eligible_rows: usize,
+    pub strict_path_tree_advantages: usize,
+    pub strict_four_d_advantages: usize,
+    pub top_path_tree_advantages: Vec<RepresentationAdvantageRow>,
+    pub top_four_d_advantages: Vec<RepresentationAdvantageRow>,
+}
+
+impl RepresentationAdvantageReport {
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "rank,direction,family,instance_name,canonical_key,q,horizontal_chords,vertical_chords,sigma_path_tree,sigma_4d,sigma_4d_over_path_tree,sigma_path_tree_over_4d,network_arcs_path_tree,network_arcs_4d,owned_path_tree_bytes,owned_4d_bytes,optimum_equal,rectangles_equal,status\n",
+        );
+        for (direction, rows) in [
+            ("path-tree-advantage", &self.top_path_tree_advantages),
+            ("four-d-advantage", &self.top_four_d_advantages),
+        ] {
+            for (rank, row) in rows.iter().enumerate() {
+                let fields = [
+                    (rank + 1).to_string(),
+                    direction.to_owned(),
+                    row.family.clone(),
+                    row.instance_name.clone(),
+                    row.canonical_key.clone(),
+                    row.q.to_string(),
+                    row.horizontal_chords.to_string(),
+                    row.vertical_chords.to_string(),
+                    row.sigma_path_tree.to_string(),
+                    row.sigma_4d.to_string(),
+                    format!(
+                        "{}/{}",
+                        row.sigma_4d_over_path_tree.numerator,
+                        row.sigma_4d_over_path_tree.denominator
+                    ),
+                    format!(
+                        "{}/{}",
+                        row.sigma_path_tree_over_4d.numerator,
+                        row.sigma_path_tree_over_4d.denominator
+                    ),
+                    row.network_arcs_path_tree.to_string(),
+                    row.network_arcs_4d.to_string(),
+                    row.owned_path_tree_bytes.to_string(),
+                    row.owned_4d_bytes.to_string(),
+                    row.optimum_equal.to_string(),
+                    row.rectangles_equal.to_string(),
+                    row.status.clone(),
+                ];
+                let _ = writeln!(
+                    csv,
+                    "{}",
+                    fields
+                        .iter()
+                        .map(|field| escape_csv(field))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                );
+            }
+        }
+        csv
+    }
+
+    #[must_use]
+    pub fn to_markdown(&self) -> String {
+        format!(
+            "# v0.8 path-tree versus 4D advantage search\n\n- Eligible mixed-orientation rows: {}\n- Strict path-tree advantages: {}\n- Strict 4D advantages: {}\n- Top path-tree advantage rows: {}\n- Top 4D advantage rows: {}\n",
+            self.eligible_rows,
+            self.strict_path_tree_advantages,
+            self.strict_four_d_advantages,
+            self.top_path_tree_advantages.len(),
+            self.top_four_d_advantages.len(),
+        )
+    }
+}
+
 impl PathTreeVs4dReport {
     #[must_use]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "family,instance_name,q,q_bucket,horizontal_chords,vertical_chords,boundary_complexity,clean_eligible,orientation_policy,path_tree_orientation,sigma_path_tree,sigma_4d,biclique_count_path_tree,biclique_count_4d,network_vertices_path_tree,network_arcs_path_tree,network_vertices_4d,network_arcs_4d,path_tree_construction_microseconds,four_d_representation_microseconds,path_tree_flow_microseconds,four_d_flow_microseconds,path_tree_completion_microseconds,four_d_completion_microseconds,path_tree_total_microseconds,four_d_total_microseconds,owned_path_tree,owned_4d,optimum_equal,rectangles_equal,status\n",
+            "family,instance_name,canonical_key,q,q_bucket,horizontal_chords,vertical_chords,boundary_complexity,clean_eligible,orientation_policy,path_tree_orientation,sigma_path_tree,sigma_4d,biclique_count_path_tree,biclique_count_4d,network_vertices_path_tree,network_arcs_path_tree,network_vertices_4d,network_arcs_4d,path_tree_construction_microseconds,four_d_representation_microseconds,path_tree_flow_microseconds,four_d_flow_microseconds,path_tree_completion_microseconds,four_d_completion_microseconds,path_tree_total_microseconds,four_d_total_microseconds,owned_path_tree,owned_4d,optimum_equal,rectangles_equal,status\n",
         );
         for row in &self.rows {
             let fields = [
                 row.family.clone(),
                 row.instance_name.clone(),
+                row.canonical_key.clone(),
                 row.q.to_string(),
                 row.q_bucket.clone(),
                 row.horizontal_chords.to_string(),
@@ -1941,6 +2091,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                 rows.push(PathTreeVs4dRow {
                     family: instance.family,
                     instance_name: instance.name,
+                    canonical_key: String::new(),
                     q: 0,
                     q_bucket: q_bucket(0).to_owned(),
                     horizontal_chords: 0,
@@ -1991,10 +2142,12 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                 .horizontal_chords
                 .len()
                 .saturating_add(geometry.vertical_chords.len());
+            let canonical_key = canonical_component_key(&component);
             if !certificate.eligible {
                 rows.push(PathTreeVs4dRow {
                     family: instance.family.clone(),
                     instance_name: instance.name.clone(),
+                    canonical_key: canonical_key.clone(),
                     q,
                     q_bucket: q_bucket(q).to_owned(),
                     horizontal_chords: geometry.horizontal_chords.len(),
@@ -2050,6 +2203,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                     rows.push(PathTreeVs4dRow {
                         family: instance.family.clone(),
                         instance_name: instance.name.clone(),
+                        canonical_key: canonical_key.clone(),
                         q,
                         q_bucket: q_bucket(q).to_owned(),
                         horizontal_chords: geometry.horizontal_chords.len(),
@@ -2094,6 +2248,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
             rows.push(PathTreeVs4dRow {
                 family: instance.family.clone(),
                 instance_name: instance.name.clone(),
+                canonical_key,
                 q,
                 q_bucket: q_bucket(q).to_owned(),
                 horizontal_chords: geometry.horizontal_chords.len(),
@@ -2155,6 +2310,107 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
     }
 }
 
+/// Searches the committed geometry corpus for structural representation
+/// advantages. The objective is sigma ratio, never the final optimum count.
+#[must_use]
+pub fn benchmark_path_tree_advantage(
+    context: &BenchmarkContext,
+    sizes: &[usize],
+    top_k: usize,
+) -> RepresentationAdvantageReport {
+    let comparison = benchmark_path_tree_vs_4d((*context).clone(), sizes);
+    let mut rows = comparison
+        .rows
+        .iter()
+        .filter_map(|row| {
+            if !row.clean_eligible || row.horizontal_chords == 0 || row.vertical_chords == 0 {
+                return None;
+            }
+            let sigma_path_tree = row.sigma_path_tree?;
+            let sigma_4d = row.sigma_4d?;
+            let owned_path_tree_bytes = owned_bytes_from_json(&row.owned_path_tree);
+            let owned_4d_bytes = owned_bytes_from_json(&row.owned_4d);
+            Some(RepresentationAdvantageRow {
+                family: row.family.clone(),
+                instance_name: row.instance_name.clone(),
+                canonical_key: row.canonical_key.clone(),
+                q: row.q,
+                horizontal_chords: row.horizontal_chords,
+                vertical_chords: row.vertical_chords,
+                sigma_path_tree,
+                sigma_4d,
+                sigma_4d_over_path_tree: ExactRatio {
+                    numerator: sigma_4d as u128,
+                    denominator: sigma_path_tree.max(1) as u128,
+                },
+                sigma_path_tree_over_4d: ExactRatio {
+                    numerator: sigma_path_tree as u128,
+                    denominator: sigma_4d.max(1) as u128,
+                },
+                network_arcs_path_tree: row.network_arcs_path_tree.unwrap_or(0),
+                network_arcs_4d: row.network_arcs_4d.unwrap_or(0),
+                owned_path_tree_bytes,
+                owned_4d_bytes,
+                optimum_equal: row.optimum_equal,
+                rectangles_equal: row.rectangles_equal,
+                status: row.status.clone(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let strict_path_tree_advantages = rows
+        .iter()
+        .filter(|row| row.sigma_4d > row.sigma_path_tree)
+        .count();
+    let strict_four_d_advantages = rows
+        .iter()
+        .filter(|row| row.sigma_path_tree > row.sigma_4d)
+        .count();
+    let eligible_rows = rows.len();
+    let mut path_tree_rows = rows.clone();
+    path_tree_rows.sort_by(|left, right| {
+        compare_ratio_desc(left.sigma_4d_over_path_tree, right.sigma_4d_over_path_tree)
+            .then_with(|| left.canonical_key.cmp(&right.canonical_key))
+    });
+    let mut four_d_rows = std::mem::take(&mut rows);
+    four_d_rows.sort_by(|left, right| {
+        compare_ratio_desc(left.sigma_path_tree_over_4d, right.sigma_path_tree_over_4d)
+            .then_with(|| left.canonical_key.cmp(&right.canonical_key))
+    });
+    let limit = top_k.max(1);
+    path_tree_rows.truncate(limit);
+    four_d_rows.truncate(limit);
+    RepresentationAdvantageReport {
+        metadata: BenchmarkMetadata {
+            git_commit: comparison.metadata.git_commit,
+            rustc_version: comparison.metadata.rustc_version,
+            command: comparison.metadata.command,
+            seed: comparison.metadata.seed,
+            timestamp: comparison.metadata.timestamp,
+            input_count: comparison.metadata.input_count,
+            component_count: comparison.metadata.component_count,
+            input_model: "finite-grid-path-tree-vs-4d-sigma-advantage-search".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        eligible_rows,
+        strict_path_tree_advantages,
+        strict_four_d_advantages,
+        top_path_tree_advantages: path_tree_rows,
+        top_four_d_advantages: four_d_rows,
+    }
+}
+
+fn compare_ratio_desc(left: ExactRatio, right: ExactRatio) -> std::cmp::Ordering {
+    let lhs = left.numerator.saturating_mul(right.denominator);
+    let rhs = right.numerator.saturating_mul(left.denominator);
+    rhs.cmp(&lhs)
+}
+
+fn owned_bytes_from_json(value: &str) -> usize {
+    serde_json::from_str::<BTreeMap<String, usize>>(value)
+        .map(|entries| entries.values().copied().sum())
+        .unwrap_or(0)
+}
+
 fn path_tree_growth_guards(diagnostics: &Diagnostics) -> bool {
     let q = diagnostics.total_chord_count;
     let l = if q == 0 {
@@ -2189,8 +2445,64 @@ fn q_bucket(q: usize) -> &'static str {
         9..=32 => "9-32",
         33..=128 => "33-128",
         129..=512 => "129-512",
-        _ => "513+",
+        513..=2048 => "513-2048",
+        _ => "2049+",
     }
+}
+
+/// Returns a stable dihedral-canonical key for a finite component.
+///
+/// The key is intentionally independent of the input grid's padding and
+/// translation so advantage reports can retain replayable fixture identities.
+fn canonical_component_key<C>(component: &rect_core::GridComponent<C>) -> String
+where
+    C: Clone + Eq,
+{
+    let source_width = component.grid_width as i128;
+    let source_height = component.grid_height as i128;
+    let mut variants = Vec::with_capacity(8);
+    for symmetry in 0..8 {
+        let swap = symmetry >= 4;
+        let width = if swap { source_height } else { source_width };
+        let mut points = component
+            .cells
+            .iter()
+            .map(|cell| {
+                let (mut x, mut y) = (cell.x as i128, cell.y as i128);
+                match symmetry % 4 {
+                    1 => (x, y) = (source_height - 1 - y, x),
+                    2 => (x, y) = (source_width - 1 - x, source_height - 1 - y),
+                    3 => (x, y) = (y, source_width - 1 - x),
+                    _ => {}
+                }
+                if swap {
+                    x = width - 1 - x;
+                }
+                (x, y)
+            })
+            .collect::<Vec<_>>();
+        let min_x = points.iter().map(|(x, _)| *x).min().unwrap_or(0);
+        let min_y = points.iter().map(|(_, y)| *y).min().unwrap_or(0);
+        for (x, y) in &mut points {
+            *x -= min_x;
+            *y -= min_y;
+        }
+        points.sort_unstable();
+        let key = points
+            .iter()
+            .map(|(x, y)| format!("{x}:{y}"))
+            .collect::<Vec<_>>()
+            .join(";");
+        variants.push(key);
+    }
+    variants.sort_unstable();
+    let canonical = variants.into_iter().next().unwrap_or_default();
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for byte in canonical.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{}-{hash:016x}", component.cells.len())
 }
 
 #[must_use]
