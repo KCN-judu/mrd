@@ -157,10 +157,12 @@ def compression_rows(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
 
 def scope_rows() -> list[dict[str, str]]:
     return [
-        {"feature": "ordinary holes", "theoretical paper": "supported", "current Rust artifact": "supported for grid-cell regions", "tested": "yes", "notes": "rings and separated holes"},
+        {"feature": "ordinary polygon input", "theoretical paper": "formal rectilinear boundary", "current Rust artifact": "boundary-native integer-coordinate outer loop and ordinary holes", "tested": "yes", "notes": "no rasterization by coordinate magnitude"},
+        {"feature": "ordinary holes", "theoretical paper": "supported", "current Rust artifact": "supported for grid-cell regions and boundary-native polygons", "tested": "yes", "notes": "rings, separated holes, and native two-hole fixture"},
         {"feature": "degenerate holes", "theoretical paper": "formal model", "current Rust artifact": "unsupported", "tested": "scope rejection", "notes": "point, segment, and arbitrary formal holes excluded"},
         {"feature": "endpoint contacts", "theoretical paper": "closed-chord conflicts", "current Rust artifact": "integer parity embedding", "tested": "yes", "notes": "pairwise geometry iff strict dominance"},
-        {"feature": "fast chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator, O(N + r log r + q)", "tested": "exact differential", "notes": "CompactOnly default; pairwise reference retained"},
+        {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons", "tested": "exact differential", "notes": "no fast general-polygon sweep claim"},
+        {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "coordinate-compressed exact completion", "tested": "exact grid differential", "notes": "arrangement-sensitive O(|X||Y|) storage"},
         {"feature": "compact biclique partition", "theoretical paper": "O(q log^4 q) for d=4", "current Rust artifact": "constructive Theorem 8 recursion", "tested": "yes", "notes": "edge multiplicity audited exactly once"},
         {"feature": "practical Dinic backend", "theoretical paper": "replaceable exact flow", "current Rust artifact": "implemented", "tested": "yes", "notes": "integral flow and residual cut"},
         {"feature": "almost-linear theoretical flow backend", "theoretical paper": "used asymptotically", "current Rust artifact": "not implemented", "tested": "no", "notes": "citation-only complexity component"},
@@ -429,6 +431,49 @@ def v08_evidence_sections(output_dir: Path) -> list[str]:
     return sections
 
 
+def v09_evidence_sections(output_dir: Path) -> list[str]:
+    path = output_dir / "v0.9-polygon-differential.json"
+    if not path.exists():
+        return []
+    report = read_json(path)
+    populations = report["populations"]
+    fields = [
+        "population",
+        "input_count",
+        "supported_components",
+        "rejected_components",
+        "disagreements",
+        "profile",
+    ]
+    rows = [
+        {
+            "population": population["name"],
+            "input_count": population["input_count"],
+            "supported_components": population["supported_component_count"],
+            "rejected_components": population["rejected_component_count"],
+            "disagreements": population["disagreement_count"],
+            "profile": population["profile"],
+        }
+        for population in populations
+    ]
+    total_supported = sum(row["supported_components"] for row in rows)
+    total_rejected = sum(row["rejected_components"] for row in rows)
+    total_disagreements = sum(row["disagreements"] for row in rows)
+    fixtures = ", ".join(f"`{name}`" for name in report["native_fixtures"])
+    large_gap = report["large_gap_coordinate_compression"]
+    return [
+        "## v0.9 Boundary-native ordinary polygon evidence",
+        "",
+        markdown_table(fields, rows),
+        "",
+        f"The committed populations cover {total_supported:,} supported ordinary components, {total_rejected:,} explicitly rejected grid-derived degeneracies, and {total_disagreements} chord/selection/cut/rectangle disagreements.",
+        f"The extended population records {report['clean_path_tree_case_count']:,} clean polygon `Auto` path-tree selections and {report['four_d_fallback_case_count']:,} exact 4D fallbacks.",
+        f"Native nonuniform-coordinate fixtures: {fixtures}.",
+        f"The one-billion-unit large-gap fixture uses {large_gap['x_count']} x coordinates, {large_gap['y_count']} y coordinates, and {large_gap['atomic_cell_count']} atomic arrangement cell; production raster use is `{str(report['raster_oracle_used']).lower()}`.",
+        "",
+    ]
+
+
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -520,6 +565,7 @@ def main() -> None:
         *compact_v03_section(args.output_dir),
         *current_evidence_sections(args.output_dir),
         *v08_evidence_sections(args.output_dir),
+        *v09_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -528,6 +574,7 @@ def main() -> None:
     manifest["historical_release_metadata"] = metadata
     manifest.pop("release_metadata", None)
     manifest["release_summaries"] = release_summaries
+    manifest["current_release"] = release_index["current_release"]
     generated = [
         str(args.output_dir / "correctness-table.csv"),
         str(args.output_dir / "compression-table.csv"),
@@ -560,6 +607,7 @@ def main() -> None:
         "v0.8-path-tree-orientation-audit.csv",
         "v0.8-path-tree-orientation-audit.json",
         "v0.8-path-tree-orientation-audit.md",
+        "v0.9-polygon-differential.json",
     ]:
         candidate = args.output_dir / artifact
         if candidate.exists():

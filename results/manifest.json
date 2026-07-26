@@ -2,6 +2,30 @@
   "schema_version": 3,
   "runs": [
     {
+      "git_commit": "c5a088cd41f085d1176b767d4799430ef7436588",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "cargo test -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_3x3_components; cargo test --release -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_4x4_components -- --ignored; cargo test --release -p rect-verify extended_grid_polygon_differential_populations_match -- --ignored",
+      "seed": 0,
+      "timestamp": 1785059317,
+      "input_count": 73530,
+      "component_count": 174566,
+      "input_model": "boundary-native-ordinary-rectilinear-polygon-differential",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "boundary-self-contact",
+        "disconnected-outer-components"
+      ],
+      "disagreement_count": 0,
+      "verified_supported_component_count": 174312,
+      "rejected_grid_derived_components": 254,
+      "extended_path_tree_component_count": 3119,
+      "extended_four_d_fallback_component_count": 4111
+    },
+    {
       "git_commit": "8100fd8",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "cargo test --release -p rect-verify grid_runs_match_reference_for_all_polyominoes_through_twelve_cells; cargo test -p rect-verify grid_runs_match_all_adversarial_chord_families",
@@ -756,22 +780,37 @@
         "cea1ef6",
         "d5545e9"
       ]
+    },
+    {
+      "version": "0.9.0",
+      "tag": "v0.9.0-boundary-native-polygon-frontend",
+      "peeled_commit": "PENDING",
+      "evidence": "boundary-native ordinary polygon normalization, Definition 7 chords, compact matching reuse, coordinate-compressed completion, exact dissection validation, and grid/polygon differential verification",
+      "result_commits": [
+        "3a83f5b26adb59fbe5f1cda0beaa8a60ebcdeae8",
+        "056aff9b72a57a6b6e9d3d2fadead3a93d815233",
+        "94ba25fa130e345e9a4a199aea14be9305ae0bfc",
+        "e86f8d6152387e57f4fbf0539cbf629f843b684e",
+        "57bc9cba84df3b7823ad3e9ef3d74aeb362a83c5",
+        "6f51a2d282e66c5eccf9fc38c0a184fa44678afa",
+        "c5a088cd41f085d1176b767d4799430ef7436588"
+      ]
     }
   ],
   "current_release": {
-    "version": "0.8.1",
-    "tag": "v0.8.1-boundary-indexed-adaptive-path-tree",
-    "peeled_commit": "689e1d33e8fc3b9ca1db3ab1aef1158aec48272c",
+    "version": "0.9.0",
+    "tag": "v0.9.0-boundary-native-polygon-frontend",
+    "peeled_commit": "PENDING",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
-      "compact_conflict_representation": "dominance-4d",
-      "compact_path_tree_orientation": "build-both",
       "compact_rectangle_recovery_backend": "dense-grid",
+      "compact_conflict_representation": "dominance-4d",
       "compact_region_dual": "boundary-laminar",
+      "compact_path_tree_orientation": "build-both",
       "fully_audited_completion_backend": "reference-rescan",
-      "fully_audited_path_tree_orientation": "build-both",
-      "fully_audited_region_dual": "reference-area"
+      "fully_audited_region_dual": "reference-area",
+      "fully_audited_path_tree_orientation": "build-both"
     }
   },
   "generated_tables": [
@@ -804,6 +843,7 @@
     "results/v0.8-path-tree-orientation-audit.csv",
     "results/v0.8-path-tree-orientation-audit.json",
     "results/v0.8-path-tree-orientation-audit.md",
+    "results/v0.9-polygon-differential.json",
     "results/path-tree-witnesses/index.json",
     "results/path-tree-witnesses/report.json",
     "results/v0.6-clean-complete-bipartite-compact.csv",

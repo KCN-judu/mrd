@@ -132,6 +132,21 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "cea1ef6",
       "d5545e9"
     ]
+  },
+  {
+    "version": "0.9.0",
+    "tag": "v0.9.0-boundary-native-polygon-frontend",
+    "peeled_commit": "PENDING",
+    "evidence": "boundary-native ordinary polygon normalization, Definition 7 chords, compact matching reuse, coordinate-compressed completion, exact dissection validation, and grid/polygon differential verification",
+    "result_commits": [
+      "3a83f5b26adb59fbe5f1cda0beaa8a60ebcdeae8",
+      "056aff9b72a57a6b6e9d3d2fadead3a93d815233",
+      "94ba25fa130e345e9a4a199aea14be9305ae0bfc",
+      "e86f8d6152387e57f4fbf0539cbf629f843b684e",
+      "57bc9cba84df3b7823ad3e9ef3d74aeb362a83c5",
+      "6f51a2d282e66c5eccf9fc38c0a184fa44678afa",
+      "c5a088cd41f085d1176b767d4799430ef7436588"
+    ]
   }
 ]
 ```
@@ -163,10 +178,12 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 
 | feature | theoretical paper | current Rust artifact | tested | notes |
 | --- | --- | --- | --- | --- |
-| ordinary holes | supported | supported for grid-cell regions | yes | rings and separated holes |
+| ordinary polygon input | formal rectilinear boundary | boundary-native integer-coordinate outer loop and ordinary holes | yes | no rasterization by coordinate magnitude |
+| ordinary holes | supported | supported for grid-cell regions and boundary-native polygons | yes | rings, separated holes, and native two-hole fixture |
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
-| fast chord enumeration | O(n log n) | GridInteriorRunEnumerator, O(N + r log r + q) | exact differential | CompactOnly default; pairwise reference retained |
+| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons | exact differential | no fast general-polygon sweep claim |
+| polygon completion | horizontal then vertical simple chords | coordinate-compressed exact completion | exact grid differential | arrangement-sensitive O(\|X\|\|Y\|) storage |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component |
@@ -278,3 +295,16 @@ Retained rows have owned-allocation maxima of 270,904 bytes for path-tree and 27
 
 The expanded audit contains 160,460 rows: 160,455 exact sigma matches and 5 positive-regret rows.
 Maximum absolute regret is 2 and the maximum recorded regret ratio is 2/4. These counterexamples keep exact `build-both` as the CompactOnly default; `bound-estimate` remains an explicit benchmark policy.
+
+## v0.9 Boundary-native ordinary polygon evidence
+
+| population | input_count | supported_components | rejected_components | disagreements | profile |
+| --- | --- | --- | --- | --- | --- |
+| all-nonempty-binary-3x3 | 511 | 893 | 0 | 0 | dev |
+| all-nonempty-binary-4x4 | 65535 | 166189 | 0 | 0 | release |
+| polyomino-adversarial-complete-bipartite-random | 7484 | 7230 | 254 | 0 | release |
+
+The committed populations cover 174,312 supported ordinary components, 254 explicitly rejected grid-derived degeneracies, and 0 chord/selection/cut/rectangle disagreements.
+The extended population records 3,119 clean polygon `Auto` path-tree selections and 4,111 exact 4D fallbacks.
+Native nonuniform-coordinate fixtures: `nonuniform-l.json`, `large-gap.json`, `two-holes.json`, `comb.json`, `spiral-corridor.json`.
+The one-billion-unit large-gap fixture uses 2 x coordinates, 2 y coordinates, and 1 atomic arrangement cell; production raster use is `false`.

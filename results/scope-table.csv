@@ -1,8 +1,10 @@
 feature,theoretical paper,current Rust artifact,tested,notes
-ordinary holes,supported,supported for grid-cell regions,yes,rings and separated holes
+ordinary polygon input,formal rectilinear boundary,boundary-native integer-coordinate outer loop and ordinary holes,yes,no rasterization by coordinate magnitude
+ordinary holes,supported,supported for grid-cell regions and boundary-native polygons,yes,"rings, separated holes, and native two-hole fixture"
 degenerate holes,formal model,unsupported,scope rejection,"point, segment, and arbitrary formal holes excluded"
 endpoint contacts,closed-chord conflicts,integer parity embedding,yes,pairwise geometry iff strict dominance
-fast chord enumeration,O(n log n),"GridInteriorRunEnumerator, O(N + r log r + q)",exact differential,CompactOnly default; pairwise reference retained
+effective chord enumeration,O(n log n),GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons,exact differential,no fast general-polygon sweep claim
+polygon completion,horizontal then vertical simple chords,coordinate-compressed exact completion,exact grid differential,arrangement-sensitive O(|X||Y|) storage
 compact biclique partition,O(q log^4 q) for d=4,constructive Theorem 8 recursion,yes,edge multiplicity audited exactly once
 practical Dinic backend,replaceable exact flow,implemented,yes,integral flow and residual cut
 almost-linear theoretical flow backend,used asymptotically,not implemented,no,citation-only complexity component

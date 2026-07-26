@@ -140,6 +140,11 @@ solving uses general pairwise Definition 7 checks, the existing 4D compact
 matching backend, boundary-native simple-chord completion, and coordinate
 compression. It never rasterizes by coordinate magnitude.
 
+The v0.9 boundary-native evidence is recorded in
+`results/v0.9-polygon-differential.json` and generated into
+`results/paper-tables.md`; historical v0.2--v0.8.1 result populations remain
+separate and immutable.
+
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
 

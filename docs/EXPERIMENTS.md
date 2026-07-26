@@ -493,6 +493,13 @@ supported ordinary components. Both report zero disagreements. Grid components
 whose boundaries contain point contact or another rejected formal degeneracy
 remain outside the v0.9 ordinary-polygon population.
 
+The extended release-mode population adds every free polyomino through ten
+cells, the stored adversarial corpus, complete-bipartite `t=1..4`, and 1,000
+deterministic connected random regions. It covers 7,484 inputs and 7,230
+supported polygon components, with 254 explicit ordinary-model rejections and
+zero differences. Its `Auto` representation selected the clean polygon
+path-tree for 3,119 components and fell back to exact 4D for 4,111 components.
+
 The native fixture corpus includes nonuniform coordinate spacing, a
 one-billion-unit coordinate gap, two ordinary holes, a comb, and a spiral
 corridor. The large-gap rectangle creates exactly two x coordinates, two y

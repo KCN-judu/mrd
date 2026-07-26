@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "milestone": "v0.9.0-boundary-native-polygon-frontend",
+  "producing_commit": "c5a088cd41f085d1176b767d4799430ef7436588",
+  "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+  "normative_sources": [
+    {
+      "title": "Compact Matching for Minimum Rectangular Dissection: A General Almost-Linear Algorithm and a Hole-Free Path-Tree Refinement",
+      "version": "4.1"
+    },
+    {
+      "title": "Minimum dissection of a rectilinear region into rectangles",
+      "doi": "10.1007/BF02189307",
+      "definition": "Definition 7, page 62",
+      "completion": "Section 10, pages 76-79"
+    }
+  ],
+  "production_defaults": {
+    "input_model": "boundary-native-ordinary-rectilinear-polygon",
+    "polygon_validation_backend": "exact-pairwise-segment-audit",
+    "polygon_chord_enumerator": "general-polygon-pairwise",
+    "compact_conflict_representation": "dominance-4d",
+    "compact_path_tree_orientation": "build-both",
+    "polygon_completion_backend": "coordinate-compressed",
+    "polygon_validator_backend": "coordinate-compressed-exact"
+  },
+  "populations": [
+    {
+      "name": "all-nonempty-binary-3x3",
+      "input_count": 511,
+      "supported_component_count": 893,
+      "rejected_component_count": 0,
+      "disagreement_count": 0,
+      "profile": "dev",
+      "command": "cargo test -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_3x3_components"
+    },
+    {
+      "name": "all-nonempty-binary-4x4",
+      "input_count": 65535,
+      "supported_component_count": 166189,
+      "rejected_component_count": 0,
+      "disagreement_count": 0,
+      "profile": "release",
+      "command": "cargo test --release -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_4x4_components -- --ignored"
+    },
+    {
+      "name": "polyomino-adversarial-complete-bipartite-random",
+      "input_count": 7484,
+      "supported_component_count": 7230,
+      "rejected_component_count": 254,
+      "disagreement_count": 0,
+      "profile": "release",
+      "command": "cargo test --release -p rect-verify extended_grid_polygon_differential_populations_match -- --ignored"
+    }
+  ],
+  "comparison_contract": [
+    "normalized boundary and reflex vertices",
+    "horizontal and vertical effective-chord families",
+    "minimum-cover chord selection",
+    "selected horizontal and vertical cut unions",
+    "added horizontal and vertical cut unions",
+    "minimum rectangle count",
+    "canonical coordinate rectangles",
+    "native grid and polygon validators"
+  ],
+  "normalization_variant_count": 8,
+  "validator_negative_case_count": 4,
+  "native_fixtures": [
+    "nonuniform-l.json",
+    "large-gap.json",
+    "two-holes.json",
+    "comb.json",
+    "spiral-corridor.json"
+  ],
+  "ordinary_hole_fixture_count": 3,
+  "clean_path_tree_case_count": 3119,
+  "four_d_fallback_case_count": 4111,
+  "large_gap_coordinate_compression": {
+    "coordinate_span": 1000000000,
+    "x_count": 2,
+    "y_count": 2,
+    "atomic_cell_count": 1
+  },
+  "raster_oracle_used": false,
+  "disagreements": []
+}

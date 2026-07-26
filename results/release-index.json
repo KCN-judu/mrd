@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "current_workspace_version": "0.8.1",
+  "current_workspace_version": "0.9.0",
   "defaults": {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -13,9 +13,9 @@
     "fully_audited_path_tree_orientation": "build-both"
   },
   "current_release": {
-    "version": "0.8.1",
-    "tag": "v0.8.1-boundary-indexed-adaptive-path-tree",
-    "peeled_commit": "689e1d33e8fc3b9ca1db3ab1aef1158aec48272c",
+    "version": "0.9.0",
+    "tag": "v0.9.0-boundary-native-polygon-frontend",
+    "peeled_commit": "PENDING",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
@@ -133,6 +133,21 @@
         "96e2f30",
         "cea1ef6",
         "d5545e9"
+      ]
+    },
+    {
+      "version": "0.9.0",
+      "tag": "v0.9.0-boundary-native-polygon-frontend",
+      "peeled_commit": "PENDING",
+      "evidence": "boundary-native ordinary polygon normalization, Definition 7 chords, compact matching reuse, coordinate-compressed completion, exact dissection validation, and grid/polygon differential verification",
+      "result_commits": [
+        "3a83f5b26adb59fbe5f1cda0beaa8a60ebcdeae8",
+        "056aff9b72a57a6b6e9d3d2fadead3a93d815233",
+        "94ba25fa130e345e9a4a199aea14be9305ae0bfc",
+        "e86f8d6152387e57f4fbf0539cbf629f843b684e",
+        "57bc9cba84df3b7823ad3e9ef3d74aeb362a83c5",
+        "6f51a2d282e66c5eccf9fc38c0a184fa44678afa",
+        "c5a088cd41f085d1176b767d4799430ef7436588"
       ]
     }
   ]

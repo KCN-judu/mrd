@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.1"
-TAG = "v0.8.1-boundary-indexed-adaptive-path-tree"
+VERSION = "0.9.0"
+TAG = "v0.9.0-boundary-native-polygon-frontend"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -44,6 +44,7 @@ REQUIRED_V08_ARTIFACTS = (
     "results/path-tree-witnesses/index.json",
     "results/path-tree-witnesses/report.json",
 )
+REQUIRED_V09_ARTIFACTS = ("results/v0.9-polygon-differential.json",)
 
 
 def git(*args: str) -> str:
@@ -109,7 +110,7 @@ def main() -> None:
     cargo = (ROOT / "Cargo.toml").read_text(encoding="utf-8")
     match = re.search(r'^version\s*=\s*"([^"]+)"', cargo, re.MULTILINE)
     if not match or match.group(1) != VERSION:
-        fail("workspace version is not 0.8.0")
+        fail(f"workspace version is not {VERSION}")
 
     release_index = json.loads((ROOT / "results/release-index.json").read_text())
     if release_index.get("current_workspace_version") != VERSION:
@@ -181,12 +182,19 @@ def main() -> None:
     experiments = (ROOT / "docs/EXPERIMENTS.md").read_text(encoding="utf-8")
     if "v0.8" not in paper_tables or "v0.8" not in experiments:
         fail("generated evidence does not contain a v0.8 section")
+    if "v0.9" not in paper_tables or "v0.9" not in experiments:
+        fail("generated evidence does not contain a v0.9 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
             fail(f"missing generated v0.8 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v0.8 evidence: {relative}")
+    for relative in REQUIRED_V09_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated v0.9 evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated v0.9 evidence: {relative}")
     normalized_tables = paper_tables.lower()
     for required_text in (
         "strict path-tree advantages: 14",
