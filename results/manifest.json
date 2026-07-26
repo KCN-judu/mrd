@@ -1026,19 +1026,21 @@
     {
       "version": "1.1.0",
       "tag": "v1.1.0-soltan-gorpinevich-sweep",
-      "peeled_commit": "PENDING",
+      "peeled_commit": "5a112c6095acb48c125e6b96e5064181d206334a",
       "evidence": "ordinary-polygon Soltan--Gorpinevich sweep, three-backend exact chord differential, bounded certificates, candidate-gap scaling, and retained pairwise Oracles",
       "result_commits": [
         "3167f7f",
         "e76cc32",
-        "f7dc7c3"
+        "f7dc7c3",
+        "0a3d512636a30cc8a9ee725898b0bfbc403609f0",
+        "5a112c6095acb48c125e6b96e5064181d206334a"
       ]
     }
   ],
   "current_release": {
     "version": "1.1.0",
     "tag": "v1.1.0-soltan-gorpinevich-sweep",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "5a112c6095acb48c125e6b96e5064181d206334a",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
