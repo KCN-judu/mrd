@@ -601,7 +601,9 @@ fn asymmetric_path_witness() -> AdversarialInstance {
 /// the corrected complete-bipartite realization (and therefore carries actual
 /// opposite-orientation paths); the star and balanced candidates intentionally
 /// stress branching duals; the asymmetric witness is a small mixed H/V path
-/// case found in the clean 4x4 population.
+/// case found in the clean 4x4 population. The connected-sum member is derived
+/// from minimized mixed-branching witnesses and grows q, dual regions, paths,
+/// HLD intervals, and canonical segment nodes with its module parameter.
 ///
 /// # Panics
 ///
@@ -632,7 +634,13 @@ pub fn path_tree_geometry_families(scale: usize) -> Vec<AdversarialInstance> {
     "asymmetric-orientation".clone_into(&mut asymmetric.family);
     asymmetric.parameters.insert("scale".to_owned(), scale);
 
-    vec![chain, star, balanced, asymmetric]
+    let modules = (scale.next_power_of_two().ilog2() as usize + 1).clamp(1, 8);
+    let mut mixed = crate::witness::mixed_branching_connected_sum_family(modules)
+        .pop()
+        .expect("the committed minimized witness population derives a mixed family");
+    mixed.parameters.insert("scale".to_owned(), scale);
+
+    vec![chain, star, balanced, asymmetric, mixed]
 }
 
 fn many_reflex_few_chords(steps: usize) -> AdversarialInstance {

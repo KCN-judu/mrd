@@ -1,0 +1,1180 @@
+{
+  "name": "mutated-notch-027-048",
+  "family": "mutated-notch-grid",
+  "width": 11,
+  "height": 13,
+  "cells": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "canonical_key": "11x13:00000110000000001100000000011000011111110000111111110000000111110000000111100000001111000001111110000111111100111111111110111110111100011100000",
+  "original_cell_count": 375,
+  "minimized_cell_count": 70,
+  "horizontal_chords": 3,
+  "vertical_chords": 3,
+  "dual_max_branching_degree": 3,
+  "path_count": 3,
+  "heavy_chain_interval_count": 4,
+  "paths_using_multiple_heavy_chains": 1,
+  "canonical_segment_node_count": 3,
+  "orientation": "vertical-tree-horizontal-paths",
+  "boundary": {
+    "loops": [
+      {
+        "vertices": [
+          {
+            "x": 0,
+            "y": 3
+          },
+          {
+            "x": 5,
+            "y": 3
+          },
+          {
+            "x": 5,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": 0
+          },
+          {
+            "x": 7,
+            "y": 4
+          },
+          {
+            "x": 8,
+            "y": 4
+          },
+          {
+            "x": 8,
+            "y": 5
+          },
+          {
+            "x": 9,
+            "y": 5
+          },
+          {
+            "x": 9,
+            "y": 10
+          },
+          {
+            "x": 11,
+            "y": 10
+          },
+          {
+            "x": 11,
+            "y": 12
+          },
+          {
+            "x": 7,
+            "y": 12
+          },
+          {
+            "x": 7,
+            "y": 11
+          },
+          {
+            "x": 6,
+            "y": 11
+          },
+          {
+            "x": 6,
+            "y": 13
+          },
+          {
+            "x": 3,
+            "y": 13
+          },
+          {
+            "x": 3,
+            "y": 12
+          },
+          {
+            "x": 1,
+            "y": 12
+          },
+          {
+            "x": 1,
+            "y": 11
+          },
+          {
+            "x": 0,
+            "y": 11
+          },
+          {
+            "x": 0,
+            "y": 10
+          },
+          {
+            "x": 2,
+            "y": 10
+          },
+          {
+            "x": 2,
+            "y": 9
+          },
+          {
+            "x": 3,
+            "y": 9
+          },
+          {
+            "x": 3,
+            "y": 8
+          },
+          {
+            "x": 5,
+            "y": 8
+          },
+          {
+            "x": 5,
+            "y": 6
+          },
+          {
+            "x": 4,
+            "y": 6
+          },
+          {
+            "x": 4,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": 5
+          }
+        ],
+        "twice_signed_area": 140,
+        "is_hole": false
+      }
+    ],
+    "reflex_vertices": [
+      {
+        "point": {
+          "x": 1,
+          "y": 11
+        }
+      },
+      {
+        "point": {
+          "x": 2,
+          "y": 10
+        }
+      },
+      {
+        "point": {
+          "x": 3,
+          "y": 9
+        }
+      },
+      {
+        "point": {
+          "x": 3,
+          "y": 12
+        }
+      },
+      {
+        "point": {
+          "x": 4,
+          "y": 5
+        }
+      },
+      {
+        "point": {
+          "x": 5,
+          "y": 3
+        }
+      },
+      {
+        "point": {
+          "x": 5,
+          "y": 6
+        }
+      },
+      {
+        "point": {
+          "x": 5,
+          "y": 8
+        }
+      },
+      {
+        "point": {
+          "x": 6,
+          "y": 11
+        }
+      },
+      {
+        "point": {
+          "x": 7,
+          "y": 4
+        }
+      },
+      {
+        "point": {
+          "x": 7,
+          "y": 11
+        }
+      },
+      {
+        "point": {
+          "x": 8,
+          "y": 5
+        }
+      },
+      {
+        "point": {
+          "x": 9,
+          "y": 10
+        }
+      }
+    ],
+    "unit_edges": [
+      [
+        {
+          "x": 0,
+          "y": 3
+        },
+        {
+          "x": 1,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 0,
+          "y": 4
+        },
+        {
+          "x": 0,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 0,
+          "y": 5
+        },
+        {
+          "x": 0,
+          "y": 4
+        }
+      ],
+      [
+        {
+          "x": 0,
+          "y": 10
+        },
+        {
+          "x": 1,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 0,
+          "y": 11
+        },
+        {
+          "x": 0,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 1,
+          "y": 3
+        },
+        {
+          "x": 2,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 1,
+          "y": 5
+        },
+        {
+          "x": 0,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 1,
+          "y": 10
+        },
+        {
+          "x": 2,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 1,
+          "y": 11
+        },
+        {
+          "x": 0,
+          "y": 11
+        }
+      ],
+      [
+        {
+          "x": 1,
+          "y": 12
+        },
+        {
+          "x": 1,
+          "y": 11
+        }
+      ],
+      [
+        {
+          "x": 2,
+          "y": 3
+        },
+        {
+          "x": 3,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 2,
+          "y": 5
+        },
+        {
+          "x": 1,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 2,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 9
+        }
+      ],
+      [
+        {
+          "x": 2,
+          "y": 10
+        },
+        {
+          "x": 2,
+          "y": 9
+        }
+      ],
+      [
+        {
+          "x": 2,
+          "y": 12
+        },
+        {
+          "x": 1,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 3
+        },
+        {
+          "x": 4,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 5
+        },
+        {
+          "x": 2,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 8
+        },
+        {
+          "x": 4,
+          "y": 8
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 9
+        },
+        {
+          "x": 3,
+          "y": 8
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 12
+        },
+        {
+          "x": 2,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 3,
+          "y": 13
+        },
+        {
+          "x": 3,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 4,
+          "y": 3
+        },
+        {
+          "x": 5,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 4,
+          "y": 5
+        },
+        {
+          "x": 3,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 4,
+          "y": 6
+        },
+        {
+          "x": 4,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 4,
+          "y": 8
+        },
+        {
+          "x": 5,
+          "y": 8
+        }
+      ],
+      [
+        {
+          "x": 4,
+          "y": 13
+        },
+        {
+          "x": 3,
+          "y": 13
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 0
+        },
+        {
+          "x": 6,
+          "y": 0
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 1
+        },
+        {
+          "x": 5,
+          "y": 0
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 2
+        },
+        {
+          "x": 5,
+          "y": 1
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 3
+        },
+        {
+          "x": 5,
+          "y": 2
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 6
+        },
+        {
+          "x": 4,
+          "y": 6
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 7
+        },
+        {
+          "x": 5,
+          "y": 6
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 8
+        },
+        {
+          "x": 5,
+          "y": 7
+        }
+      ],
+      [
+        {
+          "x": 5,
+          "y": 13
+        },
+        {
+          "x": 4,
+          "y": 13
+        }
+      ],
+      [
+        {
+          "x": 6,
+          "y": 0
+        },
+        {
+          "x": 7,
+          "y": 0
+        }
+      ],
+      [
+        {
+          "x": 6,
+          "y": 11
+        },
+        {
+          "x": 6,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 6,
+          "y": 12
+        },
+        {
+          "x": 6,
+          "y": 13
+        }
+      ],
+      [
+        {
+          "x": 6,
+          "y": 13
+        },
+        {
+          "x": 5,
+          "y": 13
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 0
+        },
+        {
+          "x": 7,
+          "y": 1
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 1
+        },
+        {
+          "x": 7,
+          "y": 2
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 2
+        },
+        {
+          "x": 7,
+          "y": 3
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 3
+        },
+        {
+          "x": 7,
+          "y": 4
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 4
+        },
+        {
+          "x": 8,
+          "y": 4
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 11
+        },
+        {
+          "x": 6,
+          "y": 11
+        }
+      ],
+      [
+        {
+          "x": 7,
+          "y": 12
+        },
+        {
+          "x": 7,
+          "y": 11
+        }
+      ],
+      [
+        {
+          "x": 8,
+          "y": 4
+        },
+        {
+          "x": 8,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 8,
+          "y": 5
+        },
+        {
+          "x": 9,
+          "y": 5
+        }
+      ],
+      [
+        {
+          "x": 8,
+          "y": 12
+        },
+        {
+          "x": 7,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 5
+        },
+        {
+          "x": 9,
+          "y": 6
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 6
+        },
+        {
+          "x": 9,
+          "y": 7
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 7
+        },
+        {
+          "x": 9,
+          "y": 8
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 8
+        },
+        {
+          "x": 9,
+          "y": 9
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 9
+        },
+        {
+          "x": 9,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 10
+        },
+        {
+          "x": 10,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 9,
+          "y": 12
+        },
+        {
+          "x": 8,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 10,
+          "y": 10
+        },
+        {
+          "x": 11,
+          "y": 10
+        }
+      ],
+      [
+        {
+          "x": 10,
+          "y": 12
+        },
+        {
+          "x": 9,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 11,
+          "y": 10
+        },
+        {
+          "x": 11,
+          "y": 11
+        }
+      ],
+      [
+        {
+          "x": 11,
+          "y": 11
+        },
+        {
+          "x": 11,
+          "y": 12
+        }
+      ],
+      [
+        {
+          "x": 11,
+          "y": 12
+        },
+        {
+          "x": 10,
+          "y": 12
+        }
+      ]
+    ]
+  },
+  "dual_tree": {
+    "region_count": 4,
+    "edges": [
+      {
+        "chord": 1,
+        "first": 0,
+        "second": 1
+      },
+      {
+        "chord": 2,
+        "first": 1,
+        "second": 2
+      },
+      {
+        "chord": 0,
+        "first": 1,
+        "second": 3
+      }
+    ],
+    "adjacency": [
+      [
+        [
+          1,
+          1
+        ]
+      ],
+      [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          0
+        ]
+      ],
+      [
+        [
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          0
+        ]
+      ]
+    ],
+    "cell_region_ids": [],
+    "boundary_gap_regions": [
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      1,
+      1,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      3,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    "boundary_gap_membership_tests": 0,
+    "boundary_gap_event_push_count": 3,
+    "boundary_gap_event_pop_count": 3
+  },
+  "compact_paths": [
+    {
+      "chord_index": 0,
+      "start_region": 0,
+      "end_region": 2
+    },
+    {
+      "chord_index": 1,
+      "start_region": 3,
+      "end_region": 2
+    },
+    {
+      "chord_index": 2,
+      "start_region": 3,
+      "end_region": 1
+    }
+  ],
+  "hld": {
+    "parent": [
+      0,
+      0,
+      1,
+      1
+    ],
+    "parent_edge": [
+      null,
+      1,
+      2,
+      0
+    ],
+    "depth": [
+      0,
+      1,
+      2,
+      2
+    ],
+    "subtree_size": [
+      4,
+      3,
+      1,
+      1
+    ],
+    "heavy_child": [
+      1,
+      2,
+      null,
+      null
+    ],
+    "chain_head": [
+      0,
+      0,
+      0,
+      3
+    ],
+    "chain_id": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "edge_position": [
+      0,
+      0,
+      1,
+      0
+    ],
+    "chain_edges": [
+      [
+        1,
+        2
+      ],
+      [
+        0
+      ]
+    ]
+  },
+  "biclique_partition": {
+    "bicliques": [
+      {
+        "id": 0,
+        "left": [
+          0
+        ],
+        "right": [
+          1,
+          2
+        ]
+      },
+      {
+        "id": 1,
+        "left": [
+          1
+        ],
+        "right": [
+          2
+        ]
+      },
+      {
+        "id": 2,
+        "left": [
+          1,
+          2
+        ],
+        "right": [
+          0
+        ]
+      }
+    ]
+  },
+  "diagnostics": {
+    "boundary_complexity": 30,
+    "boundary_gap_event_pop_count": 3,
+    "boundary_gap_event_push_count": 3,
+    "dual_regions": 4,
+    "reflex_vertices": 13
+  }
+}

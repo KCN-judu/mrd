@@ -19,6 +19,7 @@ use crate::adversarial::{
     AdversarialInstance, path_tree_geometry_families, topological_stress_instances,
 };
 use crate::polyomino::enumerate_free_polyominoes;
+use crate::transforms::{GridTransform, TransformedComponent};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PathTreeWitness {
@@ -28,6 +29,10 @@ pub struct PathTreeWitness {
     pub height: usize,
     pub cells: Vec<bool>,
     pub canonical_key: String,
+    #[serde(default)]
+    pub original_cell_count: usize,
+    #[serde(default)]
+    pub minimized_cell_count: usize,
     pub horizontal_chords: usize,
     pub vertical_chords: usize,
     pub dual_max_branching_degree: usize,
@@ -250,8 +255,19 @@ pub fn search_path_tree_witnesses(
             {
                 continue;
             }
+            let original_cell_count = component.cell_count();
+            let minimized_component = minimize_witness_component(
+                &component,
+                min_horizontal_chords,
+                min_vertical_chords,
+                min_dual_branching,
+                min_path_count,
+                min_heavy_chain_intervals,
+                min_canonical_nodes,
+            );
+            let minimized_cell_count = minimized_component.cell_count();
             let (canonical_key, canonical_cells, canonical_width, canonical_height) =
-                canonical_cells(&component);
+                canonical_cells(&minimized_component);
             if !seen_keys.insert(canonical_key.clone()) {
                 continue;
             }
@@ -390,6 +406,8 @@ pub fn search_path_tree_witnesses(
                 height: canonical_height,
                 cells: canonical_cells,
                 canonical_key,
+                original_cell_count,
+                minimized_cell_count,
                 horizontal_chords: canonical_geometry.horizontal_chords.len(),
                 vertical_chords: canonical_geometry.vertical_chords.len(),
                 dual_max_branching_degree: canonical_max_branching,
@@ -751,36 +769,199 @@ fn mutated_notch_grids(width: usize, height: usize) -> Vec<AdversarialInstance> 
     result
 }
 
+#[allow(clippy::too_many_arguments)]
+fn witness_predicate(
+    component: &rect_core::GridComponent<bool>,
+    min_horizontal_chords: usize,
+    min_vertical_chords: usize,
+    min_dual_branching: usize,
+    min_path_count: usize,
+    min_heavy_chain_intervals: usize,
+    min_canonical_nodes: usize,
+) -> bool {
+    let Ok(geometry) = analyze_geometry_with(component, &GridInteriorRunEnumerator) else {
+        return false;
+    };
+    if geometry.horizontal_chords.len() < min_horizontal_chords
+        || geometry.vertical_chords.len() < min_vertical_chords
+    {
+        return false;
+    }
+    let certificate = classify_clean_hole_free_with_endpoint_index(
+        component,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        &geometry.endpoint_index,
+    );
+    if !certificate.eligible {
+        return false;
+    }
+    [
+        PathTreeOrientation::VerticalTreeHorizontalPaths,
+        PathTreeOrientation::HorizontalTreeVerticalPaths,
+    ]
+    .into_iter()
+    .any(|orientation| {
+        let Ok(partition) = build_oriented_path_tree_partition_with_backend_and_options(
+            &geometry.prepared,
+            &geometry.boundary,
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+            certificate.clone(),
+            orientation,
+            false,
+            RegionDualBackend::BoundaryLaminar,
+            Some(&geometry.endpoint_index),
+            rect_dominance::BoundaryGapLabelBackend::EventSweep,
+        ) else {
+            return false;
+        };
+        let branching = partition
+            .path_tree
+            .tree
+            .adjacency
+            .iter()
+            .map(Vec::len)
+            .max()
+            .unwrap_or(0);
+        let mut intervals = 0usize;
+        let mut multi_chain = 0usize;
+        for path in &partition.path_tree.compact_paths {
+            let count = partition
+                .path_tree
+                .hld
+                .decompose_path_endpoints(path.start_region, path.end_region)
+                .map(|items| items.len())
+                .unwrap_or(0);
+            intervals = intervals.saturating_add(count);
+            multi_chain += usize::from(count >= 2);
+        }
+        branching >= min_dual_branching
+            && partition.path_count >= min_path_count
+            && intervals >= min_heavy_chain_intervals
+            && multi_chain > 0
+            && partition.canonical_segment_node_count >= min_canonical_nodes
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn minimize_witness_component(
+    component: &rect_core::GridComponent<bool>,
+    min_horizontal_chords: usize,
+    min_vertical_chords: usize,
+    min_dual_branching: usize,
+    min_path_count: usize,
+    min_heavy_chain_intervals: usize,
+    min_canonical_nodes: usize,
+) -> rect_core::GridComponent<bool> {
+    let mut current = component.clone();
+    let mut granularity = 2usize;
+    while current.cells.len() >= 2 {
+        let chunk_size = current.cells.len().div_ceil(granularity);
+        let mut reduced = None;
+        for start in (0..current.cells.len()).step_by(chunk_size) {
+            let end = (start + chunk_size).min(current.cells.len());
+            let mut retained = Vec::with_capacity(current.cells.len() - (end - start));
+            retained.extend_from_slice(&current.cells[..start]);
+            retained.extend_from_slice(&current.cells[end..]);
+            let Some(candidate) =
+                connected_component_from_cells(current.grid_width, current.grid_height, &retained)
+            else {
+                continue;
+            };
+            if witness_predicate(
+                &candidate,
+                min_horizontal_chords,
+                min_vertical_chords,
+                min_dual_branching,
+                min_path_count,
+                min_heavy_chain_intervals,
+                min_canonical_nodes,
+            ) {
+                reduced = Some(candidate);
+                break;
+            }
+        }
+        if let Some(candidate) = reduced {
+            current = candidate;
+            granularity = granularity.saturating_sub(1).max(2);
+        } else if granularity >= current.cells.len() {
+            break;
+        } else {
+            granularity = granularity.saturating_mul(2).min(current.cells.len());
+        }
+    }
+    current
+}
+
+fn connected_component_from_cells(
+    width: usize,
+    height: usize,
+    retained: &[rect_core::Cell],
+) -> Option<rect_core::GridComponent<bool>> {
+    if retained.is_empty() {
+        return None;
+    }
+    let mut cells = vec![false; width * height];
+    for cell in retained {
+        cells[cell.y * width + cell.x] = true;
+    }
+    let grid = ColorGrid::new(width, height, cells).ok()?;
+    let mut components = grid
+        .four_connected_components()
+        .into_iter()
+        .filter(|candidate| candidate.color);
+    let candidate = components.next()?;
+    (components.next().is_none() && candidate.cell_count() == retained.len()).then_some(candidate)
+}
+
 fn canonical_cells(
     component: &rect_core::GridComponent<bool>,
 ) -> (String, Vec<bool>, usize, usize) {
+    let x0 = component.cells.iter().map(|cell| cell.x).min().unwrap_or(0);
+    let y0 = component.cells.iter().map(|cell| cell.y).min().unwrap_or(0);
+    let x1 = component
+        .cells
+        .iter()
+        .map(|cell| cell.x)
+        .max()
+        .map_or(1, |value| value + 1);
+    let y1 = component
+        .cells
+        .iter()
+        .map(|cell| cell.y)
+        .max()
+        .map_or(1, |value| value + 1);
+    let source_width = x1.saturating_sub(x0).max(1);
+    let source_height = y1.saturating_sub(y0).max(1);
     let variants = (0..8).map(|symmetry| {
-        let swap = symmetry >= 4;
-        let source_width = component.grid_width;
-        let source_height = component.grid_height;
-        let width = if swap { source_height } else { source_width };
-        let height = if swap { source_width } else { source_height };
+        let (width, height) = if matches!(symmetry, 1 | 3 | 6 | 7) {
+            (source_height, source_width)
+        } else {
+            (source_width, source_height)
+        };
         let mut cells = vec![false; width * height];
         for cell in &component.cells {
-            let (mut x, mut y) = (cell.x, cell.y);
-            if symmetry % 4 == 1 {
-                (x, y) = (source_height - 1 - y, x);
-            } else if symmetry % 4 == 2 {
-                (x, y) = (source_width - 1 - x, source_height - 1 - y);
-            } else if symmetry % 4 == 3 {
-                (x, y) = (y, source_width - 1 - x);
-            }
-            if symmetry >= 4 {
-                x = width - 1 - x;
-            }
-            if x < width && y < height {
-                cells[y * width + x] = true;
-            }
+            let (x, y) = (cell.x - x0, cell.y - y0);
+            let (x, y) = match symmetry {
+                0 => (x, y),
+                1 => (source_height - 1 - y, x),
+                2 => (source_width - 1 - x, source_height - 1 - y),
+                3 => (y, source_width - 1 - x),
+                4 => (source_width - 1 - x, y),
+                5 => (x, source_height - 1 - y),
+                6 => (y, x),
+                7 => (source_height - 1 - y, source_width - 1 - x),
+                _ => unreachable!(),
+            };
+            cells[y * width + x] = true;
         }
-        let key = cells
+        let bits = cells
             .iter()
             .map(|cell| if *cell { '1' } else { '0' })
             .collect::<String>();
+        let key = format!("{width}x{height}:{bits}");
         (key, cells, width, height)
     });
     variants
@@ -795,6 +976,295 @@ fn short_hash(value: &str) -> String {
         hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     format!("{hash:016x}")
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct FamilyMetrics {
+    q: usize,
+    dual_regions: usize,
+    path_count: usize,
+    heavy_chain_intervals: usize,
+    canonical_nodes: usize,
+}
+
+fn family_metrics(component: &rect_core::GridComponent<bool>) -> Option<FamilyMetrics> {
+    let geometry = analyze_geometry_with(component, &GridInteriorRunEnumerator).ok()?;
+    let certificate = classify_clean_hole_free_with_endpoint_index(
+        component,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        &geometry.endpoint_index,
+    );
+    if !certificate.eligible {
+        return None;
+    }
+    let mut best = None;
+    for orientation in [
+        PathTreeOrientation::VerticalTreeHorizontalPaths,
+        PathTreeOrientation::HorizontalTreeVerticalPaths,
+    ] {
+        let Ok(partition) = build_oriented_path_tree_partition_with_backend_and_options(
+            &geometry.prepared,
+            &geometry.boundary,
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+            certificate.clone(),
+            orientation,
+            false,
+            RegionDualBackend::BoundaryLaminar,
+            Some(&geometry.endpoint_index),
+            rect_dominance::BoundaryGapLabelBackend::EventSweep,
+        ) else {
+            continue;
+        };
+        let mut intervals = 0usize;
+        for path in &partition.path_tree.compact_paths {
+            intervals = intervals.saturating_add(
+                partition
+                    .path_tree
+                    .hld
+                    .decompose_path_endpoints(path.start_region, path.end_region)
+                    .ok()?
+                    .len(),
+            );
+        }
+        let metrics = FamilyMetrics {
+            q: geometry.horizontal_chords.len() + geometry.vertical_chords.len(),
+            dual_regions: partition.dual_region_count,
+            path_count: partition.path_count,
+            heavy_chain_intervals: intervals,
+            canonical_nodes: partition.canonical_segment_node_count,
+        };
+        best = Some(best.map_or(metrics, |old: FamilyMetrics| old.max(metrics)));
+    }
+    best
+}
+
+fn join_witness_components(
+    first: &rect_core::GridComponent<bool>,
+    second: &rect_core::GridComponent<bool>,
+    transform: GridTransform,
+    gap: usize,
+    first_row: usize,
+    second_row: usize,
+    vertical_offset: usize,
+) -> Option<rect_core::GridComponent<bool>> {
+    let transformed = TransformedComponent::new(second, transform).ok()?.component;
+    if first_row >= first.grid_height
+        || second_row >= transformed.grid_height
+        || second_row + vertical_offset != first_row
+    {
+        return None;
+    }
+    let first_x = first
+        .cells
+        .iter()
+        .filter(|cell| cell.y == first_row)
+        .map(|cell| cell.x)
+        .max()?;
+    let second_x = transformed
+        .cells
+        .iter()
+        .filter(|cell| cell.y == second_row)
+        .map(|cell| cell.x)
+        .min()?;
+    let second_x_offset = first.grid_width + gap;
+    let second_y_offset = vertical_offset;
+    let width = second_x_offset + transformed.grid_width;
+    let height = first
+        .grid_height
+        .max(second_y_offset + transformed.grid_height);
+    let mut cells = vec![false; width * height];
+    for cell in &first.cells {
+        cells[cell.y * width + cell.x] = true;
+    }
+    for cell in &transformed.cells {
+        cells[(cell.y + second_y_offset) * width + second_x_offset + cell.x] = true;
+    }
+    let bridge_y = first_row;
+    let bridge_end = second_x_offset + second_x;
+    if first_x + 1 >= bridge_end {
+        return None;
+    }
+    for x in first_x + 1..bridge_end {
+        cells[bridge_y * width + x] = true;
+    }
+    let grid = ColorGrid::new(width, height, cells).ok()?;
+    let mut components = grid
+        .four_connected_components()
+        .into_iter()
+        .filter(|component| component.color);
+    let component = components.next()?;
+    (components.next().is_none()).then_some(component)
+}
+
+fn stored_witness_components() -> Vec<(rect_core::GridComponent<bool>, FamilyMetrics)> {
+    let mut candidates = stored_mixed_branching_witnesses()
+        .into_iter()
+        .filter_map(|instance| {
+            let grid = ColorGrid::new(instance.width, instance.height, instance.cells).ok()?;
+            let component = grid
+                .four_connected_components()
+                .into_iter()
+                .find(|component| component.color)?;
+            family_metrics(&component).map(|metrics| (component, metrics))
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|(_, metrics)| *metrics);
+    candidates.truncate(6);
+    candidates
+}
+
+/// Loads the committed minimized mixed-branching witnesses as replayable grid
+/// instances.
+#[must_use]
+pub fn stored_mixed_branching_witnesses() -> Vec<AdversarialInstance> {
+    let report: PathTreeWitnessSearchReport = serde_json::from_str(include_str!(
+        "../../../results/path-tree-witnesses/index.json"
+    ))
+    .expect("committed path-tree witness index is valid JSON");
+    report
+        .witnesses
+        .into_iter()
+        .enumerate()
+        .map(|(index, witness)| AdversarialInstance {
+            name: format!("stored-path-tree-witness-{index:03}"),
+            family: "stored-path-tree-regression".to_owned(),
+            width: witness.width,
+            height: witness.height,
+            cells: witness.cells,
+            parameters: [
+                ("source_cells".to_owned(), witness.original_cell_count),
+                ("minimized_cells".to_owned(), witness.minimized_cell_count),
+            ]
+            .into_iter()
+            .collect(),
+        })
+        .collect()
+}
+
+/// Derives a deterministic parameterized mixed-branching family from the
+/// minimized geometry witnesses.
+///
+/// Each successive member attaches one more clean witness gadget through a
+/// single unit-width corridor. Candidate joins are accepted only after the
+/// production clean classifier and path-tree builder prove that all recorded
+/// structural metrics are monotone and at least one strictly increases.
+#[must_use]
+pub fn mixed_branching_connected_sum_family(max_modules: usize) -> Vec<AdversarialInstance> {
+    let candidates = stored_witness_components();
+    let Some((mut current, mut previous)) = candidates.first().cloned() else {
+        return Vec::new();
+    };
+    let mut family = Vec::new();
+    for modules in 1..=max_modules.max(1) {
+        if modules > 1 {
+            let mut best = None;
+            for (append, _) in &candidates {
+                for transform in [
+                    GridTransform::Translate { dx: 0, dy: 0 },
+                    GridTransform::ReflectHorizontal,
+                    GridTransform::Rotate90,
+                    GridTransform::ReflectMainDiagonal,
+                    GridTransform::ReflectAntiDiagonal,
+                ] {
+                    let Ok(transformed) = TransformedComponent::new(append, transform) else {
+                        continue;
+                    };
+                    for first_row in 0..current.grid_height {
+                        for second_row in 0..transformed.component.grid_height {
+                            if second_row > first_row {
+                                continue;
+                            }
+                            for gap in 1..=3 {
+                                let Some(joined) = join_witness_components(
+                                    &current,
+                                    append,
+                                    transform,
+                                    gap,
+                                    first_row,
+                                    second_row,
+                                    first_row - second_row,
+                                ) else {
+                                    continue;
+                                };
+                                let Some(metrics) = family_metrics(&joined) else {
+                                    continue;
+                                };
+                                let improves = metrics.q > previous.q
+                                    || metrics.dual_regions > previous.dual_regions
+                                    || metrics.path_count > previous.path_count
+                                    || metrics.heavy_chain_intervals
+                                        > previous.heavy_chain_intervals
+                                    || metrics.canonical_nodes > previous.canonical_nodes;
+                                let dominates = metrics.q >= previous.q
+                                    && metrics.dual_regions >= previous.dual_regions
+                                    && metrics.path_count >= previous.path_count
+                                    && metrics.heavy_chain_intervals
+                                        >= previous.heavy_chain_intervals
+                                    && metrics.canonical_nodes >= previous.canonical_nodes;
+                                let score = (
+                                    metrics.q,
+                                    metrics.dual_regions,
+                                    metrics.path_count,
+                                    metrics.heavy_chain_intervals,
+                                    metrics.canonical_nodes,
+                                );
+                                if improves
+                                    && dominates
+                                    && best.as_ref().is_none_or(
+                                        |(_, old): &(
+                                            rect_core::GridComponent<bool>,
+                                            FamilyMetrics,
+                                        )| {
+                                            score
+                                                > (
+                                                    old.q,
+                                                    old.dual_regions,
+                                                    old.path_count,
+                                                    old.heavy_chain_intervals,
+                                                    old.canonical_nodes,
+                                                )
+                                        },
+                                    )
+                                {
+                                    best = Some((joined, metrics));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let Some((joined, metrics)) = best else {
+                break;
+            };
+            current = joined;
+            previous = metrics;
+        }
+        let (_, cells, width, height) = canonical_cells(&current);
+        family.push(AdversarialInstance {
+            name: format!("mixed-branching-connected-sum-{modules}"),
+            family: "mixed-branching-connected-sum".to_owned(),
+            width,
+            height,
+            cells,
+            parameters: [
+                ("modules".to_owned(), modules),
+                ("q".to_owned(), previous.q),
+                ("dual_regions".to_owned(), previous.dual_regions),
+                ("path_count".to_owned(), previous.path_count),
+                (
+                    "heavy_chain_intervals".to_owned(),
+                    previous.heavy_chain_intervals,
+                ),
+                ("canonical_nodes".to_owned(), previous.canonical_nodes),
+            ]
+            .into_iter()
+            .collect(),
+        });
+    }
+    family
 }
 
 struct SplitMix64 {
@@ -823,7 +1293,28 @@ impl SplitMix64 {
 mod tests {
     use std::fs;
 
-    use super::search_path_tree_witnesses;
+    use rect_core::ColorGrid;
+
+    use super::{canonical_cells, search_path_tree_witnesses};
+
+    #[test]
+    fn witness_canonicalization_is_translation_and_dihedral_invariant() {
+        let original = ColorGrid::new(3, 2, vec![true, true, false, true, false, false])
+            .unwrap()
+            .four_connected_components()
+            .remove(0);
+        let translated = ColorGrid::new(
+            7,
+            6,
+            (0..42).map(|index| matches!(index, 17 | 18 | 24)).collect(),
+        )
+        .unwrap()
+        .four_connected_components()
+        .into_iter()
+        .find(|component| component.color)
+        .unwrap();
+        assert_eq!(canonical_cells(&original).0, canonical_cells(&translated).0);
+    }
 
     #[test]
     fn deterministic_search_finds_geometry_backed_mixed_branching_witness() {
@@ -838,5 +1329,29 @@ mod tests {
                 && witness.canonical_segment_node_count >= 2
         }));
         fs::remove_dir_all(output).unwrap();
+    }
+
+    #[test]
+    fn connected_sum_family_grows_all_required_structural_metrics() {
+        let family = super::mixed_branching_connected_sum_family(6);
+        assert_eq!(family.len(), 6);
+        let mut previous: Option<super::FamilyMetrics> = None;
+        for instance in family {
+            let component = ColorGrid::new(instance.width, instance.height, instance.cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .find(|component| component.color)
+                .unwrap();
+            let metrics = super::family_metrics(&component).unwrap();
+            if let Some(old) = previous {
+                assert!(metrics.q > old.q);
+                assert!(metrics.dual_regions > old.dual_regions);
+                assert!(metrics.path_count > old.path_count);
+                assert!(metrics.heavy_chain_intervals > old.heavy_chain_intervals);
+                assert!(metrics.canonical_nodes > old.canonical_nodes);
+            }
+            previous = Some(metrics);
+        }
     }
 }

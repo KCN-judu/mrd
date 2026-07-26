@@ -12,6 +12,7 @@ pub enum GridTransform {
     Rotate180,
     Rotate270,
     ReflectMainDiagonal,
+    ReflectAntiDiagonal,
     Scale { factor: usize },
 }
 
@@ -150,6 +151,12 @@ impl<C: Clone> TransformedComponent<C> {
                 Some(rectangle.y1),
                 Some(rectangle.x1),
             ),
+            GridTransform::ReflectAntiDiagonal => (
+                self.original_width.checked_sub(rectangle.y1),
+                self.original_height.checked_sub(rectangle.x1),
+                self.original_width.checked_sub(rectangle.y0),
+                self.original_height.checked_sub(rectangle.x0),
+            ),
             GridTransform::Scale { factor } => {
                 if factor == 0
                     || !rectangle.x0.is_multiple_of(factor)
@@ -187,9 +194,10 @@ fn transformed_dimensions(
             width.checked_add(dx).ok_or(TransformError::Overflow)?,
             height.checked_add(dy).ok_or(TransformError::Overflow)?,
         )),
-        GridTransform::Rotate90 | GridTransform::Rotate270 | GridTransform::ReflectMainDiagonal => {
-            Ok((height, width))
-        }
+        GridTransform::Rotate90
+        | GridTransform::Rotate270
+        | GridTransform::ReflectMainDiagonal
+        | GridTransform::ReflectAntiDiagonal => Ok((height, width)),
         GridTransform::Scale { factor } => {
             if factor == 0 {
                 return Err(TransformError::ZeroScale);
@@ -239,6 +247,10 @@ fn transform_cell(
         GridTransform::ReflectMainDiagonal => rect_core::Cell {
             x: cell.y,
             y: cell.x,
+        },
+        GridTransform::ReflectAntiDiagonal => rect_core::Cell {
+            x: height - 1 - cell.y,
+            y: width - 1 - cell.x,
         },
         GridTransform::Scale { .. } => return Err(TransformError::InvalidInverse),
     };
@@ -293,6 +305,7 @@ mod tests {
             GridTransform::Rotate180,
             GridTransform::Rotate270,
             GridTransform::ReflectMainDiagonal,
+            GridTransform::ReflectAntiDiagonal,
             GridTransform::Scale { factor: 2 },
         ];
         for transform in transforms {
