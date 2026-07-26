@@ -291,6 +291,101 @@ def current_evidence_sections(output_dir: Path) -> list[str]:
     return sections
 
 
+def v08_evidence_sections(output_dir: Path) -> list[str]:
+    sections: list[str] = []
+    witness_path = output_dir / "path-tree-witnesses" / "index.json"
+    if witness_path.exists():
+        report = read_json(witness_path)
+        fields = [
+            "name",
+            "cells",
+            "horizontal_chords",
+            "vertical_chords",
+            "dual_max_branching_degree",
+            "path_count",
+            "heavy_chain_interval_count",
+            "paths_using_multiple_heavy_chains",
+            "canonical_segment_node_count",
+        ]
+        rows = [
+            {
+                **{field: witness.get(field, "") for field in fields if field != "cells"},
+                "cells": sum(witness.get("cells", [])),
+            }
+            for witness in report.get("witnesses", [])
+        ]
+        sections.extend(
+            [
+                "## v0.8 Boundary-indexed adaptive path-tree",
+                "",
+                markdown_table(fields, rows),
+                "",
+                f"The deterministic witness search examined {report.get('candidates_examined', 0):,} production geometry candidates and retained {len(rows)} canonical witnesses.",
+                "",
+            ]
+        )
+
+    families_path = output_dir / "v0.8-path-tree-families.csv"
+    if families_path.exists():
+        rows = read_csv(families_path)
+        verified = [row for row in rows if row.get("status") == "verified"]
+        nontrivial = [row for row in verified if int(row.get("total_chord_count", 0)) > 0]
+        sections.extend(
+            [
+                "### v0.8 scaled geometry families",
+                "",
+                f"The generated family campaign contains {len(rows)} rows ({len(nontrivial)} nontrivial chord-bearing rows), all with status `verified`.",
+                f"Chain q grows from {min((int(row['total_chord_count']) for row in rows if row['family'] == 'laminar-chain'), default=0)} to {max((int(row['total_chord_count']) for row in rows if row['family'] == 'laminar-chain'), default=0)}; star and balanced rows reach dual branching degrees {max((int(row['dual_tree_max_branching_degree']) for row in rows if row['family'] == 'laminar-star'), default=0)} and {max((int(row['dual_tree_max_branching_degree']) for row in rows if row['family'] == 'balanced-laminar'), default=0)}.",
+                "The retained mixed H/V witness bundles are the canonical predicate population; no coordinate-only scaling law is claimed for them.",
+                "",
+            ]
+        )
+
+    comparison_path = output_dir / "v0.8-path-tree-vs-4d.csv"
+    if comparison_path.exists():
+        rows = read_csv(comparison_path)
+        verified = [row for row in rows if row.get("status") == "verified"]
+        bucket_order = [
+            "0-8",
+            "9-32",
+            "33-128",
+            "129-512",
+            "513-2048",
+            "2049+",
+        ]
+        present_buckets = {row.get("q_bucket", "") for row in rows}
+        buckets = [bucket for bucket in bucket_order if bucket in present_buckets]
+        sections.extend(
+            [
+                "### v0.8 representation comparison",
+                "",
+                f"The generated comparison contains {len(rows)} rows, {len(verified)} verified, across q buckets {', '.join(f'`{bucket}`' for bucket in buckets)}.",
+                "It records sigma, network size, phase timings, final equality, and owned-allocation estimates for both path-tree and 4D representations.",
+                "",
+            ]
+        )
+
+    advantage_path = output_dir / "v0.8-path-tree-advantage.json"
+    if advantage_path.exists():
+        report = read_json(advantage_path)
+        all_rows = [
+            *report.get("top_path_tree_advantages", []),
+            *report.get("top_four_d_advantages", []),
+        ]
+        path_tree_max = max((row.get("owned_path_tree_bytes", 0) for row in all_rows), default=0)
+        four_d_max = max((row.get("owned_4d_bytes", 0) for row in all_rows), default=0)
+        sections.extend(
+            [
+                "### v0.8 representation advantage search",
+                "",
+                f"The generated advantage search retains {report.get('eligible_rows', 0)} eligible mixed-orientation rows; strict path-tree advantages: {report.get('strict_path_tree_advantages', 0)}; strict 4D advantages: {report.get('strict_four_d_advantages', 0)}.",
+                f"Retained rows have owned-allocation maxima of {path_tree_max:,} bytes for path-tree and {four_d_max:,} bytes for 4D; final optimum and rectangle equality are recorded per row.",
+                "",
+            ]
+        )
+    return sections
+
+
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -381,6 +476,7 @@ def main() -> None:
         "",
         *compact_v03_section(args.output_dir),
         *current_evidence_sections(args.output_dir),
+        *v08_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -409,7 +505,20 @@ def main() -> None:
         "v0.7-path-tree-orientation-audit.md",
         "v0.7-path-tree-vs-4d.csv",
         "v0.7-path-tree-vs-4d.json",
+        "v0.8-path-tree-families.csv",
+        "v0.8-path-tree-vs-4d.csv",
+        "v0.8-path-tree-vs-4d.json",
+        "v0.8-path-tree-advantage.csv",
+        "v0.8-path-tree-advantage.json",
+        "v0.8-path-tree-advantage.md",
     ]:
+        candidate = args.output_dir / artifact
+        if candidate.exists():
+            generated.append(str(candidate))
+    for artifact in (
+        "path-tree-witnesses/index.json",
+        "path-tree-witnesses/report.json",
+    ):
         candidate = args.output_dir / artifact
         if candidate.exists():
             generated.append(str(candidate))

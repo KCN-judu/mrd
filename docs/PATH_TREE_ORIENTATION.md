@@ -7,8 +7,8 @@ The clean path-tree representation has two symmetric choices:
 - `horizontal-tree-vertical-paths`: the roles are exchanged.
 
 `BuildBothExact` constructs both and selects the smaller actual biclique sigma,
-breaking ties in favor of the vertical tree. This is the FullyAudited Oracle
-and the current CompactOnly default. `BoundEstimate` computes
+breaking ties in favor of the vertical tree. This remains the FullyAudited
+Oracle. CompactOnly now defaults to `BoundEstimate`, which computes
 
 ```text
 L = ceil(log2(q + 1))
@@ -28,8 +28,9 @@ The CLI spelling is:
 
 The policy and selected orientation are serialized in diagnostics. A bound
 estimate is a dispatch heuristic, not a proof that its chosen sigma is optimal;
-the v0.7 campaign compares it against `BuildBothExact` and records absolute and
-relative regret before any default change.
+the v0.7/v0.8 campaigns compare it against `BuildBothExact` and record absolute
+and relative regret. The recorded finite populations have zero positive
+regret; this justifies the CompactOnly default but is not a general theorem.
 
 For `BoundaryLaminar`, CompactOnly uses an axis-generic boundary view for the
 horizontal-tree orientation. FullyAudited retains the historical physical

@@ -16,8 +16,8 @@ monochromatic rectangular partitions of finite colored grids:
   fallback.
 - `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`:
   choose or audit the path-tree orientation without changing the correctness
-  Oracles. The default remains `build-both` until the v0.7 evidence campaign
-  justifies adaptive dispatch.
+  Oracles. FullyAudited keeps exact `build-both`; CompactOnly defaults to the
+  evidence-backed `bound-estimate` selector.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs
@@ -45,6 +45,10 @@ cargo run --release -p rect-cli -- solve \
   --solver dominance-compact-only \
   --chord-enumerator reference-pairwise \
   --input test-data/example.json
+
+cargo run --release -p rect-cli -- search-path-tree-witness \
+  --max-width 12 --max-height 12 --seed 42 --require-clean \
+  --output-dir results/path-tree-witnesses
 
 cargo run --release -p rect-cli -- verify \
   --input test-data/example.json \
@@ -82,6 +86,14 @@ cargo run --release -p rect-cli -- benchmark \
   --suite path-tree-vs4d --sizes 1,2,4,8 \
   --output results/v0.7-path-tree-vs-4d.csv
 
+cargo run --release -p rect-cli -- benchmark \
+  --suite path-tree-scaling --sizes 3,8,16,32,64 \
+  --output results/v0.8-path-tree-families.csv
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 \
+  --output results/v0.8-path-tree-advantage.csv
+
 cargo run --release -p rect-cli -- generate \
   --family dense-conflict --horizontal 32 --vertical 32 \
   --json /tmp/dense-32.json --svg /tmp/dense-32.svg
@@ -107,6 +119,11 @@ The input format is:
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
+
+CompactOnly production geometry uses the indexed boundary metadata, grid-run
+chord enumeration, laminar event sweep, and indexed frontier completion. The
+pairwise endpoint, nested-gap, and rescan paths remain independent references;
+their differential campaigns are recorded separately in `docs/EXPERIMENTS.md`.
 
 The optional independent Python/OR-Tools oracle is documented in
 `tools/external-oracle/README.md`. Reproducible commands, exact tested

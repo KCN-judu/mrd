@@ -406,10 +406,54 @@ fixtures: four clean path-tree selections and three non-clean compact 4D
 fallbacks. These results are in the corresponding `results/v0.7-*` CSV/JSON
 artifacts and are bound to the current release commit in the manifest.
 
-The path-tree-vs-4D report now includes q buckets `0-8`, `9-32`, `33-128`,
-`129-512`, and `513+`; it records construction, flow, completion, total time,
-network, sigma, and owned-allocation fields separately. The production default
-remains `dominance-4d` for CompactOnly and `build-both` for the path-tree
-backend: the audit justifies the bound selector as regret-free on the finite
-population, but does not silently replace the established default without a
-separate policy commit.
+The historical v0.7 path-tree-vs-4D report used q buckets `0-8`, `9-32`,
+`33-128`, `129-512`, and `513+`; it records construction, flow, completion,
+total time, network, sigma, and owned-allocation fields separately. The v0.7
+production default remained `dominance-4d` for CompactOnly and `build-both`
+for the path-tree backend.
+
+## v0.8 boundary-indexed adaptive path-tree evidence
+
+The v0.8 implementation adds one reusable `BoundaryIndex` and one shared
+effective-chord endpoint table to each prepared solve. CompactOnly diagnostics
+therefore report `linear_boundary_vertex_lookup_count=0` and
+`clean_endpoint_pair_comparisons=0`; the preserved reference paths retain
+linear lookup and pairwise behavior for differential checks.
+
+`EventSweep` and `ReferenceNested` produce identical boundary-gap labels on the
+clean 3x3 population and on the stored path-tree regressions. Event rows report
+zero interval-membership tests and exactly one push/pop per interval; nested
+rows report the explicit membership-test count. The endpoint classifier uses a
+vertex-owner map rather than an H-by-V pair loop, while the reference classifier
+remains available under `classify_clean_hole_free_reference`.
+
+Completion is now an interchangeable backend. `ReferenceRescanCompletion` is
+the correctness baseline; `IndexedFrontierCompletion` performs one local
+bounding-box scan per axis, refreshes only incident frontier vertices, and
+recovers rectangles from dense local cuts. Differential tests compare selected
+cuts, added cuts, sorted rectangles, and both cell-exact validators. The
+completion contract and complexity scope are fixed in
+`docs/GEOMETRIC_COMPLETION.md`.
+
+The deterministic mixed-branching search retains three canonical clean
+witnesses with degree-3 dual branching and multi-heavy-chain paths. Their complete bundles
+are in `results/path-tree-witnesses/`; the command and predicate are documented
+in `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md`.
+
+The finite orientation audit recorded zero positive `BoundEstimate` sigma
+regret, so CompactOnly now defaults to `bound-estimate`; FullyAudited continues
+to use `build-both`. This is evidence-backed dispatch for the supported grid
+population, not a general polygon complexity claim.
+
+The generated v0.8 structural scaling report is results/v0.8-path-tree-families.csv.
+Chain rows grow from q=12 at scale 3 to q=256 at scale 64, while star and
+balanced probes grow their dual branching degree independently. The representation
+comparison results/v0.8-path-tree-vs-4d.csv covers 12 geometry-backed rows through
+q=512 and records nonempty owned-allocation estimates for both sides.
+Its summaries use the six requested buckets: `0-8`, `9-32`, `33-128`,
+`129-512`, `513-2048`, and `2049+`.
+
+The v0.8 advantage search in results/v0.8-path-tree-advantage.json retains
+10 mixed-orientation rows. No strict sigma advantage was found for either
+representation; all rows have equal sigma and equal rectangles. The memory
+estimates nevertheless favor path-tree on the larger complete-bipartite rows.

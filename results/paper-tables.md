@@ -103,6 +103,13 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "bd945f5",
       "3994cb1"
     ]
+  },
+  {
+    "version": "0.8.0",
+    "tag": "v0.8.0-boundary-indexed-adaptive-path-tree",
+    "peeled_commit": "PENDING",
+    "evidence": "boundary index, indexed endpoint classifier, laminar event sweep, mixed-branching witnesses, and adaptive orientation evidence",
+    "result_commits": []
   }
 ]
 ```
@@ -195,3 +202,29 @@ The row-level CSV contains 160,443 clean instances. Exact sigma matches: 160,443
 ## v0.7 BoundaryLaminar versus area dual
 
 The row-level CSV contains 156,267 clean instances. Verified: 156,267; counterexamples: 0; solver errors: 0.
+
+## v0.8 Boundary-indexed adaptive path-tree
+
+| name | cells | horizontal_chords | vertical_chords | dual_max_branching_degree | path_count | heavy_chain_interval_count | paths_using_multiple_heavy_chains | canonical_segment_node_count |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| mutated-notch-057-054 | 332 | 5 | 3 | 3 | 3 | 4 | 1 | 3 |
+| mutated-notch-097-124 | 378 | 4 | 4 | 3 | 4 | 4 | 2 | 2 |
+| mutated-notch-074-017 | 440 | 7 | 4 | 3 | 4 | 5 | 2 | 4 |
+
+The deterministic witness search examined 215,047 production geometry candidates and retained 3 canonical witnesses.
+
+### v0.8 scaled geometry families
+
+The generated family campaign contains 20 rows (20 nontrivial chord-bearing rows), all with status `verified`.
+Chain q grows from 12 to 256; star and balanced rows reach dual branching degrees 63 and 64.
+The retained mixed H/V witness bundles are the canonical predicate population; no coordinate-only scaling law is claimed for them.
+
+### v0.8 representation comparison
+
+The generated comparison contains 12 rows, 12 verified, across q buckets `0-8`, `9-32`, `33-128`, `129-512`.
+It records sigma, network size, phase timings, final equality, and owned-allocation estimates for both path-tree and 4D representations.
+
+### v0.8 representation advantage search
+
+The generated advantage search retains 10 eligible mixed-orientation rows; strict path-tree advantages: 0; strict 4D advantages: 0.
+Retained rows have owned-allocation maxima of 270,904 bytes for path-tree and 27,797,892 bytes for 4D; final optimum and rectangle equality are recorded per row.

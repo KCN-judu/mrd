@@ -41,3 +41,9 @@ An equal-depth four-side-notch candidate was deliberately rejected from the
 population: its horizontal and vertical chord endpoints coincide, so the
 clean certificate reports `SharedBoundaryEndpoint`. It is not used as
 evidence or silently counted as a star.
+
+The v0.8 deterministic mixed-branching search adds `permuted-notch-grid` and
+one-cell mutation neighborhoods. The retained witnesses have both H and V
+chords, degree-3 dual branching, multi-chain HLD paths, and at least two
+canonical segment nodes. See `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md` and
+`results/path-tree-witnesses/index.json`.

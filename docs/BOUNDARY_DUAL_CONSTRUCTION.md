@@ -1,6 +1,6 @@
 # Boundary-Laminar Region Dual
 
-This document specifies the finite-grid construction used by the v0.6
+This document specifies the finite-grid construction used by the v0.8
 CompactOnly path-tree backend. It applies only after the clean hole-free
 certificate has established one normalized outer boundary loop, proper chord
 endpoints, and distinct endpoints.
@@ -38,6 +38,13 @@ look up occupied cells.
 The unique tree path between the two endpoint regions is the set of fixed
 orientation chords whose arcs separate the two boundary sectors. By the disk
 arc separation lemma, this is exactly the set of geometric crossing chords.
+Production gap labeling uses `BoundaryGapLabelBackend::EventSweep`: starts are
+processed outer-to-inner, end events are popped before labeling the gap at the
+end coordinate, and every push/pop must match the active stack. The preserved
+`ReferenceNested` backend performs the old gap-by-interval membership scan for
+differential testing. Event diagnostics record zero membership tests and one
+push/pop per interval; the reference records its exact `n * |T|` test count.
+
 FullyAudited independently reconstructs the same path with area flood-fill and
 per-path BFS, then compares the edge sets and the endpoint regions.
 
@@ -47,4 +54,6 @@ The implementation is a grid-specialized realization. It does not claim the
 paper's general polygon sweep, ornaments, point/segment holes, or degenerate
 formal holes. `ReferenceAreaFloodFill` remains available as the independent
 correctness oracle and is the default for FullyAudited. CompactOnly uses
-`BoundaryLaminar` and endpoint-only HLD after the differential tests pass.
+`BoundaryLaminar` and endpoint-only HLD after the differential tests pass. The
+event sweep is `O(n + |T| log |T|)` including interval sorting; no general
+polygon sweep-line complexity is claimed.

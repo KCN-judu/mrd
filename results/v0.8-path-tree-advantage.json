@@ -1,0 +1,527 @@
+{
+  "metadata": {
+    "git_commit": "72836293637c6fbb35f7c6982705632bbe8c2f3f",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-path-tree-advantage.csv",
+    "seed": null,
+    "timestamp": 1785036875,
+    "input_count": 12,
+    "component_count": 12,
+    "input_model": "finite-grid-path-tree-vs-4d-sigma-advantage-search",
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "eligible_rows": 10,
+  "strict_path_tree_advantages": 0,
+  "strict_four_d_advantages": 0,
+  "top_path_tree_advantages": [
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t16",
+      "canonical_key": "14756-3c8bf52b277c88dc",
+      "q": 64,
+      "horizontal_chords": 32,
+      "vertical_chords": 32,
+      "sigma_path_tree": 64,
+      "sigma_4d": 64,
+      "sigma_4d_over_path_tree": {
+        "numerator": 64,
+        "denominator": 64
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 64,
+        "denominator": 64
+      },
+      "network_arcs_path_tree": 128,
+      "network_arcs_4d": 128,
+      "owned_path_tree_bytes": 34360,
+      "owned_4d_bytes": 563300,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t4",
+      "canonical_key": "1676-5b8dba18c49a8972",
+      "q": 16,
+      "horizontal_chords": 8,
+      "vertical_chords": 8,
+      "sigma_path_tree": 16,
+      "sigma_4d": 16,
+      "sigma_4d_over_path_tree": {
+        "numerator": 16,
+        "denominator": 16
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 16,
+        "denominator": 16
+      },
+      "network_arcs_path_tree": 32,
+      "network_arcs_4d": 32,
+      "owned_path_tree_bytes": 9016,
+      "owned_4d_bytes": 67772,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t64",
+      "canonical_key": "196676-4430ef836f836099",
+      "q": 256,
+      "horizontal_chords": 128,
+      "vertical_chords": 128,
+      "sigma_path_tree": 256,
+      "sigma_4d": 256,
+      "sigma_4d_over_path_tree": {
+        "numerator": 256,
+        "denominator": 256
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 256,
+        "denominator": 256
+      },
+      "network_arcs_path_tree": 512,
+      "network_arcs_4d": 512,
+      "owned_path_tree_bytes": 135736,
+      "owned_4d_bytes": 7234052,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t1",
+      "canonical_key": "431-2bf1111a90aa75e9",
+      "q": 4,
+      "horizontal_chords": 2,
+      "vertical_chords": 2,
+      "sigma_path_tree": 4,
+      "sigma_4d": 4,
+      "sigma_4d_over_path_tree": {
+        "numerator": 4,
+        "denominator": 4
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 4,
+        "denominator": 4
+      },
+      "network_arcs_path_tree": 8,
+      "network_arcs_4d": 8,
+      "owned_path_tree_bytes": 2680,
+      "owned_4d_bytes": 17150,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t8",
+      "canonical_key": "4596-3c94a6b3b4f60856",
+      "q": 32,
+      "horizontal_chords": 16,
+      "vertical_chords": 16,
+      "sigma_path_tree": 32,
+      "sigma_4d": 32,
+      "sigma_4d_over_path_tree": {
+        "numerator": 32,
+        "denominator": 32
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 32,
+        "denominator": 32
+      },
+      "network_arcs_path_tree": 64,
+      "network_arcs_4d": 64,
+      "owned_path_tree_bytes": 17464,
+      "owned_4d_bytes": 180852,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t32",
+      "canonical_key": "52356-3d8d7e179a404ac4",
+      "q": 128,
+      "horizontal_chords": 64,
+      "vertical_chords": 64,
+      "sigma_path_tree": 128,
+      "sigma_4d": 128,
+      "sigma_4d_over_path_tree": {
+        "numerator": 128,
+        "denominator": 128
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 128,
+        "denominator": 128
+      },
+      "network_arcs_path_tree": 256,
+      "network_arcs_4d": 256,
+      "owned_path_tree_bytes": 68152,
+      "owned_4d_bytes": 1953348,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t2",
+      "canonical_key": "756-fa38b4baa5a63cc6",
+      "q": 8,
+      "horizontal_chords": 4,
+      "vertical_chords": 4,
+      "sigma_path_tree": 8,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 16,
+      "network_arcs_4d": 16,
+      "owned_path_tree_bytes": 4792,
+      "owned_4d_bytes": 30768,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "laminar-chain",
+      "instance_name": "laminar-chain-128",
+      "canonical_key": "761796-28389ab7085e8d7a",
+      "q": 512,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "sigma_path_tree": 512,
+      "sigma_4d": 512,
+      "sigma_4d_over_path_tree": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "network_arcs_path_tree": 1024,
+      "network_arcs_4d": 1024,
+      "owned_path_tree_bytes": 270904,
+      "owned_4d_bytes": 27797892,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t128",
+      "canonical_key": "761796-28389ab7085e8d7a",
+      "q": 512,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "sigma_path_tree": 512,
+      "sigma_4d": 512,
+      "sigma_4d_over_path_tree": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "network_arcs_path_tree": 1024,
+      "network_arcs_4d": 1024,
+      "owned_path_tree_bytes": 270904,
+      "owned_4d_bytes": 27797892,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "asymmetric-orientation",
+      "instance_name": "asymmetric-orientation-128",
+      "canonical_key": "9-f569d1792983e0d9",
+      "q": 2,
+      "horizontal_chords": 1,
+      "vertical_chords": 1,
+      "sigma_path_tree": 2,
+      "sigma_4d": 2,
+      "sigma_4d_over_path_tree": {
+        "numerator": 2,
+        "denominator": 2
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 2,
+        "denominator": 2
+      },
+      "network_arcs_path_tree": 4,
+      "network_arcs_4d": 4,
+      "owned_path_tree_bytes": 1624,
+      "owned_4d_bytes": 2080,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    }
+  ],
+  "top_four_d_advantages": [
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t16",
+      "canonical_key": "14756-3c8bf52b277c88dc",
+      "q": 64,
+      "horizontal_chords": 32,
+      "vertical_chords": 32,
+      "sigma_path_tree": 64,
+      "sigma_4d": 64,
+      "sigma_4d_over_path_tree": {
+        "numerator": 64,
+        "denominator": 64
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 64,
+        "denominator": 64
+      },
+      "network_arcs_path_tree": 128,
+      "network_arcs_4d": 128,
+      "owned_path_tree_bytes": 34360,
+      "owned_4d_bytes": 563300,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t4",
+      "canonical_key": "1676-5b8dba18c49a8972",
+      "q": 16,
+      "horizontal_chords": 8,
+      "vertical_chords": 8,
+      "sigma_path_tree": 16,
+      "sigma_4d": 16,
+      "sigma_4d_over_path_tree": {
+        "numerator": 16,
+        "denominator": 16
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 16,
+        "denominator": 16
+      },
+      "network_arcs_path_tree": 32,
+      "network_arcs_4d": 32,
+      "owned_path_tree_bytes": 9016,
+      "owned_4d_bytes": 67772,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t64",
+      "canonical_key": "196676-4430ef836f836099",
+      "q": 256,
+      "horizontal_chords": 128,
+      "vertical_chords": 128,
+      "sigma_path_tree": 256,
+      "sigma_4d": 256,
+      "sigma_4d_over_path_tree": {
+        "numerator": 256,
+        "denominator": 256
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 256,
+        "denominator": 256
+      },
+      "network_arcs_path_tree": 512,
+      "network_arcs_4d": 512,
+      "owned_path_tree_bytes": 135736,
+      "owned_4d_bytes": 7234052,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t1",
+      "canonical_key": "431-2bf1111a90aa75e9",
+      "q": 4,
+      "horizontal_chords": 2,
+      "vertical_chords": 2,
+      "sigma_path_tree": 4,
+      "sigma_4d": 4,
+      "sigma_4d_over_path_tree": {
+        "numerator": 4,
+        "denominator": 4
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 4,
+        "denominator": 4
+      },
+      "network_arcs_path_tree": 8,
+      "network_arcs_4d": 8,
+      "owned_path_tree_bytes": 2680,
+      "owned_4d_bytes": 17150,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t8",
+      "canonical_key": "4596-3c94a6b3b4f60856",
+      "q": 32,
+      "horizontal_chords": 16,
+      "vertical_chords": 16,
+      "sigma_path_tree": 32,
+      "sigma_4d": 32,
+      "sigma_4d_over_path_tree": {
+        "numerator": 32,
+        "denominator": 32
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 32,
+        "denominator": 32
+      },
+      "network_arcs_path_tree": 64,
+      "network_arcs_4d": 64,
+      "owned_path_tree_bytes": 17464,
+      "owned_4d_bytes": 180852,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t32",
+      "canonical_key": "52356-3d8d7e179a404ac4",
+      "q": 128,
+      "horizontal_chords": 64,
+      "vertical_chords": 64,
+      "sigma_path_tree": 128,
+      "sigma_4d": 128,
+      "sigma_4d_over_path_tree": {
+        "numerator": 128,
+        "denominator": 128
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 128,
+        "denominator": 128
+      },
+      "network_arcs_path_tree": 256,
+      "network_arcs_4d": 256,
+      "owned_path_tree_bytes": 68152,
+      "owned_4d_bytes": 1953348,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t2",
+      "canonical_key": "756-fa38b4baa5a63cc6",
+      "q": 8,
+      "horizontal_chords": 4,
+      "vertical_chords": 4,
+      "sigma_path_tree": 8,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 16,
+      "network_arcs_4d": 16,
+      "owned_path_tree_bytes": 4792,
+      "owned_4d_bytes": 30768,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "laminar-chain",
+      "instance_name": "laminar-chain-128",
+      "canonical_key": "761796-28389ab7085e8d7a",
+      "q": 512,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "sigma_path_tree": 512,
+      "sigma_4d": 512,
+      "sigma_4d_over_path_tree": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "network_arcs_path_tree": 1024,
+      "network_arcs_4d": 1024,
+      "owned_path_tree_bytes": 270904,
+      "owned_4d_bytes": 27797892,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t128",
+      "canonical_key": "761796-28389ab7085e8d7a",
+      "q": 512,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "sigma_path_tree": 512,
+      "sigma_4d": 512,
+      "sigma_4d_over_path_tree": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "network_arcs_path_tree": 1024,
+      "network_arcs_4d": 1024,
+      "owned_path_tree_bytes": 270904,
+      "owned_4d_bytes": 27797892,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "asymmetric-orientation",
+      "instance_name": "asymmetric-orientation-128",
+      "canonical_key": "9-f569d1792983e0d9",
+      "q": 2,
+      "horizontal_chords": 1,
+      "vertical_chords": 1,
+      "sigma_path_tree": 2,
+      "sigma_4d": 2,
+      "sigma_4d_over_path_tree": {
+        "numerator": 2,
+        "denominator": 2
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 2,
+        "denominator": 2
+      },
+      "network_arcs_path_tree": 4,
+      "network_arcs_4d": 4,
+      "owned_path_tree_bytes": 1624,
+      "owned_4d_bytes": 2080,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    }
+  ]
+}

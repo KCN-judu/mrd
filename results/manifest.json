@@ -522,6 +522,24 @@
         "degenerate-formal-holes",
         "general-polygon-input"
       ]
+    },
+    {
+      "git_commit": "72836293637c6fbb35f7c6982705632bbe8c2f3f",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "target/release/rect-cli benchmark --suite path-tree-scaling --sizes 3,8,16,32,64 --output results/v0.8-path-tree-families.csv",
+      "seed": null,
+      "timestamp": 1785036861,
+      "input_count": 20,
+      "component_count": 20,
+      "input_model": "finite-grid-scaled-path-tree-geometry-families",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
     }
   ],
   "historical_release_metadata": {
@@ -619,17 +637,24 @@
         "bd945f5",
         "3994cb1"
       ]
+    },
+    {
+      "version": "0.8.0",
+      "tag": "v0.8.0-boundary-indexed-adaptive-path-tree",
+      "peeled_commit": "PENDING",
+      "evidence": "boundary index, indexed endpoint classifier, laminar event sweep, mixed-branching witnesses, and adaptive orientation evidence",
+      "result_commits": []
     }
   ],
   "current_release": {
-    "version": "0.7.0",
-    "tag": "v0.7.0-path-tree-evidence-and-adaptive-dispatch",
-    "peeled_commit": "3994cb101606733bae815560c25815f2355d4b34",
+    "version": "0.8.0",
+    "tag": "v0.8.0-boundary-indexed-adaptive-path-tree",
+    "peeled_commit": "PENDING",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
       "compact_conflict_representation": "dominance-4d",
-      "compact_path_tree_orientation": "build-both",
+      "compact_path_tree_orientation": "bound-estimate",
       "compact_rectangle_recovery_backend": "dense-grid",
       "compact_region_dual": "boundary-laminar",
       "fully_audited_completion_backend": "reference-rescan",
@@ -655,6 +680,14 @@
     "results/v0.7-path-tree-orientation-audit.md",
     "results/v0.7-path-tree-vs-4d.csv",
     "results/v0.7-path-tree-vs-4d.json",
+    "results/v0.8-path-tree-families.csv",
+    "results/v0.8-path-tree-vs-4d.csv",
+    "results/v0.8-path-tree-vs-4d.json",
+    "results/v0.8-path-tree-advantage.csv",
+    "results/v0.8-path-tree-advantage.json",
+    "results/v0.8-path-tree-advantage.md",
+    "results/path-tree-witnesses/index.json",
+    "results/path-tree-witnesses/report.json",
     "results/v0.6-clean-complete-bipartite-compact.csv",
     "results/v0.6-clean-complete-bipartite-compact-summary.json",
     "results/v0.6-clean-complete-bipartite-compact.md"

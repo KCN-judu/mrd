@@ -20,8 +20,9 @@ The path-tree solver exposes four orientation policies: `build-both` constructs
 both orientations and selects the smaller audited sigma; `bound-estimate`
 chooses one orientation from the paper-shaped pre-construction bound; and the
 two fixed policies are debugging/benchmark controls. FullyAudited defaults to
-`build-both`. CompactOnly currently keeps that conservative default until the
-v0.7 regret campaign justifies a dispatch change. BoundaryLaminar uses an
+`build-both`. FullyAudited keeps that conservative policy; CompactOnly uses
+the evidence-backed `bound-estimate` default after the v0.8 regret audit.
+BoundaryLaminar uses an
 axis-generic view for the horizontal-tree orientation, while the historical
 coordinate-transpose implementation remains an audited reference.
 

@@ -73,7 +73,8 @@ references. CompactOnly uses the `BoundaryLaminar` dual and endpoint-only HLD
 records (`CompactTreePath`); its axis view avoids occupancy, boundary, and chord
 transposition in the production path for either orientation. Orientation selection is controlled by
 `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`;
-the default remains `build-both` until the v0.7 regret evidence is frozen.
+FullyAudited defaults to `build-both`, while CompactOnly defaults to the
+evidence-backed `bound-estimate` policy.
 Heavy-light canonical segment nodes produce the bicliques consumed by the same
 compressed flow backend. `--representation auto` selects this representation
 only when the clean certificate passes and records a compact 4D fallback
@@ -161,6 +162,11 @@ implementation of the general `O(n log n)` Soltan--Gorpinevich enumeration
 algorithm. CompactOnly defaults to grid runs and the CLI override
 `--chord-enumerator reference-pairwise|grid-interior-runs` remains available.
 See `docs/GRID_CHORD_ENUMERATION.md`.
+
+The production path reuses one `BoundaryIndex` and one effective-chord
+endpoint table. CompactOnly therefore performs no linear boundary lookup or
+pairwise endpoint comparison. Its O(sigma) biclique check is coordinate
+extrema validation for each block, not Cartesian-product expansion.
 
 The exact horizontal-then-vertical completion policy, unit-cut semantics, and
 backend differential contract are specified in `docs/GEOMETRIC_COMPLETION.md`.
