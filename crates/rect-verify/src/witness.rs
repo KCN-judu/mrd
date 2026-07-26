@@ -1100,10 +1100,19 @@ fn join_witness_components(
 }
 
 fn stored_witness_components() -> Vec<(rect_core::GridComponent<bool>, FamilyMetrics)> {
-    let mut candidates = stored_mixed_branching_witnesses()
+    let report: PathTreeWitnessSearchReport = serde_json::from_str(include_str!(
+        "../../../results/path-tree-witnesses/index.json"
+    ))
+    .expect("committed path-tree witness index is valid JSON");
+    let mut candidates = report
+        .witnesses
         .into_iter()
-        .filter_map(|instance| {
-            let grid = ColorGrid::new(instance.width, instance.height, instance.cells).ok()?;
+        // Keep the derived family out of its own seed population. Otherwise a
+        // newly discovered connected-sum witness would change the next family
+        // generation and make the committed search population non-idempotent.
+        .filter(|witness| witness.family != "mixed-branching-connected-sum")
+        .filter_map(|witness| {
+            let grid = ColorGrid::new(witness.width, witness.height, witness.cells).ok()?;
             let component = grid
                 .four_connected_components()
                 .into_iter()
@@ -1353,5 +1362,23 @@ mod tests {
             }
             previous = Some(metrics);
         }
+    }
+
+    #[test]
+    fn connected_sum_seed_population_excludes_derived_family() {
+        let report: super::PathTreeWitnessSearchReport = serde_json::from_str(include_str!(
+            "../../../results/path-tree-witnesses/index.json"
+        ))
+        .unwrap();
+        let derived = report
+            .witnesses
+            .iter()
+            .filter(|witness| witness.family == "mixed-branching-connected-sum")
+            .count();
+        assert!(derived > 0);
+        assert_eq!(
+            super::stored_witness_components().len(),
+            report.witnesses.len().saturating_sub(derived).min(6)
+        );
     }
 }
