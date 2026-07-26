@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.0.0"
-TAG = "v1.0.0-indexed-polygon-engine"
+VERSION = "1.1.0"
+TAG = "v1.1.0-soltan-gorpinevich-sweep"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -25,7 +25,7 @@ EXPECTED_DEFAULTS = {
     "fully_audited_path_tree_orientation": "build-both",
     "compact_polygon_geometry": "indexed",
     "compact_polygon_validator": "orthogonal-sweep",
-    "compact_polygon_chords": "indexed-pairwise",
+    "compact_polygon_chords": "sg-sweep",
     "compact_polygon_completion": "indexed-frontier",
     "compact_polygon_arrangement": "indexed",
 }
@@ -58,6 +58,15 @@ REQUIRED_V10_ARTIFACTS = (
     "results/v1.0-polygon-native-fixtures.json",
     "results/v1.0-polygon-scaling.csv",
     "results/v1.0-polygon-scaling.json",
+)
+REQUIRED_V11_ARTIFACTS = (
+    "results/v1.1-polygon-differential-3x3.json",
+    "results/v1.1-polygon-differential-4x4.json",
+    "results/v1.1-polygon-backend-differential.json",
+    "results/v1.1-polygon-negative.json",
+    "results/v1.1-polygon-native-fixtures.json",
+    "results/v1.1-polygon-scaling.csv",
+    "results/v1.1-polygon-scaling.json",
 )
 
 
@@ -128,12 +137,12 @@ def assert_implementation_defaults() -> None:
     for expected in (
         "geometry_backend: PolygonGeometryBackend::Indexed",
         "validation_backend: PolygonValidationBackend::OrthogonalSweep",
-        "chord_backend: PolygonChordBackend::IndexedPairwise",
+        "chord_backend: PolygonChordBackend::SoltanGorpinevichSweep",
         "completion_backend: PolygonCompletionBackend::IndexedFrontier",
         "arrangement_backend: PolygonArrangementBackend::Indexed",
     ):
         if expected not in defaults.group(0):
-            fail(f"polygon implementation default is not indexed: {expected}")
+            fail(f"polygon implementation default does not select the sweep: {expected}")
 
 
 def main() -> None:
@@ -216,6 +225,8 @@ def main() -> None:
         fail("generated evidence does not contain a v0.9 section")
     if "v1.0" not in paper_tables or "v1.0" not in experiments:
         fail("generated evidence does not contain a v1.0 section")
+    if "v1.1" not in paper_tables or "v1.1" not in experiments:
+        fail("generated evidence does not contain a v1.1 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
@@ -232,6 +243,11 @@ def main() -> None:
             fail(f"missing generated v1.0 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v1.0 evidence: {relative}")
+    for relative in REQUIRED_V11_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated v1.1 evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated v1.1 evidence: {relative}")
     v09_report = json.loads(
         (ROOT / "results/v0.9-polygon-differential.json").read_text()
     )
@@ -287,6 +303,7 @@ def main() -> None:
         fail("algorithm documentation does not name the indexed production path")
     for required in (
         "IndexedPolygonPairwiseEnumerator",
+        "SoltanGorpinevichSweepEnumerator",
         "IndexedPolygonCompletion",
         "OrthogonalSweepValidator",
         "PreparedPolygonContext",
@@ -299,6 +316,12 @@ def main() -> None:
         report = json.loads((ROOT / relative).read_text())
         if report.get("disagreements", 0) != 0:
             fail(f"v1.0 report has disagreements: {relative}")
+    for relative in REQUIRED_V11_ARTIFACTS:
+        if not relative.endswith(".json"):
+            continue
+        report = json.loads((ROOT / relative).read_text())
+        if report.get("disagreements", 0) != 0:
+            fail(f"v1.1 report has disagreements: {relative}")
     print(f"release consistency: {VERSION} {TAG} -> {peeled}")
     print(f"reachable manifest commits: {len(commits)}")
 
