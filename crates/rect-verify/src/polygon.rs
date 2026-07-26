@@ -391,9 +391,14 @@ mod tests {
     #[ignore = "release-mode extended v0.9 grid/polygon differential populations"]
     fn extended_grid_polygon_differential_populations_match() {
         use crate::adversarial::{
-            clean_complete_bipartite_grid, external_oracle_adversarial_instances,
+            clean_complete_bipartite_grid, dense_conflict_grid, endpoint_contact_instances,
+            external_oracle_adversarial_instances, path_tree_geometry_families,
+            topological_stress_instances,
         };
         use crate::polyomino::enumerate_free_polyominoes;
+        use crate::witness::{
+            mixed_branching_connected_sum_family, stored_mixed_branching_witnesses,
+        };
 
         let mut counts = DifferentialCounts::default();
         for level in enumerate_free_polyominoes(10) {
@@ -406,7 +411,19 @@ mod tests {
                 compare_instance(&instance, &mut counts);
             }
         }
-        for instance in external_oracle_adversarial_instances() {
+        let adversarial_instances = endpoint_contact_instances()
+            .into_iter()
+            .chain(topological_stress_instances())
+            .chain(external_oracle_adversarial_instances())
+            .chain(path_tree_geometry_families(12))
+            .chain(stored_mixed_branching_witnesses())
+            .chain(mixed_branching_connected_sum_family(6))
+            .chain([
+                dense_conflict_grid(4, 5),
+                dense_conflict_grid(8, 8),
+                dense_conflict_grid(32, 32),
+            ]);
+        for instance in adversarial_instances {
             counts.inputs += 1;
             compare_instance(&instance, &mut counts);
         }

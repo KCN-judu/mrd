@@ -794,4 +794,97 @@ mod tests {
             Err(PolygonError::SelfIntersection { .. })
         ));
     }
+
+    #[test]
+    fn rejects_zero_length_and_too_few_vertices() {
+        let zero = RectilinearPolygon::new(
+            OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(4, 0),
+                Point::new(4, 4),
+                Point::new(0, 4),
+                Point::new(0, 4),
+            ]),
+            vec![],
+        );
+        assert!(matches!(zero, Err(PolygonError::ZeroLengthEdge { .. })));
+
+        let too_few = RectilinearPolygon::new(
+            OrthogonalLoop::new(vec![Point::new(0, 0), Point::new(4, 0), Point::new(0, 4)]),
+            vec![],
+        );
+        assert!(matches!(too_few, Err(PolygonError::TooFewVertices { .. })));
+    }
+
+    #[test]
+    fn rejects_invalid_hole_placement_and_orientation() {
+        let outside =
+            RectilinearPolygon::new(rectangle(0, 0, 10, 10), vec![rectangle(12, 2, 14, 4)]);
+        assert!(matches!(
+            outside,
+            Err(PolygonError::HoleOutsideOuter { .. })
+        ));
+
+        let intersecting = RectilinearPolygon::new(
+            rectangle(0, 0, 20, 20),
+            vec![rectangle(2, 2, 8, 8), rectangle(6, 6, 12, 12)],
+        );
+        assert!(matches!(
+            intersecting,
+            Err(PolygonError::HoleIntersectsHole { .. })
+        ));
+
+        let clockwise = rectangle(0, 0, 10, 10);
+        let mut reversed = clockwise.vertices;
+        reversed.reverse();
+        let wrong_orientation = RectilinearPolygon {
+            outer: OrthogonalLoop::new(reversed),
+            holes: vec![],
+        };
+        assert!(matches!(
+            wrong_orientation.validate(),
+            Err(PolygonError::WrongOrientation { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_unsupported_degenerate_and_duplicate_boundaries() {
+        let degenerate = RectilinearPolygon {
+            outer: OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(4, 0),
+                Point::new(6, 0),
+                Point::new(6, 4),
+                Point::new(0, 4),
+            ]),
+            holes: vec![],
+        };
+        assert!(matches!(
+            degenerate.validate(),
+            Err(PolygonError::UnsupportedDegenerateBoundary { .. })
+        ));
+
+        let duplicate = RectilinearPolygon {
+            outer: OrthogonalLoop::new(vec![
+                Point::new(2, 0),
+                Point::new(0, 0),
+                Point::new(0, -4),
+                Point::new(6, -4),
+                Point::new(6, 0),
+                Point::new(2, 0),
+                Point::new(2, 2),
+                Point::new(6, 2),
+                Point::new(6, 6),
+                Point::new(0, 6),
+                Point::new(0, 2),
+                Point::new(2, 2),
+            ]),
+            holes: vec![],
+        };
+        let duplicate_error = duplicate.validate().unwrap_err();
+        assert!(
+            matches!(duplicate_error, PolygonError::DuplicateVertex { .. }),
+            "unexpected error: {duplicate_error:?}"
+        );
+    }
 }

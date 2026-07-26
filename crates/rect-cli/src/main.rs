@@ -1625,14 +1625,47 @@ mod tests {
             "two-holes.json",
             "comb.json",
             "spiral-corridor.json",
+            "scaled-complete-bipartite.json",
+            "reflex-heavy-stretched.json",
         ] {
             let path = workspace.join("test-data/polygons").join(name);
             let LoadedInput::Polygon(polygon) = load_input(&path, InputFormatArg::Polygon).unwrap()
             else {
                 panic!("fixture {name} did not parse as a polygon");
             };
-            rect_dominance::solve_polygon(&polygon)
+            let result = rect_dominance::solve_polygon(&polygon)
                 .unwrap_or_else(|error| panic!("fixture {name} failed: {error}"));
+            if name == "scaled-complete-bipartite.json" {
+                let families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
+                    .enumerate(&polygon)
+                    .unwrap();
+                assert_eq!(families.horizontal.len(), 4);
+                assert_eq!(families.vertical.len(), 4);
+                assert!(families.horizontal.iter().all(|&horizontal| {
+                    families
+                        .vertical
+                        .iter()
+                        .all(|&vertical| rect_core::closed_chords_intersect(horizontal, vertical))
+                }));
+                let auto = rect_dominance::solve_polygon_with_representation(
+                    &polygon,
+                    rect_dominance::ConflictRepresentationBackend::Auto,
+                )
+                .unwrap();
+                assert_eq!(
+                    auto.diagnostics.conflict_representation.as_deref(),
+                    Some("path-tree")
+                );
+            }
+            if name == "reflex-heavy-stretched.json" {
+                assert!(result.diagnostics.reflex_vertex_count >= 8);
+                assert!(
+                    result
+                        .diagnostics
+                        .coordinate_compression_x_count
+                        .is_some_and(|count| count >= 10)
+                );
+            }
         }
     }
 }

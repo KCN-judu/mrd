@@ -1226,11 +1226,130 @@ pub enum PolygonSgError {
 
 #[cfg(test)]
 mod tests {
-    use rect_core::{Boundary, ColorGrid, OrthogonalLoop, Point, RectilinearPolygon};
+    use rect_core::{
+        Boundary, BoundaryIndex, ColorGrid, OrthogonalLoop, Point, RectilinearPolygon,
+    };
 
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
-    use super::GeneralPolygonPairwiseEnumerator;
+    use super::{
+        GeneralPolygonPairwiseEnumerator, endpoint_has_collinear_edge,
+        horizontal_satisfies_definition_7,
+    };
+
+    fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
+        OrthogonalLoop::new(vec![
+            Point::new(x0, y0),
+            Point::new(x1, y0),
+            Point::new(x1, y1),
+            Point::new(x0, y1),
+        ])
+    }
+
+    fn first_grid_derived_polygon_with_chords() -> RectilinearPolygon {
+        for mask in 1_u16..1 << 9 {
+            let grid =
+                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = Boundary::from_component(&component).unwrap();
+                let Ok(polygon) = boundary.to_polygon() else {
+                    continue;
+                };
+                let families = GeneralPolygonPairwiseEnumerator
+                    .enumerate(&polygon)
+                    .unwrap();
+                if !families.horizontal.is_empty() || !families.vertical.is_empty() {
+                    return polygon;
+                }
+            }
+        }
+        panic!("3x3 population must contain a polygon with effective chords");
+    }
+
+    #[test]
+    fn polygon_chords_accept_only_axis_aligned_pairs() {
+        let polygon = first_grid_derived_polygon_with_chords();
+        let families = GeneralPolygonPairwiseEnumerator
+            .enumerate(&polygon)
+            .unwrap();
+        assert!(!families.horizontal.is_empty() || !families.vertical.is_empty());
+        assert!(
+            families
+                .horizontal
+                .iter()
+                .all(|chord| chord.left() < chord.right())
+        );
+        assert!(
+            families
+                .vertical
+                .iter()
+                .all(|chord| chord.bottom() < chord.top())
+        );
+    }
+
+    #[test]
+    fn polygon_chords_reject_hole_interiors() {
+        let polygon =
+            RectilinearPolygon::new(rectangle(0, 0, 12, 10), vec![rectangle(4, 3, 8, 7)]).unwrap();
+        let boundary = Boundary::from_polygon(&polygon);
+        let boundary_index = BoundaryIndex::new(&boundary).unwrap();
+        assert!(
+            !horizontal_satisfies_definition_7(&polygon, &boundary, &boundary_index, 2, 10, 5,)
+                .unwrap()
+        );
+    }
+
+    #[test]
+    fn polygon_chords_require_reflex_collinear_endpoints() {
+        let polygon = first_grid_derived_polygon_with_chords();
+        let boundary = Boundary::from_polygon(&polygon);
+        let boundary_index = BoundaryIndex::new(&boundary).unwrap();
+        let reflex_points = boundary
+            .reflex_vertices
+            .iter()
+            .map(|vertex| vertex.point)
+            .collect::<std::collections::BTreeSet<_>>();
+        let families = GeneralPolygonPairwiseEnumerator
+            .enumerate(&polygon)
+            .unwrap();
+        for chord in &families.horizontal {
+            for point in [
+                Point::new(chord.left(), chord.y()),
+                Point::new(chord.right(), chord.y()),
+            ] {
+                assert!(reflex_points.contains(&point));
+                assert!(
+                    endpoint_has_collinear_edge(&boundary, &boundary_index, point, true).unwrap()
+                );
+            }
+        }
+        for chord in &families.vertical {
+            for point in [
+                Point::new(chord.x(), chord.bottom()),
+                Point::new(chord.x(), chord.top()),
+            ] {
+                assert!(reflex_points.contains(&point));
+                assert!(
+                    endpoint_has_collinear_edge(&boundary, &boundary_index, point, false).unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn polygon_chords_reject_nonvertex_boundary_crossings() {
+        let polygon = RectilinearPolygon::new(rectangle(0, 0, 10, 10), vec![]).unwrap();
+        let boundary = Boundary::from_polygon(&polygon);
+        let boundary_index = BoundaryIndex::new(&boundary).unwrap();
+        assert!(
+            !horizontal_satisfies_definition_7(&polygon, &boundary, &boundary_index, -1, 11, 5,)
+                .unwrap()
+        );
+    }
 
     #[test]
     fn grid_derived_polygon_chords_match_on_all_3x3_masks() {
