@@ -48,7 +48,12 @@ jobs:
           target/release/rect-cli benchmark --suite path-tree-comparison --sizes 3 --output artifacts/path-tree-comparison-3x3.csv 2>&1 | tee artifacts/logs/path-tree-comparison-3x3.log
           target/release/rect-cli benchmark --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-orientation-audit.csv 2>&1 | tee artifacts/logs/path-tree-orientation-audit.log
           target/release/rect-cli benchmark --suite path-tree-dual-differential --sizes 1,2,4 --output artifacts/path-tree-dual-differential.csv 2>&1 | tee artifacts/logs/path-tree-dual-differential.log
-          target/release/rect-cli benchmark --suite path-tree-vs-4d --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-vs-4d.csv 2>&1 | tee artifacts/logs/path-tree-vs-4d.log
+          target/release/rect-cli benchmark --suite path-tree-gap-differential --max-cells 12 --random-cases 100000 --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-gap-differential.csv 2>&1 | tee artifacts/logs/path-tree-gap-differential.log
+          target/release/rect-cli benchmark --suite path-tree-scaling --sizes 3,8,16,32,64,128 --output artifacts/path-tree-scaling.csv 2>&1 | tee artifacts/logs/path-tree-scaling.log
+          target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 --output artifacts/path-tree-advantage.csv 2>&1 | tee artifacts/logs/path-tree-advantage.log
+          target/release/rect-cli benchmark --suite path-tree-vs4d --sizes 1,2,4,8,16,32,64,128,129,513 --output artifacts/path-tree-vs-4d.csv 2>&1 | tee artifacts/logs/path-tree-vs-4d.log
+          target/release/rect-cli search-path-tree-witness --max-width 12 --max-height 12 --seed 42 --require-clean --min-horizontal-chords 2 --min-vertical-chords 2 --min-dual-branching 3 --min-path-count 3 --min-heavy-chain-intervals 4 --min-canonical-nodes 2 --output-dir artifacts/path-tree-witnesses 2>&1 | tee artifacts/logs/path-tree-witness-search.log
+          cargo test -p rect-verify every_stored_regression_is_replayed 2>&1 | tee artifacts/logs/stored-regressions.log
           target/release/rect-cli benchmark --suite auto-fallback --output artifacts/auto-fallback.csv 2>&1 | tee artifacts/logs/auto-fallback.log
           python3 tools/check_release_consistency.py 2>&1 | tee artifacts/logs/release-consistency.log
       - name: Run bounded external CP-SAT population

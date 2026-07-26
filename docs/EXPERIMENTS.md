@@ -420,12 +420,17 @@ therefore report `linear_boundary_vertex_lookup_count=0` and
 `clean_endpoint_pair_comparisons=0`; the preserved reference paths retain
 linear lookup and pairwise behavior for differential checks.
 
-`EventSweep` and `ReferenceNested` produce identical boundary-gap labels on the
-clean 3x3 population and on the stored path-tree regressions. Event rows report
-zero interval-membership tests and exactly one push/pop per interval; nested
-rows report the explicit membership-test count. The endpoint classifier uses a
-vertex-owner map rather than an H-by-V pair loop, while the reference classifier
-remains available under `classify_clean_hole_free_reference`.
+`EventSweep` and `ReferenceNested` produce identical boundary-gap labels in the
+complete committed differential campaign: 950,557 inputs, 1,053,939 components,
+and 385,947 clean components. The campaign performs 16,530,974 boundary-index
+comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 classifier
+comparisons, and 771,894 orientation comparisons, with zero mismatches and zero
+solver errors. Event rows report zero interval-membership tests and exactly one
+push/pop per interval (409,593 each); the nested Oracle performs 52,388,636
+membership tests. The endpoint classifier uses a vertex-owner map rather than
+an all-pairs endpoint loop, while the reference classifier remains available
+under `classify_clean_hole_free_reference`. Full population and failure-handling
+details are in `docs/PATH_TREE_GAP_DIFFERENTIAL.md`.
 
 Completion is now an interchangeable backend. `ReferenceRescanCompletion` is
 the correctness baseline; `IndexedFrontierCompletion` performs one local
@@ -435,10 +440,13 @@ cuts, added cuts, sorted rectangles, and both cell-exact validators. The
 completion contract and complexity scope are fixed in
 `docs/GEOMETRIC_COMPLETION.md`.
 
-The deterministic mixed-branching search retains three canonical clean
-witnesses with degree-3 dual branching and multi-heavy-chain paths. Their complete bundles
-are in `results/path-tree-witnesses/`; the command and predicate are documented
-in `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md`.
+The deterministic mixed-branching search examined 74,547 production geometry
+candidates and retains 16 delta-minimized, translation/dihedral-canonical clean
+witnesses. Their cell counts fell from roughly 332--446 before minimization to
+54--116 while preserving both chord orientations, degree-3-or-higher branching,
+multi-heavy-chain paths, and at least two canonical segment nodes. Complete
+JSON/SVG bundles are in `results/path-tree-witnesses/`; the construction and
+predicate are documented in `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md`.
 
 The expanded orientation audit records five positive `BoundEstimate` sigma
 regret rows among stored mixed-branching witnesses (maximum absolute regret 2,
@@ -446,15 +454,24 @@ ratio 2/6). CompactOnly therefore keeps exact `build-both` as its production
 default; `bound-estimate` remains available for explicit benchmark experiments.
 FullyAudited also continues to use `build-both`.
 
-The generated v0.8 structural scaling report is results/v0.8-path-tree-families.csv.
-Chain rows grow from q=12 at scale 3 to q=256 at scale 64, while star and
-balanced probes grow their dual branching degree independently. The representation
-comparison results/v0.8-path-tree-vs-4d.csv covers 12 geometry-backed rows through
-q=512 and records nonempty owned-allocation estimates for both sides.
-Its summaries use the six requested buckets: `0-8`, `9-32`, `33-128`,
+The generated v0.8 structural scaling report is
+`results/v0.8-path-tree-families.csv`. The geometry-backed
+`mixed-branching-connected-sum` family grows from one through eight modules;
+for the first four members, q grows `6,14,22,30`, dual regions `4,9,13,17`,
+paths `3,6,10,14`, heavy-chain intervals `4,10,15,20`, and canonical nodes
+`2,6,8,11`. The eighth member reaches q=61, 33 regions, 29 paths, 39 intervals,
+and 24 canonical nodes. The
+laminar-chain high-q probe reaches q=512 at scale
+128. The representation comparison in `results/v0.8-path-tree-vs-4d.csv`
+contains 31 verified geometry-backed rows, includes q=2,052, has zero output
+counterexamples, and records nonempty owned-allocation estimates for both sides.
+Its summaries use all six requested buckets: `0-8`, `9-32`, `33-128`,
 `129-512`, `513-2048`, and `2049+`.
 
-The v0.8 advantage search in results/v0.8-path-tree-advantage.json retains
-10 mixed-orientation rows. No strict sigma advantage was found for either
-representation; all rows have equal sigma and equal rectangles. The memory
-estimates nevertheless favor path-tree on the larger complete-bipartite rows.
+The v0.8 advantage search in `results/v0.8-path-tree-advantage.json` evaluates
+29 eligible mixed-orientation rows. It finds 13 strict path-tree sigma
+advantages and zero strict 4D advantages in this configured corpus. The best
+retained row has sigma 6 versus 8, with 12 versus 14 network arcs and owned
+estimates 4,176 versus 7,548 bytes. Every retained comparison has equal optimum
+and canonical rectangles; the search objective is the sigma ratio, not the
+final optimum count.

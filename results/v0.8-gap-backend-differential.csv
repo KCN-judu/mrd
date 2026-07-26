@@ -1,0 +1,7 @@
+population,input_count,component_count,clean_component_count,ineligible_component_count,boundary_index_comparison_count,endpoint_metadata_comparison_count,clean_classifier_comparison_count,orientation_comparison_count,verified_component_count,mismatch_count,solver_error_count,nested_membership_tests,event_push_count,event_pop_count,maximum_q,maximum_boundary_complexity
+clean-binary-3x3,511,897,871,26,4608,128,897,1742,871,0,0,624,72,72,4,12
+clean-binary-4x4,65535,168529,155389,13140,966656,55296,168529,310778,155389,0,0,194176,19908,19908,6,20
+free-polyomino-through-12,784314,784314,218106,566208,12169494,2547513,784314,436212,218106,0,0,4669542,333729,333729,12,24
+deterministic-connected-regions,100000,100000,11389,88611,3249160,730469,100000,22778,11389,0,0,492408,20891,20891,30,68
+path-tree-geometry-families,69,71,64,7,8448,2034,71,128,64,0,0,1634894,1969,1969,512,2052
+complete-bipartite-through-128,128,128,128,0,132608,33024,128,256,128,0,0,45396992,33024,33024,512,2052

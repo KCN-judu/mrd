@@ -73,5 +73,10 @@ permanent workspace test.
 
 `.github/workflows/ci.yml` runs the quality gates and a bounded adversarial
 smoke test. `.github/workflows/full-verification.yml` runs manually or on
-release tags and archives logs, JSON and CSV evidence, regression bundles, and
-SVG diagnostics for minimized Rust failures.
+release tags. In addition to the exhaustive, random, polyomino, adversarial,
+dense, Auto-fallback, and CP-SAT populations, it runs the full indexed-frontend
+and boundary-gap differential, mixed-family scaling, orientation audit,
+path-tree advantage search, q=2,052 representation comparison, deterministic
+witness search, and all stored regressions. It archives logs, JSON and CSV
+evidence, witness/regression bundles, and SVG diagnostics for minimized Rust
+failures.

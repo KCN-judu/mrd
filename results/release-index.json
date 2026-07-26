@@ -7,7 +7,7 @@
     "compact_rectangle_recovery_backend": "dense-grid",
     "compact_conflict_representation": "dominance-4d",
     "compact_region_dual": "boundary-laminar",
-    "compact_path_tree_orientation": "bound-estimate",
+    "compact_path_tree_orientation": "build-both",
     "fully_audited_completion_backend": "reference-rescan",
     "fully_audited_region_dual": "reference-area",
     "fully_audited_path_tree_orientation": "build-both"

@@ -293,6 +293,22 @@ def current_evidence_sections(output_dir: Path) -> list[str]:
 
 def v08_evidence_sections(output_dir: Path) -> list[str]:
     sections: list[str] = []
+    gap_path = output_dir / "v0.8-gap-backend-differential.json"
+    if gap_path.exists():
+        report = read_json(gap_path)
+        sections.extend(
+            [
+                "## v0.8 Boundary-indexed adaptive path-tree",
+                "",
+                "### Indexed frontend and boundary-gap differential",
+                "",
+                f"The complete differential campaign covers {report['total_input_count']:,} inputs, {report['total_component_count']:,} components, and {report['total_clean_component_count']:,} clean components.",
+                f"It performs {report['total_boundary_index_comparison_count']:,} boundary-index comparisons, {report['total_endpoint_metadata_comparison_count']:,} endpoint-metadata comparisons, {report['total_clean_classifier_comparison_count']:,} clean-classifier comparisons, and {report['total_orientation_comparison_count']:,} orientation comparisons.",
+                f"Verified clean components: {report['total_verified_component_count']:,}; mismatches: {report['total_mismatch_count']}; solver errors: {report['total_solver_error_count']}. ReferenceNested performs {report['total_nested_membership_tests']:,} interval-membership tests; EventSweep records {report['total_event_push_count']:,} pushes and {report['total_event_pop_count']:,} pops.",
+                "",
+            ]
+        )
+
     witness_path = output_dir / "path-tree-witnesses" / "index.json"
     if witness_path.exists():
         report = read_json(witness_path)
@@ -316,11 +332,12 @@ def v08_evidence_sections(output_dir: Path) -> list[str]:
         ]
         sections.extend(
             [
-                "## v0.8 Boundary-indexed adaptive path-tree",
+                "### Minimized mixed-branching witnesses",
                 "",
                 markdown_table(fields, rows),
                 "",
-                f"The deterministic witness search examined {report.get('candidates_examined', 0):,} production geometry candidates and retained {len(rows)} canonical witnesses.",
+                f"The deterministic witness search examined {report.get('candidates_examined', 0):,} production geometry candidates and retained {len(rows)} translation/dihedral-canonical witnesses after delta-debugging minimization.",
+                f"Minimized cell counts range from {min((row['cells'] for row in rows), default=0)} to {max((row['cells'] for row in rows), default=0)}.",
                 "",
             ]
         )
@@ -330,13 +347,19 @@ def v08_evidence_sections(output_dir: Path) -> list[str]:
         rows = read_csv(families_path)
         verified = [row for row in rows if row.get("status") == "verified"]
         nontrivial = [row for row in verified if int(row.get("total_chord_count", 0)) > 0]
+        mixed = [
+            row
+            for row in verified
+            if row.get("family") == "mixed-branching-connected-sum"
+        ]
         sections.extend(
             [
                 "### v0.8 scaled geometry families",
                 "",
                 f"The generated family campaign contains {len(rows)} rows ({len(nontrivial)} nontrivial chord-bearing rows), all with status `verified`.",
                 f"Chain q grows from {min((int(row['total_chord_count']) for row in rows if row['family'] == 'laminar-chain'), default=0)} to {max((int(row['total_chord_count']) for row in rows if row['family'] == 'laminar-chain'), default=0)}; star and balanced rows reach dual branching degrees {max((int(row['dual_tree_max_branching_degree']) for row in rows if row['family'] == 'laminar-star'), default=0)} and {max((int(row['dual_tree_max_branching_degree']) for row in rows if row['family'] == 'balanced-laminar'), default=0)}.",
-                "The retained mixed H/V witness bundles are the canonical predicate population; no coordinate-only scaling law is claimed for them.",
+                f"The mixed-branching connected-sum family contains {len(mixed)} verified members and reaches q={max((int(row['total_chord_count']) for row in mixed), default=0)}, {max((int(row['dual_region_count']) for row in mixed), default=0)} dual regions, {max((int(row['path_count']) for row in mixed), default=0)} paths, {max((int(row['heavy_chain_interval_count']) for row in mixed), default=0)} heavy-chain intervals, and {max((int(row['canonical_segment_node_count']) for row in mixed), default=0)} canonical nodes.",
+                "The connected-sum members are rebuilt through production geometry; no coordinate-only scaling law or synthetic dual graph is used.",
                 "",
             ]
         )
@@ -380,6 +403,26 @@ def v08_evidence_sections(output_dir: Path) -> list[str]:
                 "",
                 f"The generated advantage search retains {report.get('eligible_rows', 0)} eligible mixed-orientation rows; strict path-tree advantages: {report.get('strict_path_tree_advantages', 0)}; strict 4D advantages: {report.get('strict_four_d_advantages', 0)}.",
                 f"Retained rows have owned-allocation maxima of {path_tree_max:,} bytes for path-tree and {four_d_max:,} bytes for 4D; final optimum and rectangle equality are recorded per row.",
+                "",
+            ]
+        )
+
+    orientation_path = output_dir / "v0.8-path-tree-orientation-audit.json"
+    if orientation_path.exists():
+        report = read_json(orientation_path)
+        ratio = report.get("maximum_regret_ratio")
+        ratio_text = "unavailable"
+        if isinstance(ratio, dict):
+            numerator = ratio.get("numerator")
+            denominator = ratio.get("denominator")
+            if numerator is not None and denominator is not None:
+                ratio_text = f"{numerator}/{denominator}"
+        sections.extend(
+            [
+                "### v0.8 orientation regret audit",
+                "",
+                f"The expanded audit contains {report.get('rows', 0):,} rows: {report.get('exact_matches', 0):,} exact sigma matches and {report.get('mismatches', 0)} positive-regret rows.",
+                f"Maximum absolute regret is {report.get('maximum_absolute_regret', 0)} and the maximum recorded regret ratio is {ratio_text}. These counterexamples keep exact `build-both` as the CompactOnly default; `bound-estimate` remains an explicit benchmark policy.",
                 "",
             ]
         )
@@ -511,6 +554,12 @@ def main() -> None:
         "v0.8-path-tree-advantage.csv",
         "v0.8-path-tree-advantage.json",
         "v0.8-path-tree-advantage.md",
+        "v0.8-gap-backend-differential.csv",
+        "v0.8-gap-backend-differential.json",
+        "v0.8-gap-backend-differential.md",
+        "v0.8-path-tree-orientation-audit.csv",
+        "v0.8-path-tree-orientation-audit.json",
+        "v0.8-path-tree-orientation-audit.md",
     ]:
         candidate = args.output_dir / artifact
         if candidate.exists():

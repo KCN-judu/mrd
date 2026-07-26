@@ -16,37 +16,38 @@ cargo run --release -p rect-cli -- search-path-tree-witness \
   --output-dir results/path-tree-witnesses
 ```
 
-The committed population contains three minimized, translation/dihedral
-canonical witnesses:
+The search performs deterministic delta-debugging cell minimization before
+dihedral canonicalization. The committed population contains 16 minimized,
+translation/dihedral-canonical witnesses with 54--116 cells. Every witness
+retains both chord orientations, degree at least 3, a path using multiple heavy
+chains, and at least two canonical segment nodes. The bundles record the
+original and minimized cell counts, input grid, dual tree, compact paths, HLD,
+biclique partition, diagnostics, and SVG geometry.
 
-- `mutated-notch-057-054`: 332 foreground cells, five horizontal and three
-  vertical chords, dual maximum degree 3, three paths, four heavy-chain
-  intervals, one path crossing multiple heavy chains, and three canonical
-  segment nodes;
-- `mutated-notch-097-124`: 378 cells, four horizontal and four vertical
-  chords, degree 3, four paths, four intervals, two multi-chain paths, and two
-  canonical nodes;
-- `mutated-notch-074-017`: 440 cells, seven horizontal and four vertical
-  chords, degree 3, four paths, five intervals, two multi-chain paths, and four
-  canonical nodes.
+The source population is a boundary-notch construction. Separated unit notches
+are attached to the outer boundary, and deterministic one-cell mutations search
+the neighboring clean population. Every retained result is rebuilt through the
+production geometry; no final optimum value is used as the search objective.
 
-Inputs, dual trees, compact paths, HLD records, biclique partitions,
-diagnostics, and SVG renderings are in `results/path-tree-witnesses/`.
+The parameterized `mixed-branching-connected-sum` family starts with the
+smallest minimized witness and attaches another minimized witness gadget
+through exactly one unit-width corridor. A join is accepted only after the
+ordinary grid geometry, clean certificate, event-sweep dual, endpoint-only HLD,
+and biclique partition all validate. The first four members are:
 
-The source family is a boundary-notch construction: separated unit notches
-are attached to the outer boundary, and deterministic one-cell mutations are
-used only to search the neighboring clean population. Increasing the number
-of separated notch positions increases the boundary and chord populations;
-the search records the resulting `q`, dual degree, path count, heavy-chain
-intervals, and canonical-node count rather than extrapolating from a final
-optimum value.
+| modules | q | dual regions | path count | heavy-chain intervals | canonical nodes |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 6 | 4 | 3 | 4 | 2 |
+| 2 | 14 | 9 | 6 | 10 | 6 |
+| 3 | 22 | 13 | 10 | 15 | 8 |
+| 4 | 30 | 17 | 14 | 20 | 11 |
 
-The witness regression requires `H >= 2`, `V >= 2`, dual branching degree at
-least 3, at least three paths, at least one path using multiple heavy chains,
-and at least two canonical segment nodes. The scaling campaign varies the
-geometry-family parameter while retaining this predicate for stored witnesses.
-The generated structural scaling campaign is in
-`results/v0.8-path-tree-families.csv`. It varies the geometry-family scale from
-3 through 64; the retained mixed witness bundles remain the canonical
-predicate population rather than being claimed as a coordinate-only scaling
-law.
+All five required structural quantities increase strictly. The generated
+scaling campaign extends the construction through eight modules and is stored
+in `results/v0.8-path-tree-families.csv`. These are geometry-backed rows, not a
+synthetic dual graph or a coordinate-only scaling claim.
+
+The permanent regressions require `H >= 2`, `V >= 2`, dual branching degree at
+least 3, at least three paths, at least one multi-heavy-chain path, and at least
+two canonical segment nodes. A separate family regression requires strict
+growth in q, dual regions, paths, heavy-chain intervals, and canonical nodes.

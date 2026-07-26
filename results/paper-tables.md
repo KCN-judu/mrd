@@ -210,26 +210,54 @@ The row-level CSV contains 156,267 clean instances. Verified: 156,267; counterex
 
 ## v0.8 Boundary-indexed adaptive path-tree
 
+### Indexed frontend and boundary-gap differential
+
+The complete differential campaign covers 950,557 inputs, 1,053,939 components, and 385,947 clean components.
+It performs 16,530,974 boundary-index comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 clean-classifier comparisons, and 771,894 orientation comparisons.
+Verified clean components: 385,947; mismatches: 0; solver errors: 0. ReferenceNested performs 52,388,636 interval-membership tests; EventSweep records 409,593 pushes and 409,593 pops.
+
+### Minimized mixed-branching witnesses
+
 | name | cells | horizontal_chords | vertical_chords | dual_max_branching_degree | path_count | heavy_chain_interval_count | paths_using_multiple_heavy_chains | canonical_segment_node_count |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| mutated-notch-057-054 | 332 | 5 | 3 | 3 | 3 | 4 | 1 | 3 |
-| mutated-notch-097-124 | 378 | 4 | 4 | 3 | 4 | 4 | 2 | 2 |
-| mutated-notch-074-017 | 440 | 7 | 4 | 3 | 4 | 5 | 2 | 4 |
+| permuted-notch-grid-74 | 54 | 3 | 3 | 3 | 3 | 4 | 1 | 2 |
+| mutated-notch-064-119 | 60 | 3 | 3 | 3 | 3 | 5 | 2 | 2 |
+| mutated-notch-057-054 | 63 | 3 | 3 | 3 | 3 | 4 | 1 | 2 |
+| mutated-notch-074-034 | 64 | 5 | 4 | 4 | 5 | 4 | 1 | 3 |
+| permuted-notch-grid-706 | 64 | 4 | 3 | 4 | 3 | 4 | 2 | 3 |
+| mutated-notch-074-008 | 66 | 3 | 3 | 3 | 3 | 4 | 1 | 3 |
+| mutated-notch-003-024 | 66 | 3 | 5 | 3 | 5 | 4 | 1 | 3 |
+| mutated-notch-046-026 | 67 | 3 | 3 | 3 | 3 | 4 | 1 | 3 |
+| mutated-notch-027-048 | 70 | 3 | 3 | 3 | 3 | 4 | 1 | 3 |
+| mutated-notch-074-011 | 71 | 3 | 4 | 3 | 4 | 4 | 1 | 3 |
+| mutated-notch-074-024 | 80 | 3 | 5 | 5 | 3 | 4 | 2 | 3 |
+| mutated-notch-064-012 | 83 | 5 | 3 | 3 | 3 | 4 | 1 | 3 |
+| mutated-notch-074-003 | 84 | 3 | 4 | 3 | 4 | 4 | 1 | 2 |
+| mutated-notch-064-025 | 97 | 4 | 5 | 4 | 4 | 4 | 1 | 4 |
+| mutated-notch-074-037 | 115 | 3 | 5 | 3 | 3 | 4 | 2 | 4 |
+| mutated-notch-074-038 | 116 | 3 | 4 | 3 | 4 | 4 | 1 | 2 |
 
-The deterministic witness search examined 215,047 production geometry candidates and retained 3 canonical witnesses.
+The deterministic witness search examined 74,547 production geometry candidates and retained 16 translation/dihedral-canonical witnesses after delta-debugging minimization.
+Minimized cell counts range from 54 to 116.
 
 ### v0.8 scaled geometry families
 
-The generated family campaign contains 20 rows (20 nontrivial chord-bearing rows), all with status `verified`.
-Chain q grows from 12 to 256; star and balanced rows reach dual branching degrees 63 and 64.
-The retained mixed H/V witness bundles are the canonical predicate population; no coordinate-only scaling law is claimed for them.
+The generated family campaign contains 30 rows (30 nontrivial chord-bearing rows), all with status `verified`.
+Chain q grows from 12 to 512; star and balanced rows reach dual branching degrees 127 and 128.
+The mixed-branching connected-sum family contains 6 verified members and reaches q=61, 33 dual regions, 29 paths, 39 heavy-chain intervals, and 24 canonical nodes.
+The connected-sum members are rebuilt through production geometry; no coordinate-only scaling law or synthetic dual graph is used.
 
 ### v0.8 representation comparison
 
-The generated comparison contains 12 rows, 12 verified, across q buckets `0-8`, `9-32`, `33-128`, `129-512`.
+The generated comparison contains 31 rows, 31 verified, across q buckets `0-8`, `9-32`, `33-128`, `129-512`, `513-2048`, `2049+`.
 It records sigma, network size, phase timings, final equality, and owned-allocation estimates for both path-tree and 4D representations.
 
 ### v0.8 representation advantage search
 
-The generated advantage search retains 10 eligible mixed-orientation rows; strict path-tree advantages: 0; strict 4D advantages: 0.
-Retained rows have owned-allocation maxima of 270,904 bytes for path-tree and 27,797,892 bytes for 4D; final optimum and rectangle equality are recorded per row.
+The generated advantage search retains 29 eligible mixed-orientation rows; strict path-tree advantages: 13; strict 4D advantages: 0.
+Retained rows have owned-allocation maxima of 1,084,024 bytes for path-tree and 432,926,462 bytes for 4D; final optimum and rectangle equality are recorded per row.
+
+### v0.8 orientation regret audit
+
+The expanded audit contains 160,462 rows: 160,457 exact sigma matches and 5 positive-regret rows.
+Maximum absolute regret is 2 and the maximum recorded regret ratio is 2/6. These counterexamples keep exact `build-both` as the CompactOnly default; `bound-estimate` remains an explicit benchmark policy.

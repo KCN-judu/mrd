@@ -1,12 +1,12 @@
 {
   "metadata": {
-    "git_commit": "72836293637c6fbb35f7c6982705632bbe8c2f3f",
+    "git_commit": "7bd23b7606dd17a30f01fee5b6a3cf8b6406148f",
     "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-    "command": "target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-path-tree-advantage.csv",
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128,129,513 --output results/v0.8-path-tree-advantage.csv",
     "seed": null,
-    "timestamp": 1785036875,
-    "input_count": 12,
-    "component_count": 12,
+    "timestamp": 1785048550,
+    "input_count": 31,
+    "component_count": 31,
     "input_model": "finite-grid-path-tree-vs-4d-sigma-advantage-search",
     "unsupported_input_features": [
       "ornaments",
@@ -17,167 +17,342 @@
       "general-polygon-input"
     ]
   },
-  "eligible_rows": 10,
-  "strict_path_tree_advantages": 0,
+  "eligible_rows": 29,
+  "strict_path_tree_advantages": 13,
   "strict_four_d_advantages": 0,
   "top_path_tree_advantages": [
     {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t16",
-      "canonical_key": "14756-3c8bf52b277c88dc",
-      "q": 64,
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-000",
+      "canonical_key": "54-bf3f110f573a0a3c",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 6,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 6
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 6,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 12,
+      "network_arcs_4d": 14,
+      "owned_path_tree_bytes": 4176,
+      "owned_4d_bytes": 7548,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "mixed-branching-connected-sum",
+      "instance_name": "mixed-branching-connected-sum-8",
+      "canonical_key": "556-6ac5fd1c97956930",
+      "q": 61,
       "horizontal_chords": 32,
-      "vertical_chords": 32,
-      "sigma_path_tree": 64,
-      "sigma_4d": 64,
+      "vertical_chords": 29,
+      "sigma_path_tree": 69,
+      "sigma_4d": 88,
       "sigma_4d_over_path_tree": {
-        "numerator": 64,
-        "denominator": 64
+        "numerator": 88,
+        "denominator": 69
       },
       "sigma_path_tree_over_4d": {
-        "numerator": 64,
-        "denominator": 64
+        "numerator": 69,
+        "denominator": 88
       },
-      "network_arcs_path_tree": 128,
-      "network_arcs_4d": 128,
-      "owned_path_tree_bytes": 34360,
-      "owned_4d_bytes": 563300,
+      "network_arcs_path_tree": 130,
+      "network_arcs_4d": 149,
+      "owned_path_tree_bytes": 36112,
+      "owned_4d_bytes": 82964,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
     },
     {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t4",
-      "canonical_key": "1676-5b8dba18c49a8972",
-      "q": 16,
-      "horizontal_chords": 8,
-      "vertical_chords": 8,
-      "sigma_path_tree": 16,
-      "sigma_4d": 16,
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-002",
+      "canonical_key": "63-475ec4fe3b391517",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 6,
+      "sigma_4d": 7,
       "sigma_4d_over_path_tree": {
-        "numerator": 16,
-        "denominator": 16
+        "numerator": 7,
+        "denominator": 6
       },
       "sigma_path_tree_over_4d": {
-        "numerator": 16,
-        "denominator": 16
+        "numerator": 6,
+        "denominator": 7
       },
-      "network_arcs_path_tree": 32,
-      "network_arcs_4d": 32,
-      "owned_path_tree_bytes": 9016,
-      "owned_4d_bytes": 67772,
+      "network_arcs_path_tree": 12,
+      "network_arcs_4d": 13,
+      "owned_path_tree_bytes": 3856,
+      "owned_4d_bytes": 8361,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
     },
     {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t64",
-      "canonical_key": "196676-4430ef836f836099",
-      "q": 256,
-      "horizontal_chords": 128,
-      "vertical_chords": 128,
-      "sigma_path_tree": 256,
-      "sigma_4d": 256,
-      "sigma_4d_over_path_tree": {
-        "numerator": 256,
-        "denominator": 256
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 256,
-        "denominator": 256
-      },
-      "network_arcs_path_tree": 512,
-      "network_arcs_4d": 512,
-      "owned_path_tree_bytes": 135736,
-      "owned_4d_bytes": 7234052,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t1",
-      "canonical_key": "431-2bf1111a90aa75e9",
-      "q": 4,
-      "horizontal_chords": 2,
-      "vertical_chords": 2,
-      "sigma_path_tree": 4,
-      "sigma_4d": 4,
-      "sigma_4d_over_path_tree": {
-        "numerator": 4,
-        "denominator": 4
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 4,
-        "denominator": 4
-      },
-      "network_arcs_path_tree": 8,
-      "network_arcs_4d": 8,
-      "owned_path_tree_bytes": 2680,
-      "owned_4d_bytes": 17150,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t8",
-      "canonical_key": "4596-3c94a6b3b4f60856",
-      "q": 32,
-      "horizontal_chords": 16,
-      "vertical_chords": 16,
-      "sigma_path_tree": 32,
-      "sigma_4d": 32,
-      "sigma_4d_over_path_tree": {
-        "numerator": 32,
-        "denominator": 32
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 32,
-        "denominator": 32
-      },
-      "network_arcs_path_tree": 64,
-      "network_arcs_4d": 64,
-      "owned_path_tree_bytes": 17464,
-      "owned_4d_bytes": 180852,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t32",
-      "canonical_key": "52356-3d8d7e179a404ac4",
-      "q": 128,
-      "horizontal_chords": 64,
-      "vertical_chords": 64,
-      "sigma_path_tree": 128,
-      "sigma_4d": 128,
-      "sigma_4d_over_path_tree": {
-        "numerator": 128,
-        "denominator": 128
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 128,
-        "denominator": 128
-      },
-      "network_arcs_path_tree": 256,
-      "network_arcs_4d": 256,
-      "owned_path_tree_bytes": 68152,
-      "owned_4d_bytes": 1953348,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t2",
-      "canonical_key": "756-fa38b4baa5a63cc6",
-      "q": 8,
-      "horizontal_chords": 4,
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-003",
+      "canonical_key": "64-952bfd620a969096",
+      "q": 9,
+      "horizontal_chords": 5,
       "vertical_chords": 4,
+      "sigma_path_tree": 7,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 16,
+      "network_arcs_4d": 17,
+      "owned_path_tree_bytes": 5624,
+      "owned_4d_bytes": 9820,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-004",
+      "canonical_key": "64-da659b9db301862a",
+      "q": 7,
+      "horizontal_chords": 4,
+      "vertical_chords": 3,
+      "sigma_path_tree": 7,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4760,
+      "owned_4d_bytes": 8772,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-009",
+      "canonical_key": "71-8a393f7909996f98",
+      "q": 7,
+      "horizontal_chords": 3,
+      "vertical_chords": 4,
+      "sigma_path_tree": 7,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4920,
+      "owned_4d_bytes": 10099,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-010",
+      "canonical_key": "80-beb5e6096c8f4002",
+      "q": 8,
+      "horizontal_chords": 3,
+      "vertical_chords": 5,
+      "sigma_path_tree": 7,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 15,
+      "network_arcs_4d": 16,
+      "owned_path_tree_bytes": 5688,
+      "owned_4d_bytes": 11530,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-011",
+      "canonical_key": "83-066fd02454250aff",
+      "q": 8,
+      "horizontal_chords": 5,
+      "vertical_chords": 3,
+      "sigma_path_tree": 7,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 15,
+      "network_arcs_4d": 16,
+      "owned_path_tree_bytes": 5640,
+      "owned_4d_bytes": 15183,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-001",
+      "canonical_key": "60-0cd441f7da7eea4c",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4168,
+      "owned_4d_bytes": 8520,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-005",
+      "canonical_key": "66-99148130cd2b82bc",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4168,
+      "owned_4d_bytes": 8865,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-007",
+      "canonical_key": "67-599c183e1a7ade5d",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4008,
+      "owned_4d_bytes": 9203,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-008",
+      "canonical_key": "70-a8228b93a0184c20",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4168,
+      "owned_4d_bytes": 8620,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-013",
+      "canonical_key": "97-a802a3f26b863d8f",
+      "q": 9,
+      "horizontal_chords": 4,
+      "vertical_chords": 5,
+      "sigma_path_tree": 9,
+      "sigma_4d": 10,
+      "sigma_4d_over_path_tree": {
+        "numerator": 10,
+        "denominator": 9
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 9,
+        "denominator": 10
+      },
+      "network_arcs_path_tree": 18,
+      "network_arcs_4d": 19,
+      "owned_path_tree_bytes": 6416,
+      "owned_4d_bytes": 16873,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-014",
+      "canonical_key": "115-6a1efa8c88d0856a",
+      "q": 8,
+      "horizontal_chords": 3,
+      "vertical_chords": 5,
       "sigma_path_tree": 8,
       "sigma_4d": 8,
       "sigma_4d_over_path_tree": {
@@ -190,83 +365,58 @@
       },
       "network_arcs_path_tree": 16,
       "network_arcs_4d": 16,
-      "owned_path_tree_bytes": 4792,
-      "owned_4d_bytes": 30768,
+      "owned_path_tree_bytes": 5664,
+      "owned_4d_bytes": 13107,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-015",
+      "canonical_key": "116-02b222b6bba4e4ed",
+      "q": 7,
+      "horizontal_chords": 3,
+      "vertical_chords": 4,
+      "sigma_path_tree": 7,
+      "sigma_4d": 7,
+      "sigma_4d_over_path_tree": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 14,
+      "owned_path_tree_bytes": 4760,
+      "owned_4d_bytes": 12716,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
     },
     {
       "family": "laminar-chain",
-      "instance_name": "laminar-chain-128",
-      "canonical_key": "761796-28389ab7085e8d7a",
-      "q": 512,
-      "horizontal_chords": 256,
-      "vertical_chords": 256,
-      "sigma_path_tree": 512,
-      "sigma_4d": 512,
+      "instance_name": "laminar-chain-513",
+      "canonical_key": "11940271-9b863dfd94e7e5d7",
+      "q": 2052,
+      "horizontal_chords": 1026,
+      "vertical_chords": 1026,
+      "sigma_path_tree": 2052,
+      "sigma_4d": 2052,
       "sigma_4d_over_path_tree": {
-        "numerator": 512,
-        "denominator": 512
+        "numerator": 2052,
+        "denominator": 2052
       },
       "sigma_path_tree_over_4d": {
-        "numerator": 512,
-        "denominator": 512
+        "numerator": 2052,
+        "denominator": 2052
       },
-      "network_arcs_path_tree": 1024,
-      "network_arcs_4d": 1024,
-      "owned_path_tree_bytes": 270904,
-      "owned_4d_bytes": 27797892,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t128",
-      "canonical_key": "761796-28389ab7085e8d7a",
-      "q": 512,
-      "horizontal_chords": 256,
-      "vertical_chords": 256,
-      "sigma_path_tree": 512,
-      "sigma_4d": 512,
-      "sigma_4d_over_path_tree": {
-        "numerator": 512,
-        "denominator": 512
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 512,
-        "denominator": 512
-      },
-      "network_arcs_path_tree": 1024,
-      "network_arcs_4d": 1024,
-      "owned_path_tree_bytes": 270904,
-      "owned_4d_bytes": 27797892,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "asymmetric-orientation",
-      "instance_name": "asymmetric-orientation-128",
-      "canonical_key": "9-f569d1792983e0d9",
-      "q": 2,
-      "horizontal_chords": 1,
-      "vertical_chords": 1,
-      "sigma_path_tree": 2,
-      "sigma_4d": 2,
-      "sigma_4d_over_path_tree": {
-        "numerator": 2,
-        "denominator": 2
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 2,
-        "denominator": 2
-      },
-      "network_arcs_path_tree": 4,
-      "network_arcs_4d": 4,
-      "owned_path_tree_bytes": 1624,
-      "owned_4d_bytes": 2080,
+      "network_arcs_path_tree": 4104,
+      "network_arcs_4d": 4104,
+      "owned_path_tree_bytes": 1084024,
+      "owned_4d_bytes": 432926462,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
@@ -274,6 +424,106 @@
   ],
   "top_four_d_advantages": [
     {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-014",
+      "canonical_key": "115-6a1efa8c88d0856a",
+      "q": 8,
+      "horizontal_chords": 3,
+      "vertical_chords": 5,
+      "sigma_path_tree": 8,
+      "sigma_4d": 8,
+      "sigma_4d_over_path_tree": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 8
+      },
+      "network_arcs_path_tree": 16,
+      "network_arcs_4d": 16,
+      "owned_path_tree_bytes": 5664,
+      "owned_4d_bytes": 13107,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-015",
+      "canonical_key": "116-02b222b6bba4e4ed",
+      "q": 7,
+      "horizontal_chords": 3,
+      "vertical_chords": 4,
+      "sigma_path_tree": 7,
+      "sigma_4d": 7,
+      "sigma_4d_over_path_tree": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 14,
+      "owned_path_tree_bytes": 4760,
+      "owned_4d_bytes": 12716,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "laminar-chain",
+      "instance_name": "laminar-chain-513",
+      "canonical_key": "11940271-9b863dfd94e7e5d7",
+      "q": 2052,
+      "horizontal_chords": 1026,
+      "vertical_chords": 1026,
+      "sigma_path_tree": 2052,
+      "sigma_4d": 2052,
+      "sigma_4d_over_path_tree": {
+        "numerator": 2052,
+        "denominator": 2052
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 2052,
+        "denominator": 2052
+      },
+      "network_arcs_path_tree": 4104,
+      "network_arcs_4d": 4104,
+      "owned_path_tree_bytes": 1084024,
+      "owned_4d_bytes": 432926462,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t513",
+      "canonical_key": "11940271-9b863dfd94e7e5d7",
+      "q": 2052,
+      "horizontal_chords": 1026,
+      "vertical_chords": 1026,
+      "sigma_path_tree": 2052,
+      "sigma_4d": 2052,
+      "sigma_4d_over_path_tree": {
+        "numerator": 2052,
+        "denominator": 2052
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 2052,
+        "denominator": 2052
+      },
+      "network_arcs_path_tree": 4104,
+      "network_arcs_4d": 4104,
+      "owned_path_tree_bytes": 1084024,
+      "owned_4d_bytes": 432926462,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
       "family": "clean-complete-bipartite",
       "instance_name": "clean-complete-bipartite-t16",
       "canonical_key": "14756-3c8bf52b277c88dc",
@@ -424,6 +674,31 @@
       "status": "verified"
     },
     {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-006",
+      "canonical_key": "66-3b66ac38fb79b288",
+      "q": 8,
+      "horizontal_chords": 3,
+      "vertical_chords": 5,
+      "sigma_path_tree": 7,
+      "sigma_4d": 7,
+      "sigma_4d_over_path_tree": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "network_arcs_path_tree": 15,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 5208,
+      "owned_4d_bytes": 11071,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
       "family": "clean-complete-bipartite",
       "instance_name": "clean-complete-bipartite-t2",
       "canonical_key": "756-fa38b4baa5a63cc6",
@@ -444,31 +719,6 @@
       "network_arcs_4d": 16,
       "owned_path_tree_bytes": 4792,
       "owned_4d_bytes": 30768,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "laminar-chain",
-      "instance_name": "laminar-chain-128",
-      "canonical_key": "761796-28389ab7085e8d7a",
-      "q": 512,
-      "horizontal_chords": 256,
-      "vertical_chords": 256,
-      "sigma_path_tree": 512,
-      "sigma_4d": 512,
-      "sigma_4d_over_path_tree": {
-        "numerator": 512,
-        "denominator": 512
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 512,
-        "denominator": 512
-      },
-      "network_arcs_path_tree": 1024,
-      "network_arcs_4d": 1024,
-      "owned_path_tree_bytes": 270904,
-      "owned_4d_bytes": 27797892,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
@@ -499,8 +749,58 @@
       "status": "verified"
     },
     {
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t129",
+      "canonical_key": "773551-0366c485b7a9c43b",
+      "q": 516,
+      "horizontal_chords": 258,
+      "vertical_chords": 258,
+      "sigma_path_tree": 516,
+      "sigma_4d": 516,
+      "sigma_4d_over_path_tree": {
+        "numerator": 516,
+        "denominator": 516
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 516,
+        "denominator": 516
+      },
+      "network_arcs_path_tree": 1032,
+      "network_arcs_4d": 1032,
+      "owned_path_tree_bytes": 273016,
+      "owned_4d_bytes": 28225022,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-012",
+      "canonical_key": "84-c18c5d003479fe3a",
+      "q": 7,
+      "horizontal_chords": 3,
+      "vertical_chords": 4,
+      "sigma_path_tree": 7,
+      "sigma_4d": 7,
+      "sigma_4d_over_path_tree": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 7,
+        "denominator": 7
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 14,
+      "owned_path_tree_bytes": 4920,
+      "owned_4d_bytes": 9794,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
       "family": "asymmetric-orientation",
-      "instance_name": "asymmetric-orientation-128",
+      "instance_name": "asymmetric-orientation-513",
       "canonical_key": "9-f569d1792983e0d9",
       "q": 2,
       "horizontal_chords": 1,

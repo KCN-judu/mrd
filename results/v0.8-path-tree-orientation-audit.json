@@ -1,0 +1,29 @@
+{
+  "exact_matches": 160457,
+  "maximum_absolute_regret": 2,
+  "maximum_regret_ratio": {
+    "denominator": 6,
+    "numerator": 2
+  },
+  "metadata": {
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128,129,513 --output results/v0.8-path-tree-orientation-audit.csv",
+    "component_count": 160462,
+    "git_commit": "f8dcead312a34de6c107ef50d7375e8732423605",
+    "input_count": 160462,
+    "input_model": "finite-grid-path-tree-orientation-audit",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "seed": null,
+    "timestamp": 1785048940,
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "mismatches": 5,
+  "rows": 160462,
+  "tie_orientation_differences": 412
+}
