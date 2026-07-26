@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::GridRect;
+use crate::{CoordinateRect, GridRect};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExactRatio {
@@ -49,6 +49,30 @@ pub struct ExecutionTrace {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Diagnostics {
+    #[serde(default)]
+    pub input_model: Option<String>,
+    #[serde(default)]
+    pub polygon_outer_vertices: Option<usize>,
+    #[serde(default)]
+    pub polygon_hole_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_hole_vertices: Option<usize>,
+    #[serde(default)]
+    pub polygon_validation_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_chord_enumerator: Option<String>,
+    #[serde(default)]
+    pub coordinate_compression_x_count: Option<usize>,
+    #[serde(default)]
+    pub coordinate_compression_y_count: Option<usize>,
+    #[serde(default)]
+    pub atomic_cell_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_validator_backend: Option<String>,
+    #[serde(default)]
+    pub raster_oracle_used: Option<bool>,
     pub cell_count: usize,
     pub boundary_complexity: usize,
     pub outer_loop_count: usize,
@@ -157,6 +181,14 @@ pub struct Certificate {
 pub struct DissectionResult {
     pub optimum_rectangle_count: usize,
     pub rectangles: Vec<GridRect>,
+    pub diagnostics: Diagnostics,
+    pub certificate: Option<Certificate>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonDissectionResult {
+    pub optimum_rectangle_count: usize,
+    pub rectangles: Vec<CoordinateRect>,
     pub diagnostics: Diagnostics,
     pub certificate: Option<Certificate>,
 }

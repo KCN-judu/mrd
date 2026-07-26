@@ -12,7 +12,7 @@ pub use boundary::{
     BoundaryVertexId, ReflexVertex,
 };
 pub use context::{PreparedComponentContext, PreparedContextError};
-pub use formats::{FormatError, SvgOverlay, render_dissection_svg};
+pub use formats::{FormatError, SvgOverlay, render_dissection_svg, render_polygon_dissection_svg};
 pub use geometry::{
     BicliqueId, ChordId, Coord, CoordinateRect, DoubledPoint, GeometryError, GridRect,
     HorizontalChord, HorizontalChordId, Point, Segment, VerticalChord, VerticalChordId,
@@ -23,5 +23,7 @@ pub use polygon::{
     OrthogonalLoop, PolygonError, PolygonLoopId, PolygonVertexId, RectilinearDomain,
     RectilinearPolygon,
 };
-pub use result::{Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace};
+pub use result::{
+    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, PolygonDissectionResult,
+};
 pub use validation::{ValidationError, validate_dissection, validate_dissection_prepared};

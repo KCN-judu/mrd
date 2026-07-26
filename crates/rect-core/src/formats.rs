@@ -3,7 +3,8 @@ use std::fmt::Write;
 use thiserror::Error;
 
 use crate::{
-    Boundary, BoundaryError, DissectionResult, GridComponent, HorizontalChord, VerticalChord,
+    Boundary, BoundaryError, DissectionResult, GridComponent, HorizontalChord,
+    PolygonDissectionResult, RectilinearPolygon, VerticalChord,
 };
 
 const SCALE: usize = 32;
@@ -136,6 +137,69 @@ pub fn render_dissection_svg<C>(
     Ok(svg)
 }
 
+/// Renders a boundary-native polygon dissection without rasterization.
+///
+/// # Errors
+///
+/// Returns [`FormatError`] when the polygon has no vertices or SVG formatting
+/// fails.
+pub fn render_polygon_dissection_svg(
+    polygon: &RectilinearPolygon,
+    result: &PolygonDissectionResult,
+) -> Result<String, FormatError> {
+    let mut points = polygon
+        .loops()
+        .flat_map(|boundary_loop| boundary_loop.vertices.iter().copied());
+    let first = points.next().ok_or(FormatError::EmptyPolygon)?;
+    let (mut min_x, mut max_x, mut min_y, mut max_y) = (first.x, first.x, first.y, first.y);
+    for point in points {
+        min_x = min_x.min(point.x);
+        max_x = max_x.max(point.x);
+        min_y = min_y.min(point.y);
+        max_y = max_y.max(point.y);
+    }
+    let span_x = i128::from(max_x) - i128::from(min_x);
+    let span_y = i128::from(max_y) - i128::from(min_y);
+    let margin = span_x.max(span_y).checked_div(50).unwrap_or(0).max(1);
+    let view_x = i128::from(min_x) - margin;
+    let view_y = -i128::from(max_y) - margin;
+    let width = span_x + 2 * margin;
+    let height = span_y + 2 * margin;
+    let mut svg = String::new();
+    writeln!(
+        svg,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="{view_x} {view_y} {width} {height}">"#
+    )?;
+    writeln!(
+        svg,
+        r##"<rect x="{view_x}" y="{view_y}" width="{width}" height="{height}" fill="#ffffff"/>"##
+    )?;
+    for (index, rectangle) in result.rectangles.iter().enumerate() {
+        let color = COLORS[index % COLORS.len()];
+        let x = rectangle.x0;
+        let y = -i128::from(rectangle.y1);
+        let rectangle_width = i128::from(rectangle.x1) - i128::from(rectangle.x0);
+        let rectangle_height = i128::from(rectangle.y1) - i128::from(rectangle.y0);
+        writeln!(
+            svg,
+            r#"<rect x="{x}" y="{y}" width="{rectangle_width}" height="{rectangle_height}" fill="{color}" fill-opacity="0.18" stroke="{color}" stroke-width="2" vector-effect="non-scaling-stroke"/>"#
+        )?;
+    }
+    for boundary_loop in polygon.loops() {
+        let mut path = String::new();
+        for (index, point) in boundary_loop.vertices.iter().enumerate() {
+            let command = if index == 0 { 'M' } else { 'L' };
+            write!(path, "{command} {} {} ", point.x, -i128::from(point.y))?;
+        }
+        writeln!(
+            svg,
+            r##"<path d="{path}Z" fill="none" stroke="#20262b" stroke-width="3" vector-effect="non-scaling-stroke"/>"##
+        )?;
+    }
+    svg.push_str("</svg>\n");
+    Ok(svg)
+}
+
 fn chord_line(
     svg: &mut String,
     x1: usize,
@@ -185,6 +249,8 @@ pub enum FormatError {
     DimensionOverflow,
     #[error("SVG chord selection vectors do not match their chord families")]
     OverlayDimensionMismatch,
+    #[error("cannot render an empty polygon")]
+    EmptyPolygon,
     #[error("formatting SVG failed")]
     Formatting(#[from] std::fmt::Error),
 }

@@ -1,5 +1,14 @@
 //! Explicit Soltan--Gorpinevich oracle for ordinary grid-cell polygons.
 
+pub mod polygon;
+
+pub use polygon::{
+    CoordinateCompressedCompletion, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
+    PolygonCompletionMetrics, PolygonCompletionResult, PolygonSgError, PolygonValidationError,
+    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
+    validate_polygon_dissection_count,
+};
+
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, VecDeque};
 use std::time::Instant;

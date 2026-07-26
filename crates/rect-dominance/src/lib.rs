@@ -14,19 +14,22 @@ pub use path_tree::{
     BoundaryGapLabelBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend,
 };
 use path_tree::{
-    PathTreeError, build_best_path_tree_partition_with_backend,
+    PathTreeError, build_best_path_tree_partition_with_backend, build_boundary_path_tree_partition,
     build_path_tree_partition_with_orientation_policy_and_options,
 };
 use rect_core::{
-    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
-    PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
+    Boundary, BoundaryIndex, Certificate, Diagnostics, DissectionResult, ExactRatio,
+    ExecutionTrace, GridComponent, PolygonDissectionResult, PreparedComponentContext,
+    PreparedGridComponent, RectilinearPolygon, ValidationError, validate_dissection,
     validate_dissection_prepared,
 };
 use rect_graph::{DinicBackend, hopcroft_karp};
 use rect_oracle_sg::{
-    CompletionBackendKind, CompletionMetrics, EffectiveChordEnumerator, GridInteriorRunEnumerator,
-    IndexedFrontierCompletion, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    analyze_prepared_geometry, complete_with_prepared_backend,
+    CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
+    EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
+    GridInteriorRunEnumerator, IndexedFrontierCompletion, PolygonSgError,
+    ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError, analyze_prepared_geometry,
+    classify_clean_polygon, complete_with_prepared_backend, validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -102,6 +105,241 @@ impl ConflictRepresentationBackend {
             Self::Auto => "auto",
         }
     }
+}
+
+/// Solves a normalized ordinary polygon with the conservative 4D production
+/// representation.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when polygon validation, chord enumeration,
+/// compact matching, completion, or final validation fails.
+pub fn solve_polygon(
+    polygon: &RectilinearPolygon,
+) -> Result<PolygonDissectionResult, DominanceError> {
+    solve_polygon_with_representation(polygon, ConflictRepresentationBackend::GeneralDominance4D)
+}
+
+/// Solves a boundary-native ordinary polygon with an explicit compact
+/// representation choice.
+///
+/// `Auto` selects the path-tree partition only for a clean hole-free polygon;
+/// otherwise it falls back to 4D. The path-tree branch also solves the 4D
+/// partition and requires equal matching values.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] for any geometry, representation, flow,
+/// completion, or certificate mismatch.
+#[allow(clippy::too_many_lines)]
+pub fn solve_polygon_with_representation(
+    polygon: &RectilinearPolygon,
+    representation: ConflictRepresentationBackend,
+) -> Result<PolygonDissectionResult, DominanceError> {
+    let started = Instant::now();
+    let polygon = polygon.normalized().map_err(PolygonSgError::from)?;
+    let boundary = Boundary::from_polygon(&polygon);
+    let boundary_index = BoundaryIndex::new(&boundary).map_err(PolygonSgError::from)?;
+    let families = GeneralPolygonPairwiseEnumerator.enumerate(&polygon)?;
+    let endpoint_index = EffectiveChordEndpointIndex::new(
+        &boundary_index,
+        &families.horizontal,
+        &families.vertical,
+    )?;
+    let geometry_at = Instant::now();
+    let embedding = DominanceEmbedding::new(&families.horizontal, &families.vertical)?;
+    let four_d_partition = BicliquePartition::comparability_theorem_8(&embedding)?;
+    four_d_partition.verify_dominance_blocks(&embedding)?;
+    let four_d_flow = solve_biclique_flow(
+        embedding.horizontal.len(),
+        embedding.vertical.len(),
+        &four_d_partition,
+        &DinicBackend,
+    )?;
+    let clean_certificate = classify_clean_polygon(
+        &polygon,
+        &boundary,
+        &families.horizontal,
+        &families.vertical,
+        &endpoint_index,
+    );
+    let mut path_tree_orientation = None;
+    let (selected_partition, selected_flow, representation_name) = match representation {
+        ConflictRepresentationBackend::CleanHoleFreePathTree
+        | ConflictRepresentationBackend::Auto
+            if clean_certificate.eligible =>
+        {
+            let vertical = build_boundary_path_tree_partition(
+                &boundary,
+                &families.horizontal,
+                &families.vertical,
+                clean_certificate.clone(),
+                PathTreeOrientation::VerticalTreeHorizontalPaths,
+                Some(&endpoint_index),
+                BoundaryGapLabelBackend::EventSweep,
+            )?;
+            let horizontal = build_boundary_path_tree_partition(
+                &boundary,
+                &families.horizontal,
+                &families.vertical,
+                clean_certificate.clone(),
+                PathTreeOrientation::HorizontalTreeVerticalPaths,
+                Some(&endpoint_index),
+                BoundaryGapLabelBackend::EventSweep,
+            )?;
+            let selected = if vertical.biclique_partition.total_vertex_occurrences()
+                <= horizontal.biclique_partition.total_vertex_occurrences()
+            {
+                vertical
+            } else {
+                horizontal
+            };
+            path_tree_orientation = Some(selected.orientation.name().to_owned());
+            let partition = selected.biclique_partition;
+            let flow = solve_biclique_flow(
+                embedding.horizontal.len(),
+                embedding.vertical.len(),
+                &partition,
+                &DinicBackend,
+            )?;
+            if flow.flow.value != four_d_flow.flow.value {
+                return Err(DominanceError::PathTreeMatchingMismatch {
+                    path_tree: flow.flow.value,
+                    four_d: four_d_flow.flow.value,
+                });
+            }
+            (
+                partition,
+                flow,
+                ConflictRepresentationBackend::CleanHoleFreePathTree.name(),
+            )
+        }
+        ConflictRepresentationBackend::CleanHoleFreePathTree => {
+            return Err(DominanceError::PathTreeIneligible(clean_certificate));
+        }
+        ConflictRepresentationBackend::GeneralDominance4D | ConflictRepresentationBackend::Auto => {
+            (
+                four_d_partition.clone(),
+                four_d_flow.clone(),
+                ConflictRepresentationBackend::GeneralDominance4D.name(),
+            )
+        }
+    };
+    let flow_at = Instant::now();
+    let flow_value = usize::try_from(selected_flow.flow.value)
+        .map_err(|_| DominanceError::FlowValueConversion)?;
+    let selected_horizontal = selected_flow
+        .vertex_cover
+        .left
+        .iter()
+        .map(|covered| !covered)
+        .collect::<Vec<_>>();
+    let selected_vertical = selected_flow
+        .vertex_cover
+        .right
+        .iter()
+        .map(|covered| !covered)
+        .collect::<Vec<_>>();
+    let total_chord_count = families.horizontal.len() + families.vertical.len();
+    let independent_count = total_chord_count
+        .checked_sub(flow_value)
+        .ok_or(DominanceError::FormulaUnderflow)?;
+    let optimum_rectangle_count = boundary
+        .reflex_vertices
+        .len()
+        .checked_add(1)
+        .and_then(|value| value.checked_sub(boundary.hole_count()))
+        .and_then(|value| value.checked_sub(independent_count))
+        .ok_or(DominanceError::FormulaUnderflow)?;
+    let completion = CoordinateCompressedCompletion.complete(
+        &polygon,
+        &families.horizontal,
+        &families.vertical,
+        &selected_horizontal,
+        &selected_vertical,
+    )?;
+    if completion.rectangles.len() != optimum_rectangle_count {
+        return Err(DominanceError::CompletionCount {
+            expected: optimum_rectangle_count,
+            actual: completion.rectangles.len(),
+        });
+    }
+    validate_polygon_dissection_count(&polygon, optimum_rectangle_count, &completion.rectangles)
+        .map_err(PolygonSgError::from)?;
+    let completed_at = Instant::now();
+    Ok(PolygonDissectionResult {
+        optimum_rectangle_count,
+        rectangles: completion.rectangles,
+        diagnostics: Diagnostics {
+            input_model: Some("rectilinear-polygon".to_owned()),
+            polygon_outer_vertices: Some(polygon.outer.vertices.len()),
+            polygon_hole_count: Some(polygon.holes.len()),
+            polygon_hole_vertices: Some(polygon.hole_vertex_count()),
+            polygon_validation_backend: Some("exact-pairwise-segment-audit".to_owned()),
+            polygon_chord_enumerator: Some(GeneralPolygonPairwiseEnumerator.name().to_owned()),
+            coordinate_compression_x_count: Some(completion.metrics.coordinate_compression_x_count),
+            coordinate_compression_y_count: Some(completion.metrics.coordinate_compression_y_count),
+            atomic_cell_count: Some(completion.metrics.atomic_cell_count),
+            polygon_completion_backend: Some(CoordinateCompressedCompletion.name().to_owned()),
+            polygon_validator_backend: Some("coordinate-compressed-exact".to_owned()),
+            raster_oracle_used: Some(false),
+            boundary_complexity: boundary.boundary_complexity(),
+            outer_loop_count: boundary.outer_loop_count(),
+            hole_count: boundary.hole_count(),
+            reflex_vertex_count: boundary.reflex_vertices.len(),
+            horizontal_chord_count: families.horizontal.len(),
+            vertical_chord_count: families.vertical.len(),
+            total_chord_count,
+            explicit_conflict_edge_count: None,
+            biclique_count: selected_partition.bicliques.len(),
+            biclique_total_vertex_occurrences: selected_partition.total_vertex_occurrences(),
+            compressed_network_vertex_count: selected_flow.network_vertex_count,
+            compressed_network_arc_count: selected_flow.network_arc_count,
+            maximum_matching_size: flow_value,
+            minimum_vertex_cover_size: selected_flow.vertex_cover.size,
+            output_rectangle_count: optimum_rectangle_count,
+            conflict_representation: Some(representation_name.to_owned()),
+            clean_hole_free_eligible: Some(clean_certificate.eligible),
+            path_tree_orientation,
+            path_tree_orientation_policy: Some("build-both".to_owned()),
+            phase_microseconds: [
+                (
+                    "polygon_geometry".to_owned(),
+                    geometry_at.duration_since(started).as_micros(),
+                ),
+                (
+                    "compact_matching".to_owned(),
+                    flow_at.duration_since(geometry_at).as_micros(),
+                ),
+                (
+                    "polygon_completion_validation".to_owned(),
+                    completed_at.duration_since(flow_at).as_micros(),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            execution_trace: ExecutionTrace {
+                compact_structure_check_called: true,
+                ..ExecutionTrace::default()
+            },
+            ..Diagnostics::default()
+        },
+        certificate: Some(Certificate {
+            kind: "boundary-native-polygon-compact".to_owned(),
+            payload: json!({
+                "horizontal_chords": families.horizontal,
+                "vertical_chords": families.vertical,
+                "selected_horizontal": selected_horizontal,
+                "selected_vertical": selected_vertical,
+                "selected_horizontal_cuts": completion.selected_horizontal_cuts,
+                "selected_vertical_cuts": completion.selected_vertical_cuts,
+                "added_horizontal_cuts": completion.added_horizontal_cuts,
+                "added_vertical_cuts": completion.added_vertical_cuts,
+                "flow_value": flow_value,
+                "representation": representation_name,
+            }),
+        }),
+    })
 }
 
 /// Solves with an explicit conflict-representation backend.
@@ -1513,6 +1751,8 @@ pub enum DominanceError {
     #[error(transparent)]
     Sg(#[from] SgError),
     #[error(transparent)]
+    PolygonSg(#[from] PolygonSgError),
+    #[error(transparent)]
     Embedding(#[from] EmbeddingError),
     #[error(transparent)]
     Biclique(#[from] BicliqueError),
@@ -1544,4 +1784,227 @@ pub enum DominanceError {
     PathTreeIneligible(rect_oracle_sg::CleanHoleFreeCertificate),
     #[error("circle alternation does not match closed chord intersection")]
     PathTreeAlternationMismatch,
+    #[error("polygon path-tree flow {path_tree} differs from 4D flow {four_d}")]
+    PathTreeMatchingMismatch { path_tree: u64, four_d: u64 },
+}
+
+#[cfg(test)]
+mod polygon_tests {
+    use rect_core::{
+        Boundary, ColorGrid, CoordinateRect, OrthogonalLoop, Point, RectilinearPolygon,
+    };
+    use rect_oracle_sg::{
+        CoordinateCompressedCompletion, GridInteriorRunEnumerator, HorizontalCutSegment,
+        HorizontalUnitCut, IndexedFrontierCompletion, VerticalCutSegment, VerticalUnitCut,
+        analyze_geometry_with, complete_with_prepared_backend,
+    };
+
+    use super::{
+        ChordEnumerator, CompletionBackendKind, ConflictRepresentationBackend, VerificationMode,
+        solve_polygon, solve_polygon_with_representation,
+        solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
+    };
+
+    fn loop_from(points: &[(i64, i64)]) -> OrthogonalLoop {
+        OrthogonalLoop::new(points.iter().map(|&(x, y)| Point::new(x, y)).collect())
+    }
+
+    #[test]
+    fn solves_native_large_gap_and_auto_path_tree_polygon() {
+        let polygon = RectilinearPolygon::new(
+            loop_from(&[
+                (0, 0),
+                (1_000_000_000, 0),
+                (1_000_000_000, 1),
+                (1, 1),
+                (1, 4),
+                (0, 4),
+            ]),
+            vec![],
+        )
+        .unwrap();
+        let four_d = solve_polygon(&polygon).unwrap();
+        let auto = solve_polygon_with_representation(&polygon, ConflictRepresentationBackend::Auto)
+            .unwrap();
+        assert_eq!(four_d.optimum_rectangle_count, 2);
+        assert_eq!(four_d.rectangles, auto.rectangles);
+        assert_eq!(auto.diagnostics.raster_oracle_used, Some(false));
+        assert_eq!(
+            auto.diagnostics.conflict_representation.as_deref(),
+            Some("path-tree")
+        );
+    }
+
+    #[test]
+    fn polygon_with_hole_falls_back_to_four_dimensions() {
+        let polygon = RectilinearPolygon::new(
+            loop_from(&[(0, 0), (12, 0), (12, 10), (0, 10)]),
+            vec![loop_from(&[(4, 3), (4, 7), (8, 7), (8, 3)])],
+        )
+        .unwrap();
+        let result =
+            solve_polygon_with_representation(&polygon, ConflictRepresentationBackend::Auto)
+                .unwrap();
+        assert_eq!(result.optimum_rectangle_count, 4);
+        assert_eq!(
+            result.diagnostics.conflict_representation.as_deref(),
+            Some("dominance-4d")
+        );
+        assert_eq!(result.diagnostics.clean_hole_free_eligible, Some(false));
+    }
+
+    #[test]
+    fn grid_polygon_end_to_end_matches_on_all_supported_3x3_components() {
+        let mut compared = 0;
+        for mask in 1_u16..1 << 9 {
+            let grid =
+                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = Boundary::from_component(&component).unwrap();
+                let Ok(polygon) = boundary.to_polygon() else {
+                    continue;
+                };
+                let geometry =
+                    analyze_geometry_with(&component, &GridInteriorRunEnumerator).unwrap();
+                let polygon_families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
+                    .enumerate(&polygon)
+                    .unwrap();
+                assert_eq!(geometry.horizontal_chords, polygon_families.horizontal);
+                assert_eq!(geometry.vertical_chords, polygon_families.vertical);
+
+                let grid_result =
+                    solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+                        &component,
+                        VerificationMode::CompactOnly,
+                        ChordEnumerator::GridInteriorRuns,
+                        CompletionBackendKind::IndexedFrontier,
+                    )
+                    .unwrap();
+                let selected_horizontal = selected_flags(
+                    &grid_result,
+                    "selected_horizontal",
+                    geometry.horizontal_chords.len(),
+                );
+                let selected_vertical = selected_flags(
+                    &grid_result,
+                    "selected_vertical",
+                    geometry.vertical_chords.len(),
+                );
+                let grid_completion = complete_with_prepared_backend(
+                    &component,
+                    &geometry.prepared,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                    &selected_horizontal,
+                    &selected_vertical,
+                    &IndexedFrontierCompletion,
+                )
+                .unwrap();
+                let polygon_completion = CoordinateCompressedCompletion
+                    .complete(
+                        &polygon,
+                        &polygon_families.horizontal,
+                        &polygon_families.vertical,
+                        &selected_horizontal,
+                        &selected_vertical,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    merge_horizontal(&grid_completion.selected_horizontal_unit_cuts),
+                    polygon_completion.selected_horizontal_cuts
+                );
+                assert_eq!(
+                    merge_vertical(&grid_completion.selected_vertical_unit_cuts),
+                    polygon_completion.selected_vertical_cuts
+                );
+                assert_eq!(
+                    merge_horizontal(&grid_completion.added_horizontal_unit_cuts),
+                    polygon_completion.added_horizontal_cuts
+                );
+                assert_eq!(
+                    merge_vertical(&grid_completion.added_vertical_unit_cuts),
+                    polygon_completion.added_vertical_cuts
+                );
+                let rectangles = grid_result
+                    .rectangles
+                    .iter()
+                    .map(|rectangle| {
+                        CoordinateRect::new(
+                            i64::try_from(rectangle.x0).unwrap(),
+                            i64::try_from(rectangle.y0).unwrap(),
+                            i64::try_from(rectangle.x1).unwrap(),
+                            i64::try_from(rectangle.y1).unwrap(),
+                        )
+                        .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(rectangles, polygon_completion.rectangles);
+                compared += 1;
+            }
+        }
+        assert!(compared > 100);
+    }
+
+    fn selected_flags(result: &rect_core::DissectionResult, key: &str, len: usize) -> Vec<bool> {
+        let mut flags = vec![false; len];
+        for index in result.certificate.as_ref().unwrap().payload[key]
+            .as_array()
+            .unwrap()
+        {
+            flags[usize::try_from(index.as_u64().unwrap()).unwrap()] = true;
+        }
+        flags
+    }
+
+    fn merge_horizontal(cuts: &[HorizontalUnitCut]) -> Vec<HorizontalCutSegment> {
+        let mut cuts = cuts.to_vec();
+        cuts.sort_unstable_by_key(|cut| (cut.y, cut.x));
+        let mut result = Vec::<HorizontalCutSegment>::new();
+        for cut in cuts {
+            let x = i64::try_from(cut.x).unwrap();
+            let y = i64::try_from(cut.y).unwrap();
+            if let Some(last) = result.last_mut()
+                && last.y == y
+                && last.right == x
+            {
+                last.right += 1;
+            } else {
+                result.push(HorizontalCutSegment {
+                    left: x,
+                    right: x + 1,
+                    y,
+                });
+            }
+        }
+        result.sort_unstable();
+        result
+    }
+
+    fn merge_vertical(cuts: &[VerticalUnitCut]) -> Vec<VerticalCutSegment> {
+        let mut cuts = cuts.to_vec();
+        cuts.sort_unstable_by_key(|cut| (cut.x, cut.y));
+        let mut result = Vec::<VerticalCutSegment>::new();
+        for cut in cuts {
+            let x = i64::try_from(cut.x).unwrap();
+            let y = i64::try_from(cut.y).unwrap();
+            if let Some(last) = result.last_mut()
+                && last.x == x
+                && last.top == y
+            {
+                last.top += 1;
+            } else {
+                result.push(VerticalCutSegment {
+                    x,
+                    bottom: y,
+                    top: y + 1,
+                });
+            }
+        }
+        result.sort_unstable();
+        result
+    }
 }

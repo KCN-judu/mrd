@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Coord, GridComponent, Point, RectilinearPolygon};
+use crate::{Coord, GridComponent, OrthogonalLoop, Point, PolygonError, RectilinearPolygon};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BoundaryLoop {
@@ -175,6 +175,32 @@ impl Boundary {
             reflex_vertices,
             unit_edges: Vec::new(),
         }
+    }
+
+    /// Converts an ordinary one-outer-loop boundary into the normalized
+    /// boundary-native polygon model.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonError`] when the boundary contains a self-contact,
+    /// degenerate hole, multiple outer loops, or another unsupported topology.
+    pub fn to_polygon(&self) -> Result<RectilinearPolygon, PolygonError> {
+        let mut outer = self
+            .loops
+            .iter()
+            .filter(|boundary_loop| !boundary_loop.is_hole);
+        let first = outer.next().ok_or(PolygonError::DisconnectedInterior)?;
+        if outer.next().is_some() {
+            return Err(PolygonError::DisconnectedInterior);
+        }
+        RectilinearPolygon::new(
+            OrthogonalLoop::new(first.vertices.clone()),
+            self.loops
+                .iter()
+                .filter(|boundary_loop| boundary_loop.is_hole)
+                .map(|boundary_loop| OrthogonalLoop::new(boundary_loop.vertices.clone()))
+                .collect(),
+        )
     }
 
     /// Extracts normalized directed loops and reflex vertices from a grid component.

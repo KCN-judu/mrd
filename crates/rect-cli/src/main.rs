@@ -6,10 +6,13 @@ use std::process::Command as ProcessCommand;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
-use rect_core::{ColorGrid, DissectionResult, GridComponent, SvgOverlay, render_dissection_svg};
+use rect_core::{
+    ColorGrid, DissectionResult, GridComponent, OrthogonalLoop, Point, PolygonDissectionResult,
+    RectilinearPolygon, SvgOverlay, render_dissection_svg, render_polygon_dissection_svg,
+};
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
-    RegionDualBackend, VerificationMode,
+    RegionDualBackend, VerificationMode, solve_polygon_with_representation,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_oracle_sg::CompletionBackendKind;
@@ -37,6 +40,8 @@ enum Command {
         solver: SolverArg,
         #[arg(long)]
         input: PathBuf,
+        #[arg(long, value_enum, default_value_t = InputFormatArg::Auto)]
+        input_format: InputFormatArg,
         #[arg(long)]
         output: Option<PathBuf>,
         #[arg(long)]
@@ -55,6 +60,8 @@ enum Command {
     Verify {
         #[arg(long)]
         input: PathBuf,
+        #[arg(long, value_enum, default_value_t = InputFormatArg::Auto)]
+        input_format: InputFormatArg,
         #[arg(long, default_value_t = false)]
         all_solvers: bool,
         #[arg(long, default_value_t = 40)]
@@ -175,6 +182,13 @@ enum SolverArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum InputFormatArg {
+    Auto,
+    Grid,
+    Polygon,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum ChordEnumeratorArg {
     ReferencePairwise,
     GridInteriorRuns,
@@ -244,6 +258,15 @@ struct JsonGrid {
     cells: Vec<Value>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+struct JsonPolygon {
+    #[serde(rename = "type")]
+    kind: String,
+    outer: Vec<[i64; 2]>,
+    #[serde(default)]
+    holes: Vec<Vec<[i64; 2]>>,
+}
+
 #[derive(Deserialize, Serialize)]
 struct PreservedExperimentManifest {
     schema_version: usize,
@@ -308,6 +331,14 @@ struct SolveOutput {
     components: Vec<ComponentSolution>,
 }
 
+#[derive(Serialize)]
+struct PolygonSolveOutput {
+    solver: String,
+    input_model: &'static str,
+    polygon: RectilinearPolygon,
+    result: PolygonDissectionResult,
+}
+
 fn main() {
     if let Err(error) = run() {
         eprintln!("error: {error}");
@@ -321,6 +352,7 @@ fn run() -> Result<(), CliError> {
     match cli.command {
         Command::Solve {
             solver,
+            input_format,
             input,
             output,
             svg,
@@ -331,6 +363,7 @@ fn run() -> Result<(), CliError> {
             path_tree_orientation,
         } => solve_command(
             solver,
+            input_format,
             chord_enumerator,
             completion_backend,
             representation,
@@ -342,15 +375,25 @@ fn run() -> Result<(), CliError> {
         ),
         Command::Verify {
             input,
+            input_format,
             all_solvers: _,
             exact_cover_cell_limit,
             output,
-        } => {
-            let grid = load_grid(&input)?;
-            let report = rect_verify::verify_grid(&grid, exact_cover_cell_limit)
-                .map_err(|error| CliError::Verification(error.to_string()))?;
-            write_json(&report, output.as_deref())
-        }
+        } => match load_input(&input, input_format)? {
+            LoadedInput::Grid(grid) => {
+                let report = rect_verify::verify_grid(&grid, exact_cover_cell_limit)
+                    .map_err(|error| CliError::Verification(error.to_string()))?;
+                write_json(&report, output.as_deref())
+            }
+            LoadedInput::Polygon(polygon) => {
+                let result = solve_polygon_with_representation(
+                    &polygon,
+                    ConflictRepresentationBackend::GeneralDominance4D,
+                )
+                .map_err(|error| CliError::Solver(error.to_string()))?;
+                write_json(&result, output.as_deref())
+            }
+        },
         Command::Exhaustive {
             width,
             height,
@@ -888,6 +931,7 @@ fn generate_command(
 #[allow(clippy::too_many_arguments)]
 fn solve_command(
     solver: SolverArg,
+    input_format: InputFormatArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
     representation: Option<RepresentationArg>,
@@ -897,38 +941,85 @@ fn solve_command(
     output: Option<&Path>,
     svg: Option<&Path>,
 ) -> Result<(), CliError> {
-    let grid = load_grid(input)?;
-    let components = grid.four_connected_components();
-    let mut solutions = Vec::with_capacity(components.len());
-    for component in &components {
-        let result = solve_component(
-            component,
-            solver,
-            chord_enumerator,
-            completion_backend,
-            representation,
-            region_dual,
-            path_tree_orientation,
-        )?;
-        solutions.push(ComponentSolution {
-            component_id: component.id.0,
-            color: component.color.clone(),
-            cells: component.cells.clone(),
-            result,
-        });
+    match load_input(input, input_format)? {
+        LoadedInput::Grid(grid) => {
+            let components = grid.four_connected_components();
+            let mut solutions = Vec::with_capacity(components.len());
+            for component in &components {
+                let result = solve_component(
+                    component,
+                    solver,
+                    chord_enumerator,
+                    completion_backend,
+                    representation,
+                    region_dual,
+                    path_tree_orientation,
+                )?;
+                solutions.push(ComponentSolution {
+                    component_id: component.id.0,
+                    color: component.color.clone(),
+                    cells: component.cells.clone(),
+                    result,
+                });
+            }
+            if let Some(svg_path) = svg {
+                write_svg_files(svg_path, &components, &solutions, solver)?;
+            }
+            write_json(
+                &SolveOutput {
+                    solver: format!("{solver:?}"),
+                    width: grid.width,
+                    height: grid.height,
+                    components: solutions,
+                },
+                output,
+            )
+        }
+        LoadedInput::Polygon(polygon) => {
+            if !matches!(
+                solver,
+                SolverArg::DominanceCompressed | SolverArg::DominanceCompactOnly
+            ) {
+                return Err(CliError::UnsupportedSolverForPolygon { solver });
+            }
+            if chord_enumerator.is_some() || completion_backend.is_some() {
+                return Err(CliError::Input(
+                    "polygon input uses general-polygon-pairwise chords and coordinate-compressed completion"
+                        .to_owned(),
+                ));
+            }
+            if region_dual.is_some_and(|backend| backend != RegionDualArg::BoundaryLaminar) {
+                return Err(CliError::Input(
+                    "polygon path-tree input supports only boundary-laminar region duals"
+                        .to_owned(),
+                ));
+            }
+            if path_tree_orientation
+                .is_some_and(|policy| policy != PathTreeOrientationArg::BuildBoth)
+            {
+                return Err(CliError::Input(
+                    "polygon path-tree orientation is fixed to exact build-both in v0.9".to_owned(),
+                ));
+            }
+            let result = solve_polygon_with_representation(
+                &polygon,
+                representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+            )
+            .map_err(|error| CliError::Solver(error.to_string()))?;
+            if let Some(svg_path) = svg {
+                write_text(svg_path, &render_polygon_dissection_svg(&polygon, &result)?)?;
+            }
+            write_json(
+                &PolygonSolveOutput {
+                    solver: format!("{solver:?}"),
+                    input_model: "rectilinear-polygon",
+                    polygon,
+                    result,
+                },
+                output,
+            )
+        }
     }
-    if let Some(svg_path) = svg {
-        write_svg_files(svg_path, &components, &solutions, solver)?;
-    }
-    write_json(
-        &SolveOutput {
-            solver: format!("{solver:?}"),
-            width: grid.width,
-            height: grid.height,
-            components: solutions,
-        },
-        output,
-    )
 }
 
 fn solve_component<C>(
@@ -1014,7 +1105,7 @@ fn solve_component<C>(
                 completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
                 region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
                 path_tree_orientation.map_or(
-                    PathTreeOrientationPolicy::BoundEstimate,
+                    PathTreeOrientationPolicy::BuildBothExact,
                     path_tree_orientation_kind,
                 ),
             )
@@ -1063,11 +1154,63 @@ const fn path_tree_orientation_kind(
     }
 }
 
-fn load_grid(path: &Path) -> Result<ColorGrid<Value>, CliError> {
+enum LoadedInput {
+    Grid(ColorGrid<Value>),
+    Polygon(RectilinearPolygon),
+}
+
+fn load_input(path: &Path, format: InputFormatArg) -> Result<LoadedInput, CliError> {
     let bytes = fs::read(path)?;
-    let input: JsonGrid = serde_json::from_slice(&bytes)?;
-    ColorGrid::new(input.width, input.height, input.cells)
-        .map_err(|error| CliError::Input(error.to_string()))
+    let value: Value = serde_json::from_slice(&bytes)?;
+    let is_polygon = value
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind == "rectilinear-polygon");
+    match (format, is_polygon) {
+        (InputFormatArg::Grid | InputFormatArg::Auto, false) => {
+            let input: JsonGrid = serde_json::from_value(value)?;
+            ColorGrid::new(input.width, input.height, input.cells)
+                .map(LoadedInput::Grid)
+                .map_err(|error| CliError::Input(error.to_string()))
+        }
+        (InputFormatArg::Polygon | InputFormatArg::Auto, true) => {
+            let input: JsonPolygon = serde_json::from_value(value)?;
+            if input.kind != "rectilinear-polygon" {
+                return Err(CliError::Input(format!(
+                    "unsupported polygon input type {}",
+                    input.kind
+                )));
+            }
+            let outer = OrthogonalLoop::new(
+                input
+                    .outer
+                    .into_iter()
+                    .map(|[x, y]| Point::new(x, y))
+                    .collect(),
+            );
+            let holes = input
+                .holes
+                .into_iter()
+                .map(|vertices| {
+                    OrthogonalLoop::new(
+                        vertices
+                            .into_iter()
+                            .map(|[x, y]| Point::new(x, y))
+                            .collect(),
+                    )
+                })
+                .collect();
+            RectilinearPolygon::new(outer, holes)
+                .map(LoadedInput::Polygon)
+                .map_err(|error| CliError::Input(error.to_string()))
+        }
+        (InputFormatArg::Grid, true) => Err(CliError::Input(
+            "polygon JSON received with --input-format grid".to_owned(),
+        )),
+        (InputFormatArg::Polygon, false) => Err(CliError::Input(
+            "grid JSON received with --input-format polygon".to_owned(),
+        )),
+    }
 }
 
 fn write_json(value: &impl Serialize, path: Option<&Path>) -> Result<(), CliError> {
@@ -1321,6 +1464,8 @@ enum CliError {
     Input(String),
     #[error("solver failed: {0}")]
     Solver(String),
+    #[error("solver {solver:?} is unavailable for boundary-native polygon input")]
+    UnsupportedSolverForPolygon { solver: SolverArg },
     #[error("verification failed: {0}")]
     Verification(String),
     #[error("invalid certificate: {0}")]
@@ -1336,8 +1481,8 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        ChordEnumeratorArg, CompletionBackendArg, PathTreeOrientationArg, RegionDualArg,
-        RepresentationArg, SolverArg, solve_command,
+        ChordEnumeratorArg, CompletionBackendArg, InputFormatArg, PathTreeOrientationArg,
+        RegionDualArg, RepresentationArg, SolverArg, solve_command,
     };
 
     #[test]
@@ -1355,6 +1500,7 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            InputFormatArg::Grid,
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
             Some(RepresentationArg::Dominance4d),
@@ -1400,6 +1546,7 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            InputFormatArg::Grid,
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
             Some(RepresentationArg::PathTree),
@@ -1425,6 +1572,41 @@ mod tests {
             diagnostics["execution_trace"]["area_flood_fill_dual_built"],
             false
         );
+        assert!(!fs::read(&svg).unwrap().is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn polygon_json_auto_detection_solves_and_renders_without_rasterization() {
+        let root =
+            std::env::temp_dir().join(format!("mrd-polygon-cli-regression-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("polygon.json");
+        let output = root.join("output.json");
+        let svg = root.join("output.svg");
+        fs::write(
+            &input,
+            br#"{"type":"rectilinear-polygon","outer":[[0,0],[1000000000,0],[1000000000,1],[1,1],[1,4],[0,4]],"holes":[]}"#,
+        )
+        .unwrap();
+        solve_command(
+            SolverArg::DominanceCompactOnly,
+            InputFormatArg::Auto,
+            None,
+            None,
+            Some(RepresentationArg::Dominance4d),
+            None,
+            None,
+            input.as_path(),
+            Some(output.as_path()),
+            Some(svg.as_path()),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        assert_eq!(value["input_model"], "rectilinear-polygon");
+        assert_eq!(value["result"]["optimum_rectangle_count"], 2);
+        assert_eq!(value["result"]["diagnostics"]["raster_oracle_used"], false);
+        assert_eq!(value["result"]["diagnostics"]["atomic_cell_count"], 4);
         assert!(!fs::read(&svg).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }

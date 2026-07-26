@@ -1431,6 +1431,62 @@ pub fn build_path_tree_partition_with_backend_and_options(
     build_partition_from_compact_paths(certificate, tree, compact_paths, paths)
 }
 
+/// Builds the clean path-tree partition from boundary metadata alone.
+///
+/// This is the polygon counterpart of the prepared-grid builder. It is valid
+/// only for the clean, one-outer-loop, hole-free certificate and never creates
+/// occupancy cells or unit cuts.
+#[allow(clippy::too_many_arguments)]
+pub fn build_boundary_path_tree_partition(
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    orientation: PathTreeOrientation,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
+    if orientation == PathTreeOrientation::VerticalTreeHorizontalPaths {
+        let tree = build_boundary_laminar_dual_tree_with_options(
+            boundary,
+            vertical_chords,
+            &certificate,
+            endpoint_index,
+            gap_backend,
+        )?;
+        let compact_paths = if let Some(endpoint_index) = endpoint_index {
+            tree.horizontal_endpoint_paths_boundary_with_index(
+                boundary,
+                horizontal_chords,
+                endpoint_index,
+            )?
+        } else {
+            tree.horizontal_endpoint_paths_boundary(boundary, horizontal_chords)?
+        };
+        let partition =
+            build_partition_from_compact_paths(certificate, tree, compact_paths, Vec::new())?;
+        let biclique_partition = partition.biclique_partition.clone();
+        Ok(OrientedPathTreePartition {
+            orientation,
+            dual_region_count: partition.tree.region_count,
+            path_count: partition.compact_paths.len(),
+            total_path_edge_incidences: partition.total_path_edge_incidences,
+            canonical_segment_node_count: partition.canonical_segment_node_count,
+            biclique_partition,
+            path_tree: partition,
+        })
+    } else {
+        build_horizontal_axis_view_partition_with_options(
+            boundary,
+            horizontal_chords,
+            vertical_chords,
+            certificate,
+            endpoint_index,
+            gap_backend,
+        )
+    }
+}
+
 fn build_partition_from_compact_paths(
     certificate: CleanHoleFreeCertificate,
     tree: RegionDualTree,
