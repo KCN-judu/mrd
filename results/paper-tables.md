@@ -153,12 +153,12 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "1.0.0",
     "tag": "v1.0.0-indexed-polygon-engine",
-    "peeled_commit": "6b11acd",
+    "peeled_commit": "6b11acdcb3d18145e4a560df7957234975a9dd6d",
     "evidence": "prepared indexed polygon geometry, orthogonal sweep validation, indexed Definition 7 chords, incremental completion, shared arrangement, complete backend differential, negative, native A-H, and scaling campaigns",
     "result_commits": [
       "fee971ebf44c2b3ce205bc36c5aad28295d42fc3",
       "240ac1b",
-      "6b11acd"
+      "6b11acdcb3d18145e4a560df7957234975a9dd6d"
     ]
   }
 ]
