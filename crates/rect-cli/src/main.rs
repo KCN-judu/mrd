@@ -631,6 +631,11 @@ fn benchmark_command(
             let report = rect_verify::benchmark::benchmark_path_tree_vs_4d(context, sizes);
             write_text(output, &report.to_csv())?;
             write_json(&report, Some(&output.with_extension("json")))?;
+            let manifest_path = output
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("manifest.json");
+            update_manifest(&manifest_path, report.metadata.clone())?;
             return if report.counterexamples == 0 {
                 Ok(())
             } else {
@@ -645,6 +650,11 @@ fn benchmark_command(
             write_text(output, &report.to_csv())?;
             write_json(&report, Some(&output.with_extension("json")))?;
             write_text(&output.with_extension("md"), &report.to_markdown())?;
+            let manifest_path = output
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("manifest.json");
+            update_manifest(&manifest_path, report.metadata.clone())?;
             return Ok(());
         }
         BenchmarkSuiteArg::PathTreeOrientationAudit => {
@@ -664,6 +674,11 @@ fn benchmark_command(
                 Some(&output.with_extension("json")),
             )?;
             write_text(&output.with_extension("md"), &report.to_markdown())?;
+            let manifest_path = output
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("manifest.json");
+            update_manifest(&manifest_path, report.metadata.clone())?;
             // Positive regret is selector evidence, not a solver failure.
             // CompactOnly therefore keeps exact BuildBothExact in production.
             return Ok(());
@@ -682,6 +697,11 @@ fn benchmark_command(
                 }),
                 Some(&output.with_extension("json")),
             )?;
+            let manifest_path = output
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("manifest.json");
+            update_manifest(&manifest_path, report.metadata.clone())?;
             if report.counterexamples == 0 && report.solver_errors == 0 {
                 return Ok(());
             }
