@@ -107,9 +107,14 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "0.8.0",
     "tag": "v0.8.0-boundary-indexed-adaptive-path-tree",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "0e5a68706b0fd527c906c4dc8a60ac4ab2b12e9f",
     "evidence": "boundary index, indexed endpoint classifier, laminar event sweep, mixed-branching witnesses, and adaptive orientation evidence",
-    "result_commits": []
+    "result_commits": [
+      "d6a683ef253cdf88dab2423d688541e6e74034f6",
+      "72836293637c6fbb35f7c6982705632bbe8c2f3f",
+      "1fd11cc88bd7b0859bc57e6e17efb19e6ed40518",
+      "0e5a68706b0fd527c906c4dc8a60ac4ab2b12e9f"
+    ]
   }
 ]
 ```
