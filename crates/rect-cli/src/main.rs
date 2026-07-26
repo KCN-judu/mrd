@@ -25,8 +25,8 @@ use thiserror::Error;
 #[command(
     name = "rect-cli",
     version,
-    about = "Exact rectangular-dissection verification for finite colored grids",
-    long_about = "Exact rectangular-dissection verification for finite colored grids built from unit cells.\n\nSupported inputs are ordinary nondegenerate finite grid regions. Ornaments, isolated formal-boundary points, line-segment holes, point holes, arbitrary degenerate formal holes, and general polygon inputs are outside the supported model."
+    about = "Exact rectangular-dissection verification for grids and ordinary polygons",
+    long_about = "Exact rectangular-dissection verification for finite colored unit-cell grids and boundary-native ordinary rectilinear polygons.\n\nPolygon input supports one nondegenerate outer loop and ordinary two-dimensional holes with integer coordinates and disjoint boundaries. Ornaments, isolated formal-boundary points, point or segment holes, arbitrary degenerate formal holes, and disconnected outer components remain outside the supported model."
 )]
 struct Cli {
     #[command(subcommand)]
