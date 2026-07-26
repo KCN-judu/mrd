@@ -1854,11 +1854,53 @@ mod polygon_tests {
     }
 
     #[test]
+    fn polygon_solver_is_invariant_under_integer_affine_symmetries() {
+        let polygon = RectilinearPolygon::new(
+            loop_from(&[(0, 0), (7, 0), (7, 2), (2, 2), (2, 9), (0, 9)]),
+            vec![],
+        )
+        .unwrap();
+        let expected = solve_polygon(&polygon).unwrap().optimum_rectangle_count;
+        let transforms = [
+            transform_polygon(&polygon, &|point| Point::new(point.x + 13, point.y - 17)),
+            transform_polygon(&polygon, &|point| Point::new(-point.x, point.y)),
+            transform_polygon(&polygon, &|point| Point::new(-point.y, point.x)),
+            transform_polygon(&polygon, &|point| Point::new(-point.x, -point.y)),
+            transform_polygon(&polygon, &|point| Point::new(point.y, -point.x)),
+            transform_polygon(&polygon, &|point| Point::new(point.x * 5, point.y * 3)),
+        ];
+        for transformed in transforms {
+            assert_eq!(
+                solve_polygon(&transformed).unwrap().optimum_rectangle_count,
+                expected
+            );
+        }
+    }
+
+    #[test]
     fn grid_polygon_end_to_end_matches_on_all_supported_3x3_components() {
+        assert_eq!(verify_grid_polygon_masks(3, 3), 893);
+    }
+
+    #[test]
+    #[ignore = "release-mode exhaustive 4x4 polygon differential"]
+    fn grid_polygon_end_to_end_matches_on_all_supported_4x4_components() {
+        assert_eq!(verify_grid_polygon_masks(4, 4), 166_189);
+    }
+
+    fn verify_grid_polygon_masks(width: usize, height: usize) -> usize {
         let mut compared = 0;
-        for mask in 1_u16..1 << 9 {
-            let grid =
-                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+        let bit_count = width * height;
+        let mask_limit = 1_u32
+            .checked_shl(u32::try_from(bit_count).unwrap())
+            .unwrap();
+        for mask in 1_u32..mask_limit {
+            let grid = ColorGrid::new(
+                width,
+                height,
+                (0..bit_count).map(|bit| mask & (1 << bit) != 0).collect(),
+            )
+            .unwrap();
             for component in grid
                 .four_connected_components()
                 .into_iter()
@@ -1946,7 +1988,7 @@ mod polygon_tests {
                 compared += 1;
             }
         }
-        assert!(compared > 100);
+        compared
     }
 
     fn selected_flags(result: &rect_core::DissectionResult, key: &str, len: usize) -> Vec<bool> {
@@ -2006,5 +2048,26 @@ mod polygon_tests {
         }
         result.sort_unstable();
         result
+    }
+
+    fn transform_polygon(
+        polygon: &RectilinearPolygon,
+        transform: &impl Fn(Point) -> Point,
+    ) -> RectilinearPolygon {
+        let transform_loop = |boundary_loop: &OrthogonalLoop| {
+            OrthogonalLoop::new(
+                boundary_loop
+                    .vertices
+                    .iter()
+                    .copied()
+                    .map(transform)
+                    .collect(),
+            )
+        };
+        RectilinearPolygon::new(
+            transform_loop(&polygon.outer),
+            polygon.holes.iter().map(transform_loop).collect(),
+        )
+        .unwrap()
     }
 }

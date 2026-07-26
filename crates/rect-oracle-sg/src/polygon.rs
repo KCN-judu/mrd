@@ -120,20 +120,22 @@ impl CoordinateCompressedCompletion {
             return Err(PolygonSgError::SelectionLengthMismatch);
         }
         let polygon = polygon.normalized()?;
-        let selected_horizontal_cuts = horizontal_chords
+        let mut selected_horizontal_cuts = horizontal_chords
             .iter()
             .zip(selected_horizontal)
             .filter_map(|(&chord, &selected)| {
                 selected.then_some(HorizontalCutSegment::from_chord(chord))
             })
             .collect::<Vec<_>>();
-        let selected_vertical_cuts = vertical_chords
+        let mut selected_vertical_cuts = vertical_chords
             .iter()
             .zip(selected_vertical)
             .filter_map(|(&chord, &selected)| {
                 selected.then_some(VerticalCutSegment::from_chord(chord))
             })
             .collect::<Vec<_>>();
+        selected_horizontal_cuts = normalize_horizontal_segments(selected_horizontal_cuts);
+        selected_vertical_cuts = normalize_vertical_segments(selected_vertical_cuts);
         let mut horizontal_cuts = selected_horizontal_cuts
             .iter()
             .copied()
@@ -165,8 +167,8 @@ impl CoordinateCompressedCompletion {
             &mut metrics,
         )?;
 
-        added_horizontal_cuts.sort_unstable();
-        added_vertical_cuts.sort_unstable();
+        added_horizontal_cuts = normalize_horizontal_segments(added_horizontal_cuts);
+        added_vertical_cuts = normalize_vertical_segments(added_vertical_cuts);
 
         let recovery = recover_coordinate_rectangles(&polygon, &horizontal_cuts, &vertical_cuts)?;
         metrics.coordinate_compression_x_count = recovery.x_count;
@@ -188,6 +190,42 @@ impl CoordinateCompressedCompletion {
     pub const fn name(self) -> &'static str {
         "coordinate-compressed"
     }
+}
+
+fn normalize_horizontal_segments(
+    mut segments: Vec<HorizontalCutSegment>,
+) -> Vec<HorizontalCutSegment> {
+    segments.sort_unstable_by_key(|segment| (segment.y, segment.left, segment.right));
+    let mut normalized = Vec::<HorizontalCutSegment>::new();
+    for segment in segments {
+        if let Some(last) = normalized.last_mut()
+            && last.y == segment.y
+            && segment.left <= last.right
+        {
+            last.right = last.right.max(segment.right);
+        } else {
+            normalized.push(segment);
+        }
+    }
+    normalized.sort_unstable();
+    normalized
+}
+
+fn normalize_vertical_segments(mut segments: Vec<VerticalCutSegment>) -> Vec<VerticalCutSegment> {
+    segments.sort_unstable_by_key(|segment| (segment.x, segment.bottom, segment.top));
+    let mut normalized = Vec::<VerticalCutSegment>::new();
+    for segment in segments {
+        if let Some(last) = normalized.last_mut()
+            && last.x == segment.x
+            && segment.bottom <= last.top
+        {
+            last.top = last.top.max(segment.top);
+        } else {
+            normalized.push(segment);
+        }
+    }
+    normalized.sort_unstable();
+    normalized
 }
 
 impl GeneralPolygonPairwiseEnumerator {

@@ -1481,8 +1481,9 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        ChordEnumeratorArg, CompletionBackendArg, InputFormatArg, PathTreeOrientationArg,
-        RegionDualArg, RepresentationArg, SolverArg, solve_command,
+        ChordEnumeratorArg, CompletionBackendArg, InputFormatArg, LoadedInput,
+        PathTreeOrientationArg, RegionDualArg, RepresentationArg, SolverArg, load_input,
+        solve_command,
     };
 
     #[test]
@@ -1609,5 +1610,29 @@ mod tests {
         assert_eq!(value["result"]["diagnostics"]["atomic_cell_count"], 4);
         assert!(!fs::read(&svg).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn native_polygon_fixture_corpus_validates_and_solves() {
+        let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        for name in [
+            "nonuniform-l.json",
+            "large-gap.json",
+            "two-holes.json",
+            "comb.json",
+            "spiral-corridor.json",
+        ] {
+            let path = workspace.join("test-data/polygons").join(name);
+            let LoadedInput::Polygon(polygon) = load_input(&path, InputFormatArg::Polygon).unwrap()
+            else {
+                panic!("fixture {name} did not parse as a polygon");
+            };
+            rect_dominance::solve_polygon(&polygon)
+                .unwrap_or_else(|error| panic!("fixture {name} failed: {error}"));
+        }
     }
 }
