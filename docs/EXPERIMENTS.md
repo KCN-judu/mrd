@@ -440,10 +440,11 @@ witnesses with degree-3 dual branching and multi-heavy-chain paths. Their comple
 are in `results/path-tree-witnesses/`; the command and predicate are documented
 in `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md`.
 
-The finite orientation audit recorded zero positive `BoundEstimate` sigma
-regret, so CompactOnly now defaults to `bound-estimate`; FullyAudited continues
-to use `build-both`. This is evidence-backed dispatch for the supported grid
-population, not a general polygon complexity claim.
+The expanded orientation audit records five positive `BoundEstimate` sigma
+regret rows among stored mixed-branching witnesses (maximum absolute regret 2,
+ratio 2/6). CompactOnly therefore keeps exact `build-both` as its production
+default; `bound-estimate` remains available for explicit benchmark experiments.
+FullyAudited also continues to use `build-both`.
 
 The generated v0.8 structural scaling report is results/v0.8-path-tree-families.csv.
 Chain rows grow from q=12 at scale 3 to q=256 at scale 64, while star and

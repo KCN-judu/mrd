@@ -269,7 +269,9 @@ pub fn solve_with_representation_and_path_tree_options<C>(
 const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientationPolicy {
     match mode {
         VerificationMode::FullyAudited => PathTreeOrientationPolicy::BuildBothExact,
-        VerificationMode::CompactOnly => PathTreeOrientationPolicy::BoundEstimate,
+        // BoundEstimate remains an explicit benchmark policy; the expanded
+        // v0.8 witness population contains positive-regret cases.
+        VerificationMode::CompactOnly => PathTreeOrientationPolicy::BuildBothExact,
     }
 }
 

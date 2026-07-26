@@ -19,9 +19,10 @@ intersection predicate on every horizontal/vertical pair of a clean component.
 The path-tree solver exposes four orientation policies: `build-both` constructs
 both orientations and selects the smaller audited sigma; `bound-estimate`
 chooses one orientation from the paper-shaped pre-construction bound; and the
-two fixed policies are debugging/benchmark controls. FullyAudited defaults to
-`build-both`. FullyAudited keeps that conservative policy; CompactOnly uses
-the evidence-backed `bound-estimate` default after the v0.8 regret audit.
+  two fixed policies are debugging/benchmark controls. FullyAudited and
+  CompactOnly both default to exact `build-both`. The v0.8 mixed-witness audit
+  found positive regret for the heuristic, so it remains an explicit benchmark
+  policy rather than the production default.
 BoundaryLaminar uses an
 axis-generic view for the horizontal-tree orientation, while the historical
 coordinate-transpose implementation remains an audited reference.

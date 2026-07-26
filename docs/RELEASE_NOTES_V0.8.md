@@ -10,8 +10,9 @@ This release hardens the supported finite-grid path-tree frontend.
   available for differential tests.
 - Mixed-branching geometry witnesses are searched and persisted with dual,
   compact-path, HLD, biclique, diagnostics, and SVG artifacts.
-- CompactOnly uses indexed frontier completion and defaults to `BoundEstimate`
-  orientation after the recorded zero-positive-regret audit. FullyAudited keeps
+- CompactOnly uses indexed frontier completion and exact `BuildBothExact`
+  orientation selection. `BoundEstimate` remains an explicit heuristic policy
+  after five positive-regret mixed-witness rows were found. FullyAudited keeps
   reference rescan and `BuildBothExact`.
 
 The release still targets ordinary finite unit-cell regions. General polygon

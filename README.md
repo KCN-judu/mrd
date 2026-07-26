@@ -16,8 +16,8 @@ monochromatic rectangular partitions of finite colored grids:
   fallback.
 - `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`:
   choose or audit the path-tree orientation without changing the correctness
-  Oracles. FullyAudited keeps exact `build-both`; CompactOnly defaults to the
-  evidence-backed `bound-estimate` selector.
+  Oracles. FullyAudited and CompactOnly default to exact `build-both`; the
+  `bound-estimate` selector remains an explicit heuristic benchmark policy.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 geometric chords are closed. Every solver returns explicit rectangles and runs

@@ -38,15 +38,14 @@
   backend. FullyAudited retains the area-flood-fill dual, physical transpose,
   and both orientations as independent oracles. CompactOnly uses the
   boundary-laminar dual and endpoint-only HLD without per-path edge vectors or
-  production transposition; its orientation policy is now `bound-estimate`
+  production transposition; its orientation policy remains exact `build-both`
   after the v0.8 regret audit. This finite-grid
   interval construction does not implement the paper's general polygon planar
   sweep.
-- The v0.7/v0.8 orientation audits found zero positive sigma regret for
-  `BoundEstimate` on their recorded finite populations, with equal-sigma ties
-  retained as deterministic vertical choices. This is finite evidence for the
-  CompactOnly default, not a general polygon theorem; FullyAudited remains
-  `build-both`.
+- The v0.7 audit found zero positive sigma regret for `BoundEstimate` on its
+  historical finite population, but the v0.8 stored mixed-branching witness
+  audit found five positive-regret rows. `BoundEstimate` is therefore not the
+  CompactOnly default; it remains a diagnostic benchmark policy.
 - Prepared occupancy, cut arrays, recovery state, and validation are dense in
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less

@@ -73,8 +73,9 @@ references. CompactOnly uses the `BoundaryLaminar` dual and endpoint-only HLD
 records (`CompactTreePath`); its axis view avoids occupancy, boundary, and chord
 transposition in the production path for either orientation. Orientation selection is controlled by
 `--path-tree-orientation build-both|bound-estimate|vertical-tree|horizontal-tree`;
-FullyAudited defaults to `build-both`, while CompactOnly defaults to the
-evidence-backed `bound-estimate` policy.
+FullyAudited and CompactOnly default to exact `build-both`; `bound-estimate`
+remains an explicit heuristic benchmark policy because the v0.8 witness audit
+found positive regret cases.
 Heavy-light canonical segment nodes produce the bicliques consumed by the same
 compressed flow backend. `--representation auto` selects this representation
 only when the clean certificate passes and records a compact 4D fallback
