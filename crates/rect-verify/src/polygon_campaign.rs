@@ -99,6 +99,7 @@ impl PolygonNegativeReport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct PolygonScalingRow {
     pub family: String,
     pub family_name: String,
@@ -151,6 +152,7 @@ impl PolygonScalingReport {
     }
 
     #[must_use]
+    #[allow(clippy::too_many_lines)]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
             "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,reference_microseconds,indexed_microseconds,sweep_microseconds,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
@@ -533,6 +535,7 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
 /// Benchmarks all three exact polygon chord pipelines on the native scaling
 /// families while retaining complete diagnostics for every row.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn polygon_scaling_campaign(
     context: BenchmarkContext,
     sizes: &[usize],
@@ -759,19 +762,18 @@ fn compare_and_record(
     }
 }
 
+type PolygonBackendMismatch = (
+    String,
+    Option<PolygonDissectionResult>,
+    Option<PolygonDissectionResult>,
+    Option<PolygonDissectionResult>,
+);
+
 #[allow(clippy::result_large_err, clippy::too_many_lines)]
 fn compare_polygon_backends(
     polygon: &RectilinearPolygon,
     raster: bool,
-) -> Result<
-    bool,
-    (
-        String,
-        Option<PolygonDissectionResult>,
-        Option<PolygonDissectionResult>,
-        Option<PolygonDissectionResult>,
-    ),
-> {
+) -> Result<bool, PolygonBackendMismatch> {
     let reference_prepared = PreparedPolygonContext::new_with_validator(
         polygon,
         PolygonValidationBackend::ReferenceQuadratic,

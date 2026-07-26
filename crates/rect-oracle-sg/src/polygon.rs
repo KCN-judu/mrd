@@ -84,6 +84,8 @@ pub struct SweepCertificate {
 
 const SWEEP_EVENT_TRACE_LIMIT: usize = 64;
 
+type SweepChordKeys = BTreeSet<(i64, i64, i64)>;
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolygonChordEnumerationMetrics {
     pub polygon_boundary_edge_visits: usize,
@@ -998,11 +1000,12 @@ impl SoltanGorpinevichSweepEnumerator {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn enumerate_sweep_axis(
     prepared: &PreparedPolygonContext,
     axis: SweepAxis,
     metrics: &mut PolygonChordEnumerationMetrics,
-) -> Result<(BTreeSet<(i64, i64, i64)>, SweepCertificate), PolygonSgError> {
+) -> Result<(SweepChordKeys, SweepCertificate), PolygonSgError> {
     let boundary = prepared.boundary();
     let boundary_index = prepared.boundary_index();
     let edge_index = prepared.edge_index();
