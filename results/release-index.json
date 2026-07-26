@@ -15,7 +15,7 @@
   "current_release": {
     "version": "0.9.0",
     "tag": "v0.9.0-boundary-native-polygon-frontend",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "a79bf3972d4cf614203e13148a9f88ce30803cb8",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
@@ -138,7 +138,7 @@
     {
       "version": "0.9.0",
       "tag": "v0.9.0-boundary-native-polygon-frontend",
-      "peeled_commit": "PENDING",
+      "peeled_commit": "a79bf3972d4cf614203e13148a9f88ce30803cb8",
       "evidence": "boundary-native ordinary polygon normalization, Definition 7 chords, compact matching reuse, coordinate-compressed completion, exact dissection validation, and grid/polygon differential verification",
       "result_commits": [
         "3a83f5b26adb59fbe5f1cda0beaa8a60ebcdeae8",
