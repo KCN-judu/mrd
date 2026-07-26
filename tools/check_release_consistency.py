@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.9.0"
-TAG = "v0.9.0-boundary-native-polygon-frontend"
+VERSION = "1.0.0"
+TAG = "v1.0.0-indexed-polygon-engine"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -23,6 +23,11 @@ EXPECTED_DEFAULTS = {
     "fully_audited_completion_backend": "reference-rescan",
     "fully_audited_region_dual": "reference-area",
     "fully_audited_path_tree_orientation": "build-both",
+    "compact_polygon_geometry": "indexed",
+    "compact_polygon_validator": "orthogonal-sweep",
+    "compact_polygon_chords": "indexed-pairwise",
+    "compact_polygon_completion": "indexed-frontier",
+    "compact_polygon_arrangement": "indexed",
 }
 HISTORICAL_V08_DEFAULTS = {
     **EXPECTED_DEFAULTS,
@@ -45,6 +50,15 @@ REQUIRED_V08_ARTIFACTS = (
     "results/path-tree-witnesses/report.json",
 )
 REQUIRED_V09_ARTIFACTS = ("results/v0.9-polygon-differential.json",)
+REQUIRED_V10_ARTIFACTS = (
+    "results/v1.0-polygon-differential-3x3.json",
+    "results/v1.0-polygon-differential-4x4.json",
+    "results/v1.0-polygon-backend-differential.json",
+    "results/v1.0-polygon-negative.json",
+    "results/v1.0-polygon-native-fixtures.json",
+    "results/v1.0-polygon-scaling.csv",
+    "results/v1.0-polygon-scaling.json",
+)
 
 
 def git(*args: str) -> str:
@@ -104,6 +118,22 @@ def assert_implementation_defaults() -> None:
         fail("CompactOnly implementation default is not BuildBothExact")
     if not audited or audited.group(1) != "BuildBothExact":
         fail("FullyAudited implementation default is not BuildBothExact")
+    defaults = re.search(
+        r"impl Default for PolygonSolveOptions.*?\n}\n",
+        implementation,
+        re.DOTALL,
+    )
+    if defaults is None:
+        fail("PolygonSolveOptions default implementation is missing")
+    for expected in (
+        "geometry_backend: PolygonGeometryBackend::Indexed",
+        "validation_backend: PolygonValidationBackend::OrthogonalSweep",
+        "chord_backend: PolygonChordBackend::IndexedPairwise",
+        "completion_backend: PolygonCompletionBackend::IndexedFrontier",
+        "arrangement_backend: PolygonArrangementBackend::Indexed",
+    ):
+        if expected not in defaults.group(0):
+            fail(f"polygon implementation default is not indexed: {expected}")
 
 
 def main() -> None:
@@ -184,6 +214,8 @@ def main() -> None:
         fail("generated evidence does not contain a v0.8 section")
     if "v0.9" not in paper_tables or "v0.9" not in experiments:
         fail("generated evidence does not contain a v0.9 section")
+    if "v1.0" not in paper_tables or "v1.0" not in experiments:
+        fail("generated evidence does not contain a v1.0 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
@@ -195,11 +227,16 @@ def main() -> None:
             fail(f"missing generated v0.9 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v0.9 evidence: {relative}")
+    for relative in REQUIRED_V10_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated v1.0 evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated v1.0 evidence: {relative}")
     v09_report = json.loads(
         (ROOT / "results/v0.9-polygon-differential.json").read_text()
     )
     v09_release = next(
-        (release for release in releases if release.get("version") == VERSION), None
+        (release for release in releases if release.get("version") == "0.9.0"), None
     )
     if v09_release is None:
         fail("release index omits v0.9")
@@ -248,6 +285,20 @@ def main() -> None:
     algorithms = (ROOT / "docs/ALGORITHMS.md").read_text(encoding="utf-8")
     if "GridInteriorRunEnumerator" not in algorithms or "BoundaryIndex" not in algorithms:
         fail("algorithm documentation does not name the indexed production path")
+    for required in (
+        "IndexedPolygonPairwiseEnumerator",
+        "IndexedPolygonCompletion",
+        "OrthogonalSweepValidator",
+        "PreparedPolygonContext",
+    ):
+        if required not in algorithms:
+            fail(f"algorithm documentation omits v1.0 indexed symbol: {required}")
+    for relative in REQUIRED_V10_ARTIFACTS:
+        if not relative.endswith(".json"):
+            continue
+        report = json.loads((ROOT / relative).read_text())
+        if report.get("disagreements", 0) != 0:
+            fail(f"v1.0 report has disagreements: {relative}")
     print(f"release consistency: {VERSION} {TAG} -> {peeled}")
     print(f"reachable manifest commits: {len(commits)}")
 

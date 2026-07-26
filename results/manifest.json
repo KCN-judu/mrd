@@ -909,12 +909,22 @@
         "39003dba91398d856c29129f599da84978240811",
         "be84fcec66899379dd9780dd21104a53e08159f8"
       ]
+    },
+    {
+      "version": "1.0.0",
+      "tag": "v1.0.0-indexed-polygon-engine",
+      "peeled_commit": "PENDING",
+      "evidence": "prepared indexed polygon geometry, orthogonal sweep validation, indexed Definition 7 chords, incremental completion, shared arrangement, complete backend differential, negative, native A-H, and scaling campaigns",
+      "result_commits": [
+        "fee971ebf44c2b3ce205bc36c5aad28295d42fc3",
+        "240ac1b"
+      ]
     }
   ],
   "current_release": {
-    "version": "0.9.0",
-    "tag": "v0.9.0-boundary-native-polygon-frontend",
-    "peeled_commit": "a79bf3972d4cf614203e13148a9f88ce30803cb8",
+    "version": "1.0.0",
+    "tag": "v1.0.0-indexed-polygon-engine",
+    "peeled_commit": "PENDING",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
@@ -924,7 +934,12 @@
       "compact_path_tree_orientation": "build-both",
       "fully_audited_completion_backend": "reference-rescan",
       "fully_audited_region_dual": "reference-area",
-      "fully_audited_path_tree_orientation": "build-both"
+      "fully_audited_path_tree_orientation": "build-both",
+      "compact_polygon_geometry": "indexed",
+      "compact_polygon_validator": "orthogonal-sweep",
+      "compact_polygon_chords": "indexed-pairwise",
+      "compact_polygon_completion": "indexed-frontier",
+      "compact_polygon_arrangement": "indexed"
     }
   },
   "generated_tables": [
