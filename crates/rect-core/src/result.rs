@@ -110,6 +110,7 @@ pub struct Diagnostics {
     pub gap_interval_membership_tests: Option<usize>,
     pub gap_event_push_count: Option<usize>,
     pub gap_event_pop_count: Option<usize>,
+    pub boundary_gap_label_backend: Option<String>,
     pub clean_endpoint_pair_comparisons: Option<usize>,
     pub boundary_extraction_microseconds: Option<u128>,
     pub reflex_grouping_microseconds: Option<u128>,

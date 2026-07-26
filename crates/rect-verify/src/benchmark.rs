@@ -525,6 +525,9 @@ pub fn benchmark_path_tree_orientation_audit(
     for instance in crate::adversarial::path_tree_geometry_families(scale) {
         append_orientation_audit_instance(&mut rows, "structural-family", &instance);
     }
+    for instance in crate::witness::stored_mixed_branching_witnesses() {
+        append_orientation_audit_instance(&mut rows, "stored-mixed-witness", &instance);
+    }
     for &size in sizes {
         if let Ok(instance) = clean_complete_bipartite_grid(size) {
             append_orientation_audit_instance(&mut rows, "complete-bipartite", &instance);
@@ -1036,7 +1039,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_index_build_count,boundary_index_build_microseconds,boundary_index_entries,boundary_index_owned_bytes,linear_boundary_vertex_lookup_count,gap_interval_membership_tests,gap_event_push_count,gap_event_pop_count,clean_endpoint_pair_comparisons,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,initial_horizontal_unit_cut_count,initial_vertical_unit_cut_count,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,horizontal_simple_chord_count,vertical_simple_chord_count,completion_candidate_queries,completion_full_grid_scans,completion_candidate_revalidations,completion_stale_candidates,completion_ray_extension_unit_steps,rectangle_recovery_component_visits,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_index_build_count,boundary_index_build_microseconds,boundary_index_entries,boundary_index_owned_bytes,linear_boundary_vertex_lookup_count,gap_interval_membership_tests,gap_event_push_count,gap_event_pop_count,boundary_gap_label_backend,clean_endpoint_pair_comparisons,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,initial_horizontal_unit_cut_count,initial_vertical_unit_cut_count,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,horizontal_simple_chord_count,vertical_simple_chord_count,completion_candidate_queries,completion_full_grid_scans,completion_candidate_revalidations,completion_stale_candidates,completion_ray_extension_unit_steps,rectangle_recovery_component_visits,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -1095,6 +1098,10 @@ impl BenchmarkReport {
                 optional_number(row.diagnostics.gap_interval_membership_tests),
                 optional_number(row.diagnostics.gap_event_push_count),
                 optional_number(row.diagnostics.gap_event_pop_count),
+                row.diagnostics
+                    .boundary_gap_label_backend
+                    .clone()
+                    .unwrap_or_default(),
                 optional_number(row.diagnostics.clean_endpoint_pair_comparisons),
                 optional_number(row.diagnostics.boundary_extraction_microseconds),
                 optional_number(row.diagnostics.reflex_grouping_microseconds),
@@ -1685,6 +1692,7 @@ pub fn benchmark_path_tree_geometry_families(
     scale: usize,
 ) -> BenchmarkReport {
     let instances = crate::adversarial::path_tree_geometry_families(scale);
+    let input_count = instances.len();
     let mut rows = Vec::new();
     for instance in instances {
         let components = match instance.foreground_components() {
@@ -1829,7 +1837,7 @@ pub fn benchmark_path_tree_geometry_families(
             command: context.command,
             seed: context.seed,
             timestamp: context.timestamp,
-            input_count: 4,
+            input_count,
             component_count: rows.len(),
             input_model: "finite-colored-unit-grid-path-tree-families".to_owned(),
             unsupported_input_features: unsupported_input_features(),
@@ -1862,7 +1870,7 @@ pub fn benchmark_path_tree_geometry_scaling(
             command: context.command,
             seed: context.seed,
             timestamp: context.timestamp,
-            input_count: sizes.len().saturating_mul(4),
+            input_count: rows.len(),
             component_count: rows.len(),
             input_model: "finite-grid-scaled-path-tree-geometry-families".to_owned(),
             unsupported_input_features: unsupported_input_features(),
@@ -2078,6 +2086,7 @@ impl PathTreeVs4dReport {
 pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> PathTreeVs4dReport {
     let scale = sizes.iter().copied().max().unwrap_or(5).max(3);
     let mut instances = crate::adversarial::path_tree_geometry_families(scale);
+    instances.extend(crate::witness::stored_mixed_branching_witnesses());
     for &size in sizes {
         if let Ok(instance) = clean_complete_bipartite_grid(size) {
             instances.push(instance);

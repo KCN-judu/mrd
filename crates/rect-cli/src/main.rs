@@ -109,6 +109,8 @@ enum Command {
         max_cells: usize,
         #[arg(long, default_value_t = 40)]
         oracle_cell_limit: usize,
+        #[arg(long, default_value_t = 100_000)]
+        random_cases: usize,
         #[arg(long, default_value = "4,8,16,32,64,128")]
         sizes: String,
         #[arg(
@@ -224,6 +226,7 @@ enum BenchmarkSuiteArg {
     PathTreeAdvantage,
     PathTreeOrientationAudit,
     PathTreeDualDifferential,
+    PathTreeGapDifferential,
     AutoFallback,
     Polyomino,
 }
@@ -395,6 +398,7 @@ fn run() -> Result<(), CliError> {
             suite,
             max_cells,
             oracle_cell_limit,
+            random_cases,
             sizes,
             families,
             output,
@@ -405,6 +409,7 @@ fn run() -> Result<(), CliError> {
                 suite,
                 max_cells,
                 oracle_cell_limit,
+                random_cases,
                 &sizes,
                 &families,
                 &output,
@@ -537,6 +542,7 @@ fn benchmark_command(
     suite: BenchmarkSuiteArg,
     max_cells: usize,
     oracle_cell_limit: usize,
+    random_cases: usize,
     sizes: &[usize],
     families: &[String],
     output: &Path,
@@ -571,6 +577,35 @@ fn benchmark_command(
             .join("manifest.json");
         update_manifest(&manifest_path, report.metadata)?;
         return Ok(());
+    }
+    if suite == BenchmarkSuiteArg::PathTreeGapDifferential {
+        let maximum_t = sizes.iter().copied().max().unwrap_or(128).max(1);
+        let report = rect_verify::gap_differential::verify_gap_backends(
+            context,
+            rect_verify::gap_differential::GapDifferentialConfig {
+                polyomino_max_cells: max_cells,
+                random_cases,
+                complete_bipartite_max_t: maximum_t,
+                family_scales: sizes.to_vec(),
+                ..rect_verify::gap_differential::GapDifferentialConfig::default()
+            },
+        );
+        write_text(output, &report.to_csv())?;
+        write_json(&report, Some(&output.with_extension("json")))?;
+        write_text(&output.with_extension("md"), &report.to_markdown())?;
+        let manifest_path = output
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("manifest.json");
+        update_manifest(&manifest_path, report.metadata.clone())?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "path-tree gap differential failures: {} mismatches, {} solver errors",
+                report.total_mismatch_count, report.total_solver_error_count
+            )))
+        };
     }
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
@@ -681,6 +716,7 @@ fn benchmark_command(
         BenchmarkSuiteArg::CleanCensus | BenchmarkSuiteArg::CleanBoundaryDifferential => {
             unreachable!()
         }
+        BenchmarkSuiteArg::PathTreeGapDifferential => unreachable!(),
     };
     let csv = report
         .to_csv()

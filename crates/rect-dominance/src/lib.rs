@@ -174,6 +174,39 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
     region_dual: RegionDualBackend,
     orientation_policy: PathTreeOrientationPolicy,
 ) -> Result<DissectionResult, DominanceError> {
+    solve_with_representation_and_path_tree_options(
+        component,
+        mode,
+        representation,
+        enumerator,
+        completion_backend,
+        region_dual,
+        orientation_policy,
+        BoundaryGapLabelBackend::EventSweep,
+    )
+}
+
+/// Solver entry point with explicit path-tree construction backends.
+///
+/// This is primarily intended for differential verification. Existing public
+/// wrappers retain the production [`BoundaryGapLabelBackend::EventSweep`]
+/// default.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when geometry, representation, flow,
+/// completion, or validation invariants fail.
+#[allow(clippy::too_many_arguments)]
+pub fn solve_with_representation_and_path_tree_options<C>(
+    component: &GridComponent<C>,
+    mode: VerificationMode,
+    representation: ConflictRepresentationBackend,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
+    orientation_policy: PathTreeOrientationPolicy,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<DissectionResult, DominanceError> {
     match representation {
         ConflictRepresentationBackend::GeneralDominance4D => {
             solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -191,6 +224,7 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
             completion_backend,
             region_dual,
             orientation_policy,
+            gap_backend,
         ),
         ConflictRepresentationBackend::Auto => {
             let geometry = match enumerator {
@@ -217,6 +251,7 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
                     completion_backend,
                     region_dual,
                     orientation_policy,
+                    gap_backend,
                 )
             } else {
                 solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -947,6 +982,7 @@ fn solve_path_tree_dispatch<C>(
     completion_backend: CompletionBackendKind,
     region_dual: RegionDualBackend,
     orientation_policy: PathTreeOrientationPolicy,
+    gap_backend: BoundaryGapLabelBackend,
 ) -> Result<DissectionResult, DominanceError> {
     let geometry = match enumerator {
         ChordEnumerator::ReferencePairwise => {
@@ -974,6 +1010,7 @@ fn solve_path_tree_dispatch<C>(
         completion_backend,
         region_dual,
         orientation_policy,
+        gap_backend,
     )
 }
 
@@ -986,6 +1023,7 @@ fn solve_path_tree_with_geometry<C>(
     completion_backend: CompletionBackendKind,
     region_dual: RegionDualBackend,
     orientation_policy: PathTreeOrientationPolicy,
+    gap_backend: BoundaryGapLabelBackend,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
     let path_tree = build_path_tree_partition_with_orientation_policy_and_options(
@@ -998,7 +1036,7 @@ fn solve_path_tree_with_geometry<C>(
         region_dual,
         orientation_policy,
         Some(&geometry.endpoint_index),
-        path_tree::BoundaryGapLabelBackend::EventSweep,
+        gap_backend,
     )?;
     let path_tree_at = Instant::now();
     let mut four_d_sigma = None;
@@ -1317,6 +1355,7 @@ fn solve_path_tree_with_geometry<C>(
             ),
             gap_event_push_count: Some(path_tree.path_tree.tree.boundary_gap_event_push_count),
             gap_event_pop_count: Some(path_tree.path_tree.tree.boundary_gap_event_pop_count),
+            boundary_gap_label_backend: Some(gap_backend.name().to_owned()),
             clean_endpoint_pair_comparisons: Some(0),
             boundary_extraction_microseconds: Some(geometry.boundary_extraction_microseconds),
             reflex_grouping_microseconds: Some(geometry.reflex_grouping_microseconds),

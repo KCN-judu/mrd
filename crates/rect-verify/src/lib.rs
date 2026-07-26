@@ -1,6 +1,7 @@
 pub mod adversarial;
 pub mod benchmark;
 pub mod external;
+pub mod gap_differential;
 pub mod minimize;
 pub mod polyomino;
 pub mod transforms;
