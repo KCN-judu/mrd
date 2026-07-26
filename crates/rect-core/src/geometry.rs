@@ -165,6 +165,75 @@ pub struct GridRect {
     pub y1: usize,
 }
 
+/// A positive-area axis-aligned rectangle in the native coordinate system.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct CoordinateRect {
+    pub x0: Coord,
+    pub y0: Coord,
+    pub x1: Coord,
+    pub y1: Coord,
+}
+
+impl CoordinateRect {
+    /// Creates a coordinate-native rectangle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GeometryError::NonPositiveRectangle`] unless both dimensions
+    /// are positive.
+    pub fn new(x0: Coord, y0: Coord, x1: Coord, y1: Coord) -> Result<Self, GeometryError> {
+        if x0 >= x1 || y0 >= y1 {
+            return Err(GeometryError::NonPositiveRectangle);
+        }
+        Ok(Self { x0, y0, x1, y1 })
+    }
+
+    #[must_use]
+    pub const fn width(self) -> i128 {
+        self.x1 as i128 - self.x0 as i128
+    }
+
+    #[must_use]
+    pub const fn height(self) -> i128 {
+        self.y1 as i128 - self.y0 as i128
+    }
+
+    #[must_use]
+    pub const fn area(self) -> i128 {
+        self.width() * self.height()
+    }
+
+    #[must_use]
+    pub const fn contains_doubled_point_strict(self, point: DoubledPoint) -> bool {
+        2 * (self.x0 as i128) < point.x
+            && point.x < 2 * (self.x1 as i128)
+            && 2 * (self.y0 as i128) < point.y
+            && point.y < 2 * (self.y1 as i128)
+    }
+}
+
+/// Exact point coordinates scaled by two, used for side probes and midpoints.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct DoubledPoint {
+    pub x: i128,
+    pub y: i128,
+}
+
+impl DoubledPoint {
+    #[must_use]
+    pub const fn new(x: i128, y: i128) -> Self {
+        Self { x, y }
+    }
+
+    #[must_use]
+    pub const fn from_point(point: Point) -> Self {
+        Self {
+            x: 2 * point.x as i128,
+            y: 2 * point.y as i128,
+        }
+    }
+}
+
 impl GridRect {
     /// # Errors
     ///

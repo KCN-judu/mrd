@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Coord, GridComponent, Point};
+use crate::{Coord, GridComponent, Point, RectilinearPolygon};
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BoundaryLoop {
@@ -137,6 +137,46 @@ impl BoundaryIndex {
 }
 
 impl Boundary {
+    /// Builds compact normalized boundary metadata from an ordinary polygon.
+    ///
+    /// Long polygon edges remain compact; `unit_edges` is intentionally empty
+    /// because it is a grid-source diagnostic rather than boundary semantics.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if a polygon constructed outside the validated constructor
+    /// contains an area that cannot be represented in `i128`.
+    #[must_use]
+    pub fn from_polygon(polygon: &RectilinearPolygon) -> Self {
+        let loops = std::iter::once((&polygon.outer, false))
+            .chain(
+                polygon
+                    .holes
+                    .iter()
+                    .map(|boundary_loop| (boundary_loop, true)),
+            )
+            .map(|(boundary_loop, is_hole)| BoundaryLoop {
+                vertices: boundary_loop.vertices.clone(),
+                twice_signed_area: boundary_loop
+                    .twice_signed_area()
+                    .expect("validated polygon area fits i128"),
+                is_hole,
+            })
+            .collect::<Vec<_>>();
+        let reflex_vertices = loops
+            .iter()
+            .flat_map(|boundary_loop| reflex_points(&boundary_loop.vertices))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|point| ReflexVertex { point })
+            .collect();
+        Self {
+            loops,
+            reflex_vertices,
+            unit_edges: Vec::new(),
+        }
+    }
+
     /// Extracts normalized directed loops and reflex vertices from a grid component.
     ///
     /// # Errors
