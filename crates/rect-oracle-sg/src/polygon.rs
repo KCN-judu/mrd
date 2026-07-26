@@ -1,6 +1,9 @@
 //! Exact boundary-native reference algorithms for ordinary rectilinear polygons.
 
-use std::collections::{BTreeSet, VecDeque};
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, VecDeque};
+use std::ops::Bound::{Excluded, Unbounded};
+use std::time::Instant;
 
 use rect_core::{
     Boundary, BoundaryIndex, BoundaryIndexError, BoundaryVertexId, CoordinateRect, DoubledPoint,
@@ -97,6 +100,11 @@ impl VerticalCutSegment {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolygonCompletionMetrics {
+    pub selected_cut_materialization_microseconds: u128,
+    pub horizontal_completion_microseconds: u128,
+    pub vertical_completion_microseconds: u128,
+    pub rectangle_recovery_microseconds: u128,
+    pub final_validation_microseconds: u128,
     pub horizontal_candidate_queries: usize,
     pub vertical_candidate_queries: usize,
     pub horizontal_simple_chord_count: usize,
@@ -105,6 +113,16 @@ pub struct PolygonCompletionMetrics {
     pub coordinate_compression_y_count: usize,
     pub atomic_cell_count: usize,
     pub rectangle_recovery_visits: usize,
+    pub completion_global_candidate_rebuilds: usize,
+    pub completion_cut_pair_tests: usize,
+    pub completion_intersections_reported: usize,
+    pub completion_candidate_insertions: usize,
+    pub completion_candidate_revalidations: usize,
+    pub completion_stale_candidates: usize,
+    pub completion_boundary_ray_queries: usize,
+    pub completion_cut_ray_queries: usize,
+    pub completion_full_boundary_scans: usize,
+    pub completion_full_cut_scans: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -116,6 +134,208 @@ pub struct PolygonCompletionResult {
     pub added_vertical_cuts: Vec<VerticalCutSegment>,
     pub metrics: PolygonCompletionMetrics,
 }
+
+/// Authoritative dynamic exact index for polygon completion cuts.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DynamicPolygonCutIndex {
+    horizontal_by_y: BTreeMap<i64, BTreeSet<(i64, i64)>>,
+    vertical_by_x: BTreeMap<i64, BTreeSet<(i64, i64)>>,
+}
+
+impl DynamicPolygonCutIndex {
+    #[must_use]
+    pub fn contains_horizontal_ray(&self, point: Point, east: bool) -> bool {
+        self.horizontal_by_y.get(&point.y).is_some_and(|segments| {
+            segments.iter().any(|&(left, right)| {
+                if east {
+                    left <= point.x && point.x < right
+                } else {
+                    left < point.x && point.x <= right
+                }
+            })
+        })
+    }
+
+    #[must_use]
+    pub fn contains_vertical_ray(&self, point: Point, north: bool) -> bool {
+        self.vertical_by_x.get(&point.x).is_some_and(|segments| {
+            segments.iter().any(|&(bottom, top)| {
+                if north {
+                    bottom <= point.y && point.y < top
+                } else {
+                    bottom < point.y && point.y <= top
+                }
+            })
+        })
+    }
+
+    pub fn insert_horizontal_with_intersections(
+        &mut self,
+        segment: HorizontalCutSegment,
+    ) -> (bool, Vec<Point>) {
+        let intersections = self
+            .vertical_by_x
+            .range(segment.left..=segment.right)
+            .filter_map(|(&x, intervals)| {
+                intervals
+                    .iter()
+                    .any(|&(bottom, top)| bottom <= segment.y && segment.y <= top)
+                    .then_some(Point::new(x, segment.y))
+            })
+            .collect::<Vec<_>>();
+        let inserted = self
+            .horizontal_by_y
+            .entry(segment.y)
+            .or_default()
+            .insert((segment.left, segment.right));
+        (inserted, intersections)
+    }
+
+    pub fn insert_vertical_with_intersections(
+        &mut self,
+        segment: VerticalCutSegment,
+    ) -> (bool, Vec<Point>) {
+        let intersections = self
+            .horizontal_by_y
+            .range(segment.bottom..=segment.top)
+            .filter_map(|(&y, intervals)| {
+                intervals
+                    .iter()
+                    .any(|&(left, right)| left <= segment.x && segment.x <= right)
+                    .then_some(Point::new(segment.x, y))
+            })
+            .collect::<Vec<_>>();
+        let inserted = self
+            .vertical_by_x
+            .entry(segment.x)
+            .or_default()
+            .insert((segment.bottom, segment.top));
+        (inserted, intersections)
+    }
+
+    #[must_use]
+    pub fn horizontal_segments(&self) -> Vec<HorizontalCutSegment> {
+        self.horizontal_by_y
+            .iter()
+            .flat_map(|(&y, intervals)| {
+                intervals
+                    .iter()
+                    .map(move |&(left, right)| HorizontalCutSegment { left, right, y })
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn vertical_segments(&self) -> Vec<VerticalCutSegment> {
+        self.vertical_by_x
+            .iter()
+            .flat_map(|(&x, intervals)| {
+                intervals
+                    .iter()
+                    .map(move |&(bottom, top)| VerticalCutSegment { x, bottom, top })
+            })
+            .collect()
+    }
+
+    fn nearest_blocker(&self, point: Point, direction: PolygonDirection) -> Option<Point> {
+        match direction {
+            PolygonDirection::East => {
+                let perpendicular = self
+                    .vertical_by_x
+                    .range((Excluded(point.x), Unbounded))
+                    .find_map(|(&x, intervals)| {
+                        intervals
+                            .iter()
+                            .any(|&(bottom, top)| bottom <= point.y && point.y <= top)
+                            .then_some(x)
+                    });
+                let collinear = self.horizontal_by_y.get(&point.y).and_then(|segments| {
+                    segments
+                        .iter()
+                        .filter_map(|&(left, _)| (left > point.x).then_some(left))
+                        .min()
+                });
+                perpendicular
+                    .into_iter()
+                    .chain(collinear)
+                    .min()
+                    .map(|x| Point::new(x, point.y))
+            }
+            PolygonDirection::West => {
+                let perpendicular = self
+                    .vertical_by_x
+                    .range((Unbounded, Excluded(point.x)))
+                    .rev()
+                    .find_map(|(&x, intervals)| {
+                        intervals
+                            .iter()
+                            .any(|&(bottom, top)| bottom <= point.y && point.y <= top)
+                            .then_some(x)
+                    });
+                let collinear = self.horizontal_by_y.get(&point.y).and_then(|segments| {
+                    segments
+                        .iter()
+                        .filter_map(|&(_, right)| (right < point.x).then_some(right))
+                        .max()
+                });
+                perpendicular
+                    .into_iter()
+                    .chain(collinear)
+                    .max()
+                    .map(|x| Point::new(x, point.y))
+            }
+            PolygonDirection::North => {
+                let perpendicular = self
+                    .horizontal_by_y
+                    .range((Excluded(point.y), Unbounded))
+                    .find_map(|(&y, intervals)| {
+                        intervals
+                            .iter()
+                            .any(|&(left, right)| left <= point.x && point.x <= right)
+                            .then_some(y)
+                    });
+                let collinear = self.vertical_by_x.get(&point.x).and_then(|segments| {
+                    segments
+                        .iter()
+                        .filter_map(|&(bottom, _)| (bottom > point.y).then_some(bottom))
+                        .min()
+                });
+                perpendicular
+                    .into_iter()
+                    .chain(collinear)
+                    .min()
+                    .map(|y| Point::new(point.x, y))
+            }
+            PolygonDirection::South => {
+                let perpendicular = self
+                    .horizontal_by_y
+                    .range((Unbounded, Excluded(point.y)))
+                    .rev()
+                    .find_map(|(&y, intervals)| {
+                        intervals
+                            .iter()
+                            .any(|&(left, right)| left <= point.x && point.x <= right)
+                            .then_some(y)
+                    });
+                let collinear = self.vertical_by_x.get(&point.x).and_then(|segments| {
+                    segments
+                        .iter()
+                        .filter_map(|&(_, top)| (top < point.y).then_some(top))
+                        .max()
+                });
+                perpendicular
+                    .into_iter()
+                    .chain(collinear)
+                    .max()
+                    .map(|y| Point::new(point.x, y))
+            }
+        }
+    }
+}
+
+/// Incremental indexed polygon completion backend.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IndexedPolygonCompletion;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CoordinateCompressedCompletion;
@@ -139,6 +359,7 @@ impl CoordinateCompressedCompletion {
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        let started = Instant::now();
         if horizontal_chords.len() != selected_horizontal.len()
             || vertical_chords.len() != selected_vertical.len()
         {
@@ -171,7 +392,13 @@ impl CoordinateCompressedCompletion {
             .collect::<BTreeSet<_>>();
         let mut added_horizontal_cuts = Vec::new();
         let mut added_vertical_cuts = Vec::new();
-        let mut metrics = PolygonCompletionMetrics::default();
+        let selected_at = Instant::now();
+        let mut metrics = PolygonCompletionMetrics {
+            selected_cut_materialization_microseconds: selected_at
+                .duration_since(started)
+                .as_micros(),
+            ..PolygonCompletionMetrics::default()
+        };
 
         complete_polygon_axis(
             &polygon,
@@ -182,6 +409,9 @@ impl CoordinateCompressedCompletion {
             &mut added_vertical_cuts,
             &mut metrics,
         )?;
+        let horizontal_at = Instant::now();
+        metrics.horizontal_completion_microseconds =
+            horizontal_at.duration_since(selected_at).as_micros();
         complete_polygon_axis(
             &polygon,
             &mut horizontal_cuts,
@@ -191,16 +421,23 @@ impl CoordinateCompressedCompletion {
             &mut added_vertical_cuts,
             &mut metrics,
         )?;
+        let vertical_at = Instant::now();
+        metrics.vertical_completion_microseconds =
+            vertical_at.duration_since(horizontal_at).as_micros();
 
         added_horizontal_cuts = normalize_horizontal_segments(added_horizontal_cuts);
         added_vertical_cuts = normalize_vertical_segments(added_vertical_cuts);
 
         let recovery = recover_coordinate_rectangles(&polygon, &horizontal_cuts, &vertical_cuts)?;
+        let recovered_at = Instant::now();
+        metrics.rectangle_recovery_microseconds =
+            recovered_at.duration_since(vertical_at).as_micros();
         metrics.coordinate_compression_x_count = recovery.x_count;
         metrics.coordinate_compression_y_count = recovery.y_count;
         metrics.atomic_cell_count = recovery.atomic_cell_count;
         metrics.rectangle_recovery_visits = recovery.visits;
         validate_polygon_dissection(&polygon, &recovery.rectangles)?;
+        metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();
         Ok(PolygonCompletionResult {
             rectangles: recovery.rectangles,
             selected_horizontal_cuts,
@@ -898,6 +1135,470 @@ impl PolygonDirection {
     const fn is_horizontal(self) -> bool {
         matches!(self, Self::East | Self::West)
     }
+
+    const fn order(self) -> u8 {
+        match self {
+            Self::East => 0,
+            Self::North => 1,
+            Self::West => 2,
+            Self::South => 3,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct PolygonFrontierCandidate {
+    y: i64,
+    x: i64,
+    direction_order: u8,
+    generation: u64,
+    direction: PolygonDirection,
+}
+
+struct IndexedPolygonCompletionState<'a> {
+    prepared: &'a PreparedPolygonContext,
+    cuts: DynamicPolygonCutIndex,
+    candidates: BTreeSet<Point>,
+    generations: BTreeMap<Point, u64>,
+    frontier: BinaryHeap<Reverse<PolygonFrontierCandidate>>,
+}
+
+impl<'a> IndexedPolygonCompletionState<'a> {
+    fn new(
+        prepared: &'a PreparedPolygonContext,
+        selected_horizontal: &[HorizontalCutSegment],
+        selected_vertical: &[VerticalCutSegment],
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Result<Self, PolygonSgError> {
+        let mut state = Self {
+            prepared,
+            cuts: DynamicPolygonCutIndex::default(),
+            candidates: BTreeSet::new(),
+            generations: BTreeMap::new(),
+            frontier: BinaryHeap::new(),
+        };
+        for point in prepared
+            .polygon()
+            .loops()
+            .flat_map(|boundary_loop| boundary_loop.vertices.iter().copied())
+        {
+            state.insert_candidate(point, metrics);
+        }
+        for &segment in selected_horizontal {
+            let (inserted, intersections) =
+                state.cuts.insert_horizontal_with_intersections(segment);
+            if !inserted {
+                return Err(PolygonSgError::InvalidSimpleChord {
+                    start: Point::new(segment.left, segment.y),
+                });
+            }
+            state.insert_candidate(Point::new(segment.left, segment.y), metrics);
+            state.insert_candidate(Point::new(segment.right, segment.y), metrics);
+            for point in intersections {
+                metrics.completion_intersections_reported += 1;
+                state.insert_candidate(point, metrics);
+            }
+        }
+        for &segment in selected_vertical {
+            let (inserted, intersections) = state.cuts.insert_vertical_with_intersections(segment);
+            if !inserted {
+                return Err(PolygonSgError::InvalidSimpleChord {
+                    start: Point::new(segment.x, segment.bottom),
+                });
+            }
+            state.insert_candidate(Point::new(segment.x, segment.bottom), metrics);
+            state.insert_candidate(Point::new(segment.x, segment.top), metrics);
+            for point in intersections {
+                metrics.completion_intersections_reported += 1;
+                state.insert_candidate(point, metrics);
+            }
+        }
+        Ok(state)
+    }
+
+    fn insert_candidate(&mut self, point: Point, metrics: &mut PolygonCompletionMetrics) {
+        if self.candidates.insert(point) {
+            self.generations.insert(point, 0);
+            metrics.completion_candidate_insertions += 1;
+        }
+    }
+
+    fn local_quadrants(&self, point: Point) -> [bool; 4] {
+        let x = 2 * i128::from(point.x);
+        let y = 2 * i128::from(point.y);
+        [
+            self.prepared
+                .edge_index()
+                .contains_doubled_point_strict(DoubledPoint::new(x - 1, y - 1)),
+            self.prepared
+                .edge_index()
+                .contains_doubled_point_strict(DoubledPoint::new(x + 1, y - 1)),
+            self.prepared
+                .edge_index()
+                .contains_doubled_point_strict(DoubledPoint::new(x + 1, y + 1)),
+            self.prepared
+                .edge_index()
+                .contains_doubled_point_strict(DoubledPoint::new(x - 1, y + 1)),
+        ]
+    }
+
+    fn local_blocked_rays(&self, inside: [bool; 4], point: Point) -> [bool; 4] {
+        [
+            self.cuts.contains_horizontal_ray(point, true) || inside[1] != inside[2],
+            self.cuts.contains_vertical_ray(point, true) || inside[2] != inside[3],
+            self.cuts.contains_horizontal_ray(point, false) || inside[3] != inside[0],
+            self.cuts.contains_vertical_ray(point, false) || inside[0] != inside[1],
+        ]
+    }
+
+    fn candidate_valid(
+        &self,
+        point: Point,
+        direction: PolygonDirection,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> bool {
+        if direction.is_horizontal() {
+            metrics.horizontal_candidate_queries += 1;
+        } else {
+            metrics.vertical_candidate_queries += 1;
+        }
+        let inside = self.local_quadrants(point);
+        let blocked = self.local_blocked_rays(inside, point);
+        if !blocked.iter().any(|&value| value) {
+            return false;
+        }
+        let (roots, sizes) = polygon_local_angle_components(inside, blocked);
+        let (ray, first, second) = match direction {
+            PolygonDirection::East => (0, 1, 2),
+            PolygonDirection::North => (1, 2, 3),
+            PolygonDirection::West => (2, 3, 0),
+            PolygonDirection::South => (3, 0, 1),
+        };
+        inside[first]
+            && inside[second]
+            && !blocked[ray]
+            && roots[first] == roots[second]
+            && sizes[roots[first]] >= 3
+    }
+
+    fn enqueue_point(
+        &mut self,
+        point: Point,
+        horizontal: bool,
+        metrics: &mut PolygonCompletionMetrics,
+    ) {
+        let generation = self.generations.get(&point).copied().unwrap_or(0);
+        for direction in [
+            PolygonDirection::East,
+            PolygonDirection::North,
+            PolygonDirection::West,
+            PolygonDirection::South,
+        ] {
+            if direction.is_horizontal() == horizontal
+                && self.candidate_valid(point, direction, metrics)
+            {
+                self.frontier.push(Reverse(PolygonFrontierCandidate {
+                    y: point.y,
+                    x: point.x,
+                    direction_order: direction.order(),
+                    generation,
+                    direction,
+                }));
+            }
+        }
+    }
+
+    fn initialize_frontier(&mut self, horizontal: bool, metrics: &mut PolygonCompletionMetrics) {
+        self.frontier.clear();
+        let mut points = self.candidates.iter().copied().collect::<Vec<_>>();
+        points.sort_unstable_by_key(|point| (point.y, point.x));
+        for point in points {
+            self.enqueue_point(point, horizontal, metrics);
+        }
+    }
+
+    fn refresh_point(
+        &mut self,
+        point: Point,
+        horizontal: bool,
+        metrics: &mut PolygonCompletionMetrics,
+    ) {
+        self.insert_candidate(point, metrics);
+        *self.generations.entry(point).or_default() = self
+            .generations
+            .get(&point)
+            .copied()
+            .unwrap_or_default()
+            .wrapping_add(1);
+        self.enqueue_point(point, horizontal, metrics);
+    }
+
+    fn pop_candidate(
+        &mut self,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Option<PolygonFrontierCandidate> {
+        while let Some(Reverse(candidate)) = self.frontier.pop() {
+            metrics.completion_candidate_revalidations += 1;
+            let point = Point::new(candidate.x, candidate.y);
+            let generation = self.generations.get(&point).copied().unwrap_or_default();
+            if generation != candidate.generation
+                || !self.candidate_valid(point, candidate.direction, metrics)
+            {
+                metrics.completion_stale_candidates += 1;
+                continue;
+            }
+            return Some(candidate);
+        }
+        None
+    }
+
+    fn ray_stop(
+        &self,
+        point: Point,
+        direction: PolygonDirection,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Option<Point> {
+        metrics.completion_boundary_ray_queries += 1;
+        metrics.completion_cut_ray_queries += 1;
+        let boundary = self.prepared.edge_index().nearest_boundary_blocker(
+            point,
+            match direction {
+                PolygonDirection::East => rect_core::OrthogonalDirection::East,
+                PolygonDirection::North => rect_core::OrthogonalDirection::North,
+                PolygonDirection::West => rect_core::OrthogonalDirection::West,
+                PolygonDirection::South => rect_core::OrthogonalDirection::South,
+            },
+        );
+        let cut = self.cuts.nearest_blocker(point, direction);
+        match direction {
+            PolygonDirection::East => boundary.into_iter().chain(cut).min_by_key(|stop| stop.x),
+            PolygonDirection::West => boundary.into_iter().chain(cut).max_by_key(|stop| stop.x),
+            PolygonDirection::North => boundary.into_iter().chain(cut).min_by_key(|stop| stop.y),
+            PolygonDirection::South => boundary.into_iter().chain(cut).max_by_key(|stop| stop.y),
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn insert_simple_chord(
+        &mut self,
+        point: Point,
+        stop: Point,
+        direction: PolygonDirection,
+        horizontal_phase: bool,
+        added_horizontal: &mut Vec<HorizontalCutSegment>,
+        added_vertical: &mut Vec<VerticalCutSegment>,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Result<(), PolygonSgError> {
+        let mut affected = BTreeSet::from([point, stop]);
+        match direction {
+            PolygonDirection::East | PolygonDirection::West => {
+                let segment =
+                    HorizontalCutSegment::new(point.x.min(stop.x), point.x.max(stop.x), point.y)?;
+                let (inserted, intersections) =
+                    self.cuts.insert_horizontal_with_intersections(segment);
+                if !inserted {
+                    return Err(PolygonSgError::InvalidSimpleChord { start: point });
+                }
+                metrics.completion_intersections_reported += intersections.len();
+                affected.extend(intersections);
+                added_horizontal.push(segment);
+                metrics.horizontal_simple_chord_count += 1;
+            }
+            PolygonDirection::North | PolygonDirection::South => {
+                let segment =
+                    VerticalCutSegment::new(point.x, point.y.min(stop.y), point.y.max(stop.y))?;
+                let (inserted, intersections) =
+                    self.cuts.insert_vertical_with_intersections(segment);
+                if !inserted {
+                    return Err(PolygonSgError::InvalidSimpleChord { start: point });
+                }
+                metrics.completion_intersections_reported += intersections.len();
+                affected.extend(intersections);
+                added_vertical.push(segment);
+                metrics.vertical_simple_chord_count += 1;
+            }
+        }
+        for affected_point in affected {
+            self.refresh_point(affected_point, horizontal_phase, metrics);
+        }
+        Ok(())
+    }
+
+    fn complete_axis(
+        &mut self,
+        horizontal: bool,
+        added_horizontal: &mut Vec<HorizontalCutSegment>,
+        added_vertical: &mut Vec<VerticalCutSegment>,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Result<(), PolygonSgError> {
+        self.initialize_frontier(horizontal, metrics);
+        let coordinate_bound = self
+            .prepared
+            .polygon()
+            .boundary_complexity()
+            .checked_add(self.cuts.horizontal_segments().len().saturating_mul(2))
+            .and_then(|value| {
+                value.checked_add(self.cuts.vertical_segments().len().saturating_mul(2))
+            })
+            .and_then(|value| value.checked_mul(value))
+            .and_then(|value| value.checked_mul(4))
+            .ok_or(PolygonSgError::CoordinateOverflow)?;
+        for _ in 0..=coordinate_bound {
+            let Some(candidate) = self.pop_candidate(metrics) else {
+                return Ok(());
+            };
+            let point = Point::new(candidate.x, candidate.y);
+            let stop = self
+                .ray_stop(point, candidate.direction, metrics)
+                .ok_or(PolygonSgError::UnboundedSimpleChord { start: point })?;
+            self.insert_simple_chord(
+                point,
+                stop,
+                candidate.direction,
+                horizontal,
+                added_horizontal,
+                added_vertical,
+                metrics,
+            )?;
+        }
+        Err(PolygonSgError::CompletionDidNotTerminate)
+    }
+}
+
+impl IndexedPolygonCompletion {
+    /// Convenience API that prepares one polygon context internally.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid selection or completion geometry.
+    pub fn complete(
+        &self,
+        polygon: &RectilinearPolygon,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        let prepared = PreparedPolygonContext::new(polygon).map_err(|error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+            rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                PolygonSgError::BoundaryIndex(error)
+            }
+        })?;
+        self.complete_prepared(
+            &prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )
+    }
+
+    /// Completes selected chords using an incremental candidate frontier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid selection or completion geometry.
+    pub fn complete_prepared(
+        &self,
+        prepared: &PreparedPolygonContext,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        let started = Instant::now();
+        if horizontal_chords.len() != selected_horizontal.len()
+            || vertical_chords.len() != selected_vertical.len()
+        {
+            return Err(PolygonSgError::SelectionLengthMismatch);
+        }
+        let selected_horizontal_cuts = normalize_horizontal_segments(
+            horizontal_chords
+                .iter()
+                .zip(selected_horizontal)
+                .filter_map(|(&chord, &selected)| {
+                    selected.then_some(HorizontalCutSegment::from_chord(chord))
+                })
+                .collect(),
+        );
+        let selected_vertical_cuts = normalize_vertical_segments(
+            vertical_chords
+                .iter()
+                .zip(selected_vertical)
+                .filter_map(|(&chord, &selected)| {
+                    selected.then_some(VerticalCutSegment::from_chord(chord))
+                })
+                .collect(),
+        );
+        let mut metrics = PolygonCompletionMetrics::default();
+        let mut state = IndexedPolygonCompletionState::new(
+            prepared,
+            &selected_horizontal_cuts,
+            &selected_vertical_cuts,
+            &mut metrics,
+        )?;
+        let selected_at = Instant::now();
+        metrics.selected_cut_materialization_microseconds =
+            selected_at.duration_since(started).as_micros();
+        let mut added_horizontal_cuts = Vec::new();
+        let mut added_vertical_cuts = Vec::new();
+        state.complete_axis(
+            true,
+            &mut added_horizontal_cuts,
+            &mut added_vertical_cuts,
+            &mut metrics,
+        )?;
+        let horizontal_at = Instant::now();
+        metrics.horizontal_completion_microseconds =
+            horizontal_at.duration_since(selected_at).as_micros();
+        state.complete_axis(
+            false,
+            &mut added_horizontal_cuts,
+            &mut added_vertical_cuts,
+            &mut metrics,
+        )?;
+        let vertical_at = Instant::now();
+        metrics.vertical_completion_microseconds =
+            vertical_at.duration_since(horizontal_at).as_micros();
+
+        added_horizontal_cuts = normalize_horizontal_segments(added_horizontal_cuts);
+        added_vertical_cuts = normalize_vertical_segments(added_vertical_cuts);
+        let horizontal_cuts = state
+            .cuts
+            .horizontal_segments()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let vertical_cuts = state
+            .cuts
+            .vertical_segments()
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let recovery =
+            recover_coordinate_rectangles(prepared.polygon(), &horizontal_cuts, &vertical_cuts)?;
+        let recovered_at = Instant::now();
+        metrics.rectangle_recovery_microseconds =
+            recovered_at.duration_since(vertical_at).as_micros();
+        metrics.coordinate_compression_x_count = recovery.x_count;
+        metrics.coordinate_compression_y_count = recovery.y_count;
+        metrics.atomic_cell_count = recovery.atomic_cell_count;
+        metrics.rectangle_recovery_visits = recovery.visits;
+        validate_polygon_dissection(prepared.polygon(), &recovery.rectangles)?;
+        metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();
+        Ok(PolygonCompletionResult {
+            rectangles: recovery.rectangles,
+            selected_horizontal_cuts,
+            selected_vertical_cuts,
+            added_horizontal_cuts,
+            added_vertical_cuts,
+            metrics,
+        })
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        "indexed-frontier"
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -923,8 +1624,15 @@ fn complete_polygon_axis(
         else {
             return Ok(());
         };
-        let stop = find_polygon_ray_stop(polygon, horizontal_cuts, vertical_cuts, point, direction)
-            .ok_or(PolygonSgError::UnboundedSimpleChord { start: point })?;
+        let stop = find_polygon_ray_stop(
+            polygon,
+            horizontal_cuts,
+            vertical_cuts,
+            point,
+            direction,
+            metrics,
+        )
+        .ok_or(PolygonSgError::UnboundedSimpleChord { start: point })?;
         match direction {
             PolygonDirection::East | PolygonDirection::West => {
                 let segment =
@@ -956,7 +1664,8 @@ fn find_polygon_concave_ray(
     horizontal: bool,
     metrics: &mut PolygonCompletionMetrics,
 ) -> Option<(Point, PolygonDirection)> {
-    let candidates = polygon_candidate_points(polygon, horizontal_cuts, vertical_cuts);
+    metrics.completion_global_candidate_rebuilds += 1;
+    let candidates = polygon_candidate_points(polygon, horizontal_cuts, vertical_cuts, metrics);
     for point in candidates {
         let inside = polygon_local_quadrants(polygon, point);
         let blocked = polygon_local_blocked_rays(horizontal_cuts, vertical_cuts, inside, point);
@@ -995,7 +1704,8 @@ fn polygon_candidate_points(
     polygon: &RectilinearPolygon,
     horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
     vertical_cuts: &BTreeSet<VerticalCutSegment>,
-) -> BTreeSet<Point> {
+    metrics: &mut PolygonCompletionMetrics,
+) -> Vec<Point> {
     let mut points = polygon
         .loops()
         .flat_map(|boundary_loop| boundary_loop.vertices.iter().copied())
@@ -1010,6 +1720,7 @@ fn polygon_candidate_points(
     }
     for horizontal in horizontal_cuts {
         for vertical in vertical_cuts {
+            metrics.completion_cut_pair_tests += 1;
             if horizontal.left <= vertical.x
                 && vertical.x <= horizontal.right
                 && vertical.bottom <= horizontal.y
@@ -1019,6 +1730,8 @@ fn polygon_candidate_points(
             }
         }
     }
+    let mut points = points.into_iter().collect::<Vec<_>>();
+    points.sort_unstable_by_key(|point| (point.y, point.x));
     points
 }
 
@@ -1102,7 +1815,12 @@ fn find_polygon_ray_stop(
     vertical_cuts: &BTreeSet<VerticalCutSegment>,
     point: Point,
     direction: PolygonDirection,
+    metrics: &mut PolygonCompletionMetrics,
 ) -> Option<Point> {
+    metrics.completion_boundary_ray_queries += 1;
+    metrics.completion_full_boundary_scans += 1;
+    metrics.completion_cut_ray_queries += 1;
+    metrics.completion_full_cut_scans += 1;
     let mut coordinates = Vec::new();
     for boundary_loop in polygon.loops() {
         for (first, second) in boundary_loop.edges() {
@@ -1522,8 +2240,9 @@ mod tests {
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
     use super::{
-        GeneralPolygonPairwiseEnumerator, IndexedPolygonPairwiseEnumerator,
-        endpoint_has_collinear_edge, horizontal_satisfies_definition_7,
+        CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
+        HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
+        VerticalCutSegment, endpoint_has_collinear_edge, horizontal_satisfies_definition_7,
     };
 
     fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
@@ -1816,5 +2535,141 @@ mod tests {
             .unwrap();
         assert_eq!(completion.rectangles.len(), 2);
         super::validate_polygon_dissection(&polygon, &completion.rectangles).unwrap();
+    }
+
+    #[test]
+    fn indexed_completion_matches_reference_cuts_and_rectangles() {
+        let fixtures = [
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(4, 0),
+                    Point::new(4, 1),
+                    Point::new(1, 1),
+                    Point::new(1, 4),
+                    Point::new(0, 4),
+                ]),
+                vec![],
+            )
+            .unwrap(),
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(12, 0),
+                    Point::new(12, 10),
+                    Point::new(0, 10),
+                ]),
+                vec![rectangle(4, 3, 8, 7)],
+            )
+            .unwrap(),
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(8, 0),
+                    Point::new(8, 8),
+                    Point::new(5, 8),
+                    Point::new(5, 3),
+                    Point::new(3, 3),
+                    Point::new(3, 8),
+                    Point::new(0, 8),
+                ]),
+                vec![],
+            )
+            .unwrap(),
+        ];
+        for polygon in fixtures {
+            let reference = CoordinateCompressedCompletion
+                .complete(&polygon, &[], &[], &[], &[])
+                .unwrap();
+            let indexed = IndexedPolygonCompletion
+                .complete(&polygon, &[], &[], &[], &[])
+                .unwrap();
+            assert_eq!(reference.rectangles, indexed.rectangles);
+            assert_eq!(
+                reference.added_horizontal_cuts,
+                indexed.added_horizontal_cuts
+            );
+            assert_eq!(reference.added_vertical_cuts, indexed.added_vertical_cuts);
+            assert_eq!(indexed.metrics.completion_global_candidate_rebuilds, 0);
+            assert_eq!(indexed.metrics.completion_full_boundary_scans, 0);
+            assert_eq!(indexed.metrics.completion_full_cut_scans, 0);
+        }
+    }
+
+    #[test]
+    fn indexed_completion_matches_reference_on_all_3x3_polygons() {
+        let mut compared = 0;
+        for mask in 1_u16..1 << 9 {
+            let grid =
+                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = Boundary::from_component(&component).unwrap();
+                let Ok(polygon) = boundary.to_polygon() else {
+                    continue;
+                };
+                let families = GeneralPolygonPairwiseEnumerator
+                    .enumerate(&polygon)
+                    .unwrap();
+                let selected_horizontal = vec![true; families.horizontal.len()];
+                let selected_vertical = vec![false; families.vertical.len()];
+                let reference = CoordinateCompressedCompletion
+                    .complete(
+                        &polygon,
+                        &families.horizontal,
+                        &families.vertical,
+                        &selected_horizontal,
+                        &selected_vertical,
+                    )
+                    .unwrap();
+                let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+                let indexed = IndexedPolygonCompletion
+                    .complete_prepared(
+                        &prepared,
+                        &families.horizontal,
+                        &families.vertical,
+                        &selected_horizontal,
+                        &selected_vertical,
+                    )
+                    .unwrap();
+                assert_eq!(
+                    reference.selected_horizontal_cuts,
+                    indexed.selected_horizontal_cuts
+                );
+                assert_eq!(
+                    reference.selected_vertical_cuts,
+                    indexed.selected_vertical_cuts
+                );
+                assert_eq!(
+                    reference.added_horizontal_cuts,
+                    indexed.added_horizontal_cuts
+                );
+                assert_eq!(reference.added_vertical_cuts, indexed.added_vertical_cuts);
+                assert_eq!(reference.rectangles, indexed.rectangles);
+                assert_eq!(indexed.metrics.completion_global_candidate_rebuilds, 0);
+                assert_eq!(indexed.metrics.completion_full_boundary_scans, 0);
+                assert_eq!(indexed.metrics.completion_full_cut_scans, 0);
+                compared += 1;
+            }
+        }
+        assert!(compared > 100);
+    }
+
+    #[test]
+    fn dynamic_cut_index_reports_new_intersections() {
+        let horizontal = HorizontalCutSegment::new(1, 9, 5).unwrap();
+        let vertical = VerticalCutSegment::new(5, 1, 9).unwrap();
+        let mut index = DynamicPolygonCutIndex::default();
+        assert!(index.insert_horizontal_with_intersections(horizontal).0);
+        let (inserted, intersections) = index.insert_vertical_with_intersections(vertical);
+        assert!(inserted);
+        assert_eq!(intersections, vec![Point::new(5, 5)]);
+        assert!(index.contains_horizontal_ray(Point::new(2, 5), true));
+        assert!(index.contains_vertical_ray(Point::new(5, 2), true));
+        assert_eq!(index.horizontal_segments(), vec![horizontal]);
+        assert_eq!(index.vertical_segments(), vec![vertical]);
     }
 }

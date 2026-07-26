@@ -3,11 +3,12 @@
 pub mod polygon;
 
 pub use polygon::{
-    CoordinateCompressedCompletion, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    IndexedPolygonPairwiseEnumerator, PolygonChordEnumerationMetrics,
-    PolygonChordEnumerationResult, PolygonCompletionMetrics, PolygonCompletionResult,
-    PolygonSgError, PolygonValidationError, ReferencePolygonPairwiseEnumerator, VerticalCutSegment,
-    classify_clean_polygon, validate_polygon_dissection, validate_polygon_dissection_count,
+    CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
+    HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
+    PolygonChordEnumerationMetrics, PolygonChordEnumerationResult, PolygonCompletionMetrics,
+    PolygonCompletionResult, PolygonSgError, PolygonValidationError,
+    ReferencePolygonPairwiseEnumerator, VerticalCutSegment, classify_clean_polygon,
+    validate_polygon_dissection, validate_polygon_dissection_count,
 };
 
 use std::cmp::Reverse;
