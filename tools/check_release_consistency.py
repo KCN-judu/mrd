@@ -195,6 +195,44 @@ def main() -> None:
             fail(f"missing generated v0.9 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v0.9 evidence: {relative}")
+    v09_report = json.loads(
+        (ROOT / "results/v0.9-polygon-differential.json").read_text()
+    )
+    v09_release = next(
+        (release for release in releases if release.get("version") == VERSION), None
+    )
+    if v09_release is None:
+        fail("release index omits v0.9")
+    producing_commit = v09_report.get("producing_commit")
+    if producing_commit not in v09_release.get("result_commits", []):
+        fail("v0.9 polygon evidence producer is not a v0.9 result commit")
+    assert_reachable(producing_commit, head, "v0.9 polygon evidence producer")
+    extended = next(
+        (
+            population
+            for population in v09_report.get("populations", [])
+            if population.get("name")
+            == "polyomino-adversarial-complete-bipartite-random"
+        ),
+        None,
+    )
+    if extended is None or (
+        extended.get("input_count"),
+        extended.get("supported_component_count"),
+        extended.get("rejected_component_count"),
+        extended.get("disagreement_count"),
+    ) != (7529, 7276, 255, 0):
+        fail("v0.9 extended polygon differential counts are stale")
+    if v09_report.get("definition_7_focused_test_count") != 5:
+        fail("v0.9 Definition 7 focused test count is stale")
+    if v09_report.get("validator_negative_case_count") != 11:
+        fail("v0.9 validator rejection count is stale")
+    required_fixtures = {
+        "scaled-complete-bipartite.json",
+        "reflex-heavy-stretched.json",
+    }
+    if not required_fixtures.issubset(v09_report.get("native_fixtures", [])):
+        fail("v0.9 native polygon stress fixtures are missing")
     normalized_tables = paper_tables.lower()
     for required_text in (
         "strict path-tree advantages: 14",

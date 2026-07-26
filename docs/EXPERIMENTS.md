@@ -480,10 +480,10 @@ final optimum count.
 
 The v0.9 frontend accepts normalized integer-coordinate ordinary polygon loops
 without a cell set. Permanent tests cover canonical orientation/start,
-redundant collinear vertices, strict negative topology fixtures, exact
-doubled-coordinate predicates, large coordinate gaps, ordinary holes, comb and
-spiral-corridor inputs, affine symmetries, clean `Auto` path-tree dispatch, and
-4D fallback for holes.
+redundant collinear vertices, 11 strict negative validator cases, five focused
+Definition 7 predicate tests, exact doubled-coordinate predicates, large
+coordinate gaps, ordinary holes, comb and spiral-corridor inputs, affine
+symmetries, clean `Auto` path-tree dispatch, and 4D fallback for holes.
 
 The grid/polygon end-to-end differential compares complete chord families,
 minimum-cover selections, selected and added cut unions, optimum values, and
@@ -494,11 +494,14 @@ whose boundaries contain point contact or another rejected formal degeneracy
 remain outside the v0.9 ordinary-polygon population.
 
 The extended release-mode population adds every free polyomino through ten
-cells, the stored adversarial corpus, complete-bipartite `t=1..4`, and 1,000
-deterministic connected random regions. It covers 7,484 inputs and 7,230
-supported polygon components, with 254 explicit ordinary-model rejections and
-zero differences. Its `Auto` representation selected the clean polygon
-path-tree for 3,119 components and fell back to exact 4D for 4,111 components.
+cells, endpoint-contact and topological stress fixtures, the external-Oracle
+adversarial corpus, path-tree geometry families through parameter 12, stored
+and generated mixed-branching witnesses, dense-conflict grids, complete-
+bipartite `t=1..4`, and 1,000 deterministic connected random regions. It covers
+7,529 inputs and 7,276 supported polygon components, with 255 explicit ordinary-
+model rejections and zero differences. Its `Auto` representation selected the
+clean polygon path-tree for 3,153 components and fell back to exact 4D for 4,123
+components.
 
 The isolated OR-Tools CP-SAT rerun covers 6,998 bounded grid inputs and 27,228
 components across all binary `3x3` grids, free polyominoes through ten cells,
@@ -506,11 +509,15 @@ and 13 exported adversarial fixtures. Every CP-SAT, exact-cover, and Rust
 comparison agrees; the disagreement count is zero.
 
 The native fixture corpus includes nonuniform coordinate spacing, a
-one-billion-unit coordinate gap, two ordinary holes, a comb, and a spiral
-corridor. The large-gap rectangle creates exactly two x coordinates, two y
-coordinates, and one atomic arrangement cell. The bounded raster Oracle rejects
-that fixture at its width limit before allocating cells; production diagnostics
-record `raster_oracle_used=false`.
+one-billion-unit coordinate gap, two ordinary holes, a comb, a spiral corridor,
+a nonuniformly scaled complete-bipartite conflict family, and a stretched
+reflex-heavy boundary. The complete-bipartite fixture has four horizontal and
+four vertical chords, every cross pair intersects, and `Auto` selects path-tree.
+The stretched fixture exercises at least eight reflex vertices and ten compressed
+x coordinates. The large-gap rectangle creates exactly two x coordinates, two
+y coordinates, and one atomic arrangement cell. The bounded raster Oracle
+rejects that fixture at its width limit before allocating cells; production
+diagnostics record `raster_oracle_used=false`.
 
 These results do not claim ornaments, point/segment holes, a general
 Soltan--Gorpinevich sweep, general `O(n log n)` completion, or an almost-linear

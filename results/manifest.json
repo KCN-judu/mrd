@@ -2,13 +2,13 @@
   "schema_version": 3,
   "runs": [
     {
-      "git_commit": "c5a088cd41f085d1176b767d4799430ef7436588",
+      "git_commit": "be84fcec66899379dd9780dd21104a53e08159f8",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "cargo test -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_3x3_components; cargo test --release -p rect-dominance grid_polygon_end_to_end_matches_on_all_supported_4x4_components -- --ignored; cargo test --release -p rect-verify extended_grid_polygon_differential_populations_match -- --ignored",
       "seed": 0,
-      "timestamp": 1785059317,
-      "input_count": 73530,
-      "component_count": 174566,
+      "timestamp": 1785062518,
+      "input_count": 73575,
+      "component_count": 174613,
       "input_model": "boundary-native-ordinary-rectilinear-polygon-differential",
       "unsupported_input_features": [
         "ornaments",
@@ -20,10 +20,13 @@
         "disconnected-outer-components"
       ],
       "disagreement_count": 0,
-      "verified_supported_component_count": 174312,
-      "rejected_grid_derived_components": 254,
-      "extended_path_tree_component_count": 3119,
-      "extended_four_d_fallback_component_count": 4111
+      "verified_supported_component_count": 174358,
+      "rejected_grid_derived_components": 255,
+      "extended_path_tree_component_count": 3153,
+      "extended_four_d_fallback_component_count": 4123,
+      "validator_negative_case_count": 11,
+      "definition_7_focused_test_count": 5,
+      "native_polygon_fixture_count": 7
     },
     {
       "git_commit": "39003dba91398d856c29129f599da84978240811",
@@ -812,7 +815,8 @@
         "57bc9cba84df3b7823ad3e9ef3d74aeb362a83c5",
         "6f51a2d282e66c5eccf9fc38c0a184fa44678afa",
         "c5a088cd41f085d1176b767d4799430ef7436588",
-        "39003dba91398d856c29129f599da84978240811"
+        "39003dba91398d856c29129f599da84978240811",
+        "be84fcec66899379dd9780dd21104a53e08159f8"
       ]
     }
   ],

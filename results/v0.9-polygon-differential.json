@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "milestone": "v0.9.0-boundary-native-polygon-frontend",
-  "producing_commit": "c5a088cd41f085d1176b767d4799430ef7436588",
+  "producing_commit": "be84fcec66899379dd9780dd21104a53e08159f8",
   "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
   "normative_sources": [
     {
@@ -45,13 +45,25 @@
     },
     {
       "name": "polyomino-adversarial-complete-bipartite-random",
-      "input_count": 7484,
-      "supported_component_count": 7230,
-      "rejected_component_count": 254,
+      "input_count": 7529,
+      "supported_component_count": 7276,
+      "rejected_component_count": 255,
       "disagreement_count": 0,
       "profile": "release",
       "command": "cargo test --release -p rect-verify extended_grid_polygon_differential_populations_match -- --ignored"
     }
+  ],
+  "extended_population_families": [
+    "free-polyominoes-through-10-cells",
+    "endpoint-contact-fixtures",
+    "topological-stress-fixtures",
+    "external-oracle-adversarial-fixtures",
+    "path-tree-geometry-families-through-12",
+    "stored-mixed-branching-witnesses",
+    "mixed-branching-connected-sums-through-6",
+    "dense-conflict-4x5-8x8-32x32",
+    "clean-complete-bipartite-t1-t4",
+    "1000-seeded-connected-regions"
   ],
   "external_cp_sat": {
     "input_count": 6998,
@@ -73,17 +85,32 @@
     "native grid and polygon validators"
   ],
   "normalization_variant_count": 8,
-  "validator_negative_case_count": 4,
+  "validator_negative_case_count": 11,
+  "definition_7_focused_test_count": 5,
   "native_fixtures": [
     "nonuniform-l.json",
     "large-gap.json",
     "two-holes.json",
     "comb.json",
-    "spiral-corridor.json"
+    "spiral-corridor.json",
+    "scaled-complete-bipartite.json",
+    "reflex-heavy-stretched.json"
   ],
+  "native_fixture_assertions": {
+    "scaled-complete-bipartite.json": {
+      "horizontal_chord_count": 4,
+      "vertical_chord_count": 4,
+      "all_cross_pairs_intersect": true,
+      "auto_conflict_representation": "path-tree"
+    },
+    "reflex-heavy-stretched.json": {
+      "minimum_reflex_vertex_count": 8,
+      "minimum_coordinate_compression_x_count": 10
+    }
+  },
   "ordinary_hole_fixture_count": 3,
-  "clean_path_tree_case_count": 3119,
-  "four_d_fallback_case_count": 4111,
+  "clean_path_tree_case_count": 3153,
+  "four_d_fallback_case_count": 4123,
   "large_gap_coordinate_compression": {
     "coordinate_span": 1000000000,
     "x_count": 2,

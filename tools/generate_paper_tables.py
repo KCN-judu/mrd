@@ -460,6 +460,9 @@ def v09_evidence_sections(output_dir: Path) -> list[str]:
     total_rejected = sum(row["rejected_components"] for row in rows)
     total_disagreements = sum(row["disagreements"] for row in rows)
     fixtures = ", ".join(f"`{name}`" for name in report["native_fixtures"])
+    extended_families = ", ".join(
+        f"`{name}`" for name in report["extended_population_families"]
+    )
     large_gap = report["large_gap_coordinate_compression"]
     external = report["external_cp_sat"]
     return [
@@ -469,6 +472,8 @@ def v09_evidence_sections(output_dir: Path) -> list[str]:
         "",
         f"The committed populations cover {total_supported:,} supported ordinary components, {total_rejected:,} explicitly rejected grid-derived degeneracies, and {total_disagreements} chord/selection/cut/rectangle disagreements.",
         f"The extended population records {report['clean_path_tree_case_count']:,} clean polygon `Auto` path-tree selections and {report['four_d_fallback_case_count']:,} exact 4D fallbacks.",
+        f"Extended families: {extended_families}.",
+        f"Focused semantic coverage contains {report['definition_7_focused_test_count']} Definition 7 tests and {report['validator_negative_case_count']} validator rejection cases.",
         f"The isolated CP-SAT rerun compares {external['component_count']:,} components with {external['disagreement_component_count']} disagreements.",
         f"Native nonuniform-coordinate fixtures: {fixtures}.",
         f"The one-billion-unit large-gap fixture uses {large_gap['x_count']} x coordinates, {large_gap['y_count']} y coordinates, and {large_gap['atomic_cell_count']} atomic arrangement cell; production raster use is `{str(report['raster_oracle_used']).lower()}`.",
