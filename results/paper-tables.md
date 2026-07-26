@@ -160,6 +160,17 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "240ac1b",
       "6b11acdcb3d18145e4a560df7957234975a9dd6d"
     ]
+  },
+  {
+    "version": "1.1.0",
+    "tag": "v1.1.0-soltan-gorpinevich-sweep",
+    "peeled_commit": "PENDING",
+    "evidence": "ordinary-polygon Soltan--Gorpinevich sweep, three-backend exact chord differential, bounded certificates, candidate-gap scaling, and retained pairwise Oracles",
+    "result_commits": [
+      "3167f7f",
+      "e76cc32",
+      "f7dc7c3"
+    ]
   }
 ]
 ```
@@ -195,7 +206,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | ordinary holes | supported | supported for grid-cell regions and boundary-native polygons | yes | rings, separated holes, and native two-hole fixture |
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
-| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; IndexedPolygonPairwiseEnumerator over aligned reflex groups for polygons | exact reference differential | O(n log n + C polylog n + Z)-style indexed pairwise path; no full general-polygon sweep claim |
+| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons | three-backend exact family differential | ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported |
 | polygon completion | horizontal then vertical simple chords | incremental IndexedPolygonCompletion with shared prepared arrangement | exact cut and rectangle differential | no full classical O(n log n) completion claim |
 | polygon structural validation | ordinary rectilinear domain | OrthogonalSweepValidator with quadratic Oracle | accepted and negative-category differential | deterministic integer event ordering |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
@@ -353,3 +364,24 @@ The polygon-native A-H scaling campaign contains 40 verified rows, 0 solver erro
 
 Indexed production rows record zero Definition 7 full-boundary scans, zero global completion candidate rebuilds, zero completion full-boundary/full-cut scans, and zero rectangle-per-cell validator tests.
 Owned allocation values are exact estimates of Rust-owned vectors and indexes, not process peak RSS.
+
+## v1.1 Soltan--Gorpinevich sweep evidence
+
+| population | inputs | components | supported | verified | disagreements |
+| --- | --- | --- | --- | --- | --- |
+| grid-derived-3 | 511 | 897 | 893 | 893 | 0 |
+| grid-derived-4 | 65535 | 168529 | 166189 | 166189 | 0 |
+| extended-polygon-backends | 7689 | 7691 | 7426 | 7426 | 0 |
+| polygon-native-fixtures-a-through-h | 40 | 40 | 40 | 40 | 0 |
+
+The negative campaign contains 13 cases with 0 category disagreements.
+Every differential comparison includes complete chord families, endpoint metadata, clean certificates, flow/cut evidence, and canonical rectangles.
+
+### Candidate-gap rows at size 16
+
+| family | n | holes | r | C | q | C/max(1,q) | reference pairs | indexed pairs | sweep events | sweep status ops | sweep outputs | three-backend equal |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| B | 260 | 0 | 128 | 2048 | 124 | 2048/124 | 8128 | 2048 | 776 | 776 | 124 | True |
+| C | 68 | 16 | 64 | 1024 | 30 | 1024/30 | 2016 | 1024 | 264 | 264 | 30 | True |
+
+Sweep rows report zero aligned-pair iterations, all-pair iterations, Definition 7 fallback checks, full-boundary scans, and duplicate output records. Owned allocation values are Rust-owned estimates, not peak RSS.

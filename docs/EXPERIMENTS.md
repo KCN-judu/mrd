@@ -549,3 +549,41 @@ The committed sources are `results/v1.0-polygon-differential-3x3.json`,
 `results/v1.0-polygon-native-fixtures.json`, and
 `results/v1.0-polygon-scaling.csv`. Numerical paper tables are generated from
 these files.
+
+## v1.1 Soltan--Gorpinevich ordinary-polygon sweep evidence
+
+The v1.1 release evidence compares the reference pairwise, indexed pairwise,
+and axis-generic `sg-sweep` backends structurally. Every comparison checks
+normalized boundaries, reflex vertices, complete horizontal and vertical chord
+families, endpoint metadata, clean certificates, matching/flow evidence,
+selected and added cuts, canonical rectangles, and exact validators. The
+CompactOnly polygon default is `sg-sweep`; FullyAudited still constructs and
+compares all three chord families.
+
+| Population | Supported components | Verified | Disagreements |
+| --- | ---: | ---: | ---: |
+| binary 3 x 3 grid-derived polygons | 893 | 893 | 0 |
+| binary 4 x 4 grid-derived polygons | 166,189 | 166,189 | 0 |
+| extended polyomino/hole/adversarial/random/native/metamorphic corpus | 7,426 | 7,426 | 0 |
+| native fixture corpus | 40 | 40 | 0 |
+
+The separate 13-case negative campaign records zero validator-category
+disagreements. The bounded event certificates and diagnostics record zero
+aligned-pair iterations, all-pair iterations, Definition 7 fallback checks,
+full-boundary scans, and duplicate outputs for every sweep result.
+
+The size-16 bidirectional candidate-gap family B has `n=260`, `r=128`,
+`C=2,048`, and `q=124`; it records 8,128 reference pair iterations, 2,048
+indexed aligned-pair iterations, and 776 sweep event/status operations. The
+ordinary-hole family C has `n=68`, 16 holes, `r=64`, `C=1,024`, and `q=30`;
+it records 2,016 reference pair iterations, 1,024 indexed iterations, and 264
+sweep event/status operations. All 40 scaling rows at sizes `1,2,4,8,16`
+have exact three-backend chord, cut, and rectangle equality.
+
+The committed evidence is `results/v1.1-polygon-differential-3x3.json`,
+`results/v1.1-polygon-differential-4x4.json`,
+`results/v1.1-polygon-backend-differential.json`,
+`results/v1.1-polygon-negative.json`,
+`results/v1.1-polygon-native-fixtures.json`, and
+`results/v1.1-polygon-scaling.csv`. `results/paper-tables.md` is generated
+from these machine-readable reports; it preserves all v1.0 evidence unchanged.

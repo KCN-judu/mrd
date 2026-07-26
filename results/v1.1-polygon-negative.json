@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "git_commit": "0a3d512636a30cc8a9ee725898b0bfbc403609f0",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite polygon-negative --output results/v1.1-polygon-negative.json",
+    "seed": null,
+    "timestamp": 1785086881,
+    "input_count": 13,
+    "component_count": 13,
+    "input_model": "invalid-rectilinear-polygons",
+    "unsupported_input_features": [
+      "ornaments",
+      "point-holes",
+      "segment-holes",
+      "degenerate-formal-holes",
+      "disconnected-outer-components"
+    ]
+  },
+  "input_population": "deterministic-invalid-polygon-categories",
+  "records": [
+    {
+      "name": "non-axis-aligned",
+      "reference_category": "NonAxisAligned",
+      "indexed_category": "NonAxisAligned",
+      "deterministic_match": true
+    },
+    {
+      "name": "zero-length",
+      "reference_category": "ZeroLength",
+      "indexed_category": "ZeroLength",
+      "deterministic_match": true
+    },
+    {
+      "name": "too-few-vertices",
+      "reference_category": "TooFewVertices",
+      "indexed_category": "TooFewVertices",
+      "deterministic_match": true
+    },
+    {
+      "name": "self-intersection",
+      "reference_category": "SelfIntersection",
+      "indexed_category": "SelfIntersection",
+      "deterministic_match": true
+    },
+    {
+      "name": "hole-outside",
+      "reference_category": "HoleOutsideOuter",
+      "indexed_category": "HoleOutsideOuter",
+      "deterministic_match": true
+    },
+    {
+      "name": "hole-contact",
+      "reference_category": "HoleIntersection",
+      "indexed_category": "HoleIntersection",
+      "deterministic_match": true
+    },
+    {
+      "name": "hole-intersection",
+      "reference_category": "HoleIntersection",
+      "indexed_category": "HoleIntersection",
+      "deterministic_match": true
+    },
+    {
+      "name": "nested-hole",
+      "reference_category": "NestedHole",
+      "indexed_category": "NestedHole",
+      "deterministic_match": true
+    },
+    {
+      "name": "wrong-orientation",
+      "reference_category": "Accepted",
+      "indexed_category": "Accepted",
+      "deterministic_match": true
+    },
+    {
+      "name": "rectangles-non-positive",
+      "reference_category": "non-positive-rectangle",
+      "indexed_category": "non-positive-rectangle",
+      "deterministic_match": true
+    },
+    {
+      "name": "rectangles-area-mismatch",
+      "reference_category": "area-mismatch",
+      "indexed_category": "area-mismatch",
+      "deterministic_match": true
+    },
+    {
+      "name": "rectangles-outside",
+      "reference_category": "outside-polygon",
+      "indexed_category": "outside-polygon",
+      "deterministic_match": true
+    },
+    {
+      "name": "rectangles-overlap",
+      "reference_category": "overlap",
+      "indexed_category": "overlap",
+      "deterministic_match": true
+    }
+  ],
+  "disagreements": 0,
+  "solver_errors": 0,
+  "minimized_counterexamples": []
+}
