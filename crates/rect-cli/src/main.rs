@@ -1207,7 +1207,7 @@ fn solve_command(
                     chord_backend: polygon_chords
                         .map_or(PolygonChordBackend::IndexedPairwise, polygon_chords_kind),
                     completion_backend: polygon_completion.map_or(
-                        PolygonCompletionBackend::CoordinateReference,
+                        PolygonCompletionBackend::IndexedFrontier,
                         polygon_completion_kind,
                     ),
                     arrangement_backend: polygon_arrangement.map_or(

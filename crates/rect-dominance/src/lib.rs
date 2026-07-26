@@ -118,8 +118,8 @@ impl PolygonChordBackend {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PolygonCompletionBackend {
-    #[default]
     CoordinateReference,
+    #[default]
     IndexedFrontier,
 }
 
@@ -169,7 +169,7 @@ impl Default for PolygonSolveOptions {
             geometry_backend: PolygonGeometryBackend::Indexed,
             validation_backend: PolygonValidationBackend::OrthogonalSweep,
             chord_backend: PolygonChordBackend::IndexedPairwise,
-            completion_backend: PolygonCompletionBackend::CoordinateReference,
+            completion_backend: PolygonCompletionBackend::IndexedFrontier,
             arrangement_backend: PolygonArrangementBackend::Reference,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
         }
