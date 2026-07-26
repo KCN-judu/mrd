@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::EffectiveChordFamilies;
+use crate::polygon_arrangement::PreparedCoordinateArrangement;
 use crate::{
     ChordRef, CleanHoleFreeCertificate, CleanRejectionReason, EffectiveChordEndpointIndex,
 };
@@ -123,6 +124,11 @@ pub struct PolygonCompletionMetrics {
     pub completion_cut_ray_queries: usize,
     pub completion_full_boundary_scans: usize,
     pub completion_full_cut_scans: usize,
+    pub arrangement_point_location_queries: usize,
+    pub arrangement_boundary_edge_visits: usize,
+    pub arrangement_span_writes: usize,
+    pub polygon_validator_rectangle_cell_tests: usize,
+    pub arrangement_owned_bytes: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1574,19 +1580,27 @@ impl IndexedPolygonCompletion {
             .vertical_segments()
             .into_iter()
             .collect::<BTreeSet<_>>();
-        let recovery =
-            recover_coordinate_rectangles(prepared.polygon(), &horizontal_cuts, &vertical_cuts)?;
+        let mut arrangement =
+            PreparedCoordinateArrangement::new(prepared, &horizontal_cuts, &vertical_cuts)?;
+        let rectangles = arrangement.recover_rectangles()?;
         let recovered_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             recovered_at.duration_since(vertical_at).as_micros();
-        metrics.coordinate_compression_x_count = recovery.x_count;
-        metrics.coordinate_compression_y_count = recovery.y_count;
-        metrics.atomic_cell_count = recovery.atomic_cell_count;
-        metrics.rectangle_recovery_visits = recovery.visits;
-        validate_polygon_dissection(prepared.polygon(), &recovery.rectangles)?;
+        metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
+        metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
+        metrics.atomic_cell_count = arrangement.metrics().arrangement_atomic_cells;
+        metrics.rectangle_recovery_visits =
+            arrangement.metrics().arrangement_rectangle_recovery_visits;
+        metrics.arrangement_point_location_queries =
+            arrangement.metrics().arrangement_point_location_queries;
+        metrics.arrangement_boundary_edge_visits =
+            arrangement.metrics().arrangement_boundary_edge_visits;
+        metrics.arrangement_span_writes = arrangement.metrics().arrangement_span_writes;
+        metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
+        arrangement.validate_rectangles(prepared.polygon(), &rectangles)?;
         metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();
         Ok(PolygonCompletionResult {
-            rectangles: recovery.rectangles,
+            rectangles,
             selected_horizontal_cuts,
             selected_vertical_cuts,
             added_horizontal_cuts,
@@ -2233,10 +2247,13 @@ pub enum PolygonSgError {
 #[cfg(test)]
 mod tests {
     use rect_core::{
-        Boundary, BoundaryIndex, ColorGrid, OrthogonalLoop, Point, PreparedPolygonContext,
-        RectilinearPolygon,
+        Boundary, BoundaryIndex, ColorGrid, CoordinateRect, OrthogonalLoop, Point,
+        PreparedPolygonContext, RectilinearPolygon,
     };
 
+    use crate::polygon_arrangement::{
+        IndexedArrangementValidator, PreparedCoordinateArrangement, ReferenceArrangementValidator,
+    };
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
     use super::{
@@ -2671,5 +2688,54 @@ mod tests {
         assert!(index.contains_vertical_ray(Point::new(5, 2), true));
         assert_eq!(index.horizontal_segments(), vec![horizontal]);
         assert_eq!(index.vertical_segments(), vec![vertical]);
+    }
+
+    #[test]
+    fn arrangement_validators_match_on_valid_and_invalid_rectangles() {
+        let polygon = RectilinearPolygon::new(rectangle(0, 0, 4, 4), vec![]).unwrap();
+        let horizontal_cuts = std::collections::BTreeSet::from([
+            HorizontalCutSegment {
+                left: 0,
+                right: 4,
+                y: 2,
+            },
+            HorizontalCutSegment {
+                left: 0,
+                right: 4,
+                y: 3,
+            },
+        ]);
+        let vertical_cuts = std::collections::BTreeSet::from([VerticalCutSegment {
+            x: 2,
+            bottom: 0,
+            top: 4,
+        }]);
+        let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+        let arrangement =
+            PreparedCoordinateArrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)
+                .unwrap();
+        let valid = vec![CoordinateRect::new(0, 0, 4, 4).unwrap()];
+        assert!(
+            ReferenceArrangementValidator
+                .validate(&polygon, &valid)
+                .is_ok()
+        );
+        assert!(
+            IndexedArrangementValidator
+                .validate(&arrangement, &polygon, &valid)
+                .is_ok()
+        );
+
+        let overlap = vec![
+            CoordinateRect::new(0, 0, 4, 3).unwrap(),
+            CoordinateRect::new(0, 2, 2, 4).unwrap(),
+        ];
+        let reference = ReferenceArrangementValidator
+            .validate(&polygon, &overlap)
+            .unwrap_err();
+        let indexed = IndexedArrangementValidator
+            .validate(&arrangement, &polygon, &overlap)
+            .unwrap_err();
+        assert_eq!(reference, indexed);
     }
 }

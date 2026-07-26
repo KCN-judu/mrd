@@ -445,6 +445,14 @@ impl OrthogonalEdgeIndex {
             .report_closed_key_range(doubled_x, bottom, top)
     }
 
+    /// Reports all vertical edges active at a doubled scanline under the
+    /// point-location half-open `[bottom, top)` convention.
+    #[must_use]
+    pub fn active_vertical_edge_ids(&self, doubled_y: i128) -> Vec<usize> {
+        self.vertical_half_open
+            .report_keys_right_of(doubled_y, i128::MIN)
+    }
+
     #[must_use]
     pub fn point_on_boundary(&self, point: DoubledPoint) -> bool {
         if point.y % 2 == 0 {

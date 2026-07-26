@@ -1,6 +1,7 @@
 //! Explicit Soltan--Gorpinevich oracle for ordinary grid-cell polygons.
 
 pub mod polygon;
+pub mod polygon_arrangement;
 
 pub use polygon::{
     CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
@@ -9,6 +10,10 @@ pub use polygon::{
     PolygonCompletionResult, PolygonSgError, PolygonValidationError,
     ReferencePolygonPairwiseEnumerator, VerticalCutSegment, classify_clean_polygon,
     validate_polygon_dissection, validate_polygon_dissection_count,
+};
+pub use polygon_arrangement::{
+    ArrangementMetrics, IndexedArrangementValidator, PreparedCoordinateArrangement,
+    ReferenceArrangementValidator,
 };
 
 use std::cmp::Reverse;
