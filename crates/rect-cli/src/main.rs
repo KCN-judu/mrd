@@ -1199,9 +1199,9 @@ fn solve_command(
                         _ => unreachable!("polygon solver was checked above"),
                     },
                     geometry_backend: polygon_geometry
-                        .map_or(PolygonGeometryBackend::ReferenceScan, polygon_geometry_kind),
+                        .map_or(PolygonGeometryBackend::Indexed, polygon_geometry_kind),
                     validation_backend: polygon_validator.map_or(
-                        PolygonValidationBackend::ReferenceQuadratic,
+                        PolygonValidationBackend::OrthogonalSweep,
                         polygon_validator_kind,
                     ),
                     chord_backend: polygon_chords

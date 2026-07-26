@@ -166,8 +166,8 @@ impl Default for PolygonSolveOptions {
     fn default() -> Self {
         Self {
             verification_mode: VerificationMode::CompactOnly,
-            geometry_backend: PolygonGeometryBackend::ReferenceScan,
-            validation_backend: PolygonValidationBackend::ReferenceQuadratic,
+            geometry_backend: PolygonGeometryBackend::Indexed,
+            validation_backend: PolygonValidationBackend::OrthogonalSweep,
             chord_backend: PolygonChordBackend::ReferencePairwise,
             completion_backend: PolygonCompletionBackend::CoordinateReference,
             arrangement_backend: PolygonArrangementBackend::Reference,
@@ -239,18 +239,6 @@ pub fn solve_polygon_with_options(
     options: PolygonSolveOptions,
 ) -> Result<PolygonDissectionResult, DominanceError> {
     let started = Instant::now();
-    if matches!(
-        (options.geometry_backend, options.chord_backend),
-        (
-            PolygonGeometryBackend::ReferenceScan,
-            PolygonChordBackend::IndexedPairwise
-        ) | (
-            PolygonGeometryBackend::Indexed,
-            PolygonChordBackend::ReferencePairwise
-        )
-    ) {
-        return Err(DominanceError::PolygonGeometryChordMismatch);
-    }
     let prepared = PreparedPolygonContext::new_with_validator(polygon, options.validation_backend)?;
     let polygon = prepared.polygon();
     let boundary = prepared.boundary();
