@@ -117,6 +117,26 @@ The purpose of `U` is certificate recovery: an integral minimum cut of value at
 most `U - 1` cannot cut an internal arc, so its outer arcs directly encode a
 minimum vertex cover.
 
+## Solver D: boundary-native ordinary polygons
+
+`rect-core::polygon` normalizes one outer orthogonal loop and ordinary hole
+loops with exact `i128` signed area, then performs an explicit `O(n^2)` segment
+audit. `Boundary::from_polygon` produces the same compact loop/reflex/index
+semantics used by the grid pipeline without expanding long edges into units.
+
+`GeneralPolygonPairwiseEnumerator` considers aligned reflex pairs and checks all
+four Soltan--Gorpinevich Definition 7 conditions with exact boundary
+intersections and doubled-coordinate interior probes. The resulting chord
+families feed the unchanged 4D embedding, Theorem 8 partition, compressed flow,
+and minimum-cut cover. Clean hole-free polygons may use the boundary-laminar
+path-tree partition; `Auto` falls back to 4D otherwise.
+
+`CoordinateCompressedCompletion` inserts selected chords, then horizontal and
+vertical simple chords, and flood-fills atomic coordinate rectangles. The
+polygon validator independently checks positive area, containment, holes,
+interior disjointness, exact union, total area, and the declared rectangle
+count. No production polygon stage rasterizes by coordinate magnitude.
+
 ## Acceptance matrix
 
 | Requirement | Evidence | Acceptance |
@@ -129,6 +149,10 @@ minimum vertex cover.
 | C0 flow reduction is correct | graph unit test and differential suite | Dinic value equals Hopcroft--Karp |
 | C1 is a partition, not only a cover | `verify_exact_partition` | every edge has multiplicity exactly one |
 | Geometric output is valid | solver-independent validator | positive rectangles cover each component cell exactly once |
+| Polygon normalization is canonical | normalization and metamorphic tests | orientation/start/collinear variants normalize identically |
+| General polygon chords satisfy Definition 7 | exact four-condition predicate and grid differential | complete horizontal/vertical families match on supported grid-derived polygons |
+| Polygon completion is coordinate native | cut and rectangle differential | selected/added cut unions and rectangles equal the grid Oracle |
+| Polygon rectangles form an exact dissection | coordinate-compressed validator | no outside coverage, holes, overlap, or uncovered interior |
 
 ## Paper-to-code traceability
 
@@ -140,6 +164,11 @@ biclique vertex occurrences.
 | Paper theorem or construction | Source module | Main public function | Runtime used in implementation | Theoretical runtime from paper | Correctness test | Independent oracle | Known limitations |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Colored component extraction | `rect-core::grid` | `ColorGrid::four_connected_components` | `O(N)` flood fill | Input-adapter step, not the paper bottleneck | corner contact splits | Python oracle connectivity | finite grids only |
+| Ordinary polygon input adapter | `rect-core::polygon`, `rect-core::boundary` | `RectilinearPolygon::new`, `Boundary::from_polygon` | normalization plus explicit `O(n^2)` validation | input-model step | normalization, negative topology, and metamorphic suites | grid boundary conversion | no ornaments or degenerate holes |
+| Exact polygon interior predicates | `rect-core::polygon` | `contains_doubled_point_strict` and open-segment predicates | `O(n)` per query | predicate layer | large-gap, hole, boundary, and grid comparisons | bounded raster Oracle | integer coordinates only |
+| General polygon effective chords | `rect-oracle-sg::polygon` | `GeneralPolygonPairwiseEnumerator::enumerate` | exact pairwise reference, `O(r^2 n)` | general SG sweep is `O(n log n)` | exact 3x3/4x4 chord-family differential | grid-run and grid pairwise enumerators | no fast general sweep claim |
+| Coordinate-compressed polygon completion | `rect-oracle-sg::polygon` | `CoordinateCompressedCompletion::complete` | arrangement-sensitive `O(|X||Y|)` recovery | general linear/log-linear construction in source model | exact selected/added cuts and rectangles | indexed grid completion | no general completion bound claim |
+| Polygon dissection validation | `rect-oracle-sg::polygon` | `validate_polygon_dissection_count` | coordinate-compressed exact audit | verification layer | holes, overlap, outside, area, and native fixtures | bounded raster and grid validators | ordinary polygons only |
 | Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `PreparedComponentContext`, `GridInteriorRunEnumerator::enumerate_prepared` | one component-local preparation plus output-sensitive prepared-run enumeration; pairwise reference retained | `O(n log n)` enumeration in Soltan--Gorpinevich | exact chord-family equality on exhaustive, polyomino, hole, adversarial, dense, and random populations | `ReferencePairwiseEnumerator` | no ornaments, degenerate formal holes, or general polygon sweep |
 | Closed horizontal/vertical chord intersection | `rect-core::geometry` | `closed_chords_intersect` | `O(1)` integer comparisons | `O(1)` predicate | every endpoint case and signed exhaustive segment range | independently coded strict dominance | closed chords; endpoint contact conflicts |
 | Endpoint-preserving 4D parity embedding | `rect-dominance::embedding` | `DominanceEmbedding::new`, `assert_pairwise_equivalence` | `O(q log q)` construction; FullyAudited adds `O(h*v)` pairwise audit | rank embedding plus dominance reporting | endpoint and metamorphic suites | closed geometric predicate | pairwise audit is excluded from CompactOnly |

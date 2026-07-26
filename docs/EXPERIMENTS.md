@@ -475,3 +475,31 @@ retained row has sigma 6 versus 8, with 12 versus 14 network arcs and owned
 estimates 4,176 versus 7,548 bytes. Every retained comparison has equal optimum
 and canonical rectangles; the search objective is the sigma ratio, not the
 final optimum count.
+
+## v0.9 boundary-native ordinary polygon evidence
+
+The v0.9 frontend accepts normalized integer-coordinate ordinary polygon loops
+without a cell set. Permanent tests cover canonical orientation/start,
+redundant collinear vertices, strict negative topology fixtures, exact
+doubled-coordinate predicates, large coordinate gaps, ordinary holes, comb and
+spiral-corridor inputs, affine symmetries, clean `Auto` path-tree dispatch, and
+4D fallback for holes.
+
+The grid/polygon end-to-end differential compares complete chord families,
+minimum-cover selections, selected and added cut unions, optimum values, and
+canonical rectangles. The default all-mask `3x3` gate covers 893 supported
+ordinary components. The release-mode all-mask `4x4` gate covers 166,189
+supported ordinary components. Both report zero disagreements. Grid components
+whose boundaries contain point contact or another rejected formal degeneracy
+remain outside the v0.9 ordinary-polygon population.
+
+The native fixture corpus includes nonuniform coordinate spacing, a
+one-billion-unit coordinate gap, two ordinary holes, a comb, and a spiral
+corridor. The large-gap rectangle creates exactly two x coordinates, two y
+coordinates, and one atomic arrangement cell. The bounded raster Oracle rejects
+that fixture at its width limit before allocating cells; production diagnostics
+record `raster_oracle_used=false`.
+
+These results do not claim ornaments, point/segment holes, a general
+Soltan--Gorpinevich sweep, general `O(n log n)` completion, or an almost-linear
+flow backend.

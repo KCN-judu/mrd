@@ -1,7 +1,8 @@
 # Exact minimum rectangular dissection verifier
 
 This Rust 2024 workspace implements independent exact solvers for minimum
-monochromatic rectangular partitions of finite colored grids:
+rectangular partitions of finite colored grids and ordinary integer-coordinate
+rectilinear polygons:
 
 - `exact-cover`: a bitset branch-and-bound Algorithm X oracle;
 - `sg-explicit`: explicit effective chords, Hopcroft--Karp, Konig cover recovery,
@@ -20,14 +21,15 @@ monochromatic rectangular partitions of finite colored grids:
   `bound-estimate` selector remains an explicit heuristic benchmark policy.
 
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
-geometric chords are closed. Every solver returns explicit rectangles and runs
-the same cell-exact output validator.
+polygon rectangles use native `i64` coordinates; geometric chords are closed.
+Every solver returns explicit rectangles and runs its exact native validator.
 
-The supported input model is a finite colored array of unit cells, split by
-color and four-connectivity into ordinary nondegenerate grid regions. The
-implementation does not accept ornaments, isolated formal-boundary points,
-line-segment holes, point holes, arbitrary degenerate formal holes, or general
-polygon input. See `docs/KNOWN_LIMITATIONS.md` for the exact scope boundary.
+The grid model is a finite colored array of unit cells split by color and
+four-connectivity. The polygon model is one ordinary nondegenerate outer loop
+with zero or more ordinary two-dimensional holes and no boundary contact.
+Ornaments, isolated formal-boundary points, point/segment holes, degenerate
+formal holes, and disconnected outer components remain unsupported. See
+`docs/POLYGON_INPUT_MODEL.md` and `docs/KNOWN_LIMITATIONS.md`.
 
 ## Quick start
 
@@ -39,6 +41,12 @@ cargo run --release -p rect-cli -- solve \
 cargo run --release -p rect-cli -- solve \
   --solver dominance-compact-only \
   --input test-data/example.json
+
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only \
+  --input-format polygon \
+  --input test-data/polygons/nonuniform-l.json \
+  --svg /tmp/nonuniform-l.svg
 
 # Keep the pairwise reference enumerator available for differential debugging.
 cargo run --release -p rect-cli -- solve \
@@ -107,7 +115,7 @@ Add `--svg dissection.svg` to `solve` to render the source cells, boundary,
 reflex vertices, effective chords, selected chords, and output rectangles. If a
 grid has multiple monochromatic components, one file per component is written.
 
-The input format is:
+Grid input is:
 
 ```json
 {
@@ -116,6 +124,21 @@ The input format is:
   "cells": ["a", "a", "a", "a", "b", "a", "a", "a", "a"]
 }
 ```
+
+Polygon input is a tagged JSON object:
+
+```json
+{
+  "type": "rectilinear-polygon",
+  "outer": [[0, 0], [10, 0], [10, 10], [0, 10]],
+  "holes": [[[2, 2], [2, 4], [4, 4], [4, 2]]]
+}
+```
+
+`--input-format auto|grid|polygon` defaults to `auto`. Polygon production
+solving uses general pairwise Definition 7 checks, the existing 4D compact
+matching backend, boundary-native simple-chord completion, and coordinate
+compression. It never rasterizes by coordinate magnitude.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
@@ -132,9 +155,10 @@ populations, seeds, timeouts, and discrepancy counts are recorded in
 
 The four-coordinate Cardinal--Yuditsky specialization has representation bound
 `O(q log^4 q)`. This repository remains a correctness and experimental
-artifact: its exact grid chord enumerator is not the classical `O(n log n)`
-sweep, and its practical Dinic backend is not the cited almost-linear
-theoretical flow algorithm.
+artifact: the general polygon chord enumerator and completion backend are exact
+reference algorithms rather than the classical `O(n log n)` sweeps, and its
+practical Dinic backend is not the cited almost-linear theoretical flow
+algorithm.
 
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;

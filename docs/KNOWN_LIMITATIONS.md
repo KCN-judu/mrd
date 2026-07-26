@@ -1,12 +1,15 @@
 # Known limitations
 
-- The implemented geometry adapter accepts finite unions of unit grid cells and
-  ordinary nondegenerate holes. Soltan--Gorpinevich ornaments, line-segment
-  holes, point holes, isolated formal-boundary points, and arbitrary degenerate
-  formal holes are not represented and are not claimed as supported.
-- General polygon input is not accepted. All supported geometry must be
-  generated from finite grid cells and serialized in the colored-grid JSON
-  format.
+- The geometry adapters accept finite unit-cell grids and one boundary-native
+  ordinary integer-coordinate rectilinear polygon with ordinary nondegenerate
+  two-dimensional holes. Soltan--Gorpinevich ornaments, line-segment holes,
+  point holes, isolated formal-boundary points, arbitrary degenerate formal
+  holes, boundary self-contact, and multiple disconnected outer components are
+  rejected and are not claimed as supported.
+- General polygon effective chords use an exact pairwise Definition 7
+  implementation. Polygon completion uses exact coordinate compression. These
+  are reference algorithms, not implementations of the paper's general
+  `O(n log n)` enumeration or completion bounds.
 - CompactOnly enumerates effective chords with the exact grid-specialized
   `GridInteriorRunEnumerator`; the aligned-reflex pair implementation remains
   the differential reference. This does not implement the paper's general
@@ -50,6 +53,10 @@
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less
   than `A`.
+- Polygon coordinate-compressed completion and validation use
+  `O(|X||Y|)` arrangement storage. Large coordinate gaps are cheap, but inputs
+  with many distinct x and y coordinates can still create a large Cartesian
+  arrangement.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The
