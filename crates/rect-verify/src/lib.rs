@@ -4,6 +4,7 @@ pub mod external;
 pub mod gap_differential;
 pub mod minimize;
 pub mod polygon;
+pub mod polygon_campaign;
 pub mod polyomino;
 pub mod transforms;
 pub mod witness;

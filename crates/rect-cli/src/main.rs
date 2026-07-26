@@ -285,6 +285,11 @@ enum BenchmarkSuiteArg {
     PathTreeGapDifferential,
     AutoFallback,
     Polyomino,
+    PolygonDifferential,
+    PolygonBackendDifferential,
+    PolygonNegative,
+    PolygonNativeFixtures,
+    PolygonScaling,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -660,6 +665,105 @@ fn benchmark_command(
         ));
     }
     let context = benchmark_context()?;
+    if suite == BenchmarkSuiteArg::PolygonDifferential {
+        let report =
+            rect_verify::polygon_campaign::exhaustive_grid_polygon_campaign(context, sizes);
+        write_json(&report, Some(output))?;
+        write_json(
+            &report.minimized_counterexamples,
+            Some(&output.with_extension("counterexamples.json")),
+        )?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "polygon differential failures: {} disagreements, {} solver errors",
+                report.disagreements, report.solver_errors
+            )))
+        };
+    }
+    if suite == BenchmarkSuiteArg::PolygonBackendDifferential {
+        let report = rect_verify::polygon_campaign::extended_polygon_backend_campaign(
+            context,
+            max_cells,
+            random_cases,
+            sizes,
+        );
+        write_json(&report, Some(output))?;
+        write_json(
+            &report.minimized_counterexamples,
+            Some(&output.with_extension("counterexamples.json")),
+        )?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "polygon backend differential failures: {} disagreements, {} solver errors",
+                report.disagreements, report.solver_errors
+            )))
+        };
+    }
+    if suite == BenchmarkSuiteArg::PolygonNegative {
+        let report = rect_verify::polygon_campaign::polygon_negative_campaign(context);
+        write_json(&report, Some(output))?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "polygon negative validation failures: {} disagreements",
+                report.disagreements
+            )))
+        };
+    }
+    if suite == BenchmarkSuiteArg::PolygonNativeFixtures {
+        let report = rect_verify::polygon_campaign::native_polygon_fixture_campaign(context, sizes);
+        write_json(&report, Some(output))?;
+        write_json(
+            &report.minimized_counterexamples,
+            Some(&output.with_extension("counterexamples.json")),
+        )?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "polygon native fixture failures: {} disagreements, {} solver errors",
+                report.disagreements, report.solver_errors
+            )))
+        };
+    }
+    if suite == BenchmarkSuiteArg::PolygonScaling {
+        let report = rect_verify::polygon_campaign::polygon_scaling_campaign(context, sizes);
+        write_text(output, &report.to_csv())?;
+        write_json(&report, Some(&output.with_extension("json")))?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "polygon scaling failures: {} disagreements, {} solver errors",
+                report.disagreements, report.solver_errors
+            )))
+        };
+    }
     if suite == BenchmarkSuiteArg::CleanCensus {
         let census = rect_verify::benchmark::clean_census_4x4(context);
         write_text(output, &census.to_csv())?;
@@ -839,7 +943,12 @@ fn benchmark_command(
         BenchmarkSuiteArg::CleanCensus | BenchmarkSuiteArg::CleanBoundaryDifferential => {
             unreachable!()
         }
-        BenchmarkSuiteArg::PathTreeGapDifferential => unreachable!(),
+        BenchmarkSuiteArg::PathTreeGapDifferential
+        | BenchmarkSuiteArg::PolygonDifferential
+        | BenchmarkSuiteArg::PolygonBackendDifferential
+        | BenchmarkSuiteArg::PolygonNegative
+        | BenchmarkSuiteArg::PolygonNativeFixtures
+        | BenchmarkSuiteArg::PolygonScaling => unreachable!(),
     };
     let csv = report
         .to_csv()

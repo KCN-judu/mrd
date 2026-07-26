@@ -563,6 +563,11 @@ impl GeneralPolygonPairwiseEnumerator {
 
     /// Runs the preserved pairwise reference algorithm and returns its scan
     /// counters as well as the exact chord families.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid endpoint metadata, coordinate
+    /// overflow, or effective-chord construction failure.
     pub fn enumerate_prepared_with_metrics(
         &self,
         prepared: &PreparedPolygonContext,

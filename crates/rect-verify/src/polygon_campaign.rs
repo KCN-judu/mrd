@@ -1,0 +1,1525 @@
+//! Reproducible reference-versus-indexed polygon release campaigns.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::time::Instant;
+
+use rect_core::{
+    Boundary, ColorGrid, CoordinateRect, Diagnostics, OrthogonalLoop, Point,
+    PolygonDissectionResult, PolygonErrorCategory, PolygonValidationBackend,
+    PreparedPolygonContext, RectilinearPolygon,
+};
+use rect_dominance::{
+    ConflictRepresentationBackend, PolygonArrangementBackend, PolygonChordBackend,
+    PolygonCompletionBackend, PolygonSolveOptions, VerificationMode, solve_polygon_with_options,
+};
+use rect_oracle_sg::{
+    EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
+    IndexedPolygonPairwiseEnumerator, PolygonValidationError, PreparedCoordinateArrangement,
+    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::adversarial::{
+    AdversarialInstance, clean_complete_bipartite_grid, dense_conflict_grid,
+    endpoint_contact_instances, external_oracle_adversarial_instances, path_tree_geometry_families,
+    topological_stress_instances,
+};
+use crate::benchmark::{BenchmarkContext, BenchmarkMetadata};
+use crate::polygon::{RasterLimits, verify_polygon};
+use crate::polyomino::{enumerate_free_polyominoes, explicit_hole_polyominoes};
+use crate::witness::{mixed_branching_connected_sum_family, stored_mixed_branching_witnesses};
+
+const UNSUPPORTED_FEATURES: [&str; 5] = [
+    "ornaments",
+    "point-holes",
+    "segment-holes",
+    "degenerate-formal-holes",
+    "disconnected-outer-components",
+];
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonCounterexample {
+    pub name: String,
+    pub original: RectilinearPolygon,
+    pub minimized: RectilinearPolygon,
+    pub reason: String,
+    pub reference: Option<PolygonDissectionResult>,
+    pub indexed: Option<PolygonDissectionResult>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonCampaignReport {
+    pub metadata: BenchmarkMetadata,
+    pub population: String,
+    pub input_count: usize,
+    pub component_count: usize,
+    pub supported_components: usize,
+    pub model_rejections: usize,
+    pub verified_components: usize,
+    pub solver_errors: usize,
+    pub timeouts: usize,
+    pub disagreements: usize,
+    pub raster_oracle_comparisons: usize,
+    pub path_tree_comparisons: usize,
+    pub minimized_counterexamples: Vec<PolygonCounterexample>,
+}
+
+impl PolygonCampaignReport {
+    #[must_use]
+    pub const fn verified(&self) -> bool {
+        self.solver_errors == 0 && self.timeouts == 0 && self.disagreements == 0
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonNegativeRecord {
+    pub name: String,
+    pub reference_category: String,
+    pub indexed_category: String,
+    pub deterministic_match: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonNegativeReport {
+    pub metadata: BenchmarkMetadata,
+    pub input_population: String,
+    pub records: Vec<PolygonNegativeRecord>,
+    pub disagreements: usize,
+    pub solver_errors: usize,
+    pub minimized_counterexamples: Vec<PolygonCounterexample>,
+}
+
+impl PolygonNegativeReport {
+    #[must_use]
+    pub const fn verified(&self) -> bool {
+        self.disagreements == 0 && self.solver_errors == 0
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonScalingRow {
+    pub family: String,
+    pub family_name: String,
+    pub size: usize,
+    pub boundary_complexity: usize,
+    pub hole_count: usize,
+    pub reflex_count: usize,
+    pub aligned_candidate_count: usize,
+    pub chord_count: usize,
+    pub selected_horizontal_cut_count: usize,
+    pub selected_vertical_cut_count: usize,
+    pub added_horizontal_cut_count: usize,
+    pub added_vertical_cut_count: usize,
+    pub reference_microseconds: u128,
+    pub indexed_microseconds: u128,
+    pub optimum_equal: bool,
+    pub cuts_equal: bool,
+    pub rectangles_equal: bool,
+    pub reference_diagnostics: Diagnostics,
+    pub indexed_diagnostics: Diagnostics,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonScalingReport {
+    pub metadata: BenchmarkMetadata,
+    pub rows: Vec<PolygonScalingRow>,
+    pub verified_rows: usize,
+    pub solver_errors: usize,
+    pub disagreements: usize,
+}
+
+impl PolygonScalingReport {
+    #[must_use]
+    pub const fn verified(&self) -> bool {
+        self.solver_errors == 0 && self.disagreements == 0
+    }
+
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,reference_microseconds,indexed_microseconds,optimum_equal,cuts_equal,rectangles_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,status,message\n",
+        );
+        for row in &self.rows {
+            let reference_owned =
+                serde_json::to_string(&row.reference_diagnostics.owned_allocation_estimates)
+                    .unwrap_or_else(|_| "{}".to_owned());
+            let indexed_owned =
+                serde_json::to_string(&row.indexed_diagnostics.owned_allocation_estimates)
+                    .unwrap_or_else(|_| "{}".to_owned());
+            let fields = [
+                row.family.clone(),
+                row.family_name.clone(),
+                row.size.to_string(),
+                row.boundary_complexity.to_string(),
+                row.hole_count.to_string(),
+                row.reflex_count.to_string(),
+                row.aligned_candidate_count.to_string(),
+                row.chord_count.to_string(),
+                row.selected_horizontal_cut_count.to_string(),
+                row.selected_vertical_cut_count.to_string(),
+                row.added_horizontal_cut_count.to_string(),
+                row.added_vertical_cut_count.to_string(),
+                row.reference_microseconds.to_string(),
+                row.indexed_microseconds.to_string(),
+                row.optimum_equal.to_string(),
+                row.cuts_equal.to_string(),
+                row.rectangles_equal.to_string(),
+                optional_usize(row.reference_diagnostics.polygon_boundary_edge_visits),
+                optional_usize(row.indexed_diagnostics.polygon_boundary_edge_visits),
+                optional_usize(
+                    row.reference_diagnostics
+                        .polygon_definition7_full_boundary_scans,
+                ),
+                optional_usize(
+                    row.indexed_diagnostics
+                        .polygon_definition7_full_boundary_scans,
+                ),
+                optional_usize(
+                    row.reference_diagnostics
+                        .polygon_completion_candidate_rebuilds,
+                ),
+                optional_usize(
+                    row.indexed_diagnostics
+                        .polygon_completion_candidate_rebuilds,
+                ),
+                optional_usize(row.reference_diagnostics.polygon_completion_cut_pair_tests),
+                optional_usize(row.indexed_diagnostics.polygon_completion_cut_pair_tests),
+                optional_usize(
+                    row.reference_diagnostics
+                        .polygon_completion_full_boundary_scans,
+                ),
+                optional_usize(
+                    row.indexed_diagnostics
+                        .polygon_completion_full_boundary_scans,
+                ),
+                optional_usize(row.reference_diagnostics.polygon_completion_full_cut_scans),
+                optional_usize(row.indexed_diagnostics.polygon_completion_full_cut_scans),
+                optional_usize(
+                    row.reference_diagnostics
+                        .polygon_arrangement_boundary_edge_visits,
+                ),
+                optional_usize(
+                    row.indexed_diagnostics
+                        .polygon_arrangement_boundary_edge_visits,
+                ),
+                optional_usize(
+                    row.reference_diagnostics
+                        .polygon_validator_rectangle_cell_tests,
+                ),
+                optional_usize(
+                    row.indexed_diagnostics
+                        .polygon_validator_rectangle_cell_tests,
+                ),
+                optional_usize(row.reference_diagnostics.polygon_prepare_owned_bytes),
+                optional_usize(row.indexed_diagnostics.polygon_prepare_owned_bytes),
+                reference_owned,
+                indexed_owned,
+                row.status.clone(),
+                row.message.clone().unwrap_or_default(),
+            ];
+            csv.push_str(
+                &fields
+                    .iter()
+                    .map(|field| csv_field(field))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+            csv.push('\n');
+        }
+        csv
+    }
+}
+
+#[derive(Default)]
+struct CampaignCounts {
+    inputs: usize,
+    components: usize,
+    supported: usize,
+    rejected: usize,
+    verified: usize,
+    solver_errors: usize,
+    disagreements: usize,
+    raster: usize,
+    path_tree: usize,
+    counterexamples: Vec<PolygonCounterexample>,
+}
+
+/// Runs the complete grid-derived polygon differential for each requested
+/// square dimension.
+#[must_use]
+pub fn exhaustive_grid_polygon_campaign(
+    context: BenchmarkContext,
+    dimensions: &[usize],
+) -> PolygonCampaignReport {
+    let mut counts = CampaignCounts::default();
+    for &dimension in dimensions {
+        if dimension == 0 || dimension.saturating_mul(dimension) > 20 {
+            counts.solver_errors += 1;
+            continue;
+        }
+        let bits = dimension * dimension;
+        let limit = 1_u64 << bits;
+        for mask in 1..limit {
+            counts.inputs += 1;
+            let cells = (0..bits).map(|bit| mask & (1 << bit) != 0).collect();
+            let Ok(grid) = ColorGrid::new(dimension, dimension, cells) else {
+                counts.solver_errors += 1;
+                continue;
+            };
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                counts.components += 1;
+                let Ok(boundary) = Boundary::from_component(&component) else {
+                    counts.solver_errors += 1;
+                    continue;
+                };
+                let Ok(polygon) = boundary.to_polygon() else {
+                    counts.rejected += 1;
+                    continue;
+                };
+                counts.supported += 1;
+                compare_and_record(
+                    format!(
+                        "{dimension}x{dimension}-mask-{mask}-component-{}",
+                        component.id.0
+                    ),
+                    &polygon,
+                    dimension <= 3,
+                    &mut counts,
+                );
+            }
+        }
+    }
+    campaign_report(
+        context,
+        format!("grid-derived-{}", join_sizes(dimensions)),
+        counts,
+    )
+}
+
+/// Runs native, polyomino, random, adversarial, witness, and metamorphic
+/// reference-versus-indexed populations.
+#[must_use]
+pub fn extended_polygon_backend_campaign(
+    context: BenchmarkContext,
+    max_cells: usize,
+    random_cases: usize,
+    family_sizes: &[usize],
+) -> PolygonCampaignReport {
+    let mut counts = CampaignCounts::default();
+    for level in enumerate_free_polyominoes(max_cells) {
+        for polyomino in level {
+            compare_instance(
+                &polyomino.to_instance(
+                    format!("polyomino-{}", polyomino.canonical_key()),
+                    "free-polyomino",
+                ),
+                false,
+                &mut counts,
+            );
+        }
+    }
+    for instance in explicit_hole_polyominoes(max_cells)
+        .into_iter()
+        .chain(endpoint_contact_instances())
+        .chain(topological_stress_instances())
+        .chain(external_oracle_adversarial_instances())
+        .chain(path_tree_geometry_families(12))
+        .chain(stored_mixed_branching_witnesses())
+        .chain(mixed_branching_connected_sum_family(6))
+        .chain([dense_conflict_grid(4, 5), dense_conflict_grid(8, 8)])
+    {
+        compare_instance(&instance, false, &mut counts);
+    }
+    for t in 1..=4 {
+        match clean_complete_bipartite_grid(t) {
+            Ok(instance) => compare_instance(&instance, false, &mut counts),
+            Err(_) => counts.solver_errors += 1,
+        }
+    }
+    for case in 0..random_cases {
+        compare_instance(&random_connected_instance(case), case < 16, &mut counts);
+    }
+    for &size in family_sizes {
+        match native_polygon_families(size) {
+            Ok(families) => {
+                for (code, name, polygon) in families {
+                    counts.inputs += 1;
+                    counts.components += 1;
+                    counts.supported += 1;
+                    compare_and_record(
+                        format!("{code}-{name}-{size}"),
+                        &polygon,
+                        true,
+                        &mut counts,
+                    );
+                    for (variant, transformed) in metamorphic_polygons(&polygon) {
+                        counts.inputs += 1;
+                        counts.components += 1;
+                        counts.supported += 1;
+                        compare_and_record(
+                            format!("{code}-{name}-{size}-{variant}"),
+                            &transformed,
+                            false,
+                            &mut counts,
+                        );
+                    }
+                }
+            }
+            Err(_) => counts.solver_errors += 1,
+        }
+    }
+    campaign_report(context, "extended-polygon-backends".to_owned(), counts)
+}
+
+/// Runs only the deterministic boundary-native A-H fixture population.
+#[must_use]
+pub fn native_polygon_fixture_campaign(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> PolygonCampaignReport {
+    let mut counts = CampaignCounts::default();
+    for &size in sizes {
+        match native_polygon_families(size) {
+            Ok(families) => {
+                for (code, name, polygon) in families {
+                    counts.inputs += 1;
+                    counts.components += 1;
+                    counts.supported += 1;
+                    compare_and_record(
+                        format!("{code}-{name}-{size}"),
+                        &polygon,
+                        true,
+                        &mut counts,
+                    );
+                }
+            }
+            Err(_) => counts.solver_errors += 1,
+        }
+    }
+    campaign_report(
+        context,
+        "polygon-native-fixtures-a-through-h".to_owned(),
+        counts,
+    )
+}
+
+/// Differentially checks the structural validators on deterministic invalid
+/// polygons, including every broad v1.0 error category represented locally.
+///
+/// # Panics
+///
+/// Panics only if the hard-coded valid rectangle fixture is changed into an
+/// invalid polygon or its prepared arrangement cannot be constructed.
+#[must_use]
+pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeReport {
+    let cases = negative_polygons();
+    let mut records = Vec::with_capacity(cases.len());
+    let mut disagreements = 0;
+    for (name, polygon) in cases {
+        let reference = PreparedPolygonContext::new_with_validator(
+            &polygon,
+            PolygonValidationBackend::ReferenceQuadratic,
+        )
+        .err()
+        .map(|error| error.to_string());
+        let indexed = PreparedPolygonContext::new_with_validator(
+            &polygon,
+            PolygonValidationBackend::OrthogonalSweep,
+        )
+        .err()
+        .map(|error| error.to_string());
+        let reference_category =
+            validator_category(&polygon, PolygonValidationBackend::ReferenceQuadratic);
+        let indexed_category =
+            validator_category(&polygon, PolygonValidationBackend::OrthogonalSweep);
+        let deterministic_match = reference_category == indexed_category && reference == indexed;
+        disagreements += usize::from(!deterministic_match);
+        records.push(PolygonNegativeRecord {
+            name: name.to_owned(),
+            reference_category,
+            indexed_category,
+            deterministic_match,
+        });
+    }
+    let rectangle_polygon = RectilinearPolygon::new(rectangle_loop(0, 0, 4, 4, false), vec![])
+        .expect("rectangle fixture is valid");
+    let prepared = PreparedPolygonContext::new_with_validator(
+        &rectangle_polygon,
+        PolygonValidationBackend::OrthogonalSweep,
+    )
+    .expect("rectangle fixture prepares");
+    let vertical = [1, 2, 3]
+        .into_iter()
+        .map(|x| VerticalCutSegment {
+            x,
+            bottom: 0,
+            top: 4,
+        })
+        .collect::<BTreeSet<_>>();
+    let arrangement = PreparedCoordinateArrangement::new(&prepared, &BTreeSet::new(), &vertical)
+        .expect("rectangle fixture arrangement builds");
+    for (name, rectangles) in invalid_rectangle_sets() {
+        let reference = validate_polygon_dissection(&rectangle_polygon, &rectangles)
+            .expect_err("fixture must be invalid");
+        let indexed = arrangement
+            .validate_rectangles(&rectangle_polygon, &rectangles)
+            .expect_err("fixture must be invalid");
+        let reference_category = dissection_error_category(&reference);
+        let indexed_category = dissection_error_category(&indexed);
+        let deterministic_match = reference_category == indexed_category;
+        disagreements += usize::from(!deterministic_match);
+        records.push(PolygonNegativeRecord {
+            name: name.to_owned(),
+            reference_category,
+            indexed_category,
+            deterministic_match,
+        });
+    }
+    PolygonNegativeReport {
+        metadata: metadata(
+            context,
+            records.len(),
+            records.len(),
+            "invalid-rectilinear-polygons",
+        ),
+        input_population: "deterministic-invalid-polygon-categories".to_owned(),
+        records,
+        disagreements,
+        solver_errors: 0,
+        minimized_counterexamples: Vec::new(),
+    }
+}
+
+/// Benchmarks reference and indexed pipelines on the polygon-native A-H
+/// scaling families while retaining the complete diagnostics for every row.
+#[must_use]
+pub fn polygon_scaling_campaign(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> PolygonScalingReport {
+    let mut rows = Vec::new();
+    let mut solver_errors = 0;
+    let mut disagreements = 0;
+    for &size in sizes {
+        let families = match native_polygon_families(size) {
+            Ok(families) => families,
+            Err(message) => {
+                solver_errors += 1;
+                rows.push(error_scaling_row(size, message));
+                continue;
+            }
+        };
+        for (family, family_name, polygon) in families {
+            match solve_pair(&polygon) {
+                Ok((reference, indexed, reference_micros, indexed_micros)) => {
+                    let cuts_equal = certificate_field(&reference, "selected_horizontal_cuts")
+                        == certificate_field(&indexed, "selected_horizontal_cuts")
+                        && certificate_field(&reference, "selected_vertical_cuts")
+                            == certificate_field(&indexed, "selected_vertical_cuts")
+                        && certificate_field(&reference, "added_horizontal_cuts")
+                            == certificate_field(&indexed, "added_horizontal_cuts")
+                        && certificate_field(&reference, "added_vertical_cuts")
+                            == certificate_field(&indexed, "added_vertical_cuts");
+                    let optimum_equal =
+                        reference.optimum_rectangle_count == indexed.optimum_rectangle_count;
+                    let rectangles_equal = reference.rectangles == indexed.rectangles;
+                    let verified = optimum_equal && cuts_equal && rectangles_equal;
+                    disagreements += usize::from(!verified);
+                    rows.push(PolygonScalingRow {
+                        family,
+                        family_name,
+                        size,
+                        boundary_complexity: reference.diagnostics.boundary_complexity,
+                        hole_count: reference.diagnostics.hole_count,
+                        reflex_count: reference.diagnostics.reflex_vertex_count,
+                        aligned_candidate_count: reference
+                            .diagnostics
+                            .polygon_aligned_reflex_candidate_pairs
+                            .unwrap_or(0),
+                        chord_count: reference.diagnostics.total_chord_count,
+                        selected_horizontal_cut_count: certificate_array_len(
+                            &reference,
+                            "selected_horizontal_cuts",
+                        ),
+                        selected_vertical_cut_count: certificate_array_len(
+                            &reference,
+                            "selected_vertical_cuts",
+                        ),
+                        added_horizontal_cut_count: certificate_array_len(
+                            &reference,
+                            "added_horizontal_cuts",
+                        ),
+                        added_vertical_cut_count: certificate_array_len(
+                            &reference,
+                            "added_vertical_cuts",
+                        ),
+                        reference_microseconds: reference_micros,
+                        indexed_microseconds: indexed_micros,
+                        optimum_equal,
+                        cuts_equal,
+                        rectangles_equal,
+                        reference_diagnostics: reference.diagnostics,
+                        indexed_diagnostics: indexed.diagnostics,
+                        status: if verified {
+                            "verified"
+                        } else {
+                            "counterexample"
+                        }
+                        .to_owned(),
+                        message: None,
+                    });
+                }
+                Err(message) => {
+                    solver_errors += 1;
+                    rows.push(PolygonScalingRow {
+                        family,
+                        family_name,
+                        size,
+                        status: "solver-error".to_owned(),
+                        message: Some(message),
+                        ..empty_scaling_row()
+                    });
+                }
+            }
+        }
+    }
+    let verified_rows = rows.iter().filter(|row| row.status == "verified").count();
+    PolygonScalingReport {
+        metadata: metadata(
+            context,
+            rows.len(),
+            rows.len(),
+            "boundary-native-polygon-scaling",
+        ),
+        rows,
+        verified_rows,
+        solver_errors,
+        disagreements,
+    }
+}
+
+#[allow(clippy::manual_let_else, clippy::single_match_else)]
+fn compare_instance(instance: &AdversarialInstance, raster: bool, counts: &mut CampaignCounts) {
+    counts.inputs += 1;
+    let components = match instance.foreground_components() {
+        Ok(components) => components,
+        Err(_) => {
+            counts.solver_errors += 1;
+            return;
+        }
+    };
+    for component in components {
+        counts.components += 1;
+        let Ok(boundary) = Boundary::from_component(&component) else {
+            counts.solver_errors += 1;
+            continue;
+        };
+        let Ok(polygon) = boundary.to_polygon() else {
+            counts.rejected += 1;
+            continue;
+        };
+        counts.supported += 1;
+        compare_and_record(
+            format!("{}-component-{}", instance.name, component.id.0),
+            &polygon,
+            raster,
+            counts,
+        );
+    }
+}
+
+fn compare_and_record(
+    name: String,
+    polygon: &RectilinearPolygon,
+    raster: bool,
+    counts: &mut CampaignCounts,
+) {
+    match compare_polygon_backends(polygon, raster) {
+        Ok(path_tree_compared) => {
+            counts.verified += 1;
+            counts.raster += usize::from(raster);
+            counts.path_tree += usize::from(path_tree_compared);
+        }
+        Err((reason, reference, indexed)) => {
+            counts.disagreements += 1;
+            counts.counterexamples.push(PolygonCounterexample {
+                name,
+                original: polygon.clone(),
+                minimized: polygon.clone(),
+                reason,
+                reference,
+                indexed,
+            });
+        }
+    }
+}
+
+#[allow(clippy::result_large_err, clippy::too_many_lines)]
+fn compare_polygon_backends(
+    polygon: &RectilinearPolygon,
+    raster: bool,
+) -> Result<
+    bool,
+    (
+        String,
+        Option<PolygonDissectionResult>,
+        Option<PolygonDissectionResult>,
+    ),
+> {
+    let reference_prepared = PreparedPolygonContext::new_with_validator(
+        polygon,
+        PolygonValidationBackend::ReferenceQuadratic,
+    )
+    .map_err(|error| (error.to_string(), None, None))?;
+    let indexed_prepared = PreparedPolygonContext::new_with_validator(
+        polygon,
+        PolygonValidationBackend::OrthogonalSweep,
+    )
+    .map_err(|error| (error.to_string(), None, None))?;
+    if reference_prepared.polygon() != indexed_prepared.polygon()
+        || reference_prepared.boundary().reflex_vertices
+            != indexed_prepared.boundary().reflex_vertices
+    {
+        return Err((
+            format!(
+                "normalized polygon or reflex vertices differ: reference_polygon={:?}; indexed_polygon={:?}; reference_reflex={:?}; indexed_reflex={:?}",
+                reference_prepared.polygon(),
+                indexed_prepared.polygon(),
+                reference_prepared.boundary().reflex_vertices,
+                indexed_prepared.boundary().reflex_vertices,
+            ),
+            None,
+            None,
+        ));
+    }
+    let reference_chords = GeneralPolygonPairwiseEnumerator
+        .enumerate_prepared_with_metrics(&reference_prepared)
+        .map_err(|error| (error.to_string(), None, None))?;
+    let indexed_chords = IndexedPolygonPairwiseEnumerator
+        .enumerate_prepared(&indexed_prepared)
+        .map_err(|error| (error.to_string(), None, None))?;
+    if reference_chords.families.horizontal != indexed_chords.families.horizontal
+        || reference_chords.families.vertical != indexed_chords.families.vertical
+    {
+        return Err((
+            format!(
+                "effective chord families differ: reference={:?}; indexed={:?}",
+                reference_chords.families, indexed_chords.families
+            ),
+            None,
+            None,
+        ));
+    }
+    if indexed_chords.metrics.polygon_unaligned_reflex_pair_checks != 0
+        || indexed_chords
+            .metrics
+            .polygon_definition7_full_boundary_scans
+            != 0
+    {
+        return Err((
+            "indexed chord contract counters are nonzero".to_owned(),
+            None,
+            None,
+        ));
+    }
+    let reference_endpoints = EffectiveChordEndpointIndex::new(
+        reference_prepared.boundary_index(),
+        &reference_chords.families.horizontal,
+        &reference_chords.families.vertical,
+    )
+    .map_err(|error| (error.to_string(), None, None))?;
+    let indexed_endpoints = EffectiveChordEndpointIndex::new(
+        indexed_prepared.boundary_index(),
+        &indexed_chords.families.horizontal,
+        &indexed_chords.families.vertical,
+    )
+    .map_err(|error| (error.to_string(), None, None))?;
+    if reference_endpoints != indexed_endpoints {
+        return Err(("endpoint tables differ".to_owned(), None, None));
+    }
+    let reference_clean = classify_clean_polygon(
+        reference_prepared.polygon(),
+        reference_prepared.boundary(),
+        &reference_chords.families.horizontal,
+        &reference_chords.families.vertical,
+        &reference_endpoints,
+    );
+    let indexed_clean = classify_clean_polygon(
+        indexed_prepared.polygon(),
+        indexed_prepared.boundary(),
+        &indexed_chords.families.horizontal,
+        &indexed_chords.families.vertical,
+        &indexed_endpoints,
+    );
+    if reference_clean != indexed_clean {
+        return Err((
+            format!(
+                "clean certificates differ: reference={reference_clean:?}; indexed={indexed_clean:?}"
+            ),
+            None,
+            None,
+        ));
+    }
+    let (reference, indexed, _, _) = solve_pair(polygon).map_err(|error| (error, None, None))?;
+    let comparison_fields = [
+        "horizontal_chords",
+        "vertical_chords",
+        "selected_horizontal",
+        "selected_vertical",
+        "selected_horizontal_cuts",
+        "selected_vertical_cuts",
+        "added_horizontal_cuts",
+        "added_vertical_cuts",
+        "flow_value",
+        "representation",
+    ];
+    if reference.optimum_rectangle_count != indexed.optimum_rectangle_count
+        || reference.rectangles != indexed.rectangles
+        || comparison_fields
+            .iter()
+            .any(|field| certificate_field(&reference, field) != certificate_field(&indexed, field))
+    {
+        return Err((
+            "solver certificate, optimum, cuts, or rectangles differ".to_owned(),
+            Some(reference),
+            Some(indexed),
+        ));
+    }
+    for result in [&reference, &indexed] {
+        validate_polygon_dissection(indexed_prepared.polygon(), &result.rectangles).map_err(
+            |error| {
+                (
+                    error.to_string(),
+                    Some(reference.clone()),
+                    Some(indexed.clone()),
+                )
+            },
+        )?;
+        validate_with_indexed_arrangement(&indexed_prepared, result)
+            .map_err(|error| (error, Some(reference.clone()), Some(indexed.clone())))?;
+    }
+    let diagnostics = &indexed.diagnostics;
+    if diagnostics.polygon_prepare_build_count != Some(1)
+        || diagnostics.polygon_normalization_count != Some(1)
+        || diagnostics.polygon_validation_count != Some(1)
+        || diagnostics.polygon_boundary_build_count != Some(1)
+        || diagnostics.polygon_boundary_index_build_count != Some(1)
+        || diagnostics.polygon_edge_index_build_count != Some(1)
+        || diagnostics.polygon_unaligned_reflex_pair_checks != Some(0)
+        || diagnostics.polygon_definition7_full_boundary_scans != Some(0)
+        || diagnostics.polygon_completion_candidate_rebuilds != Some(0)
+        || diagnostics.polygon_completion_full_boundary_scans != Some(0)
+        || diagnostics.polygon_completion_full_cut_scans != Some(0)
+        || diagnostics.polygon_validator_rectangle_cell_tests != Some(0)
+    {
+        return Err((
+            "indexed production counters violate the v1.0 contract".to_owned(),
+            Some(reference),
+            Some(indexed),
+        ));
+    }
+    if raster {
+        let report = verify_polygon(polygon, Some(RasterLimits::default())).map_err(|error| {
+            (
+                error.to_string(),
+                Some(reference.clone()),
+                Some(indexed.clone()),
+            )
+        })?;
+        if !report.verified() {
+            return Err((
+                report.disagreements.join("; "),
+                Some(reference),
+                Some(indexed),
+            ));
+        }
+    }
+    Ok(reference_clean.eligible)
+}
+
+fn solve_pair(
+    polygon: &RectilinearPolygon,
+) -> Result<(PolygonDissectionResult, PolygonDissectionResult, u128, u128), String> {
+    let reference_started = Instant::now();
+    let reference = solve_polygon_with_options(polygon, reference_options())
+        .map_err(|error| format!("reference solve failed: {error}"))?;
+    let reference_microseconds = reference_started.elapsed().as_micros();
+    let indexed_started = Instant::now();
+    let indexed = solve_polygon_with_options(polygon, indexed_options())
+        .map_err(|error| format!("indexed solve failed: {error}"))?;
+    let indexed_microseconds = indexed_started.elapsed().as_micros();
+    Ok((
+        reference,
+        indexed,
+        reference_microseconds,
+        indexed_microseconds,
+    ))
+}
+
+const fn reference_options() -> PolygonSolveOptions {
+    PolygonSolveOptions {
+        verification_mode: VerificationMode::CompactOnly,
+        geometry_backend: rect_core::PolygonGeometryBackend::ReferenceScan,
+        validation_backend: PolygonValidationBackend::ReferenceQuadratic,
+        chord_backend: PolygonChordBackend::ReferencePairwise,
+        completion_backend: PolygonCompletionBackend::CoordinateReference,
+        arrangement_backend: PolygonArrangementBackend::Reference,
+        representation: ConflictRepresentationBackend::Auto,
+    }
+}
+
+const fn indexed_options() -> PolygonSolveOptions {
+    PolygonSolveOptions {
+        verification_mode: VerificationMode::CompactOnly,
+        geometry_backend: rect_core::PolygonGeometryBackend::Indexed,
+        validation_backend: PolygonValidationBackend::OrthogonalSweep,
+        chord_backend: PolygonChordBackend::IndexedPairwise,
+        completion_backend: PolygonCompletionBackend::IndexedFrontier,
+        arrangement_backend: PolygonArrangementBackend::Indexed,
+        representation: ConflictRepresentationBackend::Auto,
+    }
+}
+
+fn validate_with_indexed_arrangement(
+    prepared: &PreparedPolygonContext,
+    result: &PolygonDissectionResult,
+) -> Result<(), String> {
+    let horizontal =
+        certificate_segments::<HorizontalCutSegment>(result, "selected_horizontal_cuts")?
+            .into_iter()
+            .chain(certificate_segments(result, "added_horizontal_cuts")?)
+            .collect::<BTreeSet<_>>();
+    let vertical = certificate_segments::<VerticalCutSegment>(result, "selected_vertical_cuts")?
+        .into_iter()
+        .chain(certificate_segments(result, "added_vertical_cuts")?)
+        .collect::<BTreeSet<_>>();
+    PreparedCoordinateArrangement::new(prepared, &horizontal, &vertical)
+        .map_err(|error| error.to_string())?
+        .validate_rectangles(prepared.polygon(), &result.rectangles)
+        .map_err(|error| error.to_string())
+}
+
+fn certificate_segments<T>(result: &PolygonDissectionResult, key: &str) -> Result<Vec<T>, String>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    serde_json::from_value(
+        certificate_field(result, key)
+            .cloned()
+            .ok_or_else(|| format!("missing certificate field {key}"))?,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn certificate_field<'a>(
+    result: &'a PolygonDissectionResult,
+    key: &str,
+) -> Option<&'a serde_json::Value> {
+    result
+        .certificate
+        .as_ref()
+        .and_then(|certificate| certificate.payload.get(key))
+}
+
+fn certificate_array_len(result: &PolygonDissectionResult, key: &str) -> usize {
+    certificate_field(result, key)
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len)
+}
+
+fn campaign_report(
+    context: BenchmarkContext,
+    population: String,
+    counts: CampaignCounts,
+) -> PolygonCampaignReport {
+    PolygonCampaignReport {
+        metadata: metadata(
+            context,
+            counts.inputs,
+            counts.components,
+            "boundary-native-ordinary-rectilinear-polygon-differential",
+        ),
+        population,
+        input_count: counts.inputs,
+        component_count: counts.components,
+        supported_components: counts.supported,
+        model_rejections: counts.rejected,
+        verified_components: counts.verified,
+        solver_errors: counts.solver_errors,
+        timeouts: 0,
+        disagreements: counts.disagreements,
+        raster_oracle_comparisons: counts.raster,
+        path_tree_comparisons: counts.path_tree,
+        minimized_counterexamples: counts.counterexamples,
+    }
+}
+
+fn metadata(
+    context: BenchmarkContext,
+    input_count: usize,
+    component_count: usize,
+    input_model: &str,
+) -> BenchmarkMetadata {
+    BenchmarkMetadata {
+        git_commit: context.git_commit,
+        rustc_version: context.rustc_version,
+        command: context.command,
+        seed: context.seed,
+        timestamp: context.timestamp,
+        input_count,
+        component_count,
+        input_model: input_model.to_owned(),
+        unsupported_input_features: UNSUPPORTED_FEATURES.map(str::to_owned).to_vec(),
+    }
+}
+
+/// Returns the deterministic polygon-native scaling families A-H.
+///
+/// # Errors
+///
+/// Returns a string describing arithmetic overflow or an invalid generated
+/// polygon.
+pub fn native_polygon_families(
+    size: usize,
+) -> Result<Vec<(String, String, RectilinearPolygon)>, String> {
+    let size = size.max(1);
+    let boundary_heavy = varying_top_notches(size, 1)?;
+    let aligned_heavy = four_sided_notches(size, false, 1)?;
+    let hole_heavy = hole_row(size, false, 1)?;
+    let completion_heavy = four_sided_notches(size, true, 1)?;
+    let arrangement_heavy = varying_top_notches(size.saturating_mul(2), 1)?;
+    let huge_coordinate = four_sided_notches(size.min(8), true, 1_000_000_000_000)?;
+    let clean_path_tree = four_sided_notches(size, true, 3)?;
+    let non_clean_fallback = hole_row(size, true, 2)?;
+    Ok(vec![
+        ("A".to_owned(), "boundary-heavy".to_owned(), boundary_heavy),
+        (
+            "B".to_owned(),
+            "aligned-reflex-heavy".to_owned(),
+            aligned_heavy,
+        ),
+        ("C".to_owned(), "hole-heavy".to_owned(), hole_heavy),
+        (
+            "D".to_owned(),
+            "completion-heavy".to_owned(),
+            completion_heavy,
+        ),
+        (
+            "E".to_owned(),
+            "arrangement-heavy".to_owned(),
+            arrangement_heavy,
+        ),
+        (
+            "F".to_owned(),
+            "huge-coordinate".to_owned(),
+            huge_coordinate,
+        ),
+        (
+            "G".to_owned(),
+            "clean-path-tree".to_owned(),
+            clean_path_tree,
+        ),
+        (
+            "H".to_owned(),
+            "non-clean-fallback".to_owned(),
+            non_clean_fallback,
+        ),
+    ])
+}
+
+fn varying_top_notches(size: usize, scale: i64) -> Result<RectilinearPolygon, String> {
+    let width = i64::try_from(size)
+        .ok()
+        .and_then(|value| value.checked_mul(4))
+        .and_then(|value| value.checked_add(6))
+        .and_then(|value| value.checked_mul(scale))
+        .ok_or_else(|| "boundary-heavy coordinate overflow".to_owned())?;
+    let height = i64::try_from(size)
+        .ok()
+        .and_then(|value| value.checked_add(4))
+        .and_then(|value| value.checked_mul(scale))
+        .ok_or_else(|| "boundary-heavy coordinate overflow".to_owned())?;
+    let mut vertices = vec![
+        Point::new(0, 0),
+        Point::new(width, 0),
+        Point::new(width, height),
+    ];
+    for index in (0..size).rev() {
+        let left = i64::try_from(index * 4 + 2).map_err(|error| error.to_string())? * scale;
+        let right = left + scale;
+        let depth = i64::try_from(index + 1).map_err(|error| error.to_string())? * scale;
+        vertices.extend([
+            Point::new(right, height),
+            Point::new(right, height - depth),
+            Point::new(left, height - depth),
+            Point::new(left, height),
+        ]);
+    }
+    vertices.push(Point::new(0, height));
+    RectilinearPolygon::new(OrthogonalLoop::new(vertices), vec![])
+        .map_err(|error| error.to_string())
+}
+
+#[allow(clippy::similar_names)]
+fn four_sided_notches(
+    size: usize,
+    varying_depth: bool,
+    scale: i64,
+) -> Result<RectilinearPolygon, String> {
+    let margin = size + 4;
+    let side = size
+        .checked_mul(5)
+        .and_then(|value| value.checked_add(margin * 2 + 2))
+        .ok_or_else(|| "four-sided family dimension overflow".to_owned())?;
+    let side = i64::try_from(side).map_err(|error| error.to_string())? * scale;
+    let mut vertices = vec![Point::new(0, 0)];
+    for index in 0..size {
+        let start = i64::try_from(margin + index * 5).map_err(|error| error.to_string())? * scale;
+        let end = start + scale;
+        let depth = i64::try_from(if varying_depth { index + 2 } else { 2 })
+            .map_err(|error| error.to_string())?
+            * scale;
+        vertices.extend([
+            Point::new(start, 0),
+            Point::new(start, depth),
+            Point::new(end, depth),
+            Point::new(end, 0),
+        ]);
+    }
+    vertices.push(Point::new(side, 0));
+    for index in 0..size {
+        let start = i64::try_from(margin + index * 5).map_err(|error| error.to_string())? * scale;
+        let end = start + scale;
+        let depth = i64::try_from(if varying_depth { size - index + 1 } else { 2 })
+            .map_err(|error| error.to_string())?
+            * scale;
+        vertices.extend([
+            Point::new(side, start),
+            Point::new(side - depth, start),
+            Point::new(side - depth, end),
+            Point::new(side, end),
+        ]);
+    }
+    vertices.push(Point::new(side, side));
+    for index in (0..size).rev() {
+        let start = i64::try_from(margin + index * 5).map_err(|error| error.to_string())? * scale;
+        let end = start + scale;
+        let depth = i64::try_from(if varying_depth { index + 2 } else { 2 })
+            .map_err(|error| error.to_string())?
+            * scale;
+        vertices.extend([
+            Point::new(end, side),
+            Point::new(end, side - depth),
+            Point::new(start, side - depth),
+            Point::new(start, side),
+        ]);
+    }
+    vertices.push(Point::new(0, side));
+    for index in (0..size).rev() {
+        let start = i64::try_from(margin + index * 5).map_err(|error| error.to_string())? * scale;
+        let end = start + scale;
+        let depth = i64::try_from(if varying_depth { size - index + 1 } else { 2 })
+            .map_err(|error| error.to_string())?
+            * scale;
+        vertices.extend([
+            Point::new(0, end),
+            Point::new(depth, end),
+            Point::new(depth, start),
+            Point::new(0, start),
+        ]);
+    }
+    RectilinearPolygon::new(OrthogonalLoop::new(vertices), vec![])
+        .map_err(|error| error.to_string())
+}
+
+fn hole_row(size: usize, staggered: bool, scale: i64) -> Result<RectilinearPolygon, String> {
+    let width = i64::try_from(size)
+        .ok()
+        .and_then(|value| value.checked_mul(5))
+        .and_then(|value| value.checked_add(6))
+        .and_then(|value| value.checked_mul(scale))
+        .ok_or_else(|| "hole family coordinate overflow".to_owned())?;
+    let height = i64::try_from(size)
+        .ok()
+        .and_then(|value| value.checked_mul(2))
+        .and_then(|value| value.checked_add(10))
+        .and_then(|value| value.checked_mul(scale))
+        .ok_or_else(|| "hole family coordinate overflow".to_owned())?;
+    let outer = rectangle_loop(0, 0, width, height, false);
+    let mut holes = Vec::with_capacity(size);
+    for index in 0..size {
+        let left = i64::try_from(index * 5 + 3).map_err(|error| error.to_string())? * scale;
+        let bottom = i64::try_from(if staggered { index * 2 + 3 } else { 3 })
+            .map_err(|error| error.to_string())?
+            * scale;
+        holes.push(rectangle_loop(
+            left,
+            bottom,
+            left + 2 * scale,
+            bottom + 2 * scale,
+            true,
+        ));
+    }
+    RectilinearPolygon::new(outer, holes).map_err(|error| error.to_string())
+}
+
+fn rectangle_loop(left: i64, bottom: i64, right: i64, top: i64, clockwise: bool) -> OrthogonalLoop {
+    let points = if clockwise {
+        vec![
+            Point::new(left, bottom),
+            Point::new(left, top),
+            Point::new(right, top),
+            Point::new(right, bottom),
+        ]
+    } else {
+        vec![
+            Point::new(left, bottom),
+            Point::new(right, bottom),
+            Point::new(right, top),
+            Point::new(left, top),
+        ]
+    };
+    OrthogonalLoop::new(points)
+}
+
+fn metamorphic_polygons(polygon: &RectilinearPolygon) -> Vec<(&'static str, RectilinearPolygon)> {
+    [
+        ("translate", 17_i64, -23_i64, 2_i64, 3_i64),
+        ("stretch", 0, 0, 3, 5),
+        ("reflect-180", 0, 0, -1, -1),
+    ]
+    .into_iter()
+    .filter_map(|(name, dx, dy, sx, sy)| {
+        transform_polygon(polygon, dx, dy, sx, sy)
+            .ok()
+            .map(|polygon| (name, polygon))
+    })
+    .collect()
+}
+
+fn transform_polygon(
+    polygon: &RectilinearPolygon,
+    dx: i64,
+    dy: i64,
+    sx: i64,
+    sy: i64,
+) -> Result<RectilinearPolygon, String> {
+    let transform_loop = |boundary_loop: &OrthogonalLoop| {
+        boundary_loop
+            .vertices
+            .iter()
+            .map(|point| {
+                Some(Point::new(
+                    point.x.checked_mul(sx)?.checked_add(dx)?,
+                    point.y.checked_mul(sy)?.checked_add(dy)?,
+                ))
+            })
+            .collect::<Option<Vec<_>>>()
+            .map(OrthogonalLoop::new)
+            .ok_or_else(|| "metamorphic coordinate overflow".to_owned())
+    };
+    RectilinearPolygon::new(
+        transform_loop(&polygon.outer)?,
+        polygon
+            .holes
+            .iter()
+            .map(transform_loop)
+            .collect::<Result<Vec<_>, _>>()?,
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn negative_polygons() -> Vec<(&'static str, RectilinearPolygon)> {
+    vec![
+        (
+            "non-axis-aligned",
+            RectilinearPolygon {
+                outer: OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(4, 1),
+                    Point::new(4, 4),
+                    Point::new(0, 4),
+                ]),
+                holes: vec![],
+            },
+        ),
+        (
+            "zero-length",
+            RectilinearPolygon {
+                outer: OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(4, 0),
+                    Point::new(4, 4),
+                    Point::new(0, 4),
+                    Point::new(0, 4),
+                ]),
+                holes: vec![],
+            },
+        ),
+        (
+            "too-few-vertices",
+            RectilinearPolygon {
+                outer: OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(4, 0),
+                    Point::new(4, 4),
+                ]),
+                holes: vec![],
+            },
+        ),
+        (
+            "self-intersection",
+            RectilinearPolygon {
+                outer: OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(4, 0),
+                    Point::new(4, 4),
+                    Point::new(1, 4),
+                    Point::new(1, -1),
+                    Point::new(0, -1),
+                ]),
+                holes: vec![],
+            },
+        ),
+        (
+            "hole-outside",
+            RectilinearPolygon {
+                outer: rectangle_loop(0, 0, 10, 10, false),
+                holes: vec![rectangle_loop(12, 2, 14, 4, true)],
+            },
+        ),
+        (
+            "hole-contact",
+            RectilinearPolygon {
+                outer: rectangle_loop(0, 0, 10, 10, false),
+                holes: vec![rectangle_loop(0, 2, 4, 4, true)],
+            },
+        ),
+        (
+            "hole-intersection",
+            RectilinearPolygon {
+                outer: rectangle_loop(0, 0, 20, 20, false),
+                holes: vec![
+                    rectangle_loop(2, 2, 8, 8, true),
+                    rectangle_loop(6, 6, 12, 12, true),
+                ],
+            },
+        ),
+        (
+            "nested-hole",
+            RectilinearPolygon {
+                outer: rectangle_loop(0, 0, 20, 20, false),
+                holes: vec![
+                    rectangle_loop(2, 2, 12, 12, true),
+                    rectangle_loop(4, 4, 6, 6, true),
+                ],
+            },
+        ),
+        (
+            "wrong-orientation",
+            RectilinearPolygon {
+                outer: rectangle_loop(0, 0, 10, 10, true),
+                holes: vec![],
+            },
+        ),
+    ]
+}
+
+fn invalid_rectangle_sets() -> Vec<(&'static str, Vec<CoordinateRect>)> {
+    vec![
+        (
+            "rectangles-non-positive",
+            vec![CoordinateRect {
+                x0: 0,
+                y0: 0,
+                x1: 0,
+                y1: 4,
+            }],
+        ),
+        (
+            "rectangles-area-mismatch",
+            vec![CoordinateRect::new(0, 0, 3, 4).expect("positive rectangle")],
+        ),
+        (
+            "rectangles-outside",
+            vec![CoordinateRect::new(-1, 0, 3, 4).expect("positive rectangle")],
+        ),
+        (
+            "rectangles-overlap",
+            vec![
+                CoordinateRect::new(0, 0, 3, 4).expect("positive rectangle"),
+                CoordinateRect::new(2, 0, 3, 4).expect("positive rectangle"),
+            ],
+        ),
+    ]
+}
+
+fn dissection_error_category(error: &PolygonValidationError) -> String {
+    match error {
+        PolygonValidationError::Polygon(_) => "polygon".to_owned(),
+        PolygonValidationError::DeclaredCount { .. } => "declared-count".to_owned(),
+        PolygonValidationError::NonPositiveRectangle { .. } => "non-positive-rectangle".to_owned(),
+        PolygonValidationError::OutsidePolygon { .. } => "outside-polygon".to_owned(),
+        PolygonValidationError::Overlap { .. } => "overlap".to_owned(),
+        PolygonValidationError::UncoveredInterior { .. } => "uncovered-interior".to_owned(),
+        PolygonValidationError::AreaMismatch { .. } => "area-mismatch".to_owned(),
+        PolygonValidationError::AreaOverflow => "area-overflow".to_owned(),
+    }
+}
+
+fn validator_category(polygon: &RectilinearPolygon, backend: PolygonValidationBackend) -> String {
+    PreparedPolygonContext::new_with_validator(polygon, backend).map_or_else(
+        |error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => {
+                format!("{:?}", PolygonErrorCategory::from_error(&error))
+            }
+            rect_core::PreparedPolygonError::BoundaryIndex(_) => "BoundaryIndex".to_owned(),
+        },
+        |_| "Accepted".to_owned(),
+    )
+}
+
+fn random_connected_instance(case: usize) -> AdversarialInstance {
+    let width = 6 + case % 7;
+    let height = 6 + (case / 7) % 7;
+    let target = 1 + case % (width * height / 2).max(1);
+    let mut state = (case as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut occupied = BTreeSet::from([(width / 2, height / 2)]);
+    while occupied.len() < target {
+        state = splitmix64(state);
+        let index = usize::try_from(state % occupied.len() as u64).unwrap_or(0);
+        let &(x, y) = occupied.iter().nth(index).unwrap_or(&(0, 0));
+        state = splitmix64(state);
+        let candidate = match state & 3 {
+            0 if x + 1 < width => Some((x + 1, y)),
+            1 if x > 0 => Some((x - 1, y)),
+            2 if y + 1 < height => Some((x, y + 1)),
+            3 if y > 0 => Some((x, y - 1)),
+            _ => None,
+        };
+        if let Some(candidate) = candidate {
+            occupied.insert(candidate);
+        }
+    }
+    let mut cells = vec![false; width * height];
+    for (x, y) in occupied {
+        cells[y * width + x] = true;
+    }
+    AdversarialInstance {
+        name: format!("polygon-random-{case}"),
+        family: "deterministic-random-connected".to_owned(),
+        width,
+        height,
+        cells,
+        parameters: BTreeMap::from([("seed".to_owned(), case)]),
+    }
+}
+
+const fn splitmix64(mut state: u64) -> u64 {
+    state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut value = state;
+    value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    value = (value ^ (value >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    value ^ (value >> 31)
+}
+
+fn error_scaling_row(size: usize, message: String) -> PolygonScalingRow {
+    PolygonScalingRow {
+        size,
+        status: "generator-error".to_owned(),
+        message: Some(message),
+        ..empty_scaling_row()
+    }
+}
+
+fn empty_scaling_row() -> PolygonScalingRow {
+    PolygonScalingRow {
+        family: String::new(),
+        family_name: String::new(),
+        size: 0,
+        boundary_complexity: 0,
+        hole_count: 0,
+        reflex_count: 0,
+        aligned_candidate_count: 0,
+        chord_count: 0,
+        selected_horizontal_cut_count: 0,
+        selected_vertical_cut_count: 0,
+        added_horizontal_cut_count: 0,
+        added_vertical_cut_count: 0,
+        reference_microseconds: 0,
+        indexed_microseconds: 0,
+        optimum_equal: false,
+        cuts_equal: false,
+        rectangles_equal: false,
+        reference_diagnostics: Diagnostics::default(),
+        indexed_diagnostics: Diagnostics::default(),
+        status: String::new(),
+        message: None,
+    }
+}
+
+fn optional_usize(value: Option<usize>) -> String {
+    value.map_or_else(String::new, |value| value.to_string())
+}
+
+fn csv_field(value: &str) -> String {
+    if value.contains([',', '"', '\n']) {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    } else {
+        value.to_owned()
+    }
+}
+
+fn join_sizes(sizes: &[usize]) -> String {
+    sizes
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BenchmarkContext, native_polygon_families, polygon_negative_campaign,
+        polygon_scaling_campaign,
+    };
+
+    fn context(command: &str) -> BenchmarkContext {
+        BenchmarkContext {
+            git_commit: "test".to_owned(),
+            rustc_version: "test".to_owned(),
+            command: command.to_owned(),
+            seed: Some(42),
+            timestamp: 0,
+        }
+    }
+
+    #[test]
+    fn all_native_scaling_families_are_valid_and_distinct() {
+        let families = native_polygon_families(2).unwrap();
+        assert_eq!(families.len(), 8);
+        for (_, _, polygon) in families {
+            assert!(polygon.boundary_complexity() >= 4);
+        }
+    }
+
+    #[test]
+    fn negative_validator_campaign_is_exact() {
+        let report = polygon_negative_campaign(context("polygon-negative"));
+        assert!(report.verified(), "{:#?}", report.records);
+    }
+
+    #[test]
+    fn small_scaling_campaign_matches_backends() {
+        let report = polygon_scaling_campaign(context("polygon-scaling"), &[1]);
+        assert!(report.verified(), "{:#?}", report.rows);
+        assert_eq!(report.verified_rows, 8);
+    }
+}
