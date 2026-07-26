@@ -12,7 +12,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -55,6 +55,12 @@ jobs:
           target/release/rect-cli search-path-tree-witness --max-width 12 --max-height 12 --seed 42 --require-clean --min-horizontal-chords 2 --min-vertical-chords 2 --min-dual-branching 3 --min-path-count 3 --min-heavy-chain-intervals 4 --min-canonical-nodes 2 --output-dir artifacts/path-tree-witnesses 2>&1 | tee artifacts/logs/path-tree-witness-search.log
           cargo test -p rect-verify every_stored_regression_is_replayed 2>&1 | tee artifacts/logs/stored-regressions.log
           target/release/rect-cli benchmark --suite auto-fallback --output artifacts/auto-fallback.csv 2>&1 | tee artifacts/logs/auto-fallback.log
+          target/release/rect-cli benchmark --suite polygon-differential --sizes 3 --output artifacts/polygon-differential-3x3.json 2>&1 | tee artifacts/logs/polygon-differential-3x3.log
+          target/release/rect-cli benchmark --suite polygon-differential --sizes 4 --output artifacts/polygon-differential-4x4.json 2>&1 | tee artifacts/logs/polygon-differential-4x4.log
+          target/release/rect-cli benchmark --suite polygon-negative --output artifacts/polygon-negative.json 2>&1 | tee artifacts/logs/polygon-negative.log
+          target/release/rect-cli benchmark --suite polygon-native-fixtures --sizes 1,2,4,8,16 --output artifacts/polygon-native-fixtures.json 2>&1 | tee artifacts/logs/polygon-native-fixtures.log
+          target/release/rect-cli benchmark --suite polygon-backend-differential --max-cells 10 --random-cases 1000 --sizes 1,2,4,8 --output artifacts/polygon-backend-differential.json 2>&1 | tee artifacts/logs/polygon-backend-differential.log
+          target/release/rect-cli benchmark --suite polygon-scaling --sizes 1,2,4,8,16 --output artifacts/polygon-scaling.csv 2>&1 | tee artifacts/logs/polygon-scaling.log
           python3 tools/check_release_consistency.py 2>&1 | tee artifacts/logs/release-consistency.log
       - name: Run bounded external CP-SAT population
         shell: bash

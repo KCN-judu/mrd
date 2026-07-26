@@ -26,6 +26,13 @@ jobs:
           RUSTDOCFLAGS: -D warnings
       - name: Run bounded adversarial smoke test
         run: cargo run --release -p rect-cli -- benchmark --suite adversarial --output artifacts/adversarial-smoke.csv
+      - name: Run polygon backend smoke campaigns
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo run --release -p rect-cli -- benchmark --suite polygon-differential --sizes 3 --output artifacts/polygon-differential-3x3.json 2>&1 | tee artifacts/polygon-differential-3x3.log
+          cargo run --release -p rect-cli -- benchmark --suite polygon-negative --output artifacts/polygon-negative.json 2>&1 | tee artifacts/polygon-negative.log
+          cargo run --release -p rect-cli -- benchmark --suite polygon-native-fixtures --sizes 1,2 --output artifacts/polygon-native-fixtures.json 2>&1 | tee artifacts/polygon-native-fixtures.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
