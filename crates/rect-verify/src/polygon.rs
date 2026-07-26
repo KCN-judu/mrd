@@ -131,7 +131,8 @@ mod tests {
         PolygonDissectionResult, RectilinearPolygon,
     };
     use rect_dominance::{
-        ChordEnumerator, VerificationMode, solve_polygon,
+        ChordEnumerator, ConflictRepresentationBackend, VerificationMode, solve_polygon,
+        solve_polygon_with_representation,
         solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
     };
     use rect_oracle_sg::{
@@ -148,6 +149,8 @@ mod tests {
         components: usize,
         supported_components: usize,
         rejected_components: usize,
+        path_tree_components: usize,
+        four_d_fallback_components: usize,
     }
 
     #[allow(clippy::too_many_lines)]
@@ -181,6 +184,19 @@ mod tests {
         )
         .map_err(|error| error.to_string())?;
         let polygon_result = solve_polygon(&polygon).map_err(|error| error.to_string())?;
+        let auto_result =
+            solve_polygon_with_representation(&polygon, ConflictRepresentationBackend::Auto)
+                .map_err(|error| error.to_string())?;
+        if auto_result.optimum_rectangle_count != polygon_result.optimum_rectangle_count
+            || auto_result.rectangles != polygon_result.rectangles
+        {
+            return Err("Auto and 4D polygon results differ".to_owned());
+        }
+        match auto_result.diagnostics.conflict_representation.as_deref() {
+            Some("path-tree") => counts.path_tree_components += 1,
+            Some("dominance-4d") => counts.four_d_fallback_components += 1,
+            other => return Err(format!("unexpected Auto representation {other:?}")),
+        }
         if grid_result.optimum_rectangle_count != polygon_result.optimum_rectangle_count {
             return Err("minimum rectangle counts differ".to_owned());
         }
