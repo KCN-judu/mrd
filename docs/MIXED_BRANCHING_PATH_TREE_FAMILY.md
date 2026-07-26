@@ -18,7 +18,7 @@ cargo run --release -p rect-cli -- search-path-tree-witness \
 
 The search performs deterministic delta-debugging cell minimization before
 dihedral canonicalization. The committed population contains 16 minimized,
-translation/dihedral-canonical witnesses with 54--116 cells. Every witness
+translation/dihedral-canonical witnesses with 47--115 cells. Every witness
 retains both chord orientations, degree at least 3, a path using multiple heavy
 chains, and at least two canonical segment nodes. The bundles record the
 original and minimized cell counts, input grid, dual tree, compact paths, HLD,
@@ -28,6 +28,10 @@ The source population is a boundary-notch construction. Separated unit notches
 are attached to the outer boundary, and deterministic one-cell mutations search
 the neighboring clean population. Every retained result is rebuilt through the
 production geometry; no final optimum value is used as the search objective.
+Derived `mixed-branching-connected-sum` witnesses may be retained as regressions,
+but they are excluded from the family seed population. This prevents the
+committed output from changing the next search input and makes repeated search
+runs byte-for-byte idempotent.
 
 The parameterized `mixed-branching-connected-sum` family starts with the
 smallest minimized witness and attaches another minimized witness gadget

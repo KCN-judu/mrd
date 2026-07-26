@@ -39,9 +39,9 @@ interval-membership tests and exactly one push/pop per interval. The frozen
 counts are in `results/v0.8-gap-backend-differential.{csv,json,md}`.
 
 The frozen report contains 950,557 inputs and 1,053,939 components, including
-385,947 clean components. It records 16,530,974 boundary-index comparisons,
+385,947 clean components. It records 16,530,980 boundary-index comparisons,
 3,368,464 endpoint-metadata comparisons, 1,053,939 classifier comparisons, and
 771,894 orientation comparisons. All 385,947 clean components verify, with zero
-mismatches and zero solver errors. The reference backend performs 52,388,636
+mismatches and zero solver errors. The reference backend performs 52,388,678
 interval-membership tests; the event backend performs 409,593 pushes and the
 same number of pops.

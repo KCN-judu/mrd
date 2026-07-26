@@ -422,11 +422,11 @@ linear lookup and pairwise behavior for differential checks.
 
 `EventSweep` and `ReferenceNested` produce identical boundary-gap labels in the
 complete committed differential campaign: 950,557 inputs, 1,053,939 components,
-and 385,947 clean components. The campaign performs 16,530,974 boundary-index
+and 385,947 clean components. The campaign performs 16,530,980 boundary-index
 comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 classifier
 comparisons, and 771,894 orientation comparisons, with zero mismatches and zero
 solver errors. Event rows report zero interval-membership tests and exactly one
-push/pop per interval (409,593 each); the nested Oracle performs 52,388,636
+push/pop per interval (409,593 each); the nested Oracle performs 52,388,678
 membership tests. The endpoint classifier uses a vertex-owner map rather than
 an all-pairs endpoint loop, while the reference classifier remains available
 under `classify_clean_hole_free_reference`. Full population and failure-handling
@@ -440,17 +440,17 @@ cuts, added cuts, sorted rectangles, and both cell-exact validators. The
 completion contract and complexity scope are fixed in
 `docs/GEOMETRIC_COMPLETION.md`.
 
-The deterministic mixed-branching search examined 74,547 production geometry
+The deterministic mixed-branching search examined 74,542 production geometry
 candidates and retains 16 delta-minimized, translation/dihedral-canonical clean
 witnesses. Their cell counts fell from roughly 332--446 before minimization to
-54--116 while preserving both chord orientations, degree-3-or-higher branching,
+47--115 while preserving both chord orientations, degree-3-or-higher branching,
 multi-heavy-chain paths, and at least two canonical segment nodes. Complete
 JSON/SVG bundles are in `results/path-tree-witnesses/`; the construction and
 predicate are documented in `docs/MIXED_BRANCHING_PATH_TREE_FAMILY.md`.
 
 The expanded orientation audit records five positive `BoundEstimate` sigma
 regret rows among stored mixed-branching witnesses (maximum absolute regret 2,
-ratio 2/6). CompactOnly therefore keeps exact `build-both` as its production
+ratio 2/4). CompactOnly therefore keeps exact `build-both` as its production
 default; `bound-estimate` remains available for explicit benchmark experiments.
 FullyAudited also continues to use `build-both`.
 
@@ -469,7 +469,7 @@ Its summaries use all six requested buckets: `0-8`, `9-32`, `33-128`,
 `129-512`, `513-2048`, and `2049+`.
 
 The v0.8 advantage search in `results/v0.8-path-tree-advantage.json` evaluates
-29 eligible mixed-orientation rows. It finds 13 strict path-tree sigma
+27 eligible mixed-orientation rows. It finds 14 strict path-tree sigma
 advantages and zero strict 4D advantages in this configured corpus. The best
 retained row has sigma 6 versus 8, with 12 versus 14 network arcs and owned
 estimates 4,176 versus 7,548 bytes. Every retained comparison has equal optimum

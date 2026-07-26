@@ -542,11 +542,11 @@
       ]
     },
     {
-      "git_commit": "7bd23b7606dd17a30f01fee5b6a3cf8b6406148f",
+      "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-gap-differential --max-cells 12 --random-cases 100000 --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-gap-backend-differential.csv",
       "seed": 42,
-      "timestamp": 1785048306,
+      "timestamp": 1785051913,
       "input_count": 950557,
       "component_count": 1053939,
       "input_model": "finite-grid-reference-nested-vs-event-sweep-complete-population",
@@ -560,14 +560,68 @@
       ]
     },
     {
-      "git_commit": "7bd23b7606dd17a30f01fee5b6a3cf8b6406148f",
+      "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
       "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
       "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-scaling --sizes 3,8,16,32,64,128 --output results/v0.8-path-tree-families.csv",
       "seed": null,
-      "timestamp": 1785048416,
+      "timestamp": 1785052004,
       "input_count": 30,
       "component_count": 30,
       "input_model": "finite-grid-scaled-path-tree-geometry-families",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-path-tree-orientation-audit.csv",
+      "seed": null,
+      "timestamp": 1785052036,
+      "input_count": 160460,
+      "component_count": 160460,
+      "input_model": "finite-grid-path-tree-orientation-audit",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-path-tree-advantage.csv",
+      "seed": null,
+      "timestamp": 1785052049,
+      "input_count": 29,
+      "component_count": 29,
+      "input_model": "finite-grid-path-tree-vs-4d-sigma-advantage-search",
+      "unsupported_input_features": [
+        "ornaments",
+        "isolated-formal-boundary-points",
+        "line-segment-holes",
+        "point-holes",
+        "degenerate-formal-holes",
+        "general-polygon-input"
+      ]
+    },
+    {
+      "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
+      "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+      "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-vs4d --sizes 1,2,4,8,16,32,64,128,129,513 --output results/v0.8-path-tree-vs-4d.csv",
+      "seed": null,
+      "timestamp": 1785052062,
+      "input_count": 31,
+      "component_count": 31,
+      "input_model": "finite-colored-unit-grid-path-tree-vs-4d",
       "unsupported_input_features": [
         "ornaments",
         "isolated-formal-boundary-points",

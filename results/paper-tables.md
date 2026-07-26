@@ -213,13 +213,14 @@ The row-level CSV contains 156,267 clean instances. Verified: 156,267; counterex
 ### Indexed frontend and boundary-gap differential
 
 The complete differential campaign covers 950,557 inputs, 1,053,939 components, and 385,947 clean components.
-It performs 16,530,974 boundary-index comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 clean-classifier comparisons, and 771,894 orientation comparisons.
-Verified clean components: 385,947; mismatches: 0; solver errors: 0. ReferenceNested performs 52,388,636 interval-membership tests; EventSweep records 409,593 pushes and 409,593 pops.
+It performs 16,530,980 boundary-index comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 clean-classifier comparisons, and 771,894 orientation comparisons.
+Verified clean components: 385,947; mismatches: 0; solver errors: 0. ReferenceNested performs 52,388,678 interval-membership tests; EventSweep records 409,593 pushes and 409,593 pops.
 
 ### Minimized mixed-branching witnesses
 
 | name | cells | horizontal_chords | vertical_chords | dual_max_branching_degree | path_count | heavy_chain_interval_count | paths_using_multiple_heavy_chains | canonical_segment_node_count |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| mixed-branching-connected-sum-5 | 47 | 4 | 3 | 3 | 3 | 4 | 2 | 2 |
 | permuted-notch-grid-74 | 54 | 3 | 3 | 3 | 3 | 4 | 1 | 2 |
 | mutated-notch-064-119 | 60 | 3 | 3 | 3 | 3 | 5 | 2 | 2 |
 | mutated-notch-057-054 | 63 | 3 | 3 | 3 | 3 | 4 | 1 | 2 |
@@ -235,10 +236,9 @@ Verified clean components: 385,947; mismatches: 0; solver errors: 0. ReferenceNe
 | mutated-notch-074-003 | 84 | 3 | 4 | 3 | 4 | 4 | 1 | 2 |
 | mutated-notch-064-025 | 97 | 4 | 5 | 4 | 4 | 4 | 1 | 4 |
 | mutated-notch-074-037 | 115 | 3 | 5 | 3 | 3 | 4 | 2 | 4 |
-| mutated-notch-074-038 | 116 | 3 | 4 | 3 | 4 | 4 | 1 | 2 |
 
-The deterministic witness search examined 74,547 production geometry candidates and retained 16 translation/dihedral-canonical witnesses after delta-debugging minimization.
-Minimized cell counts range from 54 to 116.
+The deterministic witness search examined 74,542 production geometry candidates and retained 16 translation/dihedral-canonical witnesses after delta-debugging minimization.
+Minimized cell counts range from 47 to 115.
 
 ### v0.8 scaled geometry families
 
@@ -254,10 +254,10 @@ It records sigma, network size, phase timings, final equality, and owned-allocat
 
 ### v0.8 representation advantage search
 
-The generated advantage search retains 29 eligible mixed-orientation rows; strict path-tree advantages: 13; strict 4D advantages: 0.
-Retained rows have owned-allocation maxima of 1,084,024 bytes for path-tree and 432,926,462 bytes for 4D; final optimum and rectangle equality are recorded per row.
+The generated advantage search retains 27 eligible mixed-orientation rows; strict path-tree advantages: 14; strict 4D advantages: 0.
+Retained rows have owned-allocation maxima of 270,904 bytes for path-tree and 27,797,892 bytes for 4D; final optimum and rectangle equality are recorded per row.
 
 ### v0.8 orientation regret audit
 
-The expanded audit contains 160,462 rows: 160,457 exact sigma matches and 5 positive-regret rows.
-Maximum absolute regret is 2 and the maximum recorded regret ratio is 2/6. These counterexamples keep exact `build-both` as the CompactOnly default; `bound-estimate` remains an explicit benchmark policy.
+The expanded audit contains 160,460 rows: 160,455 exact sigma matches and 5 positive-regret rows.
+Maximum absolute regret is 2 and the maximum recorded regret ratio is 2/4. These counterexamples keep exact `build-both` as the CompactOnly default; `bound-estimate` remains an explicit benchmark policy.

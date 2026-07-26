@@ -183,7 +183,7 @@ def main() -> None:
             fail(f"manifest omits generated v0.8 evidence: {relative}")
     normalized_tables = paper_tables.lower()
     for required_text in (
-        "strict path-tree advantages: 13",
+        "strict path-tree advantages: 14",
         "positive-regret rows",
         "950,557 inputs",
     ):

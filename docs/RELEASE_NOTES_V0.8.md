@@ -10,7 +10,7 @@ This release hardens the supported finite-grid path-tree frontend.
   available for differential tests.
 - The complete indexed-frontend differential covers 950,557 inputs and
   1,053,939 components with zero mismatches or solver errors.
-- Sixteen mixed-branching geometry witnesses are delta-minimized to 54--116
+- Sixteen mixed-branching geometry witnesses are delta-minimized to 47--115
   cells and persisted with dual, compact-path, HLD, biclique, diagnostics, and
   SVG artifacts. The connected-sum family grows all required structural
   quantities through eight modules.
@@ -18,7 +18,7 @@ This release hardens the supported finite-grid path-tree frontend.
   orientation selection. `BoundEstimate` remains an explicit heuristic policy
   after five positive-regret mixed-witness rows were found. FullyAudited keeps
   reference rescan and `BuildBothExact`.
-- The committed advantage corpus contains 13 strict path-tree sigma advantages
+- The committed advantage corpus contains 14 strict path-tree sigma advantages
   and zero strict 4D advantages; every retained row has equal optimum and
   canonical rectangles.
 

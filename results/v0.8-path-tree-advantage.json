@@ -1,12 +1,12 @@
 {
   "metadata": {
-    "git_commit": "7bd23b7606dd17a30f01fee5b6a3cf8b6406148f",
+    "git_commit": "96e2f30a242b4298b74e6a4508c507389f640156",
     "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128,129,513 --output results/v0.8-path-tree-advantage.csv",
+    "command": "/Users/kcn/Desktop/algorithm/target/release/rect-cli benchmark --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 --output results/v0.8-path-tree-advantage.csv",
     "seed": null,
-    "timestamp": 1785048550,
-    "input_count": 31,
-    "component_count": 31,
+    "timestamp": 1785052049,
+    "input_count": 29,
+    "component_count": 29,
     "input_model": "finite-grid-path-tree-vs-4d-sigma-advantage-search",
     "unsupported_input_features": [
       "ornaments",
@@ -17,13 +17,13 @@
       "general-polygon-input"
     ]
   },
-  "eligible_rows": 29,
-  "strict_path_tree_advantages": 13,
+  "eligible_rows": 27,
+  "strict_path_tree_advantages": 14,
   "strict_four_d_advantages": 0,
   "top_path_tree_advantages": [
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-000",
+      "instance_name": "stored-path-tree-witness-001",
       "canonical_key": "54-bf3f110f573a0a3c",
       "q": 6,
       "horizontal_chords": 3,
@@ -73,7 +73,32 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-002",
+      "instance_name": "stored-path-tree-witness-000",
+      "canonical_key": "47-41acf8d27e74bcc4",
+      "q": 7,
+      "horizontal_chords": 4,
+      "vertical_chords": 3,
+      "sigma_path_tree": 6,
+      "sigma_4d": 7,
+      "sigma_4d_over_path_tree": {
+        "numerator": 7,
+        "denominator": 6
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 6,
+        "denominator": 7
+      },
+      "network_arcs_path_tree": 13,
+      "network_arcs_4d": 14,
+      "owned_path_tree_bytes": 5104,
+      "owned_4d_bytes": 9146,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-003",
       "canonical_key": "63-475ec4fe3b391517",
       "q": 6,
       "horizontal_chords": 3,
@@ -98,7 +123,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-003",
+      "instance_name": "stored-path-tree-witness-004",
       "canonical_key": "64-952bfd620a969096",
       "q": 9,
       "horizontal_chords": 5,
@@ -123,7 +148,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-004",
+      "instance_name": "stored-path-tree-witness-005",
       "canonical_key": "64-da659b9db301862a",
       "q": 7,
       "horizontal_chords": 4,
@@ -148,7 +173,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-009",
+      "instance_name": "stored-path-tree-witness-010",
       "canonical_key": "71-8a393f7909996f98",
       "q": 7,
       "horizontal_chords": 3,
@@ -173,7 +198,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-010",
+      "instance_name": "stored-path-tree-witness-011",
       "canonical_key": "80-beb5e6096c8f4002",
       "q": 8,
       "horizontal_chords": 3,
@@ -198,7 +223,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-011",
+      "instance_name": "stored-path-tree-witness-012",
       "canonical_key": "83-066fd02454250aff",
       "q": 8,
       "horizontal_chords": 5,
@@ -223,7 +248,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-001",
+      "instance_name": "stored-path-tree-witness-002",
       "canonical_key": "60-0cd441f7da7eea4c",
       "q": 6,
       "horizontal_chords": 3,
@@ -248,7 +273,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-005",
+      "instance_name": "stored-path-tree-witness-006",
       "canonical_key": "66-99148130cd2b82bc",
       "q": 6,
       "horizontal_chords": 3,
@@ -273,7 +298,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-007",
+      "instance_name": "stored-path-tree-witness-008",
       "canonical_key": "67-599c183e1a7ade5d",
       "q": 6,
       "horizontal_chords": 3,
@@ -298,7 +323,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-008",
+      "instance_name": "stored-path-tree-witness-009",
       "canonical_key": "70-a8228b93a0184c20",
       "q": 6,
       "horizontal_chords": 3,
@@ -323,7 +348,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-013",
+      "instance_name": "stored-path-tree-witness-014",
       "canonical_key": "97-a802a3f26b863d8f",
       "q": 9,
       "horizontal_chords": 4,
@@ -348,7 +373,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-014",
+      "instance_name": "stored-path-tree-witness-015",
       "canonical_key": "115-6a1efa8c88d0856a",
       "q": 8,
       "horizontal_chords": 3,
@@ -372,51 +397,26 @@
       "status": "verified"
     },
     {
-      "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-015",
-      "canonical_key": "116-02b222b6bba4e4ed",
-      "q": 7,
-      "horizontal_chords": 3,
-      "vertical_chords": 4,
-      "sigma_path_tree": 7,
-      "sigma_4d": 7,
+      "family": "clean-complete-bipartite",
+      "instance_name": "clean-complete-bipartite-t16",
+      "canonical_key": "14756-3c8bf52b277c88dc",
+      "q": 64,
+      "horizontal_chords": 32,
+      "vertical_chords": 32,
+      "sigma_path_tree": 64,
+      "sigma_4d": 64,
       "sigma_4d_over_path_tree": {
-        "numerator": 7,
-        "denominator": 7
+        "numerator": 64,
+        "denominator": 64
       },
       "sigma_path_tree_over_4d": {
-        "numerator": 7,
-        "denominator": 7
+        "numerator": 64,
+        "denominator": 64
       },
-      "network_arcs_path_tree": 14,
-      "network_arcs_4d": 14,
-      "owned_path_tree_bytes": 4760,
-      "owned_4d_bytes": 12716,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "laminar-chain",
-      "instance_name": "laminar-chain-513",
-      "canonical_key": "11940271-9b863dfd94e7e5d7",
-      "q": 2052,
-      "horizontal_chords": 1026,
-      "vertical_chords": 1026,
-      "sigma_path_tree": 2052,
-      "sigma_4d": 2052,
-      "sigma_4d_over_path_tree": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "network_arcs_path_tree": 4104,
-      "network_arcs_4d": 4104,
-      "owned_path_tree_bytes": 1084024,
-      "owned_4d_bytes": 432926462,
+      "network_arcs_path_tree": 128,
+      "network_arcs_4d": 128,
+      "owned_path_tree_bytes": 34360,
+      "owned_4d_bytes": 563300,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
@@ -425,7 +425,7 @@
   "top_four_d_advantages": [
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-014",
+      "instance_name": "stored-path-tree-witness-015",
       "canonical_key": "115-6a1efa8c88d0856a",
       "q": 8,
       "horizontal_chords": 3,
@@ -444,81 +444,6 @@
       "network_arcs_4d": 16,
       "owned_path_tree_bytes": 5664,
       "owned_4d_bytes": 13107,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-015",
-      "canonical_key": "116-02b222b6bba4e4ed",
-      "q": 7,
-      "horizontal_chords": 3,
-      "vertical_chords": 4,
-      "sigma_path_tree": 7,
-      "sigma_4d": 7,
-      "sigma_4d_over_path_tree": {
-        "numerator": 7,
-        "denominator": 7
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 7,
-        "denominator": 7
-      },
-      "network_arcs_path_tree": 14,
-      "network_arcs_4d": 14,
-      "owned_path_tree_bytes": 4760,
-      "owned_4d_bytes": 12716,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "laminar-chain",
-      "instance_name": "laminar-chain-513",
-      "canonical_key": "11940271-9b863dfd94e7e5d7",
-      "q": 2052,
-      "horizontal_chords": 1026,
-      "vertical_chords": 1026,
-      "sigma_path_tree": 2052,
-      "sigma_4d": 2052,
-      "sigma_4d_over_path_tree": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "network_arcs_path_tree": 4104,
-      "network_arcs_4d": 4104,
-      "owned_path_tree_bytes": 1084024,
-      "owned_4d_bytes": 432926462,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t513",
-      "canonical_key": "11940271-9b863dfd94e7e5d7",
-      "q": 2052,
-      "horizontal_chords": 1026,
-      "vertical_chords": 1026,
-      "sigma_path_tree": 2052,
-      "sigma_4d": 2052,
-      "sigma_4d_over_path_tree": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 2052,
-        "denominator": 2052
-      },
-      "network_arcs_path_tree": 4104,
-      "network_arcs_4d": 4104,
-      "owned_path_tree_bytes": 1084024,
-      "owned_4d_bytes": 432926462,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
@@ -675,7 +600,7 @@
     },
     {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-006",
+      "instance_name": "stored-path-tree-witness-007",
       "canonical_key": "66-3b66ac38fb79b288",
       "q": 8,
       "horizontal_chords": 3,
@@ -724,6 +649,31 @@
       "status": "verified"
     },
     {
+      "family": "laminar-chain",
+      "instance_name": "laminar-chain-128",
+      "canonical_key": "761796-28389ab7085e8d7a",
+      "q": 512,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "sigma_path_tree": 512,
+      "sigma_4d": 512,
+      "sigma_4d_over_path_tree": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 512,
+        "denominator": 512
+      },
+      "network_arcs_path_tree": 1024,
+      "network_arcs_4d": 1024,
+      "owned_path_tree_bytes": 270904,
+      "owned_4d_bytes": 27797892,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
       "family": "clean-complete-bipartite",
       "instance_name": "clean-complete-bipartite-t128",
       "canonical_key": "761796-28389ab7085e8d7a",
@@ -749,33 +699,8 @@
       "status": "verified"
     },
     {
-      "family": "clean-complete-bipartite",
-      "instance_name": "clean-complete-bipartite-t129",
-      "canonical_key": "773551-0366c485b7a9c43b",
-      "q": 516,
-      "horizontal_chords": 258,
-      "vertical_chords": 258,
-      "sigma_path_tree": 516,
-      "sigma_4d": 516,
-      "sigma_4d_over_path_tree": {
-        "numerator": 516,
-        "denominator": 516
-      },
-      "sigma_path_tree_over_4d": {
-        "numerator": 516,
-        "denominator": 516
-      },
-      "network_arcs_path_tree": 1032,
-      "network_arcs_4d": 1032,
-      "owned_path_tree_bytes": 273016,
-      "owned_4d_bytes": 28225022,
-      "optimum_equal": true,
-      "rectangles_equal": true,
-      "status": "verified"
-    },
-    {
       "family": "stored-path-tree-regression",
-      "instance_name": "stored-path-tree-witness-012",
+      "instance_name": "stored-path-tree-witness-013",
       "canonical_key": "84-c18c5d003479fe3a",
       "q": 7,
       "horizontal_chords": 3,
@@ -800,7 +725,7 @@
     },
     {
       "family": "asymmetric-orientation",
-      "instance_name": "asymmetric-orientation-513",
+      "instance_name": "asymmetric-orientation-128",
       "canonical_key": "9-f569d1792983e0d9",
       "q": 2,
       "horizontal_chords": 1,
@@ -819,6 +744,81 @@
       "network_arcs_4d": 4,
       "owned_path_tree_bytes": 1624,
       "owned_4d_bytes": 2080,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-014",
+      "canonical_key": "97-a802a3f26b863d8f",
+      "q": 9,
+      "horizontal_chords": 4,
+      "vertical_chords": 5,
+      "sigma_path_tree": 9,
+      "sigma_4d": 10,
+      "sigma_4d_over_path_tree": {
+        "numerator": 10,
+        "denominator": 9
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 9,
+        "denominator": 10
+      },
+      "network_arcs_path_tree": 18,
+      "network_arcs_4d": 19,
+      "owned_path_tree_bytes": 6416,
+      "owned_4d_bytes": 16873,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-002",
+      "canonical_key": "60-0cd441f7da7eea4c",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4168,
+      "owned_4d_bytes": 8520,
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified"
+    },
+    {
+      "family": "stored-path-tree-regression",
+      "instance_name": "stored-path-tree-witness-006",
+      "canonical_key": "66-99148130cd2b82bc",
+      "q": 6,
+      "horizontal_chords": 3,
+      "vertical_chords": 3,
+      "sigma_path_tree": 8,
+      "sigma_4d": 9,
+      "sigma_4d_over_path_tree": {
+        "numerator": 9,
+        "denominator": 8
+      },
+      "sigma_path_tree_over_4d": {
+        "numerator": 8,
+        "denominator": 9
+      },
+      "network_arcs_path_tree": 14,
+      "network_arcs_4d": 15,
+      "owned_path_tree_bytes": 4168,
+      "owned_4d_bytes": 8865,
       "optimum_equal": true,
       "rectangles_equal": true,
       "status": "verified"
