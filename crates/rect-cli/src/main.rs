@@ -8,11 +8,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{
     ColorGrid, DissectionResult, GridComponent, OrthogonalLoop, Point, PolygonDissectionResult,
-    RectilinearPolygon, SvgOverlay, render_dissection_svg, render_polygon_dissection_svg,
+    PolygonGeometryBackend, PolygonValidationBackend, RectilinearPolygon, SvgOverlay,
+    render_dissection_svg, render_polygon_dissection_svg,
 };
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
-    RegionDualBackend, VerificationMode, solve_polygon_with_representation,
+    PolygonArrangementBackend, PolygonChordBackend, PolygonCompletionBackend, PolygonSolveOptions,
+    RegionDualBackend, VerificationMode, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_oracle_sg::CompletionBackendKind;
@@ -56,6 +58,16 @@ enum Command {
         region_dual: Option<RegionDualArg>,
         #[arg(long, value_enum)]
         path_tree_orientation: Option<PathTreeOrientationArg>,
+        #[arg(long, value_enum)]
+        polygon_geometry: Option<PolygonGeometryArg>,
+        #[arg(long, value_enum)]
+        polygon_validator: Option<PolygonValidatorArg>,
+        #[arg(long, value_enum)]
+        polygon_chords: Option<PolygonChordsArg>,
+        #[arg(long, value_enum)]
+        polygon_completion: Option<PolygonCompletionArg>,
+        #[arg(long, value_enum)]
+        polygon_arrangement: Option<PolygonArrangementArg>,
     },
     Verify {
         #[arg(long)]
@@ -222,6 +234,36 @@ enum PathTreeOrientationArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonGeometryArg {
+    ReferenceScan,
+    Indexed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonValidatorArg {
+    ReferenceQuadratic,
+    OrthogonalSweep,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonChordsArg {
+    ReferencePairwise,
+    IndexedPairwise,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonCompletionArg {
+    CoordinateReference,
+    IndexedFrontier,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonArrangementArg {
+    Reference,
+    Indexed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     CleanCensus,
@@ -361,6 +403,11 @@ fn run() -> Result<(), CliError> {
             representation,
             region_dual,
             path_tree_orientation,
+            polygon_geometry,
+            polygon_validator,
+            polygon_chords,
+            polygon_completion,
+            polygon_arrangement,
         } => solve_command(
             solver,
             input_format,
@@ -369,6 +416,11 @@ fn run() -> Result<(), CliError> {
             representation,
             region_dual,
             path_tree_orientation,
+            polygon_geometry,
+            polygon_validator,
+            polygon_chords,
+            polygon_completion,
+            polygon_arrangement,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -386,12 +438,24 @@ fn run() -> Result<(), CliError> {
                 write_json(&report, output.as_deref())
             }
             LoadedInput::Polygon(polygon) => {
-                let result = solve_polygon_with_representation(
+                let report = rect_verify::polygon::verify_polygon(
                     &polygon,
-                    ConflictRepresentationBackend::GeneralDominance4D,
+                    Some(rect_verify::polygon::RasterLimits {
+                        max_width: exact_cover_cell_limit,
+                        max_height: exact_cover_cell_limit,
+                        max_cells: exact_cover_cell_limit,
+                    }),
                 )
-                .map_err(|error| CliError::Solver(error.to_string()))?;
-                write_json(&result, output.as_deref())
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+                write_json(&report, output.as_deref())?;
+                if report.verified() {
+                    Ok(())
+                } else {
+                    Err(CliError::Verification(format!(
+                        "polygon backend disagreements: {}",
+                        report.disagreements.join("; ")
+                    )))
+                }
             }
         },
         Command::Exhaustive {
@@ -929,6 +993,7 @@ fn generate_command(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 fn solve_command(
     solver: SolverArg,
     input_format: InputFormatArg,
@@ -937,12 +1002,27 @@ fn solve_command(
     representation: Option<RepresentationArg>,
     region_dual: Option<RegionDualArg>,
     path_tree_orientation: Option<PathTreeOrientationArg>,
+    polygon_geometry: Option<PolygonGeometryArg>,
+    polygon_validator: Option<PolygonValidatorArg>,
+    polygon_chords: Option<PolygonChordsArg>,
+    polygon_completion: Option<PolygonCompletionArg>,
+    polygon_arrangement: Option<PolygonArrangementArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
 ) -> Result<(), CliError> {
     match load_input(input, input_format)? {
         LoadedInput::Grid(grid) => {
+            if polygon_geometry.is_some()
+                || polygon_validator.is_some()
+                || polygon_chords.is_some()
+                || polygon_completion.is_some()
+                || polygon_arrangement.is_some()
+            {
+                return Err(CliError::Input(
+                    "polygon backend options require boundary-native polygon input".to_owned(),
+                ));
+            }
             let components = grid.four_connected_components();
             let mut solutions = Vec::with_capacity(components.len());
             for component in &components {
@@ -1001,9 +1081,34 @@ fn solve_command(
                     "polygon path-tree orientation is fixed to exact build-both in v0.9".to_owned(),
                 ));
             }
-            let result = solve_polygon_with_representation(
+            let result = solve_polygon_with_options(
                 &polygon,
-                representation_kind(representation.unwrap_or(RepresentationArg::Dominance4d)),
+                PolygonSolveOptions {
+                    verification_mode: match solver {
+                        SolverArg::DominanceCompressed => VerificationMode::FullyAudited,
+                        SolverArg::DominanceCompactOnly => VerificationMode::CompactOnly,
+                        _ => unreachable!("polygon solver was checked above"),
+                    },
+                    geometry_backend: polygon_geometry
+                        .map_or(PolygonGeometryBackend::ReferenceScan, polygon_geometry_kind),
+                    validation_backend: polygon_validator.map_or(
+                        PolygonValidationBackend::ReferenceQuadratic,
+                        polygon_validator_kind,
+                    ),
+                    chord_backend: polygon_chords
+                        .map_or(PolygonChordBackend::ReferencePairwise, polygon_chords_kind),
+                    completion_backend: polygon_completion.map_or(
+                        PolygonCompletionBackend::CoordinateReference,
+                        polygon_completion_kind,
+                    ),
+                    arrangement_backend: polygon_arrangement.map_or(
+                        PolygonArrangementBackend::Reference,
+                        polygon_arrangement_kind,
+                    ),
+                    representation: representation_kind(
+                        representation.unwrap_or(RepresentationArg::Dominance4d),
+                    ),
+                },
             )
             .map_err(|error| CliError::Solver(error.to_string()))?;
             if let Some(svg_path) = svg {
@@ -1118,6 +1223,41 @@ const fn completion_backend_kind(backend: CompletionBackendArg) -> CompletionBac
     match backend {
         CompletionBackendArg::ReferenceRescan => CompletionBackendKind::ReferenceRescan,
         CompletionBackendArg::IndexedFrontier => CompletionBackendKind::IndexedFrontier,
+    }
+}
+
+const fn polygon_geometry_kind(backend: PolygonGeometryArg) -> PolygonGeometryBackend {
+    match backend {
+        PolygonGeometryArg::ReferenceScan => PolygonGeometryBackend::ReferenceScan,
+        PolygonGeometryArg::Indexed => PolygonGeometryBackend::Indexed,
+    }
+}
+
+const fn polygon_validator_kind(backend: PolygonValidatorArg) -> PolygonValidationBackend {
+    match backend {
+        PolygonValidatorArg::ReferenceQuadratic => PolygonValidationBackend::ReferenceQuadratic,
+        PolygonValidatorArg::OrthogonalSweep => PolygonValidationBackend::OrthogonalSweep,
+    }
+}
+
+const fn polygon_chords_kind(backend: PolygonChordsArg) -> PolygonChordBackend {
+    match backend {
+        PolygonChordsArg::ReferencePairwise => PolygonChordBackend::ReferencePairwise,
+        PolygonChordsArg::IndexedPairwise => PolygonChordBackend::IndexedPairwise,
+    }
+}
+
+const fn polygon_completion_kind(backend: PolygonCompletionArg) -> PolygonCompletionBackend {
+    match backend {
+        PolygonCompletionArg::CoordinateReference => PolygonCompletionBackend::CoordinateReference,
+        PolygonCompletionArg::IndexedFrontier => PolygonCompletionBackend::IndexedFrontier,
+    }
+}
+
+const fn polygon_arrangement_kind(backend: PolygonArrangementArg) -> PolygonArrangementBackend {
+    match backend {
+        PolygonArrangementArg::Reference => PolygonArrangementBackend::Reference,
+        PolygonArrangementArg::Indexed => PolygonArrangementBackend::Indexed,
     }
 }
 
@@ -1482,8 +1622,9 @@ mod tests {
 
     use super::{
         ChordEnumeratorArg, CompletionBackendArg, InputFormatArg, LoadedInput,
-        PathTreeOrientationArg, RegionDualArg, RepresentationArg, SolverArg, load_input,
-        solve_command,
+        PathTreeOrientationArg, PolygonArrangementArg, PolygonChordsArg, PolygonCompletionArg,
+        PolygonGeometryArg, PolygonValidatorArg, RegionDualArg, RepresentationArg, SolverArg,
+        load_input, solve_command,
     };
 
     #[test]
@@ -1505,6 +1646,11 @@ mod tests {
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
             Some(RepresentationArg::Dominance4d),
+            None,
+            None,
+            None,
+            None,
+            None,
             None,
             None,
             input.as_path(),
@@ -1553,6 +1699,11 @@ mod tests {
             Some(RepresentationArg::PathTree),
             Some(RegionDualArg::BoundaryLaminar),
             Some(PathTreeOrientationArg::HorizontalTree),
+            None,
+            None,
+            None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -1598,6 +1749,11 @@ mod tests {
             Some(RepresentationArg::Dominance4d),
             None,
             None,
+            Some(PolygonGeometryArg::Indexed),
+            Some(PolygonValidatorArg::OrthogonalSweep),
+            Some(PolygonChordsArg::IndexedPairwise),
+            Some(PolygonCompletionArg::IndexedFrontier),
+            Some(PolygonArrangementArg::Indexed),
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),

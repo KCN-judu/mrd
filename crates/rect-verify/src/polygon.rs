@@ -1,6 +1,23 @@
 //! Independent bounded raster Oracle and grid/polygon differential tests.
 
-use rect_core::{ColorGrid, DoubledPoint, RectilinearPolygon};
+use std::collections::BTreeSet;
+
+use rect_core::{
+    ColorGrid, CoordinateRect, DoubledPoint, HorizontalChord, PolygonDissectionResult,
+    PolygonGeometryBackend, PolygonValidationBackend, PreparedPolygonContext, RectilinearPolygon,
+    VerticalChord,
+};
+use rect_dominance::{
+    ConflictRepresentationBackend, PolygonArrangementBackend, PolygonChordBackend,
+    PolygonCompletionBackend, PolygonSolveOptions, VerificationMode, solve_polygon,
+    solve_polygon_with_options,
+};
+use rect_oracle_sg::{
+    CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
+    GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
+    PolygonCompletionResult, PreparedCoordinateArrangement, classify_clean_polygon,
+    validate_polygon_dissection,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -26,6 +43,449 @@ pub struct RasterizedPolygon {
     pub origin_x: i64,
     pub origin_y: i64,
     pub grid: ColorGrid<bool>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonVerificationInputSummary {
+    pub boundary_complexity: usize,
+    pub outer_vertices: usize,
+    pub hole_count: usize,
+    pub hole_vertices: usize,
+    pub twice_area: i128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonGeometryEvidence {
+    pub normalized_polygon: RectilinearPolygon,
+    pub reflex_vertices: Vec<rect_core::Point>,
+    pub horizontal_chords: Vec<HorizontalChord>,
+    pub vertical_chords: Vec<VerticalChord>,
+    pub endpoint_index: EffectiveChordEndpointIndex,
+    pub clean_certificate: CleanHoleFreeCertificate,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonRepresentationEvidence {
+    pub production: PolygonDissectionResult,
+    pub dominance_4d: PolygonDissectionResult,
+    pub auto: PolygonDissectionResult,
+    pub clean_path_tree: Option<PolygonDissectionResult>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonCompletionEvidence {
+    pub reference: PolygonCompletionResult,
+    pub indexed: PolygonCompletionResult,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct PolygonValidatorEvidence {
+    pub reference_accepts_reference: bool,
+    pub reference_accepts_indexed: bool,
+    pub indexed_accepts_reference: bool,
+    pub indexed_accepts_indexed: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonRasterEvidence {
+    pub origin_x: i64,
+    pub origin_y: i64,
+    pub optimum_rectangle_count: usize,
+    pub rectangles: Vec<CoordinateRect>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct PolygonVerificationReport {
+    pub input_summary: PolygonVerificationInputSummary,
+    pub reference_geometry: PolygonGeometryEvidence,
+    pub indexed_geometry: PolygonGeometryEvidence,
+    pub representation_results: PolygonRepresentationEvidence,
+    pub completion_results: PolygonCompletionEvidence,
+    pub validator_results: PolygonValidatorEvidence,
+    pub raster_oracle: Option<PolygonRasterEvidence>,
+    pub disagreements: Vec<String>,
+}
+
+impl PolygonVerificationReport {
+    #[must_use]
+    pub fn verified(&self) -> bool {
+        self.disagreements.is_empty()
+    }
+}
+
+/// Runs the complete reference-versus-indexed polygon verification stack.
+///
+/// # Errors
+///
+/// Returns [`PolygonVerificationError`] when a backend cannot produce an
+/// exact result. Semantic differences are retained in `disagreements`.
+#[allow(clippy::too_many_lines)]
+pub fn verify_polygon(
+    polygon: &RectilinearPolygon,
+    raster_limits: Option<RasterLimits>,
+) -> Result<PolygonVerificationReport, PolygonVerificationError> {
+    let reference_prepared = PreparedPolygonContext::new_with_validator(
+        polygon,
+        PolygonValidationBackend::ReferenceQuadratic,
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "reference-quadratic",
+        message: error.to_string(),
+    })?;
+    let indexed_prepared = PreparedPolygonContext::new_with_validator(
+        polygon,
+        PolygonValidationBackend::OrthogonalSweep,
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "orthogonal-sweep",
+        message: error.to_string(),
+    })?;
+    let reference_families = GeneralPolygonPairwiseEnumerator
+        .enumerate_prepared(&reference_prepared)
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "reference-pairwise",
+            message: error.to_string(),
+        })?;
+    let indexed_families = IndexedPolygonPairwiseEnumerator
+        .enumerate_prepared(&indexed_prepared)
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "indexed-pairwise",
+            message: error.to_string(),
+        })?
+        .families;
+    let reference_geometry = geometry_evidence(&reference_prepared, &reference_families)?;
+    let indexed_geometry = geometry_evidence(&indexed_prepared, &indexed_families)?;
+
+    let production = solve_polygon(polygon).map_err(|error| PolygonVerificationError::Backend {
+        backend: "production",
+        message: error.to_string(),
+    })?;
+    let audited_options = PolygonSolveOptions {
+        verification_mode: VerificationMode::FullyAudited,
+        geometry_backend: PolygonGeometryBackend::Indexed,
+        validation_backend: PolygonValidationBackend::OrthogonalSweep,
+        chord_backend: PolygonChordBackend::IndexedPairwise,
+        completion_backend: PolygonCompletionBackend::IndexedFrontier,
+        arrangement_backend: PolygonArrangementBackend::Indexed,
+        representation: ConflictRepresentationBackend::GeneralDominance4D,
+    };
+    let dominance_4d = solve_polygon_with_options(polygon, audited_options).map_err(|error| {
+        PolygonVerificationError::Backend {
+            backend: "dominance-4d",
+            message: error.to_string(),
+        }
+    })?;
+    let auto = solve_polygon_with_options(
+        polygon,
+        PolygonSolveOptions {
+            representation: ConflictRepresentationBackend::Auto,
+            ..audited_options
+        },
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "auto",
+        message: error.to_string(),
+    })?;
+    let clean_path_tree = reference_geometry.clean_certificate.eligible.then(|| {
+        solve_polygon_with_options(
+            polygon,
+            PolygonSolveOptions {
+                representation: ConflictRepresentationBackend::CleanHoleFreePathTree,
+                ..audited_options
+            },
+        )
+    });
+    let clean_path_tree =
+        clean_path_tree
+            .transpose()
+            .map_err(|error| PolygonVerificationError::Backend {
+                backend: "clean-path-tree",
+                message: error.to_string(),
+            })?;
+
+    let selected_horizontal = selected_flags(
+        &production,
+        "selected_horizontal",
+        reference_families.horizontal.len(),
+    )?;
+    let selected_vertical = selected_flags(
+        &production,
+        "selected_vertical",
+        reference_families.vertical.len(),
+    )?;
+    let reference_completion = CoordinateCompressedCompletion
+        .complete_prepared(
+            &reference_prepared,
+            &reference_families.horizontal,
+            &reference_families.vertical,
+            &selected_horizontal,
+            &selected_vertical,
+        )
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "coordinate-reference",
+            message: error.to_string(),
+        })?;
+    let indexed_completion = IndexedPolygonCompletion
+        .complete_prepared(
+            &indexed_prepared,
+            &indexed_families.horizontal,
+            &indexed_families.vertical,
+            &selected_horizontal,
+            &selected_vertical,
+        )
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "indexed-frontier",
+            message: error.to_string(),
+        })?;
+    let horizontal_cuts = indexed_completion
+        .selected_horizontal_cuts
+        .iter()
+        .chain(&indexed_completion.added_horizontal_cuts)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let vertical_cuts = indexed_completion
+        .selected_vertical_cuts
+        .iter()
+        .chain(&indexed_completion.added_vertical_cuts)
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let arrangement =
+        PreparedCoordinateArrangement::new(&indexed_prepared, &horizontal_cuts, &vertical_cuts)
+            .map_err(|error| PolygonVerificationError::Backend {
+                backend: "indexed-arrangement",
+                message: error.to_string(),
+            })?;
+    let validator_results = PolygonValidatorEvidence {
+        reference_accepts_reference: validate_polygon_dissection(
+            indexed_prepared.polygon(),
+            &reference_completion.rectangles,
+        )
+        .is_ok(),
+        reference_accepts_indexed: validate_polygon_dissection(
+            indexed_prepared.polygon(),
+            &indexed_completion.rectangles,
+        )
+        .is_ok(),
+        indexed_accepts_reference: arrangement
+            .validate_rectangles(indexed_prepared.polygon(), &reference_completion.rectangles)
+            .is_ok(),
+        indexed_accepts_indexed: arrangement
+            .validate_rectangles(indexed_prepared.polygon(), &indexed_completion.rectangles)
+            .is_ok(),
+    };
+    let raster_oracle = raster_limits
+        .and_then(|limits| bounded_rasterize_polygon(indexed_prepared.polygon(), limits).ok())
+        .map(|rasterized| raster_evidence(&rasterized))
+        .transpose()?;
+
+    let mut disagreements = Vec::new();
+    if reference_geometry != indexed_geometry {
+        disagreements.push("reference and indexed geometry differ".to_owned());
+    }
+    for (name, result) in [
+        ("production", &production),
+        ("auto", &auto),
+        ("dominance-4d", &dominance_4d),
+    ] {
+        if result.optimum_rectangle_count != dominance_4d.optimum_rectangle_count
+            || result.rectangles != dominance_4d.rectangles
+        {
+            disagreements.push(format!(
+                "{name} representation result differs from dominance-4d"
+            ));
+        }
+    }
+    if let Some(path_tree) = &clean_path_tree
+        && (path_tree.optimum_rectangle_count != dominance_4d.optimum_rectangle_count
+            || path_tree.rectangles != dominance_4d.rectangles)
+    {
+        disagreements.push("clean path-tree result differs from dominance-4d".to_owned());
+    }
+    if reference_completion.selected_horizontal_cuts != indexed_completion.selected_horizontal_cuts
+        || reference_completion.selected_vertical_cuts != indexed_completion.selected_vertical_cuts
+        || reference_completion.added_horizontal_cuts != indexed_completion.added_horizontal_cuts
+        || reference_completion.added_vertical_cuts != indexed_completion.added_vertical_cuts
+        || reference_completion.rectangles != indexed_completion.rectangles
+    {
+        disagreements.push("reference and indexed completion differ".to_owned());
+    }
+    if !validator_results.reference_accepts_reference
+        || !validator_results.reference_accepts_indexed
+        || !validator_results.indexed_accepts_reference
+        || !validator_results.indexed_accepts_indexed
+    {
+        disagreements.push("one or more exact validators rejected a completion".to_owned());
+    }
+    if let Some(raster) = &raster_oracle
+        && (raster.optimum_rectangle_count != dominance_4d.optimum_rectangle_count
+            || raster.rectangles != dominance_4d.rectangles)
+    {
+        disagreements.push("bounded raster Oracle differs from polygon solve".to_owned());
+    }
+
+    Ok(PolygonVerificationReport {
+        input_summary: PolygonVerificationInputSummary {
+            boundary_complexity: indexed_prepared.polygon().boundary_complexity(),
+            outer_vertices: indexed_prepared.polygon().outer.vertices.len(),
+            hole_count: indexed_prepared.polygon().holes.len(),
+            hole_vertices: indexed_prepared.polygon().hole_vertex_count(),
+            twice_area: indexed_prepared
+                .polygon()
+                .twice_signed_area()
+                .map_err(|error| PolygonVerificationError::Backend {
+                    backend: "area",
+                    message: error.to_string(),
+                })?,
+        },
+        reference_geometry,
+        indexed_geometry,
+        representation_results: PolygonRepresentationEvidence {
+            production,
+            dominance_4d,
+            auto,
+            clean_path_tree,
+        },
+        completion_results: PolygonCompletionEvidence {
+            reference: reference_completion,
+            indexed: indexed_completion,
+        },
+        validator_results,
+        raster_oracle,
+        disagreements,
+    })
+}
+
+fn geometry_evidence(
+    prepared: &PreparedPolygonContext,
+    families: &rect_oracle_sg::EffectiveChordFamilies,
+) -> Result<PolygonGeometryEvidence, PolygonVerificationError> {
+    let endpoint_index = EffectiveChordEndpointIndex::new(
+        prepared.boundary_index(),
+        &families.horizontal,
+        &families.vertical,
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "endpoint-index",
+        message: error.to_string(),
+    })?;
+    Ok(PolygonGeometryEvidence {
+        normalized_polygon: prepared.polygon().clone(),
+        reflex_vertices: prepared
+            .boundary()
+            .reflex_vertices
+            .iter()
+            .map(|vertex| vertex.point)
+            .collect(),
+        horizontal_chords: families.horizontal.clone(),
+        vertical_chords: families.vertical.clone(),
+        clean_certificate: classify_clean_polygon(
+            prepared.polygon(),
+            prepared.boundary(),
+            &families.horizontal,
+            &families.vertical,
+            &endpoint_index,
+        ),
+        endpoint_index,
+    })
+}
+
+fn selected_flags(
+    result: &PolygonDissectionResult,
+    key: &'static str,
+    expected_len: usize,
+) -> Result<Vec<bool>, PolygonVerificationError> {
+    let flags = result
+        .certificate
+        .as_ref()
+        .and_then(|certificate| certificate.payload.get(key))
+        .and_then(serde_json::Value::as_array)
+        .ok_or(PolygonVerificationError::Certificate { key })?
+        .iter()
+        .map(|value| {
+            value
+                .as_bool()
+                .ok_or(PolygonVerificationError::Certificate { key })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if flags.len() != expected_len {
+        return Err(PolygonVerificationError::Certificate { key });
+    }
+    Ok(flags)
+}
+
+fn raster_evidence(
+    rasterized: &RasterizedPolygon,
+) -> Result<PolygonRasterEvidence, PolygonVerificationError> {
+    let component = rasterized
+        .grid
+        .four_connected_components()
+        .into_iter()
+        .find(|component| component.color)
+        .ok_or(PolygonVerificationError::RasterForeground)?;
+    let result =
+        rect_dominance::solve_with_verification_mode(&component, VerificationMode::CompactOnly)
+            .map_err(|error| PolygonVerificationError::Backend {
+                backend: "bounded-raster",
+                message: error.to_string(),
+            })?;
+    let rectangles = result
+        .rectangles
+        .into_iter()
+        .map(|rectangle| {
+            let x0 = rasterized
+                .origin_x
+                .checked_add(
+                    i64::try_from(rectangle.x0)
+                        .map_err(|_| PolygonVerificationError::CoordinateOverflow)?,
+                )
+                .ok_or(PolygonVerificationError::CoordinateOverflow)?;
+            let y0 = rasterized
+                .origin_y
+                .checked_add(
+                    i64::try_from(rectangle.y0)
+                        .map_err(|_| PolygonVerificationError::CoordinateOverflow)?,
+                )
+                .ok_or(PolygonVerificationError::CoordinateOverflow)?;
+            let x1 = rasterized
+                .origin_x
+                .checked_add(
+                    i64::try_from(rectangle.x1)
+                        .map_err(|_| PolygonVerificationError::CoordinateOverflow)?,
+                )
+                .ok_or(PolygonVerificationError::CoordinateOverflow)?;
+            let y1 = rasterized
+                .origin_y
+                .checked_add(
+                    i64::try_from(rectangle.y1)
+                        .map_err(|_| PolygonVerificationError::CoordinateOverflow)?,
+                )
+                .ok_or(PolygonVerificationError::CoordinateOverflow)?;
+            CoordinateRect::new(x0, y0, x1, y1)
+                .map_err(|_| PolygonVerificationError::CoordinateOverflow)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(PolygonRasterEvidence {
+        origin_x: rasterized.origin_x,
+        origin_y: rasterized.origin_y,
+        optimum_rectangle_count: result.optimum_rectangle_count,
+        rectangles,
+    })
+}
+
+#[derive(Clone, Debug, Error, PartialEq)]
+pub enum PolygonVerificationError {
+    #[error("polygon verification backend {backend} failed: {message}")]
+    Backend {
+        backend: &'static str,
+        message: String,
+    },
+    #[error("polygon certificate is missing or has malformed field {key}")]
+    Certificate { key: &'static str },
+    #[error("bounded rasterization produced no foreground component")]
+    RasterForeground,
+    #[error("coordinate conversion overflowed while translating raster rectangles")]
+    CoordinateOverflow,
 }
 
 /// Rasterizes a small integer-coordinate polygon for differential testing.
@@ -141,7 +601,7 @@ mod tests {
         analyze_geometry_with, complete_with_prepared_backend,
     };
 
-    use super::{RasterLimits, RasterOracleError, bounded_rasterize_polygon};
+    use super::{RasterLimits, RasterOracleError, bounded_rasterize_polygon, verify_polygon};
 
     #[derive(Debug, Default)]
     struct DifferentialCounts {
@@ -372,6 +832,18 @@ mod tests {
         assert_eq!((raster.origin_x, raster.origin_y), (-3, 5));
         assert_eq!((raster.grid.width, raster.grid.height), (4, 4));
         assert_eq!(raster.grid.cells.iter().filter(|&&cell| cell).count(), 7);
+    }
+
+    #[test]
+    fn structured_polygon_verification_compares_every_backend() {
+        let polygon =
+            RectilinearPolygon::new(loop_from(&[(0, 0), (4, 0), (4, 4), (0, 4)]), vec![]).unwrap();
+        let report = verify_polygon(&polygon, Some(RasterLimits::default())).unwrap();
+        assert!(report.verified(), "{:?}", report.disagreements);
+        assert_eq!(report.reference_geometry, report.indexed_geometry);
+        assert!(report.raster_oracle.is_some());
+        assert!(report.validator_results.reference_accepts_reference);
+        assert!(report.validator_results.indexed_accepts_indexed);
     }
 
     #[test]

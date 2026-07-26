@@ -72,6 +72,68 @@ pub struct Diagnostics {
     #[serde(default)]
     pub polygon_validator_backend: Option<String>,
     #[serde(default)]
+    pub polygon_geometry_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_arrangement_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_prepare_build_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_normalization_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_validation_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_boundary_build_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_boundary_index_build_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_edge_index_build_count: Option<usize>,
+    #[serde(default)]
+    pub polygon_prepare_microseconds: Option<u128>,
+    #[serde(default)]
+    pub polygon_prepare_owned_bytes: Option<usize>,
+    #[serde(default)]
+    pub polygon_boundary_edge_visits: Option<usize>,
+    #[serde(default)]
+    pub polygon_point_location_queries: Option<usize>,
+    #[serde(default)]
+    pub polygon_segment_reporting_queries: Option<usize>,
+    #[serde(default)]
+    pub polygon_reported_boundary_intersections: Option<usize>,
+    #[serde(default)]
+    pub polygon_aligned_reflex_candidate_pairs: Option<usize>,
+    #[serde(default)]
+    pub polygon_unaligned_reflex_pair_checks: Option<usize>,
+    #[serde(default)]
+    pub polygon_definition7_full_boundary_scans: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_candidate_rebuilds: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_cut_pair_tests: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_intersections_reported: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_candidate_insertions: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_candidate_revalidations: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_stale_candidates: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_boundary_ray_queries: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_cut_ray_queries: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_full_boundary_scans: Option<usize>,
+    #[serde(default)]
+    pub polygon_completion_full_cut_scans: Option<usize>,
+    #[serde(default)]
+    pub polygon_arrangement_point_location_queries: Option<usize>,
+    #[serde(default)]
+    pub polygon_arrangement_boundary_edge_visits: Option<usize>,
+    #[serde(default)]
+    pub polygon_arrangement_span_writes: Option<usize>,
+    #[serde(default)]
+    pub polygon_validator_rectangle_cell_tests: Option<usize>,
+    #[serde(default)]
     pub raster_oracle_used: Option<bool>,
     pub cell_count: usize,
     pub boundary_complexity: usize,

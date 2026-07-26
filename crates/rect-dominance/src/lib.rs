@@ -3,7 +3,7 @@ pub mod compressed_flow;
 pub mod embedding;
 pub mod path_tree;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::mem::size_of;
 use std::time::Instant;
 
@@ -18,16 +18,17 @@ use path_tree::{
     build_path_tree_partition_with_orientation_policy_and_options,
 };
 use rect_core::{
-    Boundary, BoundaryIndex, Certificate, Diagnostics, DissectionResult, ExactRatio,
-    ExecutionTrace, GridComponent, PolygonDissectionResult, PreparedComponentContext,
-    PreparedGridComponent, RectilinearPolygon, ValidationError, validate_dissection,
-    validate_dissection_prepared,
+    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
+    PolygonDissectionResult, PolygonGeometryBackend, PolygonValidationBackend,
+    PreparedComponentContext, PreparedGridComponent, PreparedPolygonContext, PreparedPolygonError,
+    RectilinearPolygon, ValidationError, validate_dissection, validate_dissection_prepared,
 };
 use rect_graph::{DinicBackend, hopcroft_karp};
 use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
-    GridInteriorRunEnumerator, IndexedFrontierCompletion, PolygonSgError,
+    GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
+    IndexedPolygonPairwiseEnumerator, PolygonSgError, PreparedCoordinateArrangement,
     ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError, analyze_prepared_geometry,
     classify_clean_polygon, complete_with_prepared_backend, validate_polygon_dissection_count,
 };
@@ -96,6 +97,85 @@ pub enum ConflictRepresentationBackend {
     Auto,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PolygonChordBackend {
+    #[default]
+    ReferencePairwise,
+    IndexedPairwise,
+}
+
+impl PolygonChordBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferencePairwise => "reference-pairwise",
+            Self::IndexedPairwise => "indexed-pairwise",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PolygonCompletionBackend {
+    #[default]
+    CoordinateReference,
+    IndexedFrontier,
+}
+
+impl PolygonCompletionBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::CoordinateReference => "coordinate-reference",
+            Self::IndexedFrontier => "indexed-frontier",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PolygonArrangementBackend {
+    #[default]
+    Reference,
+    Indexed,
+}
+
+impl PolygonArrangementBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Reference => "reference",
+            Self::Indexed => "indexed",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonSolveOptions {
+    pub verification_mode: VerificationMode,
+    pub geometry_backend: PolygonGeometryBackend,
+    pub validation_backend: PolygonValidationBackend,
+    pub chord_backend: PolygonChordBackend,
+    pub completion_backend: PolygonCompletionBackend,
+    pub arrangement_backend: PolygonArrangementBackend,
+    pub representation: ConflictRepresentationBackend,
+}
+
+impl Default for PolygonSolveOptions {
+    fn default() -> Self {
+        Self {
+            verification_mode: VerificationMode::CompactOnly,
+            geometry_backend: PolygonGeometryBackend::ReferenceScan,
+            validation_backend: PolygonValidationBackend::ReferenceQuadratic,
+            chord_backend: PolygonChordBackend::ReferencePairwise,
+            completion_backend: PolygonCompletionBackend::CoordinateReference,
+            arrangement_backend: PolygonArrangementBackend::Reference,
+            representation: ConflictRepresentationBackend::GeneralDominance4D,
+        }
+    }
+}
+
 impl ConflictRepresentationBackend {
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -136,16 +216,72 @@ pub fn solve_polygon_with_representation(
     polygon: &RectilinearPolygon,
     representation: ConflictRepresentationBackend,
 ) -> Result<PolygonDissectionResult, DominanceError> {
+    solve_polygon_with_options(
+        polygon,
+        PolygonSolveOptions {
+            representation,
+            ..PolygonSolveOptions::default()
+        },
+    )
+}
+
+/// Solves a polygon with independently selected exact geometry backends.
+///
+/// In `FullyAudited` mode, reference and indexed chord/completion paths are
+/// both run and their complete geometric outputs must agree.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] for backend disagreement or any solver failure.
+#[allow(clippy::too_many_lines)]
+pub fn solve_polygon_with_options(
+    polygon: &RectilinearPolygon,
+    options: PolygonSolveOptions,
+) -> Result<PolygonDissectionResult, DominanceError> {
     let started = Instant::now();
-    let polygon = polygon.normalized().map_err(PolygonSgError::from)?;
-    let boundary = Boundary::from_polygon(&polygon);
-    let boundary_index = BoundaryIndex::new(&boundary).map_err(PolygonSgError::from)?;
-    let families = GeneralPolygonPairwiseEnumerator.enumerate(&polygon)?;
-    let endpoint_index = EffectiveChordEndpointIndex::new(
-        &boundary_index,
-        &families.horizontal,
-        &families.vertical,
-    )?;
+    if matches!(
+        (options.geometry_backend, options.chord_backend),
+        (
+            PolygonGeometryBackend::ReferenceScan,
+            PolygonChordBackend::IndexedPairwise
+        ) | (
+            PolygonGeometryBackend::Indexed,
+            PolygonChordBackend::ReferencePairwise
+        )
+    ) {
+        return Err(DominanceError::PolygonGeometryChordMismatch);
+    }
+    let prepared = PreparedPolygonContext::new_with_validator(polygon, options.validation_backend)?;
+    let polygon = prepared.polygon();
+    let boundary = prepared.boundary();
+    let boundary_index = prepared.boundary_index();
+    let (families, chord_metrics) = match options.verification_mode {
+        VerificationMode::FullyAudited => {
+            let reference = GeneralPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+            let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+            if reference.horizontal != indexed.families.horizontal
+                || reference.vertical != indexed.families.vertical
+            {
+                return Err(DominanceError::ChordFamilyMismatch);
+            }
+            match options.chord_backend {
+                PolygonChordBackend::ReferencePairwise => (reference, None),
+                PolygonChordBackend::IndexedPairwise => (indexed.families, Some(indexed.metrics)),
+            }
+        }
+        VerificationMode::CompactOnly => match options.chord_backend {
+            PolygonChordBackend::ReferencePairwise => (
+                GeneralPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?,
+                None,
+            ),
+            PolygonChordBackend::IndexedPairwise => {
+                let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+                (indexed.families, Some(indexed.metrics))
+            }
+        },
+    };
+    let endpoint_index =
+        EffectiveChordEndpointIndex::new(boundary_index, &families.horizontal, &families.vertical)?;
     let geometry_at = Instant::now();
     let embedding = DominanceEmbedding::new(&families.horizontal, &families.vertical)?;
     let four_d_partition = BicliquePartition::comparability_theorem_8(&embedding)?;
@@ -157,20 +293,20 @@ pub fn solve_polygon_with_representation(
         &DinicBackend,
     )?;
     let clean_certificate = classify_clean_polygon(
-        &polygon,
-        &boundary,
+        polygon,
+        boundary,
         &families.horizontal,
         &families.vertical,
         &endpoint_index,
     );
     let mut path_tree_orientation = None;
-    let (selected_partition, selected_flow, representation_name) = match representation {
+    let (selected_partition, selected_flow, representation_name) = match options.representation {
         ConflictRepresentationBackend::CleanHoleFreePathTree
         | ConflictRepresentationBackend::Auto
             if clean_certificate.eligible =>
         {
             let vertical = build_boundary_path_tree_partition(
-                &boundary,
+                boundary,
                 &families.horizontal,
                 &families.vertical,
                 clean_certificate.clone(),
@@ -179,7 +315,7 @@ pub fn solve_polygon_with_representation(
                 BoundaryGapLabelBackend::EventSweep,
             )?;
             let horizontal = build_boundary_path_tree_partition(
-                &boundary,
+                boundary,
                 &families.horizontal,
                 &families.vertical,
                 clean_certificate.clone(),
@@ -251,21 +387,87 @@ pub fn solve_polygon_with_representation(
         .and_then(|value| value.checked_sub(boundary.hole_count()))
         .and_then(|value| value.checked_sub(independent_count))
         .ok_or(DominanceError::FormulaUnderflow)?;
-    let completion = CoordinateCompressedCompletion.complete(
-        &polygon,
-        &families.horizontal,
-        &families.vertical,
-        &selected_horizontal,
-        &selected_vertical,
-    )?;
+    let completion = match options.verification_mode {
+        VerificationMode::FullyAudited => {
+            let reference = CoordinateCompressedCompletion.complete_prepared(
+                &prepared,
+                &families.horizontal,
+                &families.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+            )?;
+            let indexed = IndexedPolygonCompletion.complete_prepared(
+                &prepared,
+                &families.horizontal,
+                &families.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+            )?;
+            if reference.selected_horizontal_cuts != indexed.selected_horizontal_cuts
+                || reference.selected_vertical_cuts != indexed.selected_vertical_cuts
+                || reference.added_horizontal_cuts != indexed.added_horizontal_cuts
+                || reference.added_vertical_cuts != indexed.added_vertical_cuts
+                || reference.rectangles != indexed.rectangles
+            {
+                return Err(DominanceError::PolygonCompletionMismatch);
+            }
+            match options.completion_backend {
+                PolygonCompletionBackend::CoordinateReference => reference,
+                PolygonCompletionBackend::IndexedFrontier => indexed,
+            }
+        }
+        VerificationMode::CompactOnly => match options.completion_backend {
+            PolygonCompletionBackend::CoordinateReference => CoordinateCompressedCompletion
+                .complete_prepared(
+                    &prepared,
+                    &families.horizontal,
+                    &families.vertical,
+                    &selected_horizontal,
+                    &selected_vertical,
+                )?,
+            PolygonCompletionBackend::IndexedFrontier => IndexedPolygonCompletion
+                .complete_prepared(
+                    &prepared,
+                    &families.horizontal,
+                    &families.vertical,
+                    &selected_horizontal,
+                    &selected_vertical,
+                )?,
+        },
+    };
     if completion.rectangles.len() != optimum_rectangle_count {
         return Err(DominanceError::CompletionCount {
             expected: optimum_rectangle_count,
             actual: completion.rectangles.len(),
         });
     }
-    validate_polygon_dissection_count(&polygon, optimum_rectangle_count, &completion.rectangles)
-        .map_err(PolygonSgError::from)?;
+    if options.verification_mode == VerificationMode::FullyAudited
+        || options.arrangement_backend == PolygonArrangementBackend::Reference
+    {
+        validate_polygon_dissection_count(polygon, optimum_rectangle_count, &completion.rectangles)
+            .map_err(PolygonSgError::from)?;
+    }
+    if options.verification_mode == VerificationMode::FullyAudited
+        || options.arrangement_backend == PolygonArrangementBackend::Indexed
+    {
+        let horizontal_cuts = completion
+            .selected_horizontal_cuts
+            .iter()
+            .chain(&completion.added_horizontal_cuts)
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let vertical_cuts = completion
+            .selected_vertical_cuts
+            .iter()
+            .chain(&completion.added_vertical_cuts)
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let arrangement =
+            PreparedCoordinateArrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)?;
+        arrangement
+            .validate_rectangles(polygon, &completion.rectangles)
+            .map_err(PolygonSgError::from)?;
+    }
     let completed_at = Instant::now();
     Ok(PolygonDissectionResult {
         optimum_rectangle_count,
@@ -275,13 +477,80 @@ pub fn solve_polygon_with_representation(
             polygon_outer_vertices: Some(polygon.outer.vertices.len()),
             polygon_hole_count: Some(polygon.holes.len()),
             polygon_hole_vertices: Some(polygon.hole_vertex_count()),
-            polygon_validation_backend: Some("exact-pairwise-segment-audit".to_owned()),
-            polygon_chord_enumerator: Some(GeneralPolygonPairwiseEnumerator.name().to_owned()),
+            polygon_validation_backend: Some(options.validation_backend.name().to_owned()),
+            polygon_geometry_backend: Some(options.geometry_backend.name().to_owned()),
+            polygon_chord_enumerator: Some(options.chord_backend.name().to_owned()),
             coordinate_compression_x_count: Some(completion.metrics.coordinate_compression_x_count),
             coordinate_compression_y_count: Some(completion.metrics.coordinate_compression_y_count),
             atomic_cell_count: Some(completion.metrics.atomic_cell_count),
-            polygon_completion_backend: Some(CoordinateCompressedCompletion.name().to_owned()),
-            polygon_validator_backend: Some("coordinate-compressed-exact".to_owned()),
+            polygon_completion_backend: Some(options.completion_backend.name().to_owned()),
+            polygon_arrangement_backend: Some(options.arrangement_backend.name().to_owned()),
+            polygon_validator_backend: Some(options.arrangement_backend.name().to_owned()),
+            polygon_prepare_build_count: Some(prepared.metrics().polygon_prepare_build_count),
+            polygon_normalization_count: Some(prepared.metrics().polygon_normalization_count),
+            polygon_validation_count: Some(prepared.metrics().polygon_validation_count),
+            polygon_boundary_build_count: Some(prepared.metrics().polygon_boundary_build_count),
+            polygon_boundary_index_build_count: Some(
+                prepared.metrics().polygon_boundary_index_build_count,
+            ),
+            polygon_edge_index_build_count: Some(prepared.metrics().polygon_edge_index_build_count),
+            polygon_prepare_microseconds: Some(prepared.metrics().polygon_prepare_microseconds),
+            polygon_prepare_owned_bytes: Some(prepared.metrics().polygon_prepare_owned_bytes),
+            polygon_boundary_edge_visits: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_boundary_edge_visits),
+            polygon_point_location_queries: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_point_location_queries),
+            polygon_segment_reporting_queries: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_segment_reporting_queries),
+            polygon_reported_boundary_intersections: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_reported_boundary_intersections),
+            polygon_aligned_reflex_candidate_pairs: Some(
+                prepared.metrics().polygon_aligned_reflex_candidate_pairs,
+            ),
+            polygon_unaligned_reflex_pair_checks: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_unaligned_reflex_pair_checks),
+            polygon_definition7_full_boundary_scans: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_definition7_full_boundary_scans),
+            polygon_completion_candidate_rebuilds: Some(
+                completion.metrics.completion_global_candidate_rebuilds,
+            ),
+            polygon_completion_cut_pair_tests: Some(completion.metrics.completion_cut_pair_tests),
+            polygon_completion_intersections_reported: Some(
+                completion.metrics.completion_intersections_reported,
+            ),
+            polygon_completion_candidate_insertions: Some(
+                completion.metrics.completion_candidate_insertions,
+            ),
+            polygon_completion_candidate_revalidations: Some(
+                completion.metrics.completion_candidate_revalidations,
+            ),
+            polygon_completion_stale_candidates: Some(
+                completion.metrics.completion_stale_candidates,
+            ),
+            polygon_completion_boundary_ray_queries: Some(
+                completion.metrics.completion_boundary_ray_queries,
+            ),
+            polygon_completion_cut_ray_queries: Some(completion.metrics.completion_cut_ray_queries),
+            polygon_completion_full_boundary_scans: Some(
+                completion.metrics.completion_full_boundary_scans,
+            ),
+            polygon_completion_full_cut_scans: Some(completion.metrics.completion_full_cut_scans),
+            polygon_arrangement_point_location_queries: Some(
+                completion.metrics.arrangement_point_location_queries,
+            ),
+            polygon_arrangement_boundary_edge_visits: Some(
+                completion.metrics.arrangement_boundary_edge_visits,
+            ),
+            polygon_arrangement_span_writes: Some(completion.metrics.arrangement_span_writes),
+            polygon_validator_rectangle_cell_tests: Some(
+                completion.metrics.polygon_validator_rectangle_cell_tests,
+            ),
             raster_oracle_used: Some(false),
             boundary_complexity: boundary.boundary_complexity(),
             outer_loop_count: boundary.outer_loop_count(),
@@ -304,6 +573,10 @@ pub fn solve_polygon_with_representation(
             path_tree_orientation_policy: Some("build-both".to_owned()),
             phase_microseconds: [
                 (
+                    "polygon_prepare".to_owned(),
+                    prepared.metrics().polygon_prepare_microseconds,
+                ),
+                (
                     "polygon_geometry".to_owned(),
                     geometry_at.duration_since(started).as_micros(),
                 ),
@@ -315,6 +588,26 @@ pub fn solve_polygon_with_representation(
                     "polygon_completion_validation".to_owned(),
                     completed_at.duration_since(flow_at).as_micros(),
                 ),
+                (
+                    "polygon_selected_cut_materialization".to_owned(),
+                    completion.metrics.selected_cut_materialization_microseconds,
+                ),
+                (
+                    "polygon_horizontal_completion".to_owned(),
+                    completion.metrics.horizontal_completion_microseconds,
+                ),
+                (
+                    "polygon_vertical_completion".to_owned(),
+                    completion.metrics.vertical_completion_microseconds,
+                ),
+                (
+                    "polygon_rectangle_recovery".to_owned(),
+                    completion.metrics.rectangle_recovery_microseconds,
+                ),
+                (
+                    "polygon_final_validation".to_owned(),
+                    completion.metrics.final_validation_microseconds,
+                ),
             ]
             .into_iter()
             .collect(),
@@ -322,6 +615,16 @@ pub fn solve_polygon_with_representation(
                 compact_structure_check_called: true,
                 ..ExecutionTrace::default()
             },
+            owned_allocation_estimates: BTreeMap::from([
+                (
+                    "polygon_prepared_context".to_owned(),
+                    prepared.metrics().polygon_prepare_owned_bytes,
+                ),
+                (
+                    "polygon_arrangement".to_owned(),
+                    completion.metrics.arrangement_owned_bytes,
+                ),
+            ]),
             ..Diagnostics::default()
         },
         certificate: Some(Certificate {
@@ -1753,6 +2056,8 @@ pub enum DominanceError {
     #[error(transparent)]
     PolygonSg(#[from] PolygonSgError),
     #[error(transparent)]
+    PreparedPolygon(#[from] PreparedPolygonError),
+    #[error(transparent)]
     Embedding(#[from] EmbeddingError),
     #[error(transparent)]
     Biclique(#[from] BicliqueError),
@@ -1766,6 +2071,10 @@ pub enum DominanceError {
     ExplicitGraphMismatch,
     #[error("selected effective-chord enumerator differs from the pairwise reference families")]
     ChordFamilyMismatch,
+    #[error("indexed polygon completion differs from the coordinate reference output")]
+    PolygonCompletionMismatch,
+    #[error("polygon geometry and chord backends select incompatible query implementations")]
+    PolygonGeometryChordMismatch,
     #[error("flow value cannot be represented as usize")]
     FlowValueConversion,
     #[error("diagnostic network metric overflowed usize")]

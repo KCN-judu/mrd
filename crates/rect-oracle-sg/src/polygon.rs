@@ -365,13 +365,42 @@ impl CoordinateCompressedCompletion {
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        let prepared = PreparedPolygonContext::new(polygon).map_err(|error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+            rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                PolygonSgError::BoundaryIndex(error)
+            }
+        })?;
+        self.complete_prepared(
+            &prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )
+    }
+
+    /// Runs the preserved completion policy on one shared polygon context.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid selections, incomplete rays, or
+    /// nonrectangular recovered regions.
+    pub fn complete_prepared(
+        &self,
+        prepared: &PreparedPolygonContext,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
         let started = Instant::now();
         if horizontal_chords.len() != selected_horizontal.len()
             || vertical_chords.len() != selected_vertical.len()
         {
             return Err(PolygonSgError::SelectionLengthMismatch);
         }
-        let polygon = polygon.normalized()?;
+        let polygon = prepared.polygon();
         let mut selected_horizontal_cuts = horizontal_chords
             .iter()
             .zip(selected_horizontal)
@@ -407,7 +436,7 @@ impl CoordinateCompressedCompletion {
         };
 
         complete_polygon_axis(
-            &polygon,
+            polygon,
             &mut horizontal_cuts,
             &mut vertical_cuts,
             true,
@@ -419,7 +448,7 @@ impl CoordinateCompressedCompletion {
         metrics.horizontal_completion_microseconds =
             horizontal_at.duration_since(selected_at).as_micros();
         complete_polygon_axis(
-            &polygon,
+            polygon,
             &mut horizontal_cuts,
             &mut vertical_cuts,
             false,
@@ -434,7 +463,7 @@ impl CoordinateCompressedCompletion {
         added_horizontal_cuts = normalize_horizontal_segments(added_horizontal_cuts);
         added_vertical_cuts = normalize_vertical_segments(added_vertical_cuts);
 
-        let recovery = recover_coordinate_rectangles(&polygon, &horizontal_cuts, &vertical_cuts)?;
+        let recovery = recover_coordinate_rectangles(polygon, &horizontal_cuts, &vertical_cuts)?;
         let recovered_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             recovered_at.duration_since(vertical_at).as_micros();
@@ -442,7 +471,7 @@ impl CoordinateCompressedCompletion {
         metrics.coordinate_compression_y_count = recovery.y_count;
         metrics.atomic_cell_count = recovery.atomic_cell_count;
         metrics.rectangle_recovery_visits = recovery.visits;
-        validate_polygon_dissection(&polygon, &recovery.rectangles)?;
+        validate_polygon_dissection(polygon, &recovery.rectangles)?;
         metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();
         Ok(PolygonCompletionResult {
             rectangles: recovery.rectangles,
@@ -510,9 +539,28 @@ impl GeneralPolygonPairwiseEnumerator {
         &self,
         polygon: &RectilinearPolygon,
     ) -> Result<EffectiveChordFamilies, PolygonSgError> {
-        let polygon = polygon.normalized()?;
-        let boundary = Boundary::from_polygon(&polygon);
-        let boundary_index = BoundaryIndex::new(&boundary)?;
+        let prepared = PreparedPolygonContext::new(polygon).map_err(|error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+            rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                PolygonSgError::BoundaryIndex(error)
+            }
+        })?;
+        self.enumerate_prepared(&prepared)
+    }
+
+    /// Runs the preserved full-pair reference algorithm on shared metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for endpoint metadata or chord geometry
+    /// failures.
+    pub fn enumerate_prepared(
+        &self,
+        prepared: &PreparedPolygonContext,
+    ) -> Result<EffectiveChordFamilies, PolygonSgError> {
+        let polygon = prepared.polygon();
+        let boundary = prepared.boundary();
+        let boundary_index = prepared.boundary_index();
         let points = boundary
             .reflex_vertices
             .iter()
@@ -529,19 +577,19 @@ impl GeneralPolygonPairwiseEnumerator {
                     let left = first.x.min(second.x);
                     let right = first.x.max(second.x);
                     if endpoint_has_collinear_edge(
-                        &boundary,
-                        &boundary_index,
+                        boundary,
+                        boundary_index,
                         Point::new(left, first.y),
                         true,
                     )? && endpoint_has_collinear_edge(
-                        &boundary,
-                        &boundary_index,
+                        boundary,
+                        boundary_index,
                         Point::new(right, first.y),
                         true,
                     )? && horizontal_satisfies_definition_7(
-                        &polygon,
-                        &boundary,
-                        &boundary_index,
+                        polygon,
+                        boundary,
+                        boundary_index,
                         left,
                         right,
                         first.y,
@@ -553,19 +601,19 @@ impl GeneralPolygonPairwiseEnumerator {
                     let bottom = first.y.min(second.y);
                     let top = first.y.max(second.y);
                     if endpoint_has_collinear_edge(
-                        &boundary,
-                        &boundary_index,
+                        boundary,
+                        boundary_index,
                         Point::new(first.x, bottom),
                         false,
                     )? && endpoint_has_collinear_edge(
-                        &boundary,
-                        &boundary_index,
+                        boundary,
+                        boundary_index,
                         Point::new(first.x, top),
                         false,
                     )? && vertical_satisfies_definition_7(
-                        &polygon,
-                        &boundary,
-                        &boundary_index,
+                        polygon,
+                        boundary,
+                        boundary_index,
                         first.x,
                         bottom,
                         top,
