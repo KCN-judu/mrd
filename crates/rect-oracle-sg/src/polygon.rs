@@ -558,6 +558,15 @@ impl GeneralPolygonPairwiseEnumerator {
         &self,
         prepared: &PreparedPolygonContext,
     ) -> Result<EffectiveChordFamilies, PolygonSgError> {
+        Ok(self.enumerate_prepared_with_metrics(prepared)?.families)
+    }
+
+    /// Runs the preserved pairwise reference algorithm and returns its scan
+    /// counters as well as the exact chord families.
+    pub fn enumerate_prepared_with_metrics(
+        &self,
+        prepared: &PreparedPolygonContext,
+    ) -> Result<PolygonChordEnumerationResult, PolygonSgError> {
         let polygon = prepared.polygon();
         let boundary = prepared.boundary();
         let boundary_index = prepared.boundary_index();
@@ -568,6 +577,13 @@ impl GeneralPolygonPairwiseEnumerator {
             .collect::<Vec<_>>();
         let mut horizontal = BTreeSet::new();
         let mut vertical = BTreeSet::new();
+        let total_pairs = points.len().saturating_sub(1) * points.len() / 2;
+        let aligned_pairs = prepared.metrics().polygon_aligned_reflex_candidate_pairs;
+        let mut metrics = PolygonChordEnumerationMetrics {
+            polygon_aligned_reflex_candidate_pairs: aligned_pairs,
+            polygon_unaligned_reflex_pair_checks: total_pairs.saturating_sub(aligned_pairs),
+            ..PolygonChordEnumerationMetrics::default()
+        };
 
         for first_index in 0..points.len() {
             for second_index in first_index + 1..points.len() {
@@ -593,6 +609,7 @@ impl GeneralPolygonPairwiseEnumerator {
                         left,
                         right,
                         first.y,
+                        &mut metrics,
                     )? {
                         horizontal.insert((first.y, left, right));
                     }
@@ -617,6 +634,7 @@ impl GeneralPolygonPairwiseEnumerator {
                         first.x,
                         bottom,
                         top,
+                        &mut metrics,
                     )? {
                         vertical.insert((first.x, bottom, top));
                     }
@@ -624,7 +642,7 @@ impl GeneralPolygonPairwiseEnumerator {
             }
         }
 
-        Ok(EffectiveChordFamilies {
+        let families = EffectiveChordFamilies {
             horizontal: horizontal
                 .into_iter()
                 .enumerate()
@@ -641,8 +659,9 @@ impl GeneralPolygonPairwiseEnumerator {
                 .collect::<Result<Vec<_>, _>>()?,
             horizontal_interior_run_count: None,
             vertical_interior_run_count: None,
-            candidate_reflex_pair_count: Some(points.len().saturating_sub(1) * points.len() / 2),
-        })
+            candidate_reflex_pair_count: Some(total_pairs),
+        };
+        Ok(PolygonChordEnumerationResult { families, metrics })
     }
 
     #[must_use]
@@ -935,7 +954,7 @@ pub fn classify_clean_polygon(
     if hole_count != 0 {
         rejection_reasons.push(CleanRejectionReason::HasHole { count: hole_count });
     }
-    let mut endpoint_owners = std::collections::HashMap::<BoundaryVertexId, Vec<ChordRef>>::new();
+    let mut endpoint_owners = BTreeMap::<BoundaryVertexId, Vec<ChordRef>>::new();
     let mut all_chords_proper = true;
     for (index, &chord) in horizontal_chords.iter().enumerate() {
         let proper = polygon.contains_open_horizontal_segment(
@@ -987,7 +1006,8 @@ pub fn classify_clean_polygon(
     }
     let distinct_boundary_endpoints = endpoint_owners.values().all(|owners| owners.len() <= 1);
     if !distinct_boundary_endpoints {
-        for (endpoint, owners) in endpoint_owners {
+        for (endpoint, mut owners) in endpoint_owners {
+            owners.sort_unstable();
             for first in 0..owners.len() {
                 for second in first + 1..owners.len() {
                     rejection_reasons.push(CleanRejectionReason::SharedBoundaryEndpoint {
@@ -1033,7 +1053,10 @@ fn horizontal_satisfies_definition_7(
     left: i64,
     right: i64,
     y: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
 ) -> Result<bool, PolygonSgError> {
+    metrics.polygon_definition7_full_boundary_scans += 1;
+    metrics.polygon_boundary_edge_visits += boundary.boundary_complexity();
     let mut breaks = BTreeSet::from([2 * i128::from(left), 2 * i128::from(right)]);
     for boundary_loop in &boundary.loops {
         for index in 0..boundary_loop.vertices.len() {
@@ -1071,7 +1094,10 @@ fn vertical_satisfies_definition_7(
     x: i64,
     bottom: i64,
     top: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
 ) -> Result<bool, PolygonSgError> {
+    metrics.polygon_definition7_full_boundary_scans += 1;
+    metrics.polygon_boundary_edge_visits += boundary.boundary_complexity();
     let mut breaks = BTreeSet::from([2 * i128::from(bottom), 2 * i128::from(top)]);
     for boundary_loop in &boundary.loops {
         for index in 0..boundary_loop.vertices.len() {
@@ -2371,8 +2397,16 @@ mod tests {
         let boundary = Boundary::from_polygon(&polygon);
         let boundary_index = BoundaryIndex::new(&boundary).unwrap();
         assert!(
-            !horizontal_satisfies_definition_7(&polygon, &boundary, &boundary_index, 2, 10, 5,)
-                .unwrap()
+            !horizontal_satisfies_definition_7(
+                &polygon,
+                &boundary,
+                &boundary_index,
+                2,
+                10,
+                5,
+                &mut super::PolygonChordEnumerationMetrics::default(),
+            )
+            .unwrap()
         );
     }
 
@@ -2419,8 +2453,16 @@ mod tests {
         let boundary = Boundary::from_polygon(&polygon);
         let boundary_index = BoundaryIndex::new(&boundary).unwrap();
         assert!(
-            !horizontal_satisfies_definition_7(&polygon, &boundary, &boundary_index, -1, 11, 5,)
-                .unwrap()
+            !horizontal_satisfies_definition_7(
+                &polygon,
+                &boundary,
+                &boundary_index,
+                -1,
+                11,
+                5,
+                &mut super::PolygonChordEnumerationMetrics::default(),
+            )
+            .unwrap()
         );
     }
 

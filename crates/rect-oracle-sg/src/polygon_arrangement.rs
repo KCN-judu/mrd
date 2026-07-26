@@ -100,8 +100,8 @@ impl PreparedCoordinateArrangement {
                     .expect("boundary crossing coordinate is in arrangement");
                 for x_index in left..right {
                     occupied[y_index * width + x_index] = true;
-                    metrics.arrangement_span_writes += 1;
                 }
+                metrics.arrangement_span_writes += 1;
             }
         }
 

@@ -257,23 +257,27 @@ pub fn solve_polygon_with_options(
     let boundary_index = prepared.boundary_index();
     let (families, chord_metrics) = match options.verification_mode {
         VerificationMode::FullyAudited => {
-            let reference = GeneralPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+            let reference =
+                GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
             let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
-            if reference.horizontal != indexed.families.horizontal
-                || reference.vertical != indexed.families.vertical
+            if reference.families.horizontal != indexed.families.horizontal
+                || reference.families.vertical != indexed.families.vertical
             {
                 return Err(DominanceError::ChordFamilyMismatch);
             }
             match options.chord_backend {
-                PolygonChordBackend::ReferencePairwise => (reference, None),
+                PolygonChordBackend::ReferencePairwise => {
+                    (reference.families, Some(reference.metrics))
+                }
                 PolygonChordBackend::IndexedPairwise => (indexed.families, Some(indexed.metrics)),
             }
         }
         VerificationMode::CompactOnly => match options.chord_backend {
-            PolygonChordBackend::ReferencePairwise => (
-                GeneralPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?,
-                None,
-            ),
+            PolygonChordBackend::ReferencePairwise => {
+                let reference =
+                    GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
+                (reference.families, Some(reference.metrics))
+            }
             PolygonChordBackend::IndexedPairwise => {
                 let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
                 (indexed.families, Some(indexed.metrics))
