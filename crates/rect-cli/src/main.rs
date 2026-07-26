@@ -1210,10 +1210,8 @@ fn solve_command(
                         PolygonCompletionBackend::IndexedFrontier,
                         polygon_completion_kind,
                     ),
-                    arrangement_backend: polygon_arrangement.map_or(
-                        PolygonArrangementBackend::Reference,
-                        polygon_arrangement_kind,
-                    ),
+                    arrangement_backend: polygon_arrangement
+                        .map_or(PolygonArrangementBackend::Indexed, polygon_arrangement_kind),
                     representation: representation_kind(
                         representation.unwrap_or(RepresentationArg::Dominance4d),
                     ),

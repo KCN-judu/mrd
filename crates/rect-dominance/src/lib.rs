@@ -136,8 +136,8 @@ impl PolygonCompletionBackend {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PolygonArrangementBackend {
-    #[default]
     Reference,
+    #[default]
     Indexed,
 }
 
@@ -170,7 +170,7 @@ impl Default for PolygonSolveOptions {
             validation_backend: PolygonValidationBackend::OrthogonalSweep,
             chord_backend: PolygonChordBackend::IndexedPairwise,
             completion_backend: PolygonCompletionBackend::IndexedFrontier,
-            arrangement_backend: PolygonArrangementBackend::Reference,
+            arrangement_backend: PolygonArrangementBackend::Indexed,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
         }
     }
