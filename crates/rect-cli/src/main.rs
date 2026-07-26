@@ -1205,7 +1205,7 @@ fn solve_command(
                         polygon_validator_kind,
                     ),
                     chord_backend: polygon_chords
-                        .map_or(PolygonChordBackend::ReferencePairwise, polygon_chords_kind),
+                        .map_or(PolygonChordBackend::IndexedPairwise, polygon_chords_kind),
                     completion_backend: polygon_completion.map_or(
                         PolygonCompletionBackend::CoordinateReference,
                         polygon_completion_kind,

@@ -100,8 +100,8 @@ pub enum ConflictRepresentationBackend {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PolygonChordBackend {
-    #[default]
     ReferencePairwise,
+    #[default]
     IndexedPairwise,
 }
 
@@ -168,7 +168,7 @@ impl Default for PolygonSolveOptions {
             verification_mode: VerificationMode::CompactOnly,
             geometry_backend: PolygonGeometryBackend::Indexed,
             validation_backend: PolygonValidationBackend::OrthogonalSweep,
-            chord_backend: PolygonChordBackend::ReferencePairwise,
+            chord_backend: PolygonChordBackend::IndexedPairwise,
             completion_backend: PolygonCompletionBackend::CoordinateReference,
             arrangement_backend: PolygonArrangementBackend::Reference,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
