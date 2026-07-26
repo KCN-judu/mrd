@@ -3,17 +3,22 @@ use std::time::Instant;
 
 use thiserror::Error;
 
-use crate::{Boundary, BoundaryError, Coord, GridComponent, GridError, PreparedGridComponent};
+use crate::{
+    Boundary, BoundaryError, BoundaryIndex, BoundaryIndexError, Coord, GridComponent, GridError,
+    PreparedGridComponent,
+};
 
 #[derive(Clone, Debug)]
 pub struct PreparedComponentContext<'a, C> {
     pub component: &'a GridComponent<C>,
     pub prepared: PreparedGridComponent,
     pub boundary: Boundary,
+    pub boundary_index: BoundaryIndex,
     pub reflex_by_row: BTreeMap<Coord, Vec<Coord>>,
     pub reflex_by_column: BTreeMap<Coord, Vec<Coord>>,
     pub prepared_component_build_microseconds: u128,
     pub boundary_extraction_microseconds: u128,
+    pub boundary_index_build_microseconds: u128,
     pub reflex_grouping_microseconds: u128,
 }
 
@@ -29,6 +34,9 @@ impl<'a, C> PreparedComponentContext<'a, C> {
         let prepared_at = Instant::now();
         let boundary = Boundary::from_component(component)?;
         let boundary_at = Instant::now();
+        let boundary_index = BoundaryIndex::new(&boundary)
+            .unwrap_or_else(|_| BoundaryIndex::from_boundary_first_occurrence(&boundary));
+        let boundary_index_at = Instant::now();
         let mut reflex_by_row = BTreeMap::<Coord, Vec<Coord>>::new();
         let mut reflex_by_column = BTreeMap::<Coord, Vec<Coord>>::new();
         for vertex in &boundary.reflex_vertices {
@@ -52,11 +60,15 @@ impl<'a, C> PreparedComponentContext<'a, C> {
             component,
             prepared,
             boundary,
+            boundary_index,
             reflex_by_row,
             reflex_by_column,
             prepared_component_build_microseconds: prepared_at.duration_since(started).as_micros(),
             boundary_extraction_microseconds: boundary_at.duration_since(prepared_at).as_micros(),
-            reflex_grouping_microseconds: grouped_at.duration_since(boundary_at).as_micros(),
+            boundary_index_build_microseconds: boundary_index_at
+                .duration_since(boundary_at)
+                .as_micros(),
+            reflex_grouping_microseconds: grouped_at.duration_since(boundary_index_at).as_micros(),
         })
     }
 }
@@ -67,4 +79,6 @@ pub enum PreparedContextError {
     Grid(#[from] GridError),
     #[error(transparent)]
     Boundary(#[from] BoundaryError),
+    #[error(transparent)]
+    BoundaryIndex(#[from] BoundaryIndexError),
 }

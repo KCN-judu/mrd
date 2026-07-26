@@ -2,9 +2,11 @@
 //!
 //! `ReferenceAreaFloodFill` is the deliberately redundant audited Oracle: it
 //! labels the dual by cutting unit cell sides and flood-filling local
-//! occupancy. `BoundaryLaminar` is the compact finite-grid backend: it derives
-//! the dual from normalized boundary endpoint intervals and does not inspect
-//! area cells. Neither backend claims the paper's general polygon sweep.
+//! occupancy. `BoundaryLaminar` is the production `CompactOnly` backend: it
+//! derives the dual from indexed normalized-boundary endpoint intervals and
+//! uses endpoint-only HLD records. The legacy explicit path lists and per-path
+//! BFS reconstruction remain available only for `FullyAudited` validation.
+//! Neither backend claims the paper's general polygon sweep.
 
 #![allow(clippy::missing_errors_doc)]
 
@@ -14,7 +16,7 @@ use rect_core::{
     Boundary, HorizontalChord, HorizontalChordId, PreparedGridComponent, VerticalChord,
     VerticalChordId, closed_chords_intersect,
 };
-use rect_oracle_sg::CleanHoleFreeCertificate;
+use rect_oracle_sg::{CleanHoleFreeCertificate, EffectiveChordEndpointIndex};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -40,6 +42,13 @@ pub struct RegionDualTree {
     /// Empty for the historical area oracle and synthetic test trees.
     #[serde(default)]
     pub boundary_gap_regions: Vec<DualRegionId>,
+    /// Event-sweep diagnostics. These are zero for the area reference dual.
+    #[serde(default)]
+    pub boundary_gap_membership_tests: usize,
+    #[serde(default)]
+    pub boundary_gap_event_push_count: usize,
+    #[serde(default)]
+    pub boundary_gap_event_pop_count: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -175,6 +184,8 @@ pub enum PathTreeError {
     InvalidBoundaryDual,
     #[error("fixed-orientation chord intervals are not laminar")]
     NonLaminarBoundaryIntervals,
+    #[error("boundary gap event sweep became unbalanced")]
+    BoundaryGapEventImbalance,
     #[error("tree path metric overflow")]
     PathMetricOverflow,
 }
@@ -184,6 +195,23 @@ pub enum PathTreeError {
 pub enum RegionDualBackend {
     ReferenceAreaFloodFill,
     BoundaryLaminar,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BoundaryGapLabelBackend {
+    ReferenceNested,
+    EventSweep,
+}
+
+impl BoundaryGapLabelBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceNested => "reference-nested",
+            Self::EventSweep => "event-sweep",
+        }
+    }
 }
 
 impl RegionDualBackend {
@@ -212,6 +240,25 @@ pub fn build_boundary_laminar_dual_tree(
     vertical_chords: &[VerticalChord],
     certificate: &CleanHoleFreeCertificate,
 ) -> Result<RegionDualTree, PathTreeError> {
+    build_boundary_laminar_dual_tree_with_options(
+        boundary,
+        vertical_chords,
+        certificate,
+        None,
+        BoundaryGapLabelBackend::EventSweep,
+    )
+}
+
+/// Builds the boundary-laminar dual with an explicit endpoint and gap-label
+/// backend. `None` retains the coordinate-based reference endpoint lookup.
+#[allow(clippy::too_many_lines)]
+pub fn build_boundary_laminar_dual_tree_with_options(
+    boundary: &Boundary,
+    vertical_chords: &[VerticalChord],
+    certificate: &CleanHoleFreeCertificate,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<RegionDualTree, PathTreeError> {
     if !certificate.eligible
         || certificate.outer_loop_count != 1
         || certificate.hole_count != 0
@@ -227,8 +274,16 @@ pub fn build_boundary_laminar_dual_tree(
     let mut endpoint_indices = BTreeSet::new();
     let mut endpoint_pairs = Vec::with_capacity(vertical_chords.len());
     for &chord in vertical_chords {
-        let endpoints = rect_oracle_sg::vertical_chord_endpoints(boundary, chord)
-            .map_err(|_| PathTreeError::InvalidBoundaryDual)?;
+        let endpoints = if let Some(endpoint_index) = endpoint_index {
+            endpoint_index
+                .vertical
+                .get(chord.id().0)
+                .copied()
+                .ok_or(PathTreeError::InvalidBoundaryDual)
+        } else {
+            rect_oracle_sg::vertical_chord_endpoints(boundary, chord)
+                .map_err(|_| PathTreeError::InvalidBoundaryDual)
+        }?;
         if endpoints.first.loop_id.0 != 0
             || endpoints.second.loop_id.0 != 0
             || endpoints.first == endpoints.second
@@ -306,19 +361,10 @@ pub fn build_boundary_laminar_dual_tree(
         neighbors.sort_unstable();
     }
 
-    let mut rotated_gap_regions = vec![DualRegionId(0); n];
-    for (gap, label) in rotated_gap_regions.iter_mut().enumerate() {
-        let mut best = (0usize, DualRegionId(0));
-        for (index, interval) in intervals.iter().enumerate() {
-            if interval.start <= gap && gap < interval.end && depths[index] >= best.0 {
-                *label = DualRegionId(index + 1);
-                best = (depths[index], *label);
-            }
-        }
-    }
+    let gap_labels = label_boundary_gaps(n, &intervals, &depths, gap_backend)?;
     let mut boundary_gap_regions = vec![DualRegionId(0); n];
-    for original_gap in 0..n {
-        boundary_gap_regions[original_gap] = rotated_gap_regions[rotate(original_gap)];
+    for (original_gap, label) in boundary_gap_regions.iter_mut().enumerate() {
+        *label = gap_labels.labels[rotate(original_gap)];
     }
     Ok(RegionDualTree {
         region_count,
@@ -326,7 +372,119 @@ pub fn build_boundary_laminar_dual_tree(
         adjacency,
         cell_region_ids: Vec::new(),
         boundary_gap_regions,
+        boundary_gap_membership_tests: gap_labels.membership_tests,
+        boundary_gap_event_push_count: gap_labels.event_push_count,
+        boundary_gap_event_pop_count: gap_labels.event_pop_count,
     })
+}
+
+fn label_boundary_gaps(
+    boundary_len: usize,
+    intervals: &[BoundaryInterval],
+    depths: &[usize],
+    backend: BoundaryGapLabelBackend,
+) -> Result<GapLabelResult, PathTreeError> {
+    match backend {
+        BoundaryGapLabelBackend::ReferenceNested => {
+            let mut labels = vec![DualRegionId(0); boundary_len];
+            let mut membership_tests = 0;
+            for (gap, label) in labels.iter_mut().enumerate() {
+                let mut best = (0usize, DualRegionId(0));
+                for (index, interval) in intervals.iter().enumerate() {
+                    membership_tests += 1;
+                    if interval.start <= gap && gap < interval.end && depths[index] >= best.0 {
+                        *label = DualRegionId(index + 1);
+                        best = (depths[index], *label);
+                    }
+                }
+            }
+            Ok(GapLabelResult {
+                labels,
+                membership_tests,
+                event_push_count: 0,
+                event_pop_count: 0,
+            })
+        }
+        BoundaryGapLabelBackend::EventSweep => {
+            let mut starts = vec![Vec::<usize>::new(); boundary_len + 1];
+            let mut ends = vec![Vec::<usize>::new(); boundary_len + 1];
+            for (index, interval) in intervals.iter().enumerate() {
+                if interval.start >= interval.end
+                    || interval.start > boundary_len
+                    || interval.end > boundary_len
+                {
+                    return Err(PathTreeError::BoundaryGapEventImbalance);
+                }
+                starts[interval.start].push(index);
+                ends[interval.end].push(index);
+            }
+            for bucket in &mut starts {
+                bucket.sort_unstable_by_key(|&index| {
+                    (std::cmp::Reverse(intervals[index].end), index)
+                });
+            }
+            for bucket in &mut ends {
+                bucket.sort_unstable_by_key(|&index| {
+                    (std::cmp::Reverse(intervals[index].start), index)
+                });
+            }
+            let mut active = Vec::<usize>::new();
+            let mut labels = vec![DualRegionId(0); boundary_len];
+            for gap in 0..boundary_len {
+                for &index in &ends[gap] {
+                    let Some(popped) = active.pop() else {
+                        return Err(PathTreeError::BoundaryGapEventImbalance);
+                    };
+                    if popped != index {
+                        return Err(PathTreeError::BoundaryGapEventImbalance);
+                    }
+                }
+                for &index in &starts[gap] {
+                    if active
+                        .last()
+                        .is_some_and(|&parent| intervals[index].end > intervals[parent].end)
+                    {
+                        return Err(PathTreeError::BoundaryGapEventImbalance);
+                    }
+                    active.push(index);
+                }
+                if let Some(&index) = active.last() {
+                    labels[gap] = DualRegionId(index + 1);
+                }
+            }
+            for &index in &ends[boundary_len] {
+                let Some(popped) = active.pop() else {
+                    return Err(PathTreeError::BoundaryGapEventImbalance);
+                };
+                if popped != index || intervals[index].end != boundary_len {
+                    return Err(PathTreeError::BoundaryGapEventImbalance);
+                }
+            }
+            if !starts[boundary_len].is_empty()
+                || !active.is_empty()
+                || ends
+                    .iter()
+                    .flatten()
+                    .any(|&index| intervals[index].end > boundary_len)
+            {
+                return Err(PathTreeError::BoundaryGapEventImbalance);
+            }
+            Ok(GapLabelResult {
+                labels,
+                membership_tests: 0,
+                event_push_count: intervals.len(),
+                event_pop_count: intervals.len(),
+            })
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct GapLabelResult {
+    labels: Vec<DualRegionId>,
+    membership_tests: usize,
+    event_push_count: usize,
+    event_pop_count: usize,
 }
 
 /// Axis-view counterpart of [`build_boundary_laminar_dual_tree`] for a
@@ -334,10 +492,13 @@ pub fn build_boundary_laminar_dual_tree(
 /// indices in the `VerticalChordId` carrier used by the generic HLD storage;
 /// the oriented builder swaps the biclique sides back to H/V afterwards.
 #[allow(clippy::too_many_lines)]
-fn build_horizontal_boundary_laminar_dual_tree(
+#[allow(clippy::too_many_lines)]
+fn build_horizontal_boundary_laminar_dual_tree_with_options(
     boundary: &Boundary,
     horizontal_chords: &[HorizontalChord],
     certificate: &CleanHoleFreeCertificate,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
 ) -> Result<RegionDualTree, PathTreeError> {
     if !certificate.eligible
         || certificate.outer_loop_count != 1
@@ -354,8 +515,16 @@ fn build_horizontal_boundary_laminar_dual_tree(
     let mut endpoint_indices = BTreeSet::new();
     let mut endpoint_pairs = Vec::with_capacity(horizontal_chords.len());
     for &chord in horizontal_chords {
-        let endpoints = rect_oracle_sg::horizontal_chord_endpoints(boundary, chord)
-            .map_err(|_| PathTreeError::InvalidBoundaryDual)?;
+        let endpoints = if let Some(endpoint_index) = endpoint_index {
+            endpoint_index
+                .horizontal
+                .get(chord.id().0)
+                .copied()
+                .ok_or(PathTreeError::InvalidBoundaryDual)
+        } else {
+            rect_oracle_sg::horizontal_chord_endpoints(boundary, chord)
+                .map_err(|_| PathTreeError::InvalidBoundaryDual)
+        }?;
         if endpoints.first.loop_id.0 != 0
             || endpoints.second.loop_id.0 != 0
             || endpoints.first == endpoints.second
@@ -433,19 +602,10 @@ fn build_horizontal_boundary_laminar_dual_tree(
     for neighbors in &mut adjacency {
         neighbors.sort_unstable();
     }
-    let mut rotated_gap_regions = vec![DualRegionId(0); n];
-    for (gap, label) in rotated_gap_regions.iter_mut().enumerate() {
-        let mut best = (0usize, DualRegionId(0));
-        for (index, interval) in intervals.iter().enumerate() {
-            if interval.start <= gap && gap < interval.end && depths[index] >= best.0 {
-                *label = DualRegionId(index + 1);
-                best = (depths[index], *label);
-            }
-        }
-    }
+    let gap_labels = label_boundary_gaps(n, &intervals, &depths, gap_backend)?;
     let mut boundary_gap_regions = vec![DualRegionId(0); n];
-    for original_gap in 0..n {
-        boundary_gap_regions[original_gap] = rotated_gap_regions[rotate(original_gap)];
+    for (original_gap, label) in boundary_gap_regions.iter_mut().enumerate() {
+        *label = gap_labels.labels[rotate(original_gap)];
     }
     Ok(RegionDualTree {
         region_count,
@@ -453,6 +613,9 @@ fn build_horizontal_boundary_laminar_dual_tree(
         adjacency,
         cell_region_ids: Vec::new(),
         boundary_gap_regions,
+        boundary_gap_membership_tests: gap_labels.membership_tests,
+        boundary_gap_event_push_count: gap_labels.event_push_count,
+        boundary_gap_event_pop_count: gap_labels.event_pop_count,
     })
 }
 
@@ -571,6 +734,9 @@ pub fn build_vertical_dual_tree(
         adjacency,
         cell_region_ids,
         boundary_gap_regions: Vec::new(),
+        boundary_gap_membership_tests: 0,
+        boundary_gap_event_push_count: 0,
+        boundary_gap_event_pop_count: 0,
     })
 }
 
@@ -586,6 +752,14 @@ impl RegionDualTree {
         let vertex_id = boundary
             .vertex_id(point)
             .ok_or(PathTreeError::MissingPathEndpoint)?;
+        self.region_at_horizontal_endpoint_boundary_id(boundary, vertex_id)
+    }
+
+    fn region_at_horizontal_endpoint_boundary_id(
+        &self,
+        boundary: &Boundary,
+        vertex_id: rect_core::BoundaryVertexId,
+    ) -> Result<DualRegionId, PathTreeError> {
         let loop_vertices = boundary
             .loops
             .get(vertex_id.loop_id.0)
@@ -625,6 +799,14 @@ impl RegionDualTree {
         let vertex_id = boundary
             .vertex_id(point)
             .ok_or(PathTreeError::MissingPathEndpoint)?;
+        self.region_at_vertical_endpoint_boundary_id(boundary, vertex_id)
+    }
+
+    fn region_at_vertical_endpoint_boundary_id(
+        &self,
+        boundary: &Boundary,
+        vertex_id: rect_core::BoundaryVertexId,
+    ) -> Result<DualRegionId, PathTreeError> {
         let loop_vertices = boundary
             .loops
             .get(vertex_id.loop_id.0)
@@ -668,6 +850,30 @@ impl RegionDualTree {
             .collect()
     }
 
+    pub fn horizontal_endpoint_paths_boundary_with_index(
+        &self,
+        boundary: &Boundary,
+        horizontal_chords: &[HorizontalChord],
+        endpoint_index: &EffectiveChordEndpointIndex,
+    ) -> Result<Vec<CompactTreePath>, PathTreeError> {
+        horizontal_chords
+            .iter()
+            .map(|&chord| {
+                let endpoints = endpoint_index
+                    .horizontal
+                    .get(chord.id().0)
+                    .ok_or(PathTreeError::MissingPathEndpoint)?;
+                Ok(CompactTreePath {
+                    chord_index: chord.id().0,
+                    start_region: self
+                        .region_at_horizontal_endpoint_boundary_id(boundary, endpoints.first)?,
+                    end_region: self
+                        .region_at_horizontal_endpoint_boundary_id(boundary, endpoints.second)?,
+                })
+            })
+            .collect()
+    }
+
     fn vertical_endpoint_paths_boundary(
         &self,
         boundary: &Boundary,
@@ -682,6 +888,30 @@ impl RegionDualTree {
                         .region_at_vertical_endpoint_boundary(boundary, chord, true)?,
                     end_region: self
                         .region_at_vertical_endpoint_boundary(boundary, chord, false)?,
+                })
+            })
+            .collect()
+    }
+
+    fn vertical_endpoint_paths_boundary_with_index(
+        &self,
+        boundary: &Boundary,
+        vertical_chords: &[VerticalChord],
+        endpoint_index: &EffectiveChordEndpointIndex,
+    ) -> Result<Vec<CompactTreePath>, PathTreeError> {
+        vertical_chords
+            .iter()
+            .map(|&chord| {
+                let endpoints = endpoint_index
+                    .vertical
+                    .get(chord.id().0)
+                    .ok_or(PathTreeError::MissingPathEndpoint)?;
+                Ok(CompactTreePath {
+                    chord_index: chord.id().0,
+                    start_region: self
+                        .region_at_vertical_endpoint_boundary_id(boundary, endpoints.first)?,
+                    end_region: self
+                        .region_at_vertical_endpoint_boundary_id(boundary, endpoints.second)?,
                 })
             })
             .collect()
@@ -1136,20 +1366,57 @@ pub fn build_path_tree_partition_with_backend(
     materialize_explicit_paths: bool,
     dual_backend: RegionDualBackend,
 ) -> Result<PathTreePartition, PathTreeError> {
+    build_path_tree_partition_with_backend_and_options(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        materialize_explicit_paths,
+        dual_backend,
+        None,
+        BoundaryGapLabelBackend::EventSweep,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_path_tree_partition_with_backend_and_options(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    materialize_explicit_paths: bool,
+    dual_backend: RegionDualBackend,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<PathTreePartition, PathTreeError> {
     let tree = match dual_backend {
         RegionDualBackend::ReferenceAreaFloodFill => {
             build_vertical_dual_tree(prepared, vertical_chords, &certificate)?
         }
-        RegionDualBackend::BoundaryLaminar => {
-            build_boundary_laminar_dual_tree(boundary, vertical_chords, &certificate)?
-        }
+        RegionDualBackend::BoundaryLaminar => build_boundary_laminar_dual_tree_with_options(
+            boundary,
+            vertical_chords,
+            &certificate,
+            endpoint_index,
+            gap_backend,
+        )?,
     };
     let compact_paths = match dual_backend {
         RegionDualBackend::ReferenceAreaFloodFill => {
             tree.horizontal_endpoint_paths(prepared, horizontal_chords)?
         }
         RegionDualBackend::BoundaryLaminar => {
-            tree.horizontal_endpoint_paths_boundary(boundary, horizontal_chords)?
+            if let Some(endpoint_index) = endpoint_index {
+                tree.horizontal_endpoint_paths_boundary_with_index(
+                    boundary,
+                    horizontal_chords,
+                    endpoint_index,
+                )?
+            } else {
+                tree.horizontal_endpoint_paths_boundary(boundary, horizontal_chords)?
+            }
         }
     };
     let paths = if materialize_explicit_paths {
@@ -1211,15 +1478,26 @@ fn build_partition_from_compact_paths(
     })
 }
 
-fn build_horizontal_axis_view_partition(
+fn build_horizontal_axis_view_partition_with_options(
     boundary: &Boundary,
     horizontal_chords: &[HorizontalChord],
     vertical_chords: &[VerticalChord],
     certificate: CleanHoleFreeCertificate,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
-    let tree =
-        build_horizontal_boundary_laminar_dual_tree(boundary, horizontal_chords, &certificate)?;
-    let compact_paths = tree.vertical_endpoint_paths_boundary(boundary, vertical_chords)?;
+    let tree = build_horizontal_boundary_laminar_dual_tree_with_options(
+        boundary,
+        horizontal_chords,
+        &certificate,
+        endpoint_index,
+        gap_backend,
+    )?;
+    let compact_paths = if let Some(endpoint_index) = endpoint_index {
+        tree.vertical_endpoint_paths_boundary_with_index(boundary, vertical_chords, endpoint_index)?
+    } else {
+        tree.vertical_endpoint_paths_boundary(boundary, vertical_chords)?
+    };
     let mut partition =
         build_partition_from_compact_paths(certificate, tree, compact_paths, Vec::new())?;
     let bicliques = std::mem::take(&mut partition.biclique_partition.bicliques)
@@ -1402,9 +1680,36 @@ pub fn build_oriented_path_tree_partition_with_backend(
     materialize_explicit_paths: bool,
     dual_backend: RegionDualBackend,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
+    build_oriented_path_tree_partition_with_backend_and_options(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        orientation,
+        materialize_explicit_paths,
+        dual_backend,
+        None,
+        BoundaryGapLabelBackend::EventSweep,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_oriented_path_tree_partition_with_backend_and_options(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    orientation: PathTreeOrientation,
+    materialize_explicit_paths: bool,
+    dual_backend: RegionDualBackend,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
     match orientation {
         PathTreeOrientation::VerticalTreeHorizontalPaths => {
-            let partition = build_path_tree_partition_with_backend(
+            let partition = build_path_tree_partition_with_backend_and_options(
                 prepared,
                 boundary,
                 horizontal_chords,
@@ -1412,6 +1717,8 @@ pub fn build_oriented_path_tree_partition_with_backend(
                 certificate,
                 materialize_explicit_paths,
                 dual_backend,
+                endpoint_index,
+                gap_backend,
             )?;
             let biclique_partition = partition.biclique_partition.clone();
             let dual_region_count = partition.tree.region_count;
@@ -1430,11 +1737,13 @@ pub fn build_oriented_path_tree_partition_with_backend(
         }
         PathTreeOrientation::HorizontalTreeVerticalPaths => {
             if dual_backend == RegionDualBackend::BoundaryLaminar && !materialize_explicit_paths {
-                return build_horizontal_axis_view_partition(
+                return build_horizontal_axis_view_partition_with_options(
                     boundary,
                     horizontal_chords,
                     vertical_chords,
                     certificate,
+                    endpoint_index,
+                    gap_backend,
                 );
             }
             let (transposed_horizontal, transposed_vertical) =
@@ -1444,7 +1753,7 @@ pub fn build_oriented_path_tree_partition_with_backend(
                 // BoundaryLaminar never needs occupancy, prefix sums, or run
                 // indexes. Reuse the prepared reference by view while
                 // swapping only the combinatorial boundary/chord axes.
-                build_path_tree_partition_with_backend(
+                build_path_tree_partition_with_backend_and_options(
                     prepared,
                     &transposed_boundary,
                     &transposed_horizontal,
@@ -1452,10 +1761,12 @@ pub fn build_oriented_path_tree_partition_with_backend(
                     certificate,
                     materialize_explicit_paths,
                     dual_backend,
+                    None,
+                    gap_backend,
                 )?
             } else {
                 let transposed_prepared = transpose_prepared(prepared);
-                build_path_tree_partition_with_backend(
+                build_path_tree_partition_with_backend_and_options(
                     &transposed_prepared,
                     &boundary.clone(),
                     &transposed_horizontal,
@@ -1463,6 +1774,8 @@ pub fn build_oriented_path_tree_partition_with_backend(
                     certificate,
                     materialize_explicit_paths,
                     dual_backend,
+                    None,
+                    gap_backend,
                 )?
             };
             let mut transposed = transposed;
@@ -1570,9 +1883,36 @@ pub fn build_path_tree_partition_with_orientation_policy(
     dual_backend: RegionDualBackend,
     policy: PathTreeOrientationPolicy,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
+    build_path_tree_partition_with_orientation_policy_and_options(
+        prepared,
+        boundary,
+        horizontal_chords,
+        vertical_chords,
+        certificate,
+        materialize_explicit_paths,
+        dual_backend,
+        policy,
+        None,
+        BoundaryGapLabelBackend::EventSweep,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_path_tree_partition_with_orientation_policy_and_options(
+    prepared: &PreparedGridComponent,
+    boundary: &Boundary,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    certificate: CleanHoleFreeCertificate,
+    materialize_explicit_paths: bool,
+    dual_backend: RegionDualBackend,
+    policy: PathTreeOrientationPolicy,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
+) -> Result<OrientedPathTreePartition, PathTreeError> {
     let orientation = match policy {
         PathTreeOrientationPolicy::VerticalTree => {
-            return build_oriented_path_tree_partition_with_backend(
+            return build_oriented_path_tree_partition_with_backend_and_options(
                 prepared,
                 boundary,
                 horizontal_chords,
@@ -1581,10 +1921,12 @@ pub fn build_path_tree_partition_with_orientation_policy(
                 PathTreeOrientation::VerticalTreeHorizontalPaths,
                 materialize_explicit_paths,
                 dual_backend,
+                endpoint_index,
+                gap_backend,
             );
         }
         PathTreeOrientationPolicy::HorizontalTree => {
-            return build_oriented_path_tree_partition_with_backend(
+            return build_oriented_path_tree_partition_with_backend_and_options(
                 prepared,
                 boundary,
                 horizontal_chords,
@@ -1593,10 +1935,12 @@ pub fn build_path_tree_partition_with_orientation_policy(
                 PathTreeOrientation::HorizontalTreeVerticalPaths,
                 materialize_explicit_paths,
                 dual_backend,
+                endpoint_index,
+                gap_backend,
             );
         }
         PathTreeOrientationPolicy::BuildBothExact => {
-            return build_best_both(
+            return build_best_both_with_options(
                 prepared,
                 boundary,
                 horizontal_chords,
@@ -1604,13 +1948,15 @@ pub fn build_path_tree_partition_with_orientation_policy(
                 certificate,
                 materialize_explicit_paths,
                 dual_backend,
+                endpoint_index,
+                gap_backend,
             );
         }
         PathTreeOrientationPolicy::BoundEstimate => {
             estimate_orientation(horizontal_chords.len(), vertical_chords.len())
         }
     };
-    build_oriented_path_tree_partition_with_backend(
+    build_oriented_path_tree_partition_with_backend_and_options(
         prepared,
         boundary,
         horizontal_chords,
@@ -1619,10 +1965,13 @@ pub fn build_path_tree_partition_with_orientation_policy(
         orientation,
         materialize_explicit_paths,
         dual_backend,
+        endpoint_index,
+        gap_backend,
     )
 }
 
-fn build_best_both(
+#[allow(clippy::too_many_arguments)]
+fn build_best_both_with_options(
     prepared: &PreparedGridComponent,
     boundary: &Boundary,
     horizontal_chords: &[HorizontalChord],
@@ -1630,8 +1979,10 @@ fn build_best_both(
     certificate: CleanHoleFreeCertificate,
     materialize_explicit_paths: bool,
     dual_backend: RegionDualBackend,
+    endpoint_index: Option<&EffectiveChordEndpointIndex>,
+    gap_backend: BoundaryGapLabelBackend,
 ) -> Result<OrientedPathTreePartition, PathTreeError> {
-    let vertical = build_oriented_path_tree_partition_with_backend(
+    let vertical = build_oriented_path_tree_partition_with_backend_and_options(
         prepared,
         boundary,
         horizontal_chords,
@@ -1640,8 +1991,10 @@ fn build_best_both(
         PathTreeOrientation::VerticalTreeHorizontalPaths,
         materialize_explicit_paths,
         dual_backend,
+        endpoint_index,
+        gap_backend,
     )?;
-    let horizontal = build_oriented_path_tree_partition_with_backend(
+    let horizontal = build_oriented_path_tree_partition_with_backend_and_options(
         prepared,
         boundary,
         horizontal_chords,
@@ -1650,6 +2003,8 @@ fn build_best_both(
         PathTreeOrientation::HorizontalTreeVerticalPaths,
         materialize_explicit_paths,
         dual_backend,
+        endpoint_index,
+        gap_backend,
     )?;
     if horizontal.biclique_partition.total_vertex_occurrences()
         < vertical.biclique_partition.total_vertex_occurrences()
@@ -1842,9 +2197,10 @@ mod tests {
     use rect_oracle_sg::{analyze_geometry, classify_clean_hole_free};
 
     use super::{
-        DualRegionId, DualTreeEdge, HeavyLightDecomposition, PathTreeOrientation,
-        PathTreeOrientationPolicy, RegionDualBackend, RegionDualTree, VerticalChordId,
-        build_boundary_laminar_dual_tree, build_oriented_path_tree_partition,
+        BoundaryGapLabelBackend, DualRegionId, DualTreeEdge, HeavyLightDecomposition,
+        PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend, RegionDualTree,
+        VerticalChordId, build_boundary_laminar_dual_tree,
+        build_boundary_laminar_dual_tree_with_options, build_oriented_path_tree_partition,
         build_path_tree_partition, build_path_tree_partition_with_backend,
     };
 
@@ -1870,7 +2226,98 @@ mod tests {
             adjacency,
             cell_region_ids: Vec::new(),
             boundary_gap_regions: Vec::new(),
+            boundary_gap_membership_tests: 0,
+            boundary_gap_event_push_count: 0,
+            boundary_gap_event_pop_count: 0,
         }
+    }
+
+    #[test]
+    fn event_sweep_gap_labels_match_nested_reference_on_three_by_three() {
+        for mask in 1_u16..(1_u16 << 9) {
+            let cells = (0..9)
+                .map(|index| mask & (1_u16 << index) != 0)
+                .collect::<Vec<_>>();
+            for component in ColorGrid::new(3, 3, cells)
+                .unwrap()
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let Ok(geometry) = analyze_geometry(&component) else {
+                    continue;
+                };
+                let certificate = classify_clean_hole_free(
+                    &component,
+                    &geometry.boundary,
+                    &geometry.horizontal_chords,
+                    &geometry.vertical_chords,
+                );
+                if !certificate.eligible || geometry.vertical_chords.is_empty() {
+                    continue;
+                }
+                let reference = build_boundary_laminar_dual_tree_with_options(
+                    &geometry.boundary,
+                    &geometry.vertical_chords,
+                    &certificate,
+                    Some(&geometry.endpoint_index),
+                    BoundaryGapLabelBackend::ReferenceNested,
+                )
+                .unwrap();
+                let event = build_boundary_laminar_dual_tree_with_options(
+                    &geometry.boundary,
+                    &geometry.vertical_chords,
+                    &certificate,
+                    Some(&geometry.endpoint_index),
+                    BoundaryGapLabelBackend::EventSweep,
+                )
+                .unwrap();
+                assert_eq!(
+                    event.region_count, reference.region_count,
+                    "mask {mask:#05x}"
+                );
+                assert_eq!(event.edges, reference.edges, "mask {mask:#05x}");
+                assert_eq!(event.adjacency, reference.adjacency, "mask {mask:#05x}");
+                assert_eq!(
+                    event.boundary_gap_regions, reference.boundary_gap_regions,
+                    "mask {mask:#05x}"
+                );
+                assert_eq!(event.boundary_gap_membership_tests, 0);
+                assert_eq!(event.boundary_gap_event_push_count, event.edges.len());
+                assert_eq!(event.boundary_gap_event_pop_count, event.edges.len());
+            }
+        }
+    }
+
+    #[test]
+    fn event_sweep_pops_equal_end_intervals_inner_first() {
+        let intervals = vec![
+            super::BoundaryInterval {
+                start: 0,
+                end: 5,
+                chord: VerticalChordId(0),
+            },
+            super::BoundaryInterval {
+                start: 2,
+                end: 5,
+                chord: VerticalChordId(1),
+            },
+        ];
+        let depths = vec![1, 2];
+        let reference = super::label_boundary_gaps(
+            5,
+            &intervals,
+            &depths,
+            BoundaryGapLabelBackend::ReferenceNested,
+        )
+        .unwrap();
+        let event =
+            super::label_boundary_gaps(5, &intervals, &depths, BoundaryGapLabelBackend::EventSweep)
+                .unwrap();
+        assert_eq!(reference.labels, event.labels);
+        assert_eq!(event.event_push_count, 2);
+        assert_eq!(event.event_pop_count, 2);
+        assert_eq!(event.membership_tests, 0);
     }
 
     fn assert_decomposes_exactly(tree: &RegionDualTree, path: &[VerticalChordId]) {

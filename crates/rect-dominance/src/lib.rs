@@ -10,11 +10,13 @@ use std::time::Instant;
 use biclique::{BicliqueError, BicliquePartition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
+pub use path_tree::{
+    BoundaryGapLabelBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend,
+};
 use path_tree::{
     PathTreeError, build_best_path_tree_partition_with_backend,
-    build_path_tree_partition_with_orientation_policy,
+    build_path_tree_partition_with_orientation_policy_and_options,
 };
-pub use path_tree::{PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend};
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
     PreparedComponentContext, PreparedGridComponent, ValidationError, validate_dissection,
@@ -199,11 +201,12 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
                     rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?
                 }
             };
-            let certificate = rect_oracle_sg::classify_clean_hole_free(
+            let certificate = rect_oracle_sg::classify_clean_hole_free_with_endpoint_index(
                 component,
                 &geometry.boundary,
                 &geometry.horizontal_chords,
                 &geometry.vertical_chords,
+                &geometry.endpoint_index,
             );
             if certificate.eligible {
                 solve_path_tree_with_geometry(
@@ -230,9 +233,8 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
 
 const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientationPolicy {
     match mode {
-        VerificationMode::FullyAudited | VerificationMode::CompactOnly => {
-            PathTreeOrientationPolicy::BuildBothExact
-        }
+        VerificationMode::FullyAudited => PathTreeOrientationPolicy::BuildBothExact,
+        VerificationMode::CompactOnly => PathTreeOrientationPolicy::BoundEstimate,
     }
 }
 
@@ -701,6 +703,14 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
         total_chord_count * size_of::<rect_core::HorizontalChord>(),
     );
     owned_allocation_estimates.insert(
+        "boundary_index".to_owned(),
+        geometry.boundary_index.owned_bytes_estimate(),
+    );
+    owned_allocation_estimates.insert(
+        "endpoint_tables".to_owned(),
+        geometry.endpoint_index.owned_bytes_estimate(),
+    );
+    owned_allocation_estimates.insert(
         "embedding_point_arrays".to_owned(),
         total_chord_count * size_of::<embedding::DominancePoint>(),
     );
@@ -884,6 +894,15 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             prepared_component_build_microseconds: Some(
                 geometry.prepared_component_build_microseconds,
             ),
+            boundary_index_build_count: Some(1),
+            boundary_index_build_microseconds: Some(geometry.boundary_index_build_microseconds),
+            boundary_index_entries: Some(geometry.boundary_index.entry_count()),
+            boundary_index_owned_bytes: Some(geometry.boundary_index.owned_bytes_estimate()),
+            linear_boundary_vertex_lookup_count: Some(0),
+            gap_interval_membership_tests: Some(0),
+            gap_event_push_count: Some(0),
+            gap_event_pop_count: Some(0),
+            clean_endpoint_pair_comparisons: Some(0),
             boundary_extraction_microseconds: Some(geometry.boundary_extraction_microseconds),
             reflex_grouping_microseconds: Some(geometry.reflex_grouping_microseconds),
             occupancy_bytes: Some(
@@ -937,11 +956,12 @@ fn solve_path_tree_dispatch<C>(
             rect_oracle_sg::analyze_geometry_with(component, &GridInteriorRunEnumerator)?
         }
     };
-    let certificate = rect_oracle_sg::classify_clean_hole_free(
+    let certificate = rect_oracle_sg::classify_clean_hole_free_with_endpoint_index(
         component,
         &geometry.boundary,
         &geometry.horizontal_chords,
         &geometry.vertical_chords,
+        &geometry.endpoint_index,
     );
     if !certificate.eligible {
         return Err(DominanceError::PathTreeIneligible(certificate));
@@ -968,7 +988,7 @@ fn solve_path_tree_with_geometry<C>(
     orientation_policy: PathTreeOrientationPolicy,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
-    let path_tree = build_path_tree_partition_with_orientation_policy(
+    let path_tree = build_path_tree_partition_with_orientation_policy_and_options(
         &geometry.prepared,
         &geometry.boundary,
         &geometry.horizontal_chords,
@@ -977,6 +997,8 @@ fn solve_path_tree_with_geometry<C>(
         mode == VerificationMode::FullyAudited,
         region_dual,
         orientation_policy,
+        Some(&geometry.endpoint_index),
+        path_tree::BoundaryGapLabelBackend::EventSweep,
     )?;
     let path_tree_at = Instant::now();
     let mut four_d_sigma = None;
@@ -1149,6 +1171,81 @@ fn solve_path_tree_with_geometry<C>(
         .len()
         .saturating_mul(log_q)
         .saturating_mul(4);
+    let boundary_vertex_count = geometry.boundary.boundary_complexity();
+    let mut owned_allocation_estimates = BTreeMap::new();
+    owned_allocation_estimates.insert(
+        "boundary_index".to_owned(),
+        geometry.boundary_index.owned_bytes_estimate(),
+    );
+    owned_allocation_estimates.insert(
+        "endpoint_tables".to_owned(),
+        geometry.endpoint_index.owned_bytes_estimate(),
+    );
+    owned_allocation_estimates.insert(
+        "boundary_intervals_and_events".to_owned(),
+        path_tree
+            .path_tree
+            .tree
+            .edges
+            .len()
+            .saturating_mul(size_of::<(usize, usize, rect_core::VerticalChordId)>() * 2)
+            .saturating_add(boundary_vertex_count.saturating_mul(size_of::<Vec<usize>>())),
+    );
+    owned_allocation_estimates.insert(
+        "gap_region_labels".to_owned(),
+        boundary_vertex_count * size_of::<path_tree::DualRegionId>(),
+    );
+    owned_allocation_estimates.insert(
+        "dual_edges_and_adjacency".to_owned(),
+        path_tree.path_tree.tree.edges.len() * size_of::<path_tree::DualTreeEdge>()
+            + path_tree.path_tree.tree.adjacency.len()
+                * size_of::<Vec<(path_tree::DualRegionId, rect_core::VerticalChordId)>>()
+            + path_tree
+                .path_tree
+                .tree
+                .adjacency
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>()
+                * size_of::<(path_tree::DualRegionId, rect_core::VerticalChordId)>(),
+    );
+    owned_allocation_estimates.insert(
+        "compact_path_records".to_owned(),
+        path_tree.path_tree.compact_paths.len() * size_of::<path_tree::CompactTreePath>(),
+    );
+    owned_allocation_estimates.insert(
+        "hld_arrays".to_owned(),
+        path_tree.path_tree.hld.parent.len()
+            * (size_of::<Option<path_tree::DualRegionId>>() * 2 + size_of::<usize>() * 6),
+    );
+    owned_allocation_estimates.insert(
+        "chain_edge_vectors".to_owned(),
+        path_tree
+            .path_tree
+            .hld
+            .chain_edges
+            .iter()
+            .map(|edges| edges.len() * size_of::<rect_core::VerticalChordId>())
+            .sum(),
+    );
+    owned_allocation_estimates.insert(
+        "canonical_segment_nodes".to_owned(),
+        path_tree.canonical_segment_node_count * size_of::<biclique::Biclique>(),
+    );
+    owned_allocation_estimates.insert(
+        "biclique_vectors".to_owned(),
+        path_tree.biclique_partition.bicliques.len() * size_of::<biclique::Biclique>()
+            + sigma * size_of::<usize>(),
+    );
+    owned_allocation_estimates.insert(
+        "compressed_flow_graph".to_owned(),
+        (flow_solution.network_vertex_count + flow_solution.network_arc_count) * size_of::<usize>(),
+    );
+    owned_allocation_estimates.insert(
+        "path_tree_certificate_payload".to_owned(),
+        path_tree.path_tree.compact_paths.len() * size_of::<path_tree::CompactTreePath>()
+            + path_tree.path_tree.tree.edges.len() * size_of::<path_tree::DualTreeEdge>(),
+    );
     let result = DissectionResult {
         optimum_rectangle_count,
         rectangles: completion.rectangles,
@@ -1210,6 +1307,17 @@ fn solve_path_tree_with_geometry<C>(
             prepared_component_build_microseconds: Some(
                 geometry.prepared_component_build_microseconds,
             ),
+            boundary_index_build_count: Some(1),
+            boundary_index_build_microseconds: Some(geometry.boundary_index_build_microseconds),
+            boundary_index_entries: Some(geometry.boundary_index.entry_count()),
+            boundary_index_owned_bytes: Some(geometry.boundary_index.owned_bytes_estimate()),
+            linear_boundary_vertex_lookup_count: Some(0),
+            gap_interval_membership_tests: Some(
+                path_tree.path_tree.tree.boundary_gap_membership_tests,
+            ),
+            gap_event_push_count: Some(path_tree.path_tree.tree.boundary_gap_event_push_count),
+            gap_event_pop_count: Some(path_tree.path_tree.tree.boundary_gap_event_pop_count),
+            clean_endpoint_pair_comparisons: Some(0),
             boundary_extraction_microseconds: Some(geometry.boundary_extraction_microseconds),
             reflex_grouping_microseconds: Some(geometry.reflex_grouping_microseconds),
             occupancy_bytes: Some(geometry.prepared.occupancy.len()),
@@ -1242,6 +1350,7 @@ fn solve_path_tree_with_geometry<C>(
             canonical_segment_node_count: Some(path_tree.canonical_segment_node_count),
             path_tree_sigma: Some(sigma),
             four_d_sigma,
+            owned_allocation_estimates,
             region_dual_backend: Some(region_dual.name().to_owned()),
             region_dual_construction_microseconds: Some(
                 path_tree_at.duration_since(started).as_micros(),

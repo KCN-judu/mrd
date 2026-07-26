@@ -33,6 +33,109 @@ pub struct Boundary {
     pub unit_edges: Vec<(Point, Point)>,
 }
 
+/// Exact normalized-vertex lookup built once for a boundary.
+///
+/// `Boundary::vertex_id` remains the small reference convenience API.  This
+/// index is the production lookup path for repeated endpoint metadata queries.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BoundaryIndex {
+    vertex_ids: HashMap<Point, BoundaryVertexId>,
+    loop_lengths: Vec<usize>,
+}
+
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+pub enum BoundaryIndexError {
+    #[error("normalized boundary vertex {point:?} occurs in loops {first:?} and {second:?}")]
+    DuplicateVertex {
+        point: Point,
+        first: BoundaryVertexId,
+        second: BoundaryVertexId,
+    },
+}
+
+impl BoundaryIndex {
+    /// Builds an exact index over every normalized vertex in every loop.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BoundaryIndexError::DuplicateVertex`] when normalization
+    /// leaves the same point at more than one stable boundary identity.
+    pub fn new(boundary: &Boundary) -> Result<Self, BoundaryIndexError> {
+        let capacity = boundary
+            .loops
+            .iter()
+            .map(|boundary_loop| boundary_loop.vertices.len())
+            .sum();
+        let mut vertex_ids = HashMap::with_capacity(capacity);
+        let mut loop_lengths = Vec::with_capacity(boundary.loops.len());
+        for (loop_index, boundary_loop) in boundary.loops.iter().enumerate() {
+            loop_lengths.push(boundary_loop.vertices.len());
+            for (cyclic_index, &point) in boundary_loop.vertices.iter().enumerate() {
+                let id = BoundaryVertexId {
+                    loop_id: BoundaryLoopId(loop_index),
+                    cyclic_index,
+                };
+                if let Some(first) = vertex_ids.insert(point, id) {
+                    return Err(BoundaryIndexError::DuplicateVertex {
+                        point,
+                        first,
+                        second: id,
+                    });
+                }
+            }
+        }
+        Ok(Self {
+            vertex_ids,
+            loop_lengths,
+        })
+    }
+
+    /// Builds the historical first-occurrence view used only for malformed or
+    /// point-contact reference inputs. Callers that require a strict index
+    /// must use [`Self::new`] and handle its structured duplicate error.
+    pub(crate) fn from_boundary_first_occurrence(boundary: &Boundary) -> Self {
+        let mut vertex_ids = HashMap::new();
+        let mut loop_lengths = Vec::with_capacity(boundary.loops.len());
+        for (loop_index, boundary_loop) in boundary.loops.iter().enumerate() {
+            loop_lengths.push(boundary_loop.vertices.len());
+            for (cyclic_index, &point) in boundary_loop.vertices.iter().enumerate() {
+                vertex_ids.entry(point).or_insert(BoundaryVertexId {
+                    loop_id: BoundaryLoopId(loop_index),
+                    cyclic_index,
+                });
+            }
+        }
+        Self {
+            vertex_ids,
+            loop_lengths,
+        }
+    }
+
+    #[must_use]
+    pub fn vertex_id(&self, point: Point) -> Option<BoundaryVertexId> {
+        self.vertex_ids.get(&point).copied()
+    }
+
+    #[must_use]
+    pub fn loop_len(&self, loop_id: BoundaryLoopId) -> Option<usize> {
+        self.loop_lengths.get(loop_id.0).copied()
+    }
+
+    #[must_use]
+    pub fn entry_count(&self) -> usize {
+        self.vertex_ids.len()
+    }
+
+    #[must_use]
+    pub fn owned_bytes_estimate(&self) -> usize {
+        self.vertex_ids.len()
+            * (std::mem::size_of::<Point>()
+                + std::mem::size_of::<BoundaryVertexId>()
+                + 2 * std::mem::size_of::<usize>())
+            + self.loop_lengths.len() * std::mem::size_of::<usize>()
+    }
+}
+
 impl Boundary {
     /// Extracts normalized directed loops and reflex vertices from a grid component.
     ///
@@ -285,7 +388,7 @@ pub enum BoundaryError {
 mod tests {
     use crate::ColorGrid;
 
-    use super::Boundary;
+    use super::{Boundary, BoundaryIndex, BoundaryIndexError};
 
     #[test]
     fn extracts_outer_and_hole_loops() {
@@ -304,5 +407,25 @@ mod tests {
         assert_eq!(boundary.outer_loop_count(), 1);
         assert_eq!(boundary.hole_count(), 1);
         assert_eq!(boundary.reflex_vertices.len(), 4);
+    }
+
+    #[test]
+    fn boundary_index_rejects_duplicate_normalized_vertices() {
+        let grid = ColorGrid::new(
+            3,
+            3,
+            vec![true, true, true, true, false, true, true, true, false],
+        )
+        .unwrap();
+        let component = grid
+            .four_connected_components()
+            .into_iter()
+            .find(|component| component.color)
+            .unwrap();
+        let boundary = Boundary::from_component(&component).unwrap();
+        assert!(matches!(
+            BoundaryIndex::new(&boundary),
+            Err(BoundaryIndexError::DuplicateVertex { .. })
+        ));
     }
 }
