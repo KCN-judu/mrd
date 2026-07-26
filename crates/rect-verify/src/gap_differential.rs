@@ -180,6 +180,7 @@ struct ComponentEvidence {
     boundary_complexity: usize,
 }
 
+#[allow(clippy::too_many_lines)]
 fn compare_clean_component(
     component: &GridComponent<bool>,
 ) -> Result<ComponentEvidence, Vec<String>> {
@@ -555,7 +556,7 @@ fn random_connected_instance(
     }
 }
 
-/// Runs the complete configured ReferenceNested versus EventSweep population.
+/// Runs the complete configured `ReferenceNested` versus `EventSweep` population.
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn verify_gap_backends(

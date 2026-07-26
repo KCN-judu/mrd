@@ -1127,6 +1127,10 @@ fn stored_witness_components() -> Vec<(rect_core::GridComponent<bool>, FamilyMet
 
 /// Loads the committed minimized mixed-branching witnesses as replayable grid
 /// instances.
+///
+/// # Panics
+///
+/// Panics if the committed witness index is not valid JSON.
 #[must_use]
 pub fn stored_mixed_branching_witnesses() -> Vec<AdversarialInstance> {
     let report: PathTreeWitnessSearchReport = serde_json::from_str(include_str!(
@@ -1161,6 +1165,7 @@ pub fn stored_mixed_branching_witnesses() -> Vec<AdversarialInstance> {
 /// production clean classifier and path-tree builder prove that all recorded
 /// structural metrics are monotone and at least one strictly increases.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn mixed_branching_connected_sum_family(max_modules: usize) -> Vec<AdversarialInstance> {
     let candidates = stored_witness_components();
     let Some((mut current, mut previous)) = candidates.first().cloned() else {

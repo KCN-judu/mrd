@@ -247,11 +247,13 @@ pub fn solve_with_representation_and_path_tree_options<C>(
                     component,
                     &geometry,
                     &certificate,
-                    mode,
-                    completion_backend,
-                    region_dual,
-                    orientation_policy,
-                    gap_backend,
+                    PathTreeSolveOptions {
+                        mode,
+                        completion_backend,
+                        region_dual,
+                        orientation_policy,
+                        gap_backend,
+                    },
                 )
             } else {
                 solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
@@ -268,11 +270,21 @@ pub fn solve_with_representation_and_path_tree_options<C>(
 
 const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientationPolicy {
     match mode {
-        VerificationMode::FullyAudited => PathTreeOrientationPolicy::BuildBothExact,
         // BoundEstimate remains an explicit benchmark policy; the expanded
         // v0.8 witness population contains positive-regret cases.
-        VerificationMode::CompactOnly => PathTreeOrientationPolicy::BuildBothExact,
+        VerificationMode::FullyAudited | VerificationMode::CompactOnly => {
+            PathTreeOrientationPolicy::BuildBothExact
+        }
     }
+}
+
+#[derive(Clone, Copy)]
+struct PathTreeSolveOptions {
+    mode: VerificationMode,
+    completion_backend: CompletionBackendKind,
+    region_dual: RegionDualBackend,
+    orientation_policy: PathTreeOrientationPolicy,
+    gap_backend: BoundaryGapLabelBackend,
 }
 
 const fn ceil_log2(value: usize) -> usize {
@@ -1008,11 +1020,13 @@ fn solve_path_tree_dispatch<C>(
         component,
         &geometry,
         &certificate,
-        mode,
-        completion_backend,
-        region_dual,
-        orientation_policy,
-        gap_backend,
+        PathTreeSolveOptions {
+            mode,
+            completion_backend,
+            region_dual,
+            orientation_policy,
+            gap_backend,
+        },
     )
 }
 
@@ -1021,12 +1035,15 @@ fn solve_path_tree_with_geometry<C>(
     component: &GridComponent<C>,
     geometry: &rect_oracle_sg::SgGeometry,
     certificate: &rect_oracle_sg::CleanHoleFreeCertificate,
-    mode: VerificationMode,
-    completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
-    orientation_policy: PathTreeOrientationPolicy,
-    gap_backend: BoundaryGapLabelBackend,
+    options: PathTreeSolveOptions,
 ) -> Result<DissectionResult, DominanceError> {
+    let PathTreeSolveOptions {
+        mode,
+        completion_backend,
+        region_dual,
+        orientation_policy,
+        gap_backend,
+    } = options;
     let started = Instant::now();
     let path_tree = build_path_tree_partition_with_orientation_policy_and_options(
         &geometry.prepared,

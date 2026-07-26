@@ -85,6 +85,12 @@ def assert_implementation_defaults() -> None:
     implementation = (ROOT / "crates/rect-dominance/src/lib.rs").read_text(
         encoding="utf-8"
     )
+    merged = re.search(
+        r"VerificationMode::FullyAudited\s*\|\s*VerificationMode::CompactOnly\s*=>\s*\{?\s*PathTreeOrientationPolicy::BuildBothExact",
+        implementation,
+    )
+    if merged:
+        return
     compact = re.search(
         r"VerificationMode::CompactOnly\s*=>\s*PathTreeOrientationPolicy::([A-Za-z0-9_]+)",
         implementation,
