@@ -1868,6 +1868,21 @@ mod polygon_tests {
             transform_polygon(&polygon, &|point| Point::new(-point.x, -point.y)),
             transform_polygon(&polygon, &|point| Point::new(point.y, -point.x)),
             transform_polygon(&polygon, &|point| Point::new(point.x * 5, point.y * 3)),
+            transform_polygon(&polygon, &|point| {
+                let x = match point.x {
+                    0 => -11,
+                    2 => 3,
+                    7 => 29,
+                    _ => unreachable!("fixture has only three x coordinates"),
+                };
+                let y = match point.y {
+                    0 => 5,
+                    2 => 12,
+                    9 => 40,
+                    _ => unreachable!("fixture has only three y coordinates"),
+                };
+                Point::new(x, y)
+            }),
         ];
         for transformed in transforms {
             assert_eq!(
@@ -1888,6 +1903,7 @@ mod polygon_tests {
         assert_eq!(verify_grid_polygon_masks(4, 4), 166_189);
     }
 
+    #[allow(clippy::too_many_lines)]
     fn verify_grid_polygon_masks(width: usize, height: usize) -> usize {
         let mut compared = 0;
         let bit_count = width * height;
@@ -1936,6 +1952,23 @@ mod polygon_tests {
                     "selected_vertical",
                     geometry.vertical_chords.len(),
                 );
+                let polygon_result = solve_polygon(&polygon).unwrap();
+                let polygon_selected_horizontal = polygon_selected_flags(
+                    &polygon_result,
+                    "selected_horizontal",
+                    geometry.horizontal_chords.len(),
+                );
+                let polygon_selected_vertical = polygon_selected_flags(
+                    &polygon_result,
+                    "selected_vertical",
+                    geometry.vertical_chords.len(),
+                );
+                assert_eq!(selected_horizontal, polygon_selected_horizontal);
+                assert_eq!(selected_vertical, polygon_selected_vertical);
+                assert_eq!(
+                    grid_result.optimum_rectangle_count,
+                    polygon_result.optimum_rectangle_count
+                );
                 let grid_completion = complete_with_prepared_backend(
                     &component,
                     &geometry.prepared,
@@ -1951,8 +1984,8 @@ mod polygon_tests {
                         &polygon,
                         &polygon_families.horizontal,
                         &polygon_families.vertical,
-                        &selected_horizontal,
-                        &selected_vertical,
+                        &polygon_selected_horizontal,
+                        &polygon_selected_vertical,
                     )
                     .unwrap();
                 assert_eq!(
@@ -1985,6 +2018,7 @@ mod polygon_tests {
                     })
                     .collect::<Vec<_>>();
                 assert_eq!(rectangles, polygon_completion.rectangles);
+                assert_eq!(rectangles, polygon_result.rectangles);
                 compared += 1;
             }
         }
@@ -1999,6 +2033,21 @@ mod polygon_tests {
         {
             flags[usize::try_from(index.as_u64().unwrap()).unwrap()] = true;
         }
+        flags
+    }
+
+    fn polygon_selected_flags(
+        result: &rect_core::PolygonDissectionResult,
+        key: &str,
+        len: usize,
+    ) -> Vec<bool> {
+        let flags = result.certificate.as_ref().unwrap().payload[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_bool().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(flags.len(), len);
         flags
     }
 
