@@ -53,6 +53,53 @@ pub struct RectilinearPolygon {
     pub holes: Vec<OrthogonalLoop>,
 }
 
+/// Interchangeable exact structural validators for ordinary polygons.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PolygonValidationBackend {
+    /// The v0.9 explicit segment-pair audit.
+    #[default]
+    ReferenceQuadratic,
+    /// The indexed deterministic orthogonal sweep introduced in v1.0.
+    OrthogonalSweep,
+}
+
+impl PolygonValidationBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceQuadratic => "reference-quadratic",
+            Self::OrthogonalSweep => "orthogonal-sweep",
+        }
+    }
+}
+
+/// Exact polygon-validator interface retained by both reference and indexed paths.
+pub trait PolygonValidator {
+    /// Audits one already normalized polygon.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first deterministic structural or topological failure.
+    fn validate(&self, polygon: &RectilinearPolygon) -> Result<(), PolygonError>;
+
+    fn name(&self) -> &'static str;
+}
+
+/// The v0.9 explicit quadratic validator.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReferenceQuadraticValidator;
+
+impl PolygonValidator for ReferenceQuadraticValidator {
+    fn validate(&self, polygon: &RectilinearPolygon) -> Result<(), PolygonError> {
+        polygon.validate()
+    }
+
+    fn name(&self) -> &'static str {
+        PolygonValidationBackend::ReferenceQuadratic.name()
+    }
+}
+
 impl RectilinearPolygon {
     /// Normalizes and validates an ordinary polygon.
     ///
@@ -63,6 +110,15 @@ impl RectilinearPolygon {
     ///
     /// Returns a structured [`PolygonError`] for malformed or unsupported input.
     pub fn new(outer: OrthogonalLoop, holes: Vec<OrthogonalLoop>) -> Result<Self, PolygonError> {
+        let polygon = Self::normalize_unvalidated(outer, holes)?;
+        ReferenceQuadraticValidator.validate(&polygon)?;
+        Ok(polygon)
+    }
+
+    pub(crate) fn normalize_unvalidated(
+        outer: OrthogonalLoop,
+        holes: Vec<OrthogonalLoop>,
+    ) -> Result<Self, PolygonError> {
         let outer = normalize_loop(outer.vertices, false, PolygonLoopId(0))?;
         let mut holes = holes
             .into_iter()
@@ -72,9 +128,7 @@ impl RectilinearPolygon {
             })
             .collect::<Result<Vec<_>, _>>()?;
         holes.sort_by(|first, second| first.vertices.cmp(&second.vertices));
-        let polygon = Self { outer, holes };
-        polygon.validate()?;
-        Ok(polygon)
+        Ok(Self { outer, holes })
     }
 
     /// Re-normalizes an existing value. This operation is idempotent.

@@ -4,6 +4,7 @@ pub mod formats;
 pub mod geometry;
 pub mod grid;
 pub mod polygon;
+pub mod polygon_index;
 pub mod result;
 pub mod validation;
 
@@ -20,8 +21,13 @@ pub use geometry::{
 };
 pub use grid::{Cell, ColorGrid, ComponentId, GridComponent, GridError, PreparedGridComponent};
 pub use polygon::{
-    OrthogonalLoop, PolygonError, PolygonLoopId, PolygonVertexId, RectilinearDomain,
-    RectilinearPolygon,
+    OrthogonalLoop, PolygonError, PolygonLoopId, PolygonValidationBackend, PolygonValidator,
+    PolygonVertexId, RectilinearDomain, RectilinearPolygon, ReferenceQuadraticValidator,
+};
+pub use polygon_index::{
+    IndexedBoundaryEdge, OrthogonalDirection, OrthogonalEdgeIndex, OrthogonalSweepValidator,
+    PolygonErrorCategory, PolygonGeometryBackend, PolygonPreparationMetrics,
+    PreparedPolygonContext, PreparedPolygonError,
 };
 pub use result::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, PolygonDissectionResult,
