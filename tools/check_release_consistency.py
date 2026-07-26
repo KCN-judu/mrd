@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.8.0"
-TAG = "v0.8.0-boundary-indexed-adaptive-path-tree"
+VERSION = "0.8.1"
+TAG = "v0.8.1-boundary-indexed-adaptive-path-tree"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
