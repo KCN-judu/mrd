@@ -53,6 +53,15 @@
       "command": "cargo test --release -p rect-verify extended_grid_polygon_differential_populations_match -- --ignored"
     }
   ],
+  "external_cp_sat": {
+    "input_count": 6998,
+    "component_count": 27228,
+    "cp_sat_comparison_count": 27228,
+    "exact_cover_comparison_count": 27228,
+    "rust_comparison_component_count": 27228,
+    "disagreement_component_count": 0,
+    "command": "tools/external-oracle/verify_suite.py --rect-cli target/release/rect-cli --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-v09-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --exact-cover-cell-limit 40 --max-time-seconds 30 --work-dir /tmp/mrd-v09-external-work --output /tmp/mrd-v09-external.json"
+  },
   "comparison_contract": [
     "normalized boundary and reflex vertices",
     "horizontal and vertical effective-chord families",

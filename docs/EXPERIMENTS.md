@@ -500,6 +500,11 @@ supported polygon components, with 254 explicit ordinary-model rejections and
 zero differences. Its `Auto` representation selected the clean polygon
 path-tree for 3,119 components and fell back to exact 4D for 4,111 components.
 
+The isolated OR-Tools CP-SAT rerun covers 6,998 bounded grid inputs and 27,228
+components across all binary `3x3` grids, free polyominoes through ten cells,
+and 13 exported adversarial fixtures. Every CP-SAT, exact-cover, and Rust
+comparison agrees; the disagreement count is zero.
+
 The native fixture corpus includes nonuniform coordinate spacing, a
 one-billion-unit coordinate gap, two ordinary holes, a comb, and a spiral
 corridor. The large-gap rectangle creates exactly two x coordinates, two y

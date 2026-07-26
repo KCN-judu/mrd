@@ -145,7 +145,8 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "e86f8d6152387e57f4fbf0539cbf629f843b684e",
       "57bc9cba84df3b7823ad3e9ef3d74aeb362a83c5",
       "6f51a2d282e66c5eccf9fc38c0a184fa44678afa",
-      "c5a088cd41f085d1176b767d4799430ef7436588"
+      "c5a088cd41f085d1176b767d4799430ef7436588",
+      "39003dba91398d856c29129f599da84978240811"
     ]
   }
 ]
@@ -306,5 +307,6 @@ Maximum absolute regret is 2 and the maximum recorded regret ratio is 2/4. These
 
 The committed populations cover 174,312 supported ordinary components, 254 explicitly rejected grid-derived degeneracies, and 0 chord/selection/cut/rectangle disagreements.
 The extended population records 3,119 clean polygon `Auto` path-tree selections and 4,111 exact 4D fallbacks.
+The isolated CP-SAT rerun compares 27,228 components with 0 disagreements.
 Native nonuniform-coordinate fixtures: `nonuniform-l.json`, `large-gap.json`, `two-holes.json`, `comb.json`, `spiral-corridor.json`.
 The one-billion-unit large-gap fixture uses 2 x coordinates, 2 y coordinates, and 1 atomic arrangement cell; production raster use is `false`.
