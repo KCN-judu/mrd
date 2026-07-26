@@ -4,9 +4,10 @@ pub mod polygon;
 
 pub use polygon::{
     CoordinateCompressedCompletion, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    PolygonCompletionMetrics, PolygonCompletionResult, PolygonSgError, PolygonValidationError,
-    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
-    validate_polygon_dissection_count,
+    IndexedPolygonPairwiseEnumerator, PolygonChordEnumerationMetrics,
+    PolygonChordEnumerationResult, PolygonCompletionMetrics, PolygonCompletionResult,
+    PolygonSgError, PolygonValidationError, ReferencePolygonPairwiseEnumerator, VerticalCutSegment,
+    classify_clean_polygon, validate_polygon_dissection, validate_polygon_dissection_count,
 };
 
 use std::cmp::Reverse;

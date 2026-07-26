@@ -4,8 +4,8 @@ use std::collections::{BTreeSet, VecDeque};
 
 use rect_core::{
     Boundary, BoundaryIndex, BoundaryIndexError, BoundaryVertexId, CoordinateRect, DoubledPoint,
-    GeometryError, HorizontalChord, HorizontalChordId, Point, PolygonError, RectilinearPolygon,
-    VerticalChord, VerticalChordId,
+    GeometryError, HorizontalChord, HorizontalChordId, Point, PolygonError, PreparedPolygonContext,
+    RectilinearPolygon, VerticalChord, VerticalChordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -17,6 +17,31 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct GeneralPolygonPairwiseEnumerator;
+
+/// Explicit v0.9 all-reflex-pairs and full-boundary-scan reference backend.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReferencePolygonPairwiseEnumerator;
+
+/// Aligned-pair enumerator backed by one prepared exact orthogonal edge index.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IndexedPolygonPairwiseEnumerator;
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PolygonChordEnumerationMetrics {
+    pub polygon_boundary_edge_visits: usize,
+    pub polygon_point_location_queries: usize,
+    pub polygon_segment_reporting_queries: usize,
+    pub polygon_reported_boundary_intersections: usize,
+    pub polygon_aligned_reflex_candidate_pairs: usize,
+    pub polygon_unaligned_reflex_pair_checks: usize,
+    pub polygon_definition7_full_boundary_scans: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolygonChordEnumerationResult {
+    pub families: EffectiveChordFamilies,
+    pub metrics: PolygonChordEnumerationMetrics,
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct HorizontalCutSegment {
@@ -333,6 +358,269 @@ impl GeneralPolygonPairwiseEnumerator {
     pub const fn name(self) -> &'static str {
         "general-polygon-pairwise"
     }
+}
+
+impl ReferencePolygonPairwiseEnumerator {
+    /// Runs the preserved v0.9 reference enumerator.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] under the same contract as
+    /// [`GeneralPolygonPairwiseEnumerator::enumerate`].
+    pub fn enumerate(
+        &self,
+        polygon: &RectilinearPolygon,
+    ) -> Result<EffectiveChordFamilies, PolygonSgError> {
+        GeneralPolygonPairwiseEnumerator.enumerate(polygon)
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        "reference-polygon-pairwise"
+    }
+}
+
+impl IndexedPolygonPairwiseEnumerator {
+    /// Convenience API that prepares the polygon once before indexed enumeration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid polygon metadata or chord geometry.
+    pub fn enumerate(
+        &self,
+        polygon: &RectilinearPolygon,
+    ) -> Result<EffectiveChordFamilies, PolygonSgError> {
+        let prepared = PreparedPolygonContext::new(polygon).map_err(|error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+            rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                PolygonSgError::BoundaryIndex(error)
+            }
+        })?;
+        Ok(self.enumerate_prepared(&prepared)?.families)
+    }
+
+    /// Enumerates only coordinate-aligned reflex pairs using prepared indexes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] when endpoint metadata or exact chord
+    /// construction fails.
+    pub fn enumerate_prepared(
+        &self,
+        prepared: &PreparedPolygonContext,
+    ) -> Result<PolygonChordEnumerationResult, PolygonSgError> {
+        let mut horizontal = BTreeSet::new();
+        let mut vertical = BTreeSet::new();
+        let mut metrics = PolygonChordEnumerationMetrics {
+            polygon_aligned_reflex_candidate_pairs: prepared
+                .metrics()
+                .polygon_aligned_reflex_candidate_pairs,
+            ..PolygonChordEnumerationMetrics::default()
+        };
+
+        for points in prepared.reflex_by_y().values() {
+            for first in 0..points.len() {
+                for second in first + 1..points.len() {
+                    let left = points[first].x.min(points[second].x);
+                    let right = points[first].x.max(points[second].x);
+                    let y = points[first].y;
+                    if endpoint_has_collinear_edge(
+                        prepared.boundary(),
+                        prepared.boundary_index(),
+                        Point::new(left, y),
+                        true,
+                    )? && endpoint_has_collinear_edge(
+                        prepared.boundary(),
+                        prepared.boundary_index(),
+                        Point::new(right, y),
+                        true,
+                    )? && horizontal_satisfies_definition_7_indexed(
+                        prepared,
+                        left,
+                        right,
+                        y,
+                        &mut metrics,
+                    )? {
+                        horizontal.insert((y, left, right));
+                    }
+                }
+            }
+        }
+        for points in prepared.reflex_by_x().values() {
+            for first in 0..points.len() {
+                for second in first + 1..points.len() {
+                    let x = points[first].x;
+                    let bottom = points[first].y.min(points[second].y);
+                    let top = points[first].y.max(points[second].y);
+                    if endpoint_has_collinear_edge(
+                        prepared.boundary(),
+                        prepared.boundary_index(),
+                        Point::new(x, bottom),
+                        false,
+                    )? && endpoint_has_collinear_edge(
+                        prepared.boundary(),
+                        prepared.boundary_index(),
+                        Point::new(x, top),
+                        false,
+                    )? && vertical_satisfies_definition_7_indexed(
+                        prepared,
+                        x,
+                        bottom,
+                        top,
+                        &mut metrics,
+                    )? {
+                        vertical.insert((x, bottom, top));
+                    }
+                }
+            }
+        }
+
+        let families = EffectiveChordFamilies {
+            horizontal: horizontal
+                .into_iter()
+                .enumerate()
+                .map(|(index, (y, left, right))| {
+                    HorizontalChord::new(HorizontalChordId(index), left, right, y)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            vertical: vertical
+                .into_iter()
+                .enumerate()
+                .map(|(index, (x, bottom, top))| {
+                    VerticalChord::new(VerticalChordId(index), x, bottom, top)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            horizontal_interior_run_count: None,
+            vertical_interior_run_count: None,
+            candidate_reflex_pair_count: Some(metrics.polygon_aligned_reflex_candidate_pairs),
+        };
+        Ok(PolygonChordEnumerationResult { families, metrics })
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        "indexed-polygon-pairwise"
+    }
+}
+
+fn horizontal_satisfies_definition_7_indexed(
+    prepared: &PreparedPolygonContext,
+    left: i64,
+    right: i64,
+    y: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
+) -> Result<bool, PolygonSgError> {
+    if prepared
+        .edge_index()
+        .horizontal_collinear_overlap(y, left, right)
+    {
+        return Ok(false);
+    }
+    metrics.polygon_segment_reporting_queries += 1;
+    let crossing_ids =
+        prepared
+            .edge_index()
+            .report_vertical_crossings(2 * i128::from(y), left, right);
+    metrics.polygon_reported_boundary_intersections += crossing_ids.len();
+    let mut breaks = BTreeSet::from([2 * i128::from(left), 2 * i128::from(right)]);
+    for edge_id in crossing_ids {
+        let edge = prepared
+            .edge_index()
+            .edge(edge_id)
+            .expect("reported edge identity is indexed");
+        let point = Point::new(edge.first.x, y);
+        let Some(vertex_id) = prepared.boundary_index().vertex_id(point) else {
+            return Ok(false);
+        };
+        if orthogonal_incident_edge_count(prepared.boundary(), vertex_id, true)? != 1 {
+            return Ok(false);
+        }
+        breaks.insert(2 * i128::from(point.x));
+    }
+    indexed_horizontal_subintervals_are_interior(prepared, &breaks, y, metrics)
+}
+
+fn vertical_satisfies_definition_7_indexed(
+    prepared: &PreparedPolygonContext,
+    x: i64,
+    bottom: i64,
+    top: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
+) -> Result<bool, PolygonSgError> {
+    if prepared
+        .edge_index()
+        .vertical_collinear_overlap(x, bottom, top)
+    {
+        return Ok(false);
+    }
+    metrics.polygon_segment_reporting_queries += 1;
+    let crossing_ids =
+        prepared
+            .edge_index()
+            .report_horizontal_crossings(2 * i128::from(x), bottom, top);
+    metrics.polygon_reported_boundary_intersections += crossing_ids.len();
+    let mut breaks = BTreeSet::from([2 * i128::from(bottom), 2 * i128::from(top)]);
+    for edge_id in crossing_ids {
+        let edge = prepared
+            .edge_index()
+            .edge(edge_id)
+            .expect("reported edge identity is indexed");
+        let point = Point::new(x, edge.first.y);
+        let Some(vertex_id) = prepared.boundary_index().vertex_id(point) else {
+            return Ok(false);
+        };
+        if orthogonal_incident_edge_count(prepared.boundary(), vertex_id, false)? != 1 {
+            return Ok(false);
+        }
+        breaks.insert(2 * i128::from(point.y));
+    }
+    indexed_vertical_subintervals_are_interior(prepared, &breaks, x, metrics)
+}
+
+fn indexed_horizontal_subintervals_are_interior(
+    prepared: &PreparedPolygonContext,
+    breaks: &BTreeSet<i128>,
+    y: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
+) -> Result<bool, PolygonSgError> {
+    let coordinates = breaks.iter().copied().collect::<Vec<_>>();
+    for pair in coordinates.windows(2) {
+        let doubled_x = pair[0]
+            .checked_add(pair[1])
+            .and_then(|sum| sum.checked_div(2))
+            .ok_or(PolygonSgError::CoordinateOverflow)?;
+        metrics.polygon_point_location_queries += 1;
+        if !prepared
+            .edge_index()
+            .contains_doubled_point_strict(DoubledPoint::new(doubled_x, 2 * i128::from(y)))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn indexed_vertical_subintervals_are_interior(
+    prepared: &PreparedPolygonContext,
+    breaks: &BTreeSet<i128>,
+    x: i64,
+    metrics: &mut PolygonChordEnumerationMetrics,
+) -> Result<bool, PolygonSgError> {
+    let coordinates = breaks.iter().copied().collect::<Vec<_>>();
+    for pair in coordinates.windows(2) {
+        let doubled_y = pair[0]
+            .checked_add(pair[1])
+            .and_then(|sum| sum.checked_div(2))
+            .ok_or(PolygonSgError::CoordinateOverflow)?;
+        metrics.polygon_point_location_queries += 1;
+        if !prepared
+            .edge_index()
+            .contains_doubled_point_strict(DoubledPoint::new(2 * i128::from(x), doubled_y))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Classifies a boundary-native polygon for the clean hole-free path-tree
@@ -1227,14 +1515,15 @@ pub enum PolygonSgError {
 #[cfg(test)]
 mod tests {
     use rect_core::{
-        Boundary, BoundaryIndex, ColorGrid, OrthogonalLoop, Point, RectilinearPolygon,
+        Boundary, BoundaryIndex, ColorGrid, OrthogonalLoop, Point, PreparedPolygonContext,
+        RectilinearPolygon,
     };
 
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
     use super::{
-        GeneralPolygonPairwiseEnumerator, endpoint_has_collinear_edge,
-        horizontal_satisfies_definition_7,
+        GeneralPolygonPairwiseEnumerator, IndexedPolygonPairwiseEnumerator,
+        endpoint_has_collinear_edge, horizontal_satisfies_definition_7,
     };
 
     fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
@@ -1354,6 +1643,7 @@ mod tests {
     #[test]
     fn grid_derived_polygon_chords_match_on_all_3x3_masks() {
         let enumerator = GeneralPolygonPairwiseEnumerator;
+        let indexed = IndexedPolygonPairwiseEnumerator;
         let mut compared = 0;
         for mask in 1_u16..1 << 9 {
             let grid =
@@ -1371,12 +1661,77 @@ mod tests {
                     .enumerate(&component, &boundary)
                     .unwrap();
                 let polygon_families = enumerator.enumerate(&polygon).unwrap();
+                let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+                let indexed_result = indexed.enumerate_prepared(&prepared).unwrap();
                 assert_eq!(grid_families.horizontal, polygon_families.horizontal);
                 assert_eq!(grid_families.vertical, polygon_families.vertical);
+                assert_eq!(
+                    polygon_families.horizontal,
+                    indexed_result.families.horizontal
+                );
+                assert_eq!(polygon_families.vertical, indexed_result.families.vertical);
+                assert_eq!(
+                    indexed_result
+                        .metrics
+                        .polygon_aligned_reflex_candidate_pairs,
+                    prepared.metrics().polygon_aligned_reflex_candidate_pairs
+                );
+                assert_eq!(
+                    indexed_result.metrics.polygon_unaligned_reflex_pair_checks,
+                    0
+                );
+                assert_eq!(
+                    indexed_result
+                        .metrics
+                        .polygon_definition7_full_boundary_scans,
+                    0
+                );
                 compared += 1;
             }
         }
         assert!(compared > 100);
+    }
+
+    #[test]
+    fn indexed_polygon_chords_match_native_nonuniform_and_hole_fixtures() {
+        let fixtures = [
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(1_000_000_000, 0),
+                    Point::new(1_000_000_000, 17),
+                    Point::new(41, 17),
+                    Point::new(41, 23),
+                    Point::new(1_000_000_000, 23),
+                    Point::new(1_000_000_000, 40),
+                    Point::new(0, 40),
+                ]),
+                vec![],
+            )
+            .unwrap(),
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(100, 0),
+                    Point::new(100, 80),
+                    Point::new(0, 80),
+                ]),
+                vec![rectangle(10, 10, 30, 25), rectangle(60, 35, 90, 70)],
+            )
+            .unwrap(),
+            first_grid_derived_polygon_with_chords(),
+        ];
+        for polygon in fixtures {
+            let reference = GeneralPolygonPairwiseEnumerator
+                .enumerate(&polygon)
+                .unwrap();
+            let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+            let indexed = IndexedPolygonPairwiseEnumerator
+                .enumerate_prepared(&prepared)
+                .unwrap();
+            assert_eq!(reference.horizontal, indexed.families.horizontal);
+            assert_eq!(reference.vertical, indexed.families.vertical);
+        }
     }
 
     #[test]
