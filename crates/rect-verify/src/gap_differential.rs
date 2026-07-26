@@ -60,6 +60,9 @@ pub struct GapDifferentialPopulation {
     pub component_count: usize,
     pub clean_component_count: usize,
     pub ineligible_component_count: usize,
+    pub boundary_index_comparison_count: usize,
+    pub endpoint_metadata_comparison_count: usize,
+    pub clean_classifier_comparison_count: usize,
     pub orientation_comparison_count: usize,
     pub verified_component_count: usize,
     pub mismatch_count: usize,
@@ -92,6 +95,9 @@ pub struct GapDifferentialReport {
     pub total_input_count: usize,
     pub total_component_count: usize,
     pub total_clean_component_count: usize,
+    pub total_boundary_index_comparison_count: usize,
+    pub total_endpoint_metadata_comparison_count: usize,
+    pub total_clean_classifier_comparison_count: usize,
     pub total_orientation_comparison_count: usize,
     pub total_verified_component_count: usize,
     pub total_mismatch_count: usize,
@@ -111,17 +117,20 @@ impl GapDifferentialReport {
     #[must_use]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "population,input_count,component_count,clean_component_count,ineligible_component_count,orientation_comparison_count,verified_component_count,mismatch_count,solver_error_count,nested_membership_tests,event_push_count,event_pop_count,maximum_q,maximum_boundary_complexity\n",
+            "population,input_count,component_count,clean_component_count,ineligible_component_count,boundary_index_comparison_count,endpoint_metadata_comparison_count,clean_classifier_comparison_count,orientation_comparison_count,verified_component_count,mismatch_count,solver_error_count,nested_membership_tests,event_push_count,event_pop_count,maximum_q,maximum_boundary_complexity\n",
         );
         for population in &self.populations {
             let _ = writeln!(
                 csv,
-                "{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 population.population,
                 population.input_count,
                 population.component_count,
                 population.clean_component_count,
                 population.ineligible_component_count,
+                population.boundary_index_comparison_count,
+                population.endpoint_metadata_comparison_count,
+                population.clean_classifier_comparison_count,
                 population.orientation_comparison_count,
                 population.verified_component_count,
                 population.mismatch_count,
@@ -139,10 +148,13 @@ impl GapDifferentialReport {
     #[must_use]
     pub fn to_markdown(&self) -> String {
         format!(
-            "# v0.8 boundary-gap backend differential\n\n- Inputs: {}\n- Components: {}\n- Clean components: {}\n- Orientation comparisons: {}\n- Verified components: {}\n- Mismatches: {}\n- Solver errors: {}\n- Nested membership tests: {}\n- Event pushes/pops: {}/{}\n",
+            "# v0.8 indexed frontend and boundary-gap differential\n\n- Inputs: {}\n- Components: {}\n- Clean components: {}\n- Boundary-index comparisons: {}\n- Endpoint-metadata comparisons: {}\n- Clean-classifier comparisons: {}\n- Orientation comparisons: {}\n- Verified clean components: {}\n- Mismatches: {}\n- Solver errors: {}\n- Nested membership tests: {}\n- Event pushes/pops: {}/{}\n",
             self.total_input_count,
             self.total_component_count,
             self.total_clean_component_count,
+            self.total_boundary_index_comparison_count,
+            self.total_endpoint_metadata_comparison_count,
+            self.total_clean_classifier_comparison_count,
             self.total_orientation_comparison_count,
             self.total_verified_component_count,
             self.total_mismatch_count,
@@ -156,6 +168,10 @@ impl GapDifferentialReport {
 
 #[derive(Clone, Debug)]
 struct ComponentEvidence {
+    clean: bool,
+    boundary_index_comparisons: usize,
+    endpoint_metadata_comparisons: usize,
+    clean_classifier_comparisons: usize,
     orientation_comparisons: usize,
     nested_membership_tests: usize,
     event_push_count: usize,
@@ -166,9 +182,37 @@ struct ComponentEvidence {
 
 fn compare_clean_component(
     component: &GridComponent<bool>,
-) -> Result<Option<ComponentEvidence>, Vec<String>> {
+) -> Result<ComponentEvidence, Vec<String>> {
     let geometry = analyze_geometry_with(component, &GridInteriorRunEnumerator)
         .map_err(|error| vec![format!("geometry: {error}")])?;
+    let mut differences = Vec::new();
+    let mut boundary_index_comparisons = 0usize;
+    for boundary_loop in &geometry.boundary.loops {
+        for &point in &boundary_loop.vertices {
+            boundary_index_comparisons += 1;
+            if geometry.boundary_index.vertex_id(point) != geometry.boundary.vertex_id(point) {
+                differences.push("boundary index versus linear lookup".to_owned());
+                break;
+            }
+        }
+    }
+    let mut endpoint_metadata_comparisons = 0usize;
+    for (index, &chord) in geometry.horizontal_chords.iter().enumerate() {
+        endpoint_metadata_comparisons += 1;
+        if rect_oracle_sg::horizontal_chord_endpoints(&geometry.boundary, chord).ok()
+            != geometry.endpoint_index.horizontal.get(index).copied()
+        {
+            differences.push(format!("horizontal endpoint metadata {index}"));
+        }
+    }
+    for (index, &chord) in geometry.vertical_chords.iter().enumerate() {
+        endpoint_metadata_comparisons += 1;
+        if rect_oracle_sg::vertical_chord_endpoints(&geometry.boundary, chord).ok()
+            != geometry.endpoint_index.vertical.get(index).copied()
+        {
+            differences.push(format!("vertical endpoint metadata {index}"));
+        }
+    }
     let certificate = classify_clean_hole_free_with_endpoint_index(
         component,
         &geometry.boundary,
@@ -176,11 +220,39 @@ fn compare_clean_component(
         &geometry.vertical_chords,
         &geometry.endpoint_index,
     );
+    let reference_certificate = rect_oracle_sg::classify_clean_hole_free_reference(
+        component,
+        &geometry.boundary,
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+    );
+    let canonical_certificate = |mut value: rect_oracle_sg::CleanHoleFreeCertificate| {
+        value
+            .rejection_reasons
+            .sort_by_key(|reason| format!("{reason:?}"));
+        value
+    };
+    if canonical_certificate(certificate.clone()) != canonical_certificate(reference_certificate) {
+        differences.push("indexed versus pairwise clean classifier".to_owned());
+    }
+    if !differences.is_empty() {
+        return Err(differences);
+    }
     if !certificate.eligible {
-        return Ok(None);
+        return Ok(ComponentEvidence {
+            clean: false,
+            boundary_index_comparisons,
+            endpoint_metadata_comparisons,
+            clean_classifier_comparisons: 1,
+            orientation_comparisons: 0,
+            nested_membership_tests: 0,
+            event_push_count: 0,
+            event_pop_count: 0,
+            q: geometry.horizontal_chords.len() + geometry.vertical_chords.len(),
+            boundary_complexity: geometry.boundary.boundary_complexity(),
+        });
     }
 
-    let mut differences = Vec::new();
     let mut nested_membership_tests = 0usize;
     let mut event_push_count = 0usize;
     let mut event_pop_count = 0usize;
@@ -311,14 +383,18 @@ fn compare_clean_component(
     }
 
     if differences.is_empty() {
-        Ok(Some(ComponentEvidence {
+        Ok(ComponentEvidence {
+            clean: true,
+            boundary_index_comparisons,
+            endpoint_metadata_comparisons,
+            clean_classifier_comparisons: 1,
             orientation_comparisons: 2,
             nested_membership_tests,
             event_push_count,
             event_pop_count,
             q: geometry.horizontal_chords.len() + geometry.vertical_chords.len(),
             boundary_complexity: geometry.boundary.boundary_complexity(),
-        }))
+        })
     } else {
         Err(differences)
     }
@@ -341,8 +417,20 @@ fn evaluate_instance(
     {
         population.component_count += 1;
         match compare_clean_component(&component) {
-            Ok(None) => population.ineligible_component_count += 1,
-            Ok(Some(evidence)) => {
+            Ok(evidence) => {
+                population.boundary_index_comparison_count += evidence.boundary_index_comparisons;
+                population.endpoint_metadata_comparison_count +=
+                    evidence.endpoint_metadata_comparisons;
+                population.clean_classifier_comparison_count +=
+                    evidence.clean_classifier_comparisons;
+                population.maximum_q = population.maximum_q.max(evidence.q);
+                population.maximum_boundary_complexity = population
+                    .maximum_boundary_complexity
+                    .max(evidence.boundary_complexity);
+                if !evidence.clean {
+                    population.ineligible_component_count += 1;
+                    continue;
+                }
                 population.clean_component_count += 1;
                 population.orientation_comparison_count += evidence.orientation_comparisons;
                 population.verified_component_count += 1;
@@ -355,10 +443,6 @@ fn evaluate_instance(
                 population.event_pop_count = population
                     .event_pop_count
                     .saturating_add(evidence.event_pop_count);
-                population.maximum_q = population.maximum_q.max(evidence.q);
-                population.maximum_boundary_complexity = population
-                    .maximum_boundary_complexity
-                    .max(evidence.boundary_complexity);
             }
             Err(differences) => {
                 population.clean_component_count += 1;
@@ -597,6 +681,18 @@ pub fn verify_gap_backends(
         .iter()
         .map(|row| row.clean_component_count)
         .sum();
+    let total_boundary_index_comparison_count = populations
+        .iter()
+        .map(|row| row.boundary_index_comparison_count)
+        .sum();
+    let total_endpoint_metadata_comparison_count = populations
+        .iter()
+        .map(|row| row.endpoint_metadata_comparison_count)
+        .sum();
+    let total_clean_classifier_comparison_count = populations
+        .iter()
+        .map(|row| row.clean_classifier_comparison_count)
+        .sum();
     let total_orientation_comparison_count = populations
         .iter()
         .map(|row| row.orientation_comparison_count)
@@ -638,6 +734,9 @@ pub fn verify_gap_backends(
         total_input_count,
         total_component_count,
         total_clean_component_count,
+        total_boundary_index_comparison_count,
+        total_endpoint_metadata_comparison_count,
+        total_clean_classifier_comparison_count,
         total_orientation_comparison_count,
         total_verified_component_count,
         total_mismatch_count,
