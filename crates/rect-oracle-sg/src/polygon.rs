@@ -30,6 +30,60 @@ pub struct ReferencePolygonPairwiseEnumerator;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct IndexedPolygonPairwiseEnumerator;
 
+/// Source-mapped event sweep for Definition 7 chords on ordinary polygons.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SoltanGorpinevichSweepEnumerator;
+
+/// Axis selected by the ordinary-polygon sweep.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SweepAxis {
+    Horizontal,
+    Vertical,
+}
+
+impl SweepAxis {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Horizontal => "horizontal",
+            Self::Vertical => "vertical",
+        }
+    }
+}
+
+/// Bounded diagnostic summary for one scan coordinate.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SweepEventSummary {
+    pub axis: SweepAxis,
+    pub coordinate: i64,
+    pub inserted_segment_count: usize,
+    pub query_count: usize,
+    pub removed_segment_count: usize,
+}
+
+/// Provenance for one canonical sweep output record.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SweepOutputRecord {
+    pub axis: SweepAxis,
+    pub source: BoundaryVertexId,
+    pub target: BoundaryVertexId,
+    pub source_point: Point,
+    pub target_point: Point,
+    pub blocker_edge_id: usize,
+}
+
+/// Audit metadata for the source-mapped ordinary-polygon sweep.
+///
+/// Output provenance is output-sized, while the event trace is always bounded.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SweepCertificate {
+    pub output_records: Vec<SweepOutputRecord>,
+    pub event_summaries: Vec<SweepEventSummary>,
+    pub event_trace_truncated: bool,
+}
+
+const SWEEP_EVENT_TRACE_LIMIT: usize = 64;
+
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolygonChordEnumerationMetrics {
     pub polygon_boundary_edge_visits: usize,
@@ -39,12 +93,28 @@ pub struct PolygonChordEnumerationMetrics {
     pub polygon_aligned_reflex_candidate_pairs: usize,
     pub polygon_unaligned_reflex_pair_checks: usize,
     pub polygon_definition7_full_boundary_scans: usize,
+    pub sweep_horizontal_event_count: usize,
+    pub sweep_vertical_event_count: usize,
+    pub sweep_status_insertions: usize,
+    pub sweep_status_deletions: usize,
+    pub sweep_status_queries: usize,
+    pub sweep_auxiliary_tree_operations: usize,
+    pub sweep_output_horizontal_chords: usize,
+    pub sweep_output_vertical_chords: usize,
+    pub sweep_duplicate_output_count: usize,
+    pub sweep_aligned_pair_iterations: usize,
+    pub sweep_all_pair_iterations: usize,
+    pub sweep_definition7_fallback_checks: usize,
+    pub sweep_full_boundary_scans: usize,
+    pub sweep_horizontal_microseconds: u128,
+    pub sweep_vertical_microseconds: u128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PolygonChordEnumerationResult {
     pub families: EffectiveChordFamilies,
     pub metrics: PolygonChordEnumerationMetrics,
+    pub sweep_certificate: Option<SweepCertificate>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -666,7 +736,11 @@ impl GeneralPolygonPairwiseEnumerator {
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: Some(total_pairs),
         };
-        Ok(PolygonChordEnumerationResult { families, metrics })
+        Ok(PolygonChordEnumerationResult {
+            families,
+            metrics,
+            sweep_certificate: None,
+        })
     }
 
     #[must_use]
@@ -809,13 +883,309 @@ impl IndexedPolygonPairwiseEnumerator {
             vertical_interior_run_count: None,
             candidate_reflex_pair_count: Some(metrics.polygon_aligned_reflex_candidate_pairs),
         };
-        Ok(PolygonChordEnumerationResult { families, metrics })
+        Ok(PolygonChordEnumerationResult {
+            families,
+            metrics,
+            sweep_certificate: None,
+        })
     }
 
     #[must_use]
     pub const fn name(self) -> &'static str {
         "indexed-polygon-pairwise"
     }
+}
+
+#[derive(Default)]
+struct SweepEventBucket {
+    insertions: Vec<usize>,
+    removals: Vec<usize>,
+    queries: Vec<(Point, BoundaryVertexId)>,
+}
+
+impl SoltanGorpinevichSweepEnumerator {
+    /// Enumerates effective chords with the source-mapped ordinary-polygon
+    /// event sweep.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid prepared boundary metadata or
+    /// chord-coordinate construction.
+    pub fn enumerate(
+        &self,
+        polygon: &RectilinearPolygon,
+    ) -> Result<EffectiveChordFamilies, PolygonSgError> {
+        let prepared = PreparedPolygonContext::new(polygon).map_err(|error| match error {
+            rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+            rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                PolygonSgError::BoundaryIndex(error)
+            }
+        })?;
+        Ok(self.enumerate_prepared(&prepared)?.families)
+    }
+
+    /// Runs the axis-generic source-mapped event sweep on shared metadata.
+    ///
+    /// The accepted ordinary-loop model makes Definition 7's formal-boundary
+    /// merge cases inapplicable; see `docs/SOLTAN_SWEEP_IMPLEMENTATION.md`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid boundary identities or chord
+    /// construction failure.
+    pub fn enumerate_prepared(
+        &self,
+        prepared: &PreparedPolygonContext,
+    ) -> Result<PolygonChordEnumerationResult, PolygonSgError> {
+        let mut metrics = PolygonChordEnumerationMetrics::default();
+        let horizontal_started = Instant::now();
+        let (horizontal, mut certificate) =
+            enumerate_sweep_axis(prepared, SweepAxis::Horizontal, &mut metrics)?;
+        metrics.sweep_horizontal_microseconds = horizontal_started.elapsed().as_micros();
+        let vertical_started = Instant::now();
+        let (vertical, vertical_certificate) =
+            enumerate_sweep_axis(prepared, SweepAxis::Vertical, &mut metrics)?;
+        metrics.sweep_vertical_microseconds = vertical_started.elapsed().as_micros();
+        certificate
+            .output_records
+            .extend(vertical_certificate.output_records);
+        certificate
+            .event_summaries
+            .extend(vertical_certificate.event_summaries);
+        certificate.event_trace_truncated |= vertical_certificate.event_trace_truncated;
+        certificate.output_records.sort_unstable_by_key(|record| {
+            (
+                record.axis.name(),
+                record.source_point,
+                record.target_point,
+                record.source,
+                record.target,
+            )
+        });
+        certificate
+            .event_summaries
+            .sort_unstable_by_key(|summary| (summary.axis.name(), summary.coordinate));
+
+        let families = EffectiveChordFamilies {
+            horizontal: horizontal
+                .into_iter()
+                .enumerate()
+                .map(|(index, (y, left, right))| {
+                    HorizontalChord::new(HorizontalChordId(index), left, right, y)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            vertical: vertical
+                .into_iter()
+                .enumerate()
+                .map(|(index, (x, bottom, top))| {
+                    VerticalChord::new(VerticalChordId(index), x, bottom, top)
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            horizontal_interior_run_count: None,
+            vertical_interior_run_count: None,
+            candidate_reflex_pair_count: Some(0),
+        };
+        Ok(PolygonChordEnumerationResult {
+            families,
+            metrics,
+            sweep_certificate: Some(certificate),
+        })
+    }
+
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        "sg-sweep"
+    }
+}
+
+fn enumerate_sweep_axis(
+    prepared: &PreparedPolygonContext,
+    axis: SweepAxis,
+    metrics: &mut PolygonChordEnumerationMetrics,
+) -> Result<(BTreeSet<(i64, i64, i64)>, SweepCertificate), PolygonSgError> {
+    let boundary = prepared.boundary();
+    let boundary_index = prepared.boundary_index();
+    let edge_index = prepared.edge_index();
+    let mut events = BTreeMap::<i64, SweepEventBucket>::new();
+    for edge_id in 0..edge_index.edge_count() {
+        let edge = edge_index.edge(edge_id).expect("edge identity is in range");
+        let is_status_segment = match axis {
+            SweepAxis::Horizontal => !edge.is_horizontal(),
+            SweepAxis::Vertical => edge.is_horizontal(),
+        };
+        if !is_status_segment {
+            continue;
+        }
+        let (start, end) = match axis {
+            SweepAxis::Horizontal => (edge.bottom(), edge.top()),
+            SweepAxis::Vertical => (edge.left(), edge.right()),
+        };
+        events.entry(start).or_default().insertions.push(edge_id);
+        events.entry(end).or_default().removals.push(edge_id);
+    }
+    let reflex_points = boundary
+        .reflex_vertices
+        .iter()
+        .map(|vertex| vertex.point)
+        .collect::<BTreeSet<_>>();
+    for &point in &reflex_points {
+        let vertex_id = boundary_index
+            .vertex_id(point)
+            .ok_or(PolygonSgError::EndpointNotOnBoundary { point })?;
+        let coordinate = match axis {
+            SweepAxis::Horizontal => point.y,
+            SweepAxis::Vertical => point.x,
+        };
+        events
+            .entry(coordinate)
+            .or_default()
+            .queries
+            .push((point, vertex_id));
+    }
+
+    let mut status = BTreeSet::<(i64, usize)>::new();
+    let mut outputs = BTreeSet::<(i64, i64, i64)>::new();
+    let mut certificate = SweepCertificate::default();
+    for (coordinate, mut bucket) in events {
+        bucket.insertions.sort_unstable();
+        bucket.removals.sort_unstable();
+        bucket.queries.sort_unstable_by_key(|&(point, vertex_id)| {
+            (
+                match axis {
+                    SweepAxis::Horizontal => point.x,
+                    SweepAxis::Vertical => point.y,
+                },
+                vertex_id,
+            )
+        });
+        record_sweep_events(
+            metrics,
+            axis,
+            bucket.insertions.len() + bucket.queries.len() + bucket.removals.len(),
+        );
+        for edge_id in &bucket.insertions {
+            let edge = edge_index
+                .edge(*edge_id)
+                .expect("edge identity is in range");
+            let transverse = match axis {
+                SweepAxis::Horizontal => edge.first.x,
+                SweepAxis::Vertical => edge.first.y,
+            };
+            status.insert((transverse, *edge_id));
+            metrics.sweep_status_insertions += 1;
+            metrics.sweep_auxiliary_tree_operations += 1;
+        }
+        for &(source_point, source) in &bucket.queries {
+            metrics.sweep_status_queries += 1;
+            metrics.sweep_auxiliary_tree_operations += 1;
+            let transverse = match axis {
+                SweepAxis::Horizontal => source_point.x,
+                SweepAxis::Vertical => source_point.y,
+            };
+            let increasing = sweep_interior_direction(boundary, source, axis)?;
+            let blocker = if increasing {
+                status
+                    .range((Excluded((transverse, usize::MAX)), Unbounded))
+                    .next()
+                    .copied()
+            } else {
+                status
+                    .range((Unbounded, Excluded((transverse, usize::MIN))))
+                    .next_back()
+                    .copied()
+            };
+            let Some((_, blocker_edge_id)) = blocker else {
+                continue;
+            };
+            let blocker_edge = edge_index
+                .edge(blocker_edge_id)
+                .expect("status edge identity is in range");
+            let target_point = match axis {
+                SweepAxis::Horizontal => Point::new(blocker_edge.first.x, coordinate),
+                SweepAxis::Vertical => Point::new(coordinate, blocker_edge.first.y),
+            };
+            let Some(target) = boundary_index.vertex_id(target_point) else {
+                continue;
+            };
+            if !reflex_points.contains(&target_point) || source_point >= target_point {
+                continue;
+            }
+            let key = match axis {
+                SweepAxis::Horizontal => (coordinate, source_point.x, target_point.x),
+                SweepAxis::Vertical => (coordinate, source_point.y, target_point.y),
+            };
+            if !outputs.insert(key) {
+                metrics.sweep_duplicate_output_count += 1;
+                continue;
+            }
+            match axis {
+                SweepAxis::Horizontal => metrics.sweep_output_horizontal_chords += 1,
+                SweepAxis::Vertical => metrics.sweep_output_vertical_chords += 1,
+            }
+            certificate.output_records.push(SweepOutputRecord {
+                axis,
+                source,
+                target,
+                source_point,
+                target_point,
+                blocker_edge_id,
+            });
+        }
+        for edge_id in &bucket.removals {
+            let edge = edge_index
+                .edge(*edge_id)
+                .expect("edge identity is in range");
+            let transverse = match axis {
+                SweepAxis::Horizontal => edge.first.x,
+                SweepAxis::Vertical => edge.first.y,
+            };
+            status.remove(&(transverse, *edge_id));
+            metrics.sweep_status_deletions += 1;
+            metrics.sweep_auxiliary_tree_operations += 1;
+        }
+        if certificate.event_summaries.len() < SWEEP_EVENT_TRACE_LIMIT {
+            certificate.event_summaries.push(SweepEventSummary {
+                axis,
+                coordinate,
+                inserted_segment_count: bucket.insertions.len(),
+                query_count: bucket.queries.len(),
+                removed_segment_count: bucket.removals.len(),
+            });
+        } else {
+            certificate.event_trace_truncated = true;
+        }
+    }
+    Ok((outputs, certificate))
+}
+
+fn record_sweep_events(
+    metrics: &mut PolygonChordEnumerationMetrics,
+    axis: SweepAxis,
+    count: usize,
+) {
+    match axis {
+        SweepAxis::Horizontal => metrics.sweep_horizontal_event_count += count,
+        SweepAxis::Vertical => metrics.sweep_vertical_event_count += count,
+    }
+}
+
+fn sweep_interior_direction(
+    boundary: &Boundary,
+    vertex_id: BoundaryVertexId,
+    axis: SweepAxis,
+) -> Result<bool, PolygonSgError> {
+    let (previous, current, next) = incident_vertices(boundary, vertex_id)?;
+    let neighbor = match axis {
+        SweepAxis::Horizontal if previous.y == current.y => previous,
+        SweepAxis::Horizontal if next.y == current.y => next,
+        SweepAxis::Vertical if previous.x == current.x => previous,
+        SweepAxis::Vertical if next.x == current.x => next,
+        _ => return Err(PolygonSgError::InvalidBoundaryVertexId(vertex_id)),
+    };
+    Ok(match axis {
+        SweepAxis::Horizontal => neighbor.x < current.x,
+        SweepAxis::Vertical => neighbor.y < current.y,
+    })
 }
 
 fn horizontal_satisfies_definition_7_indexed(
@@ -2338,7 +2708,8 @@ mod tests {
     use super::{
         CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
         HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-        VerticalCutSegment, endpoint_has_collinear_edge, horizontal_satisfies_definition_7,
+        SoltanGorpinevichSweepEnumerator, SweepAxis, VerticalCutSegment,
+        endpoint_has_collinear_edge, horizontal_satisfies_definition_7, sweep_interior_direction,
     };
 
     fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
@@ -2475,6 +2846,7 @@ mod tests {
     fn grid_derived_polygon_chords_match_on_all_3x3_masks() {
         let enumerator = GeneralPolygonPairwiseEnumerator;
         let indexed = IndexedPolygonPairwiseEnumerator;
+        let sweep = SoltanGorpinevichSweepEnumerator;
         let mut compared = 0;
         for mask in 1_u16..1 << 9 {
             let grid =
@@ -2494,6 +2866,7 @@ mod tests {
                 let polygon_families = enumerator.enumerate(&polygon).unwrap();
                 let prepared = PreparedPolygonContext::new(&polygon).unwrap();
                 let indexed_result = indexed.enumerate_prepared(&prepared).unwrap();
+                let sweep_result = sweep.enumerate_prepared(&prepared).unwrap();
                 assert_eq!(grid_families.horizontal, polygon_families.horizontal);
                 assert_eq!(grid_families.vertical, polygon_families.vertical);
                 assert_eq!(
@@ -2501,6 +2874,11 @@ mod tests {
                     indexed_result.families.horizontal
                 );
                 assert_eq!(polygon_families.vertical, indexed_result.families.vertical);
+                assert_eq!(
+                    polygon_families.horizontal,
+                    sweep_result.families.horizontal
+                );
+                assert_eq!(polygon_families.vertical, sweep_result.families.vertical);
                 assert_eq!(
                     indexed_result
                         .metrics
@@ -2516,6 +2894,19 @@ mod tests {
                         .metrics
                         .polygon_definition7_full_boundary_scans,
                     0
+                );
+                assert_eq!(sweep_result.metrics.sweep_aligned_pair_iterations, 0);
+                assert_eq!(sweep_result.metrics.sweep_all_pair_iterations, 0);
+                assert_eq!(sweep_result.metrics.sweep_definition7_fallback_checks, 0);
+                assert_eq!(sweep_result.metrics.sweep_full_boundary_scans, 0);
+                assert_eq!(sweep_result.metrics.sweep_duplicate_output_count, 0);
+                assert_eq!(
+                    sweep_result.metrics.sweep_output_horizontal_chords,
+                    sweep_result.families.horizontal.len()
+                );
+                assert_eq!(
+                    sweep_result.metrics.sweep_output_vertical_chords,
+                    sweep_result.families.vertical.len()
                 );
                 compared += 1;
             }
@@ -2560,9 +2951,121 @@ mod tests {
             let indexed = IndexedPolygonPairwiseEnumerator
                 .enumerate_prepared(&prepared)
                 .unwrap();
+            let sweep = SoltanGorpinevichSweepEnumerator
+                .enumerate_prepared(&prepared)
+                .unwrap();
             assert_eq!(reference.horizontal, indexed.families.horizontal);
             assert_eq!(reference.vertical, indexed.families.vertical);
+            assert_eq!(reference.horizontal, sweep.families.horizontal);
+            assert_eq!(reference.vertical, sweep.families.vertical);
+            assert_eq!(sweep.metrics.sweep_duplicate_output_count, 0);
+            assert_eq!(sweep.metrics.sweep_aligned_pair_iterations, 0);
+            assert_eq!(sweep.metrics.sweep_all_pair_iterations, 0);
+            assert_eq!(sweep.metrics.sweep_definition7_fallback_checks, 0);
+            assert_eq!(sweep.metrics.sweep_full_boundary_scans, 0);
         }
+    }
+
+    #[test]
+    fn sweep_queries_all_four_ordinary_reflex_ray_directions() {
+        let mut directions = std::collections::BTreeSet::new();
+        for mask in 1_u16..1 << 9 {
+            let grid =
+                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                let boundary = Boundary::from_component(&component).unwrap();
+                let Ok(polygon) = boundary.to_polygon() else {
+                    continue;
+                };
+                let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+                for reflex in &prepared.boundary().reflex_vertices {
+                    let id = prepared.boundary_index().vertex_id(reflex.point).unwrap();
+                    for axis in [SweepAxis::Horizontal, SweepAxis::Vertical] {
+                        directions.insert((
+                            axis,
+                            sweep_interior_direction(prepared.boundary(), id, axis).unwrap(),
+                        ));
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            directions,
+            std::collections::BTreeSet::from([
+                (SweepAxis::Horizontal, false),
+                (SweepAxis::Horizontal, true),
+                (SweepAxis::Vertical, false),
+                (SweepAxis::Vertical, true),
+            ])
+        );
+    }
+
+    #[test]
+    fn sweep_certificate_is_canonical_and_output_sized_for_ordinary_holes() {
+        let polygon = RectilinearPolygon::new(
+            OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(30, 0),
+                Point::new(30, 30),
+                Point::new(0, 30),
+            ]),
+            vec![rectangle(4, 4, 10, 10), rectangle(16, 14, 24, 25)],
+        )
+        .unwrap();
+        let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+        let reference = GeneralPolygonPairwiseEnumerator
+            .enumerate_prepared(&prepared)
+            .unwrap();
+        let result = SoltanGorpinevichSweepEnumerator
+            .enumerate_prepared(&prepared)
+            .unwrap();
+        assert_eq!(result.families.horizontal, reference.horizontal);
+        assert_eq!(result.families.vertical, reference.vertical);
+        let certificate = result.sweep_certificate.unwrap();
+        let mut records = std::collections::BTreeSet::new();
+        for record in &certificate.output_records {
+            assert!(record.source_point < record.target_point);
+            assert!(records.insert((record.axis, record.source, record.target)));
+        }
+        assert_eq!(
+            certificate.output_records.len(),
+            result.families.horizontal.len() + result.families.vertical.len()
+        );
+        assert_eq!(result.metrics.sweep_duplicate_output_count, 0);
+    }
+
+    #[test]
+    fn sweep_certificate_bounds_event_trace_without_bounding_outputs() {
+        let notch_count = 40_i64;
+        let mut vertices = vec![Point::new(0, 0), Point::new(4 * notch_count + 4, 0)];
+        vertices.push(Point::new(4 * notch_count + 4, 4));
+        for index in (0..notch_count).rev() {
+            let left = 4 * index + 1;
+            vertices.extend([
+                Point::new(left + 2, 4),
+                Point::new(left + 2, 2),
+                Point::new(left, 2),
+                Point::new(left, 4),
+            ]);
+        }
+        vertices.push(Point::new(0, 4));
+        let polygon = RectilinearPolygon::new(OrthogonalLoop::new(vertices), vec![]).unwrap();
+        let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+        let result = SoltanGorpinevichSweepEnumerator
+            .enumerate_prepared(&prepared)
+            .unwrap();
+        let certificate = result.sweep_certificate.unwrap();
+        assert!(certificate.event_trace_truncated);
+        assert!(certificate.event_summaries.len() <= 2 * super::SWEEP_EVENT_TRACE_LIMIT);
+        assert_eq!(
+            certificate.output_records.len(),
+            result.metrics.sweep_output_horizontal_chords
+                + result.metrics.sweep_output_vertical_chords
+        );
     }
 
     #[test]

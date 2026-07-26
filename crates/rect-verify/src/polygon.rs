@@ -15,7 +15,8 @@ use rect_dominance::{
 use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonCompletionResult, PreparedCoordinateArrangement, classify_clean_polygon,
+    PolygonChordEnumerationMetrics, PolygonCompletionResult, PreparedCoordinateArrangement,
+    SoltanGorpinevichSweepEnumerator, SweepCertificate, classify_clean_polygon,
     validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
@@ -67,6 +68,7 @@ pub struct PolygonGeometryEvidence {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PolygonRepresentationEvidence {
     pub production: PolygonDissectionResult,
+    pub sweep: PolygonDissectionResult,
     pub dominance_4d: PolygonDissectionResult,
     pub auto: PolygonDissectionResult,
     pub clean_path_tree: Option<PolygonDissectionResult>,
@@ -96,15 +98,38 @@ pub struct PolygonRasterEvidence {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct SweepCertificateSummary {
+    pub output_record_count: usize,
+    pub event_summary_count: usize,
+    pub event_trace_truncated: bool,
+}
+
+impl From<&SweepCertificate> for SweepCertificateSummary {
+    fn from(certificate: &SweepCertificate) -> Self {
+        Self {
+            output_record_count: certificate.output_records.len(),
+            event_summary_count: certificate.event_summaries.len(),
+            event_trace_truncated: certificate.event_trace_truncated,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PolygonVerificationReport {
     pub input_summary: PolygonVerificationInputSummary,
     pub reference_geometry: PolygonGeometryEvidence,
     pub indexed_geometry: PolygonGeometryEvidence,
+    pub sweep_geometry: PolygonGeometryEvidence,
+    pub three_backend_chord_equality: bool,
+    pub sweep_metrics: PolygonChordEnumerationMetrics,
+    pub sweep_certificate_summary: Option<SweepCertificateSummary>,
+    pub sweep_fallback_used: bool,
     pub representation_results: PolygonRepresentationEvidence,
     pub completion_results: PolygonCompletionEvidence,
     pub validator_results: PolygonValidatorEvidence,
     pub raster_oracle: Option<PolygonRasterEvidence>,
     pub disagreements: Vec<String>,
+    pub disagreement_classifications: Vec<String>,
 }
 
 impl PolygonVerificationReport {
@@ -154,8 +179,21 @@ pub fn verify_polygon(
             message: error.to_string(),
         })?
         .families;
+    let sweep_result = SoltanGorpinevichSweepEnumerator
+        .enumerate_prepared(&indexed_prepared)
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "sg-sweep",
+            message: error.to_string(),
+        })?;
+    let sweep_families = sweep_result.families.clone();
+    let sweep_metrics = sweep_result.metrics.clone();
+    let sweep_certificate_summary = sweep_result
+        .sweep_certificate
+        .as_ref()
+        .map(SweepCertificateSummary::from);
     let reference_geometry = geometry_evidence(&reference_prepared, &reference_families)?;
     let indexed_geometry = geometry_evidence(&indexed_prepared, &indexed_families)?;
+    let sweep_geometry = geometry_evidence(&indexed_prepared, &sweep_families)?;
 
     let production = solve_polygon(polygon).map_err(|error| PolygonVerificationError::Backend {
         backend: "production",
@@ -175,6 +213,17 @@ pub fn verify_polygon(
             backend: "dominance-4d",
             message: error.to_string(),
         }
+    })?;
+    let sweep = solve_polygon_with_options(
+        polygon,
+        PolygonSolveOptions {
+            chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
+            ..audited_options
+        },
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "sg-sweep-solver",
+        message: error.to_string(),
     })?;
     let auto = solve_polygon_with_options(
         polygon,
@@ -280,11 +329,14 @@ pub fn verify_polygon(
         .transpose()?;
 
     let mut disagreements = Vec::new();
-    if reference_geometry != indexed_geometry {
-        disagreements.push("reference and indexed geometry differ".to_owned());
+    let three_backend_chord_equality =
+        reference_geometry == indexed_geometry && reference_geometry == sweep_geometry;
+    if !three_backend_chord_equality {
+        disagreements.push("reference, indexed, and sweep geometry differ".to_owned());
     }
     for (name, result) in [
         ("production", &production),
+        ("sg-sweep", &sweep),
         ("auto", &auto),
         ("dominance-4d", &dominance_4d),
     ] {
@@ -323,6 +375,22 @@ pub fn verify_polygon(
     {
         disagreements.push("bounded raster Oracle differs from polygon solve".to_owned());
     }
+    let disagreement_classifications = disagreements
+        .iter()
+        .map(|message| {
+            if message.contains("geometry") {
+                "chord-family".to_owned()
+            } else if message.contains("completion") {
+                "completion".to_owned()
+            } else if message.contains("validator") {
+                "validation".to_owned()
+            } else if message.contains("raster") {
+                "raster-oracle".to_owned()
+            } else {
+                "downstream-solver".to_owned()
+            }
+        })
+        .collect();
 
     Ok(PolygonVerificationReport {
         input_summary: PolygonVerificationInputSummary {
@@ -340,8 +408,14 @@ pub fn verify_polygon(
         },
         reference_geometry,
         indexed_geometry,
+        sweep_geometry,
+        three_backend_chord_equality,
+        sweep_metrics,
+        sweep_certificate_summary,
+        sweep_fallback_used: false,
         representation_results: PolygonRepresentationEvidence {
             production,
+            sweep,
             dominance_4d,
             auto,
             clean_path_tree,
@@ -353,6 +427,7 @@ pub fn verify_polygon(
         validator_results,
         raster_oracle,
         disagreements,
+        disagreement_classifications,
     })
 }
 
@@ -841,6 +916,14 @@ mod tests {
         let report = verify_polygon(&polygon, Some(RasterLimits::default())).unwrap();
         assert!(report.verified(), "{:?}", report.disagreements);
         assert_eq!(report.reference_geometry, report.indexed_geometry);
+        assert_eq!(report.reference_geometry, report.sweep_geometry);
+        assert!(report.three_backend_chord_equality);
+        assert_eq!(report.sweep_metrics.sweep_aligned_pair_iterations, 0);
+        assert_eq!(report.sweep_metrics.sweep_all_pair_iterations, 0);
+        assert_eq!(report.sweep_metrics.sweep_definition7_fallback_checks, 0);
+        assert_eq!(report.sweep_metrics.sweep_full_boundary_scans, 0);
+        assert!(!report.sweep_fallback_used);
+        assert!(report.sweep_certificate_summary.is_some());
         assert!(report.raster_oracle.is_some());
         assert!(report.validator_results.reference_accepts_reference);
         assert!(report.validator_results.indexed_accepts_indexed);

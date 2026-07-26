@@ -106,6 +106,32 @@ pub struct Diagnostics {
     #[serde(default)]
     pub polygon_definition7_full_boundary_scans: Option<usize>,
     #[serde(default)]
+    pub sweep_horizontal_event_count: Option<usize>,
+    #[serde(default)]
+    pub sweep_vertical_event_count: Option<usize>,
+    #[serde(default)]
+    pub sweep_status_insertions: Option<usize>,
+    #[serde(default)]
+    pub sweep_status_deletions: Option<usize>,
+    #[serde(default)]
+    pub sweep_status_queries: Option<usize>,
+    #[serde(default)]
+    pub sweep_auxiliary_tree_operations: Option<usize>,
+    #[serde(default)]
+    pub sweep_output_horizontal_chords: Option<usize>,
+    #[serde(default)]
+    pub sweep_output_vertical_chords: Option<usize>,
+    #[serde(default)]
+    pub sweep_duplicate_output_count: Option<usize>,
+    #[serde(default)]
+    pub sweep_aligned_pair_iterations: Option<usize>,
+    #[serde(default)]
+    pub sweep_all_pair_iterations: Option<usize>,
+    #[serde(default)]
+    pub sweep_definition7_fallback_checks: Option<usize>,
+    #[serde(default)]
+    pub sweep_full_boundary_scans: Option<usize>,
+    #[serde(default)]
     pub polygon_completion_candidate_rebuilds: Option<usize>,
     #[serde(default)]
     pub polygon_completion_cut_pair_tests: Option<usize>,

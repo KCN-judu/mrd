@@ -15,7 +15,8 @@ use rect_dominance::{
 use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonValidationError, PreparedCoordinateArrangement,
-    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
+    SoltanGorpinevichSweepEnumerator, VerticalCutSegment, classify_clean_polygon,
+    validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +46,7 @@ pub struct PolygonCounterexample {
     pub reason: String,
     pub reference: Option<PolygonDissectionResult>,
     pub indexed: Option<PolygonDissectionResult>,
+    pub sweep: Option<PolygonDissectionResult>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -112,11 +114,23 @@ pub struct PolygonScalingRow {
     pub added_vertical_cut_count: usize,
     pub reference_microseconds: u128,
     pub indexed_microseconds: u128,
+    pub sweep_microseconds: u128,
+    /// `C / max(1, q)` is represented exactly by these two fields.
+    pub candidate_output_ratio_numerator: usize,
+    pub candidate_output_ratio_denominator: usize,
+    pub reference_pair_iterations: usize,
+    pub indexed_pair_iterations: usize,
+    pub sweep_event_count: usize,
+    pub sweep_status_operations: usize,
+    pub sweep_output_record_count: usize,
+    pub chord_families_equal: bool,
     pub optimum_equal: bool,
     pub cuts_equal: bool,
     pub rectangles_equal: bool,
+    pub three_backend_equal: bool,
     pub reference_diagnostics: Diagnostics,
     pub indexed_diagnostics: Diagnostics,
+    pub sweep_diagnostics: Diagnostics,
     pub status: String,
     pub message: Option<String>,
 }
@@ -139,7 +153,7 @@ impl PolygonScalingReport {
     #[must_use]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,reference_microseconds,indexed_microseconds,optimum_equal,cuts_equal,rectangles_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,status,message\n",
+            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,reference_microseconds,indexed_microseconds,sweep_microseconds,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
         );
         for row in &self.rows {
             let reference_owned =
@@ -147,6 +161,9 @@ impl PolygonScalingReport {
                     .unwrap_or_else(|_| "{}".to_owned());
             let indexed_owned =
                 serde_json::to_string(&row.indexed_diagnostics.owned_allocation_estimates)
+                    .unwrap_or_else(|_| "{}".to_owned());
+            let sweep_owned =
+                serde_json::to_string(&row.sweep_diagnostics.owned_allocation_estimates)
                     .unwrap_or_else(|_| "{}".to_owned());
             let fields = [
                 row.family.clone(),
@@ -157,15 +174,25 @@ impl PolygonScalingReport {
                 row.reflex_count.to_string(),
                 row.aligned_candidate_count.to_string(),
                 row.chord_count.to_string(),
+                row.candidate_output_ratio_numerator.to_string(),
+                row.candidate_output_ratio_denominator.to_string(),
                 row.selected_horizontal_cut_count.to_string(),
                 row.selected_vertical_cut_count.to_string(),
                 row.added_horizontal_cut_count.to_string(),
                 row.added_vertical_cut_count.to_string(),
                 row.reference_microseconds.to_string(),
                 row.indexed_microseconds.to_string(),
+                row.sweep_microseconds.to_string(),
+                row.reference_pair_iterations.to_string(),
+                row.indexed_pair_iterations.to_string(),
+                row.sweep_event_count.to_string(),
+                row.sweep_status_operations.to_string(),
+                row.sweep_output_record_count.to_string(),
+                row.chord_families_equal.to_string(),
                 row.optimum_equal.to_string(),
                 row.cuts_equal.to_string(),
                 row.rectangles_equal.to_string(),
+                row.three_backend_equal.to_string(),
                 optional_usize(row.reference_diagnostics.polygon_boundary_edge_visits),
                 optional_usize(row.indexed_diagnostics.polygon_boundary_edge_visits),
                 optional_usize(
@@ -176,6 +203,11 @@ impl PolygonScalingReport {
                     row.indexed_diagnostics
                         .polygon_definition7_full_boundary_scans,
                 ),
+                optional_usize(row.sweep_diagnostics.sweep_aligned_pair_iterations),
+                optional_usize(row.sweep_diagnostics.sweep_all_pair_iterations),
+                optional_usize(row.sweep_diagnostics.sweep_definition7_fallback_checks),
+                optional_usize(row.sweep_diagnostics.sweep_full_boundary_scans),
+                optional_usize(row.sweep_diagnostics.sweep_duplicate_output_count),
                 optional_usize(
                     row.reference_diagnostics
                         .polygon_completion_candidate_rebuilds,
@@ -214,8 +246,10 @@ impl PolygonScalingReport {
                 ),
                 optional_usize(row.reference_diagnostics.polygon_prepare_owned_bytes),
                 optional_usize(row.indexed_diagnostics.polygon_prepare_owned_bytes),
+                optional_usize(row.sweep_diagnostics.polygon_prepare_owned_bytes),
                 reference_owned,
                 indexed_owned,
+                sweep_owned,
                 row.status.clone(),
                 row.message.clone().unwrap_or_default(),
             ];
@@ -496,8 +530,8 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
     }
 }
 
-/// Benchmarks reference and indexed pipelines on the polygon-native A-H
-/// scaling families while retaining the complete diagnostics for every row.
+/// Benchmarks all three exact polygon chord pipelines on the native scaling
+/// families while retaining complete diagnostics for every row.
 #[must_use]
 pub fn polygon_scaling_campaign(
     context: BenchmarkContext,
@@ -516,21 +550,56 @@ pub fn polygon_scaling_campaign(
             }
         };
         for (family, family_name, polygon) in families {
-            match solve_pair(&polygon) {
-                Ok((reference, indexed, reference_micros, indexed_micros)) => {
+            match solve_triple(&polygon) {
+                Ok((reference, indexed, sweep, reference_micros, indexed_micros, sweep_micros)) => {
                     let cuts_equal = certificate_field(&reference, "selected_horizontal_cuts")
                         == certificate_field(&indexed, "selected_horizontal_cuts")
+                        && certificate_field(&reference, "selected_horizontal_cuts")
+                            == certificate_field(&sweep, "selected_horizontal_cuts")
                         && certificate_field(&reference, "selected_vertical_cuts")
                             == certificate_field(&indexed, "selected_vertical_cuts")
+                        && certificate_field(&reference, "selected_vertical_cuts")
+                            == certificate_field(&sweep, "selected_vertical_cuts")
                         && certificate_field(&reference, "added_horizontal_cuts")
                             == certificate_field(&indexed, "added_horizontal_cuts")
+                        && certificate_field(&reference, "added_horizontal_cuts")
+                            == certificate_field(&sweep, "added_horizontal_cuts")
                         && certificate_field(&reference, "added_vertical_cuts")
-                            == certificate_field(&indexed, "added_vertical_cuts");
-                    let optimum_equal =
-                        reference.optimum_rectangle_count == indexed.optimum_rectangle_count;
-                    let rectangles_equal = reference.rectangles == indexed.rectangles;
-                    let verified = optimum_equal && cuts_equal && rectangles_equal;
+                            == certificate_field(&indexed, "added_vertical_cuts")
+                        && certificate_field(&reference, "added_vertical_cuts")
+                            == certificate_field(&sweep, "added_vertical_cuts");
+                    let chord_families_equal = certificate_field(&reference, "horizontal_chords")
+                        == certificate_field(&indexed, "horizontal_chords")
+                        && certificate_field(&reference, "horizontal_chords")
+                            == certificate_field(&sweep, "horizontal_chords")
+                        && certificate_field(&reference, "vertical_chords")
+                            == certificate_field(&indexed, "vertical_chords")
+                        && certificate_field(&reference, "vertical_chords")
+                            == certificate_field(&sweep, "vertical_chords");
+                    let optimum_equal = reference.optimum_rectangle_count
+                        == indexed.optimum_rectangle_count
+                        && reference.optimum_rectangle_count == sweep.optimum_rectangle_count;
+                    let rectangles_equal = reference.rectangles == indexed.rectangles
+                        && reference.rectangles == sweep.rectangles;
+                    let sweep_contract_valid =
+                        sweep.diagnostics.polygon_chord_enumerator.as_deref() == Some("sg-sweep")
+                            && sweep.diagnostics.sweep_aligned_pair_iterations == Some(0)
+                            && sweep.diagnostics.sweep_all_pair_iterations == Some(0)
+                            && sweep.diagnostics.sweep_definition7_fallback_checks == Some(0)
+                            && sweep.diagnostics.sweep_full_boundary_scans == Some(0)
+                            && sweep.diagnostics.sweep_duplicate_output_count == Some(0);
+                    let three_backend_equal = chord_families_equal
+                        && optimum_equal
+                        && cuts_equal
+                        && rectangles_equal
+                        && sweep_contract_valid;
+                    let verified = three_backend_equal;
                     disagreements += usize::from(!verified);
+                    let aligned_candidate_count = reference
+                        .diagnostics
+                        .polygon_aligned_reflex_candidate_pairs
+                        .unwrap_or(0);
+                    let chord_count = reference.diagnostics.total_chord_count;
                     rows.push(PolygonScalingRow {
                         family,
                         family_name,
@@ -538,11 +607,10 @@ pub fn polygon_scaling_campaign(
                         boundary_complexity: reference.diagnostics.boundary_complexity,
                         hole_count: reference.diagnostics.hole_count,
                         reflex_count: reference.diagnostics.reflex_vertex_count,
-                        aligned_candidate_count: reference
-                            .diagnostics
-                            .polygon_aligned_reflex_candidate_pairs
-                            .unwrap_or(0),
-                        chord_count: reference.diagnostics.total_chord_count,
+                        aligned_candidate_count,
+                        chord_count,
+                        candidate_output_ratio_numerator: aligned_candidate_count,
+                        candidate_output_ratio_denominator: chord_count.max(1),
                         selected_horizontal_cut_count: certificate_array_len(
                             &reference,
                             "selected_horizontal_cuts",
@@ -561,11 +629,41 @@ pub fn polygon_scaling_campaign(
                         ),
                         reference_microseconds: reference_micros,
                         indexed_microseconds: indexed_micros,
+                        sweep_microseconds: sweep_micros,
+                        reference_pair_iterations: reference
+                            .diagnostics
+                            .polygon_aligned_reflex_candidate_pairs
+                            .unwrap_or(0)
+                            + reference
+                                .diagnostics
+                                .polygon_unaligned_reflex_pair_checks
+                                .unwrap_or(0),
+                        indexed_pair_iterations: indexed
+                            .diagnostics
+                            .polygon_aligned_reflex_candidate_pairs
+                            .unwrap_or(0),
+                        sweep_event_count: sweep
+                            .diagnostics
+                            .sweep_horizontal_event_count
+                            .unwrap_or(0)
+                            + sweep.diagnostics.sweep_vertical_event_count.unwrap_or(0),
+                        sweep_status_operations: sweep
+                            .diagnostics
+                            .sweep_auxiliary_tree_operations
+                            .unwrap_or(0),
+                        sweep_output_record_count: sweep
+                            .diagnostics
+                            .sweep_output_horizontal_chords
+                            .unwrap_or(0)
+                            + sweep.diagnostics.sweep_output_vertical_chords.unwrap_or(0),
+                        chord_families_equal,
                         optimum_equal,
                         cuts_equal,
                         rectangles_equal,
+                        three_backend_equal,
                         reference_diagnostics: reference.diagnostics,
                         indexed_diagnostics: indexed.diagnostics,
+                        sweep_diagnostics: sweep.diagnostics,
                         status: if verified {
                             "verified"
                         } else {
@@ -646,7 +744,7 @@ fn compare_and_record(
             counts.raster += usize::from(raster);
             counts.path_tree += usize::from(path_tree_compared);
         }
-        Err((reason, reference, indexed)) => {
+        Err((reason, reference, indexed, sweep)) => {
             counts.disagreements += 1;
             counts.counterexamples.push(PolygonCounterexample {
                 name,
@@ -655,6 +753,7 @@ fn compare_and_record(
                 reason,
                 reference,
                 indexed,
+                sweep,
             });
         }
     }
@@ -670,18 +769,19 @@ fn compare_polygon_backends(
         String,
         Option<PolygonDissectionResult>,
         Option<PolygonDissectionResult>,
+        Option<PolygonDissectionResult>,
     ),
 > {
     let reference_prepared = PreparedPolygonContext::new_with_validator(
         polygon,
         PolygonValidationBackend::ReferenceQuadratic,
     )
-    .map_err(|error| (error.to_string(), None, None))?;
+    .map_err(|error| (error.to_string(), None, None, None))?;
     let indexed_prepared = PreparedPolygonContext::new_with_validator(
         polygon,
         PolygonValidationBackend::OrthogonalSweep,
     )
-    .map_err(|error| (error.to_string(), None, None))?;
+    .map_err(|error| (error.to_string(), None, None, None))?;
     if reference_prepared.polygon() != indexed_prepared.polygon()
         || reference_prepared.boundary().reflex_vertices
             != indexed_prepared.boundary().reflex_vertices
@@ -696,22 +796,29 @@ fn compare_polygon_backends(
             ),
             None,
             None,
+            None,
         ));
     }
     let reference_chords = GeneralPolygonPairwiseEnumerator
         .enumerate_prepared_with_metrics(&reference_prepared)
-        .map_err(|error| (error.to_string(), None, None))?;
+        .map_err(|error| (error.to_string(), None, None, None))?;
     let indexed_chords = IndexedPolygonPairwiseEnumerator
         .enumerate_prepared(&indexed_prepared)
-        .map_err(|error| (error.to_string(), None, None))?;
+        .map_err(|error| (error.to_string(), None, None, None))?;
+    let sweep_chords = SoltanGorpinevichSweepEnumerator
+        .enumerate_prepared(&indexed_prepared)
+        .map_err(|error| (error.to_string(), None, None, None))?;
     if reference_chords.families.horizontal != indexed_chords.families.horizontal
         || reference_chords.families.vertical != indexed_chords.families.vertical
+        || reference_chords.families.horizontal != sweep_chords.families.horizontal
+        || reference_chords.families.vertical != sweep_chords.families.vertical
     {
         return Err((
             format!(
-                "effective chord families differ: reference={:?}; indexed={:?}",
-                reference_chords.families, indexed_chords.families
+                "effective chord families differ: reference={:?}; indexed={:?}; sweep={:?}",
+                reference_chords.families, indexed_chords.families, sweep_chords.families
             ),
+            None,
             None,
             None,
         ));
@@ -726,6 +833,24 @@ fn compare_polygon_backends(
             "indexed chord contract counters are nonzero".to_owned(),
             None,
             None,
+            None,
+        ));
+    }
+    if sweep_chords.metrics.sweep_aligned_pair_iterations != 0
+        || sweep_chords.metrics.sweep_all_pair_iterations != 0
+        || sweep_chords.metrics.sweep_definition7_fallback_checks != 0
+        || sweep_chords.metrics.sweep_full_boundary_scans != 0
+        || sweep_chords.metrics.sweep_duplicate_output_count != 0
+        || sweep_chords.metrics.sweep_output_horizontal_chords
+            != sweep_chords.families.horizontal.len()
+        || sweep_chords.metrics.sweep_output_vertical_chords != sweep_chords.families.vertical.len()
+        || sweep_chords.sweep_certificate.is_none()
+    {
+        return Err((
+            "sweep chord contract counters or certificate are invalid".to_owned(),
+            None,
+            None,
+            None,
         ));
     }
     let reference_endpoints = EffectiveChordEndpointIndex::new(
@@ -733,15 +858,21 @@ fn compare_polygon_backends(
         &reference_chords.families.horizontal,
         &reference_chords.families.vertical,
     )
-    .map_err(|error| (error.to_string(), None, None))?;
+    .map_err(|error| (error.to_string(), None, None, None))?;
     let indexed_endpoints = EffectiveChordEndpointIndex::new(
         indexed_prepared.boundary_index(),
         &indexed_chords.families.horizontal,
         &indexed_chords.families.vertical,
     )
-    .map_err(|error| (error.to_string(), None, None))?;
-    if reference_endpoints != indexed_endpoints {
-        return Err(("endpoint tables differ".to_owned(), None, None));
+    .map_err(|error| (error.to_string(), None, None, None))?;
+    let sweep_endpoints = EffectiveChordEndpointIndex::new(
+        indexed_prepared.boundary_index(),
+        &sweep_chords.families.horizontal,
+        &sweep_chords.families.vertical,
+    )
+    .map_err(|error| (error.to_string(), None, None, None))?;
+    if reference_endpoints != indexed_endpoints || reference_endpoints != sweep_endpoints {
+        return Err(("endpoint tables differ".to_owned(), None, None, None));
     }
     let reference_clean = classify_clean_polygon(
         reference_prepared.polygon(),
@@ -757,16 +888,27 @@ fn compare_polygon_backends(
         &indexed_chords.families.vertical,
         &indexed_endpoints,
     );
-    if reference_clean != indexed_clean {
+    let sweep_clean = classify_clean_polygon(
+        indexed_prepared.polygon(),
+        indexed_prepared.boundary(),
+        &sweep_chords.families.horizontal,
+        &sweep_chords.families.vertical,
+        &sweep_endpoints,
+    );
+    if reference_clean != indexed_clean || reference_clean != sweep_clean {
         return Err((
             format!(
-                "clean certificates differ: reference={reference_clean:?}; indexed={indexed_clean:?}"
+                "clean certificates differ: reference={reference_clean:?}; indexed={indexed_clean:?}; sweep={sweep_clean:?}"
             ),
+            None,
             None,
             None,
         ));
     }
-    let (reference, indexed, _, _) = solve_pair(polygon).map_err(|error| (error, None, None))?;
+    let (reference, indexed, _, _) =
+        solve_pair(polygon).map_err(|error| (error, None, None, None))?;
+    let sweep = solve_polygon_with_options(polygon, sweep_options())
+        .map_err(|error| (format!("sweep solve failed: {error}"), None, None, None))?;
     let comparison_fields = [
         "horizontal_chords",
         "vertical_chords",
@@ -781,28 +923,41 @@ fn compare_polygon_backends(
     ];
     if reference.optimum_rectangle_count != indexed.optimum_rectangle_count
         || reference.rectangles != indexed.rectangles
+        || reference.optimum_rectangle_count != sweep.optimum_rectangle_count
+        || reference.rectangles != sweep.rectangles
         || comparison_fields
             .iter()
             .any(|field| certificate_field(&reference, field) != certificate_field(&indexed, field))
+        || comparison_fields
+            .iter()
+            .any(|field| certificate_field(&reference, field) != certificate_field(&sweep, field))
     {
         return Err((
-            "solver certificate, optimum, cuts, or rectangles differ".to_owned(),
+            "three-backend solver certificate, optimum, cuts, or rectangles differ".to_owned(),
             Some(reference),
             Some(indexed),
+            Some(sweep),
         ));
     }
-    for result in [&reference, &indexed] {
+    for result in [&reference, &indexed, &sweep] {
         validate_polygon_dissection(indexed_prepared.polygon(), &result.rectangles).map_err(
             |error| {
                 (
                     error.to_string(),
                     Some(reference.clone()),
                     Some(indexed.clone()),
+                    Some(sweep.clone()),
                 )
             },
         )?;
-        validate_with_indexed_arrangement(&indexed_prepared, result)
-            .map_err(|error| (error, Some(reference.clone()), Some(indexed.clone())))?;
+        validate_with_indexed_arrangement(&indexed_prepared, result).map_err(|error| {
+            (
+                error,
+                Some(reference.clone()),
+                Some(indexed.clone()),
+                Some(sweep.clone()),
+            )
+        })?;
     }
     let diagnostics = &indexed.diagnostics;
     if diagnostics.polygon_prepare_build_count != Some(1)
@@ -820,8 +975,28 @@ fn compare_polygon_backends(
     {
         return Err((
             "indexed production counters violate the v1.0 contract".to_owned(),
-            Some(reference),
-            Some(indexed),
+            Some(reference.clone()),
+            Some(indexed.clone()),
+            Some(sweep.clone()),
+        ));
+    }
+    let sweep_diagnostics = &sweep.diagnostics;
+    if sweep_diagnostics.polygon_chord_enumerator.as_deref() != Some("sg-sweep")
+        || sweep_diagnostics.sweep_aligned_pair_iterations != Some(0)
+        || sweep_diagnostics.sweep_all_pair_iterations != Some(0)
+        || sweep_diagnostics.sweep_definition7_fallback_checks != Some(0)
+        || sweep_diagnostics.sweep_full_boundary_scans != Some(0)
+        || sweep_diagnostics.sweep_duplicate_output_count != Some(0)
+        || sweep_diagnostics.sweep_output_horizontal_chords
+            != Some(sweep_diagnostics.horizontal_chord_count)
+        || sweep_diagnostics.sweep_output_vertical_chords
+            != Some(sweep_diagnostics.vertical_chord_count)
+    {
+        return Err((
+            "sweep production counters violate the v1.1 contract".to_owned(),
+            Some(reference.clone()),
+            Some(indexed.clone()),
+            Some(sweep.clone()),
         ));
     }
     if raster {
@@ -830,6 +1005,7 @@ fn compare_polygon_backends(
                 error.to_string(),
                 Some(reference.clone()),
                 Some(indexed.clone()),
+                Some(sweep.clone()),
             )
         })?;
         if !report.verified() {
@@ -837,6 +1013,7 @@ fn compare_polygon_backends(
                 report.disagreements.join("; "),
                 Some(reference),
                 Some(indexed),
+                Some(sweep),
             ));
         }
     }
@@ -862,6 +1039,33 @@ fn solve_pair(
     ))
 }
 
+fn solve_triple(
+    polygon: &RectilinearPolygon,
+) -> Result<
+    (
+        PolygonDissectionResult,
+        PolygonDissectionResult,
+        PolygonDissectionResult,
+        u128,
+        u128,
+        u128,
+    ),
+    String,
+> {
+    let (reference, indexed, reference_microseconds, indexed_microseconds) = solve_pair(polygon)?;
+    let sweep_started = Instant::now();
+    let sweep = solve_polygon_with_options(polygon, sweep_options())
+        .map_err(|error| format!("sweep solve failed: {error}"))?;
+    Ok((
+        reference,
+        indexed,
+        sweep,
+        reference_microseconds,
+        indexed_microseconds,
+        sweep_started.elapsed().as_micros(),
+    ))
+}
+
 const fn reference_options() -> PolygonSolveOptions {
     PolygonSolveOptions {
         verification_mode: VerificationMode::CompactOnly,
@@ -883,6 +1087,13 @@ const fn indexed_options() -> PolygonSolveOptions {
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::Auto,
+    }
+}
+
+const fn sweep_options() -> PolygonSolveOptions {
+    PolygonSolveOptions {
+        chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
+        ..indexed_options()
     }
 }
 
@@ -1454,11 +1665,22 @@ fn empty_scaling_row() -> PolygonScalingRow {
         added_vertical_cut_count: 0,
         reference_microseconds: 0,
         indexed_microseconds: 0,
+        sweep_microseconds: 0,
+        candidate_output_ratio_numerator: 0,
+        candidate_output_ratio_denominator: 0,
+        reference_pair_iterations: 0,
+        indexed_pair_iterations: 0,
+        sweep_event_count: 0,
+        sweep_status_operations: 0,
+        sweep_output_record_count: 0,
+        chord_families_equal: false,
         optimum_equal: false,
         cuts_equal: false,
         rectangles_equal: false,
+        three_backend_equal: false,
         reference_diagnostics: Diagnostics::default(),
         indexed_diagnostics: Diagnostics::default(),
+        sweep_diagnostics: Diagnostics::default(),
         status: String::new(),
         message: None,
     }
@@ -1521,5 +1743,39 @@ mod tests {
         let report = polygon_scaling_campaign(context("polygon-scaling"), &[1]);
         assert!(report.verified(), "{:#?}", report.rows);
         assert_eq!(report.verified_rows, 8);
+    }
+
+    #[test]
+    fn candidate_gap_rows_bound_sweep_work_by_boundary_events() {
+        let report = polygon_scaling_campaign(context("polygon-sweep-scaling"), &[8]);
+        assert!(report.verified(), "{:#?}", report.rows);
+        let bidirectional = report.rows.iter().find(|row| row.family == "B").unwrap();
+        let ordinary_hole = report.rows.iter().find(|row| row.family == "C").unwrap();
+        for row in [bidirectional, ordinary_hole] {
+            assert!(row.aligned_candidate_count > row.chord_count);
+            assert_eq!(
+                row.candidate_output_ratio_numerator,
+                row.aligned_candidate_count
+            );
+            assert_eq!(
+                row.candidate_output_ratio_denominator,
+                row.chord_count.max(1)
+            );
+            assert_eq!(row.sweep_output_record_count, row.chord_count);
+            assert!(
+                row.sweep_event_count <= 2 * (row.boundary_complexity + row.reflex_count),
+                "row={row:#?}"
+            );
+            assert_eq!(row.sweep_diagnostics.sweep_aligned_pair_iterations, Some(0));
+            assert_eq!(row.sweep_diagnostics.sweep_all_pair_iterations, Some(0));
+            assert_eq!(
+                row.sweep_diagnostics.sweep_definition7_fallback_checks,
+                Some(0)
+            );
+            assert_eq!(row.sweep_diagnostics.sweep_full_boundary_scans, Some(0));
+        }
+        assert!(bidirectional.reference_diagnostics.horizontal_chord_count > 0);
+        assert!(bidirectional.reference_diagnostics.vertical_chord_count > 0);
+        assert!(ordinary_hole.hole_count > 0);
     }
 }

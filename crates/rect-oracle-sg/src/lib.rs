@@ -8,8 +8,9 @@ pub use polygon::{
     HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
     PolygonChordEnumerationMetrics, PolygonChordEnumerationResult, PolygonCompletionMetrics,
     PolygonCompletionResult, PolygonSgError, PolygonValidationError,
-    ReferencePolygonPairwiseEnumerator, VerticalCutSegment, classify_clean_polygon,
-    validate_polygon_dissection, validate_polygon_dissection_count,
+    ReferencePolygonPairwiseEnumerator, SoltanGorpinevichSweepEnumerator, SweepAxis,
+    SweepCertificate, SweepEventSummary, SweepOutputRecord, VerticalCutSegment,
+    classify_clean_polygon, validate_polygon_dissection, validate_polygon_dissection_count,
 };
 pub use polygon_arrangement::{
     ArrangementMetrics, IndexedArrangementValidator, PreparedCoordinateArrangement,

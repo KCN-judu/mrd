@@ -249,6 +249,7 @@ enum PolygonValidatorArg {
 enum PolygonChordsArg {
     ReferencePairwise,
     IndexedPairwise,
+    SgSweep,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -1351,6 +1352,7 @@ const fn polygon_chords_kind(backend: PolygonChordsArg) -> PolygonChordBackend {
     match backend {
         PolygonChordsArg::ReferencePairwise => PolygonChordBackend::ReferencePairwise,
         PolygonChordsArg::IndexedPairwise => PolygonChordBackend::IndexedPairwise,
+        PolygonChordsArg::SgSweep => PolygonChordBackend::SoltanGorpinevichSweep,
     }
 }
 
@@ -1871,6 +1873,68 @@ mod tests {
         assert_eq!(value["result"]["optimum_rectangle_count"], 2);
         assert_eq!(value["result"]["diagnostics"]["raster_oracle_used"], false);
         assert_eq!(value["result"]["diagnostics"]["atomic_cell_count"], 4);
+        assert!(!fs::read(&svg).unwrap().is_empty());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn polygon_sg_sweep_compact_svg_keeps_pairwise_work_disabled() {
+        let root = std::env::temp_dir().join(format!(
+            "mrd-polygon-sg-sweep-svg-regression-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("polygon.json");
+        let output = root.join("output.json");
+        let svg = root.join("output.svg");
+        fs::write(
+            &input,
+            br#"{"type":"rectilinear-polygon","outer":[[0,0],[8,0],[8,8],[5,8],[5,3],[3,3],[3,8],[0,8]],"holes":[]}"#,
+        )
+        .unwrap();
+        solve_command(
+            SolverArg::DominanceCompactOnly,
+            InputFormatArg::Polygon,
+            None,
+            None,
+            Some(RepresentationArg::Dominance4d),
+            None,
+            None,
+            Some(PolygonGeometryArg::Indexed),
+            Some(PolygonValidatorArg::OrthogonalSweep),
+            Some(PolygonChordsArg::SgSweep),
+            Some(PolygonCompletionArg::IndexedFrontier),
+            Some(PolygonArrangementArg::Indexed),
+            input.as_path(),
+            Some(output.as_path()),
+            Some(svg.as_path()),
+        )
+        .unwrap();
+        let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        let result = &value["result"];
+        let diagnostics = &result["diagnostics"];
+        assert_eq!(diagnostics["polygon_chord_enumerator"], "sg-sweep");
+        for key in [
+            "sweep_aligned_pair_iterations",
+            "sweep_all_pair_iterations",
+            "sweep_definition7_fallback_checks",
+            "sweep_full_boundary_scans",
+            "sweep_duplicate_output_count",
+        ] {
+            assert_eq!(diagnostics[key], 0, "sweep contract field {key}");
+        }
+        assert!(result["certificate"]["payload"]["sweep_certificate"].is_object());
+        let trace = &diagnostics["execution_trace"];
+        for key in [
+            "pairwise_embedding_audit_called",
+            "explicit_conflict_graph_built",
+            "hopcroft_karp_called",
+            "c0_partition_built",
+            "full_edge_partition_audit_called",
+        ] {
+            assert_eq!(trace[key], false, "forbidden trace flag {key}");
+        }
+        assert_eq!(trace["compact_structure_check_called"], true);
         assert!(!fs::read(&svg).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }

@@ -29,8 +29,9 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
     GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
     IndexedPolygonPairwiseEnumerator, PolygonSgError, PreparedCoordinateArrangement,
-    ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError, analyze_prepared_geometry,
-    classify_clean_polygon, complete_with_prepared_backend, validate_polygon_dissection_count,
+    ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
+    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, classify_clean_polygon,
+    complete_with_prepared_backend, validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -103,6 +104,7 @@ pub enum PolygonChordBackend {
     ReferencePairwise,
     #[default]
     IndexedPairwise,
+    SoltanGorpinevichSweep,
 }
 
 impl PolygonChordBackend {
@@ -111,6 +113,7 @@ impl PolygonChordBackend {
         match self {
             Self::ReferencePairwise => "reference-pairwise",
             Self::IndexedPairwise => "indexed-pairwise",
+            Self::SoltanGorpinevichSweep => "sg-sweep",
         }
     }
 }
@@ -243,32 +246,44 @@ pub fn solve_polygon_with_options(
     let polygon = prepared.polygon();
     let boundary = prepared.boundary();
     let boundary_index = prepared.boundary_index();
-    let (families, chord_metrics) = match options.verification_mode {
+    let (families, chord_metrics, sweep_certificate) = match options.verification_mode {
         VerificationMode::FullyAudited => {
             let reference =
                 GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
             let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+            let sweep = SoltanGorpinevichSweepEnumerator.enumerate_prepared(&prepared)?;
             if reference.families.horizontal != indexed.families.horizontal
                 || reference.families.vertical != indexed.families.vertical
+                || reference.families.horizontal != sweep.families.horizontal
+                || reference.families.vertical != sweep.families.vertical
             {
                 return Err(DominanceError::ChordFamilyMismatch);
             }
             match options.chord_backend {
                 PolygonChordBackend::ReferencePairwise => {
-                    (reference.families, Some(reference.metrics))
+                    (reference.families, Some(reference.metrics), None)
                 }
-                PolygonChordBackend::IndexedPairwise => (indexed.families, Some(indexed.metrics)),
+                PolygonChordBackend::IndexedPairwise => {
+                    (indexed.families, Some(indexed.metrics), None)
+                }
+                PolygonChordBackend::SoltanGorpinevichSweep => {
+                    (sweep.families, Some(sweep.metrics), sweep.sweep_certificate)
+                }
             }
         }
         VerificationMode::CompactOnly => match options.chord_backend {
             PolygonChordBackend::ReferencePairwise => {
                 let reference =
                     GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
-                (reference.families, Some(reference.metrics))
+                (reference.families, Some(reference.metrics), None)
             }
             PolygonChordBackend::IndexedPairwise => {
                 let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
-                (indexed.families, Some(indexed.metrics))
+                (indexed.families, Some(indexed.metrics), None)
+            }
+            PolygonChordBackend::SoltanGorpinevichSweep => {
+                let sweep = SoltanGorpinevichSweepEnumerator.enumerate_prepared(&prepared)?;
+                (sweep.families, Some(sweep.metrics), sweep.sweep_certificate)
             }
         },
     };
@@ -500,15 +515,54 @@ pub fn solve_polygon_with_options(
             polygon_reported_boundary_intersections: chord_metrics
                 .as_ref()
                 .map(|metrics| metrics.polygon_reported_boundary_intersections),
-            polygon_aligned_reflex_candidate_pairs: Some(
-                prepared.metrics().polygon_aligned_reflex_candidate_pairs,
-            ),
+            polygon_aligned_reflex_candidate_pairs: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.polygon_aligned_reflex_candidate_pairs),
             polygon_unaligned_reflex_pair_checks: chord_metrics
                 .as_ref()
                 .map(|metrics| metrics.polygon_unaligned_reflex_pair_checks),
             polygon_definition7_full_boundary_scans: chord_metrics
                 .as_ref()
                 .map(|metrics| metrics.polygon_definition7_full_boundary_scans),
+            sweep_horizontal_event_count: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_horizontal_event_count),
+            sweep_vertical_event_count: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_vertical_event_count),
+            sweep_status_insertions: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_status_insertions),
+            sweep_status_deletions: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_status_deletions),
+            sweep_status_queries: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_status_queries),
+            sweep_auxiliary_tree_operations: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_auxiliary_tree_operations),
+            sweep_output_horizontal_chords: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_output_horizontal_chords),
+            sweep_output_vertical_chords: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_output_vertical_chords),
+            sweep_duplicate_output_count: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_duplicate_output_count),
+            sweep_aligned_pair_iterations: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_aligned_pair_iterations),
+            sweep_all_pair_iterations: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_all_pair_iterations),
+            sweep_definition7_fallback_checks: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_definition7_fallback_checks),
+            sweep_full_boundary_scans: chord_metrics
+                .as_ref()
+                .map(|metrics| metrics.sweep_full_boundary_scans),
             polygon_completion_candidate_rebuilds: Some(
                 completion.metrics.completion_global_candidate_rebuilds,
             ),
@@ -573,6 +627,18 @@ pub fn solve_polygon_with_options(
                     geometry_at.duration_since(started).as_micros(),
                 ),
                 (
+                    "polygon_sweep_horizontal".to_owned(),
+                    chord_metrics
+                        .as_ref()
+                        .map_or(0, |metrics| metrics.sweep_horizontal_microseconds),
+                ),
+                (
+                    "polygon_sweep_vertical".to_owned(),
+                    chord_metrics
+                        .as_ref()
+                        .map_or(0, |metrics| metrics.sweep_vertical_microseconds),
+                ),
+                (
                     "compact_matching".to_owned(),
                     flow_at.duration_since(geometry_at).as_micros(),
                 ),
@@ -632,6 +698,7 @@ pub fn solve_polygon_with_options(
                 "added_vertical_cuts": completion.added_vertical_cuts,
                 "flow_value": flow_value,
                 "representation": representation_name,
+                "sweep_certificate": sweep_certificate,
             }),
         }),
     })
@@ -2092,7 +2159,8 @@ pub enum DominanceError {
 #[cfg(test)]
 mod polygon_tests {
     use rect_core::{
-        Boundary, ColorGrid, CoordinateRect, OrthogonalLoop, Point, RectilinearPolygon,
+        Boundary, ColorGrid, CoordinateRect, OrthogonalLoop, Point, PreparedPolygonContext,
+        RectilinearPolygon,
     };
     use rect_oracle_sg::{
         CoordinateCompressedCompletion, GridInteriorRunEnumerator, HorizontalCutSegment,
@@ -2232,8 +2300,32 @@ mod polygon_tests {
                 let polygon_families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
                     .enumerate(&polygon)
                     .unwrap();
+                let polygon_prepared = PreparedPolygonContext::new(&polygon).unwrap();
+                let indexed_families = rect_oracle_sg::IndexedPolygonPairwiseEnumerator
+                    .enumerate_prepared(&polygon_prepared)
+                    .unwrap();
+                let sweep_families = rect_oracle_sg::SoltanGorpinevichSweepEnumerator
+                    .enumerate_prepared(&polygon_prepared)
+                    .unwrap();
                 assert_eq!(geometry.horizontal_chords, polygon_families.horizontal);
                 assert_eq!(geometry.vertical_chords, polygon_families.vertical);
+                assert_eq!(
+                    polygon_families.horizontal,
+                    indexed_families.families.horizontal
+                );
+                assert_eq!(
+                    polygon_families.vertical,
+                    indexed_families.families.vertical
+                );
+                assert_eq!(
+                    polygon_families.horizontal,
+                    sweep_families.families.horizontal
+                );
+                assert_eq!(polygon_families.vertical, sweep_families.families.vertical);
+                assert_eq!(sweep_families.metrics.sweep_aligned_pair_iterations, 0);
+                assert_eq!(sweep_families.metrics.sweep_all_pair_iterations, 0);
+                assert_eq!(sweep_families.metrics.sweep_definition7_fallback_checks, 0);
+                assert_eq!(sweep_families.metrics.sweep_full_boundary_scans, 0);
 
                 let grid_result =
                     solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
