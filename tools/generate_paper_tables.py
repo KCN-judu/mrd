@@ -161,8 +161,9 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "ordinary holes", "theoretical paper": "supported", "current Rust artifact": "supported for grid-cell regions and boundary-native polygons", "tested": "yes", "notes": "rings, separated holes, and native two-hole fixture"},
         {"feature": "degenerate holes", "theoretical paper": "formal model", "current Rust artifact": "unsupported", "tested": "scope rejection", "notes": "point, segment, and arbitrary formal holes excluded"},
         {"feature": "endpoint contacts", "theoretical paper": "closed-chord conflicts", "current Rust artifact": "integer parity embedding", "tested": "yes", "notes": "pairwise geometry iff strict dominance"},
-        {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons", "tested": "exact differential", "notes": "no fast general-polygon sweep claim"},
-        {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "coordinate-compressed exact completion", "tested": "exact grid differential", "notes": "arrangement-sensitive O(|X||Y|) storage"},
+        {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; IndexedPolygonPairwiseEnumerator over aligned reflex groups for polygons", "tested": "exact reference differential", "notes": "O(n log n + C polylog n + Z)-style indexed pairwise path; no full general-polygon sweep claim"},
+        {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "incremental IndexedPolygonCompletion with shared prepared arrangement", "tested": "exact cut and rectangle differential", "notes": "no full classical O(n log n) completion claim"},
+        {"feature": "polygon structural validation", "theoretical paper": "ordinary rectilinear domain", "current Rust artifact": "OrthogonalSweepValidator with quadratic Oracle", "tested": "accepted and negative-category differential", "notes": "deterministic integer event ordering"},
         {"feature": "compact biclique partition", "theoretical paper": "O(q log^4 q) for d=4", "current Rust artifact": "constructive Theorem 8 recursion", "tested": "yes", "notes": "edge multiplicity audited exactly once"},
         {"feature": "practical Dinic backend", "theoretical paper": "replaceable exact flow", "current Rust artifact": "implemented", "tested": "yes", "notes": "integral flow and residual cut"},
         {"feature": "almost-linear theoretical flow backend", "theoretical paper": "used asymptotically", "current Rust artifact": "not implemented", "tested": "no", "notes": "citation-only complexity component"},
@@ -445,6 +446,7 @@ def v09_evidence_sections(output_dir: Path) -> list[str]:
         "disagreements",
         "profile",
     ]
+
     rows = [
         {
             "population": population["name"],
@@ -481,6 +483,99 @@ def v09_evidence_sections(output_dir: Path) -> list[str]:
     ]
 
 
+def v10_evidence_sections(output_dir: Path) -> list[str]:
+    paths = {
+        "3x3": output_dir / "v1.0-polygon-differential-3x3.json",
+        "4x4": output_dir / "v1.0-polygon-differential-4x4.json",
+        "extended": output_dir / "v1.0-polygon-backend-differential.json",
+        "negative": output_dir / "v1.0-polygon-negative.json",
+        "native": output_dir / "v1.0-polygon-native-fixtures.json",
+        "scaling": output_dir / "v1.0-polygon-scaling.json",
+    }
+    if not all(path.exists() for path in paths.values()):
+        return []
+    reports = {name: read_json(path) for name, path in paths.items()}
+    population_fields = [
+        "population",
+        "inputs",
+        "components",
+        "supported",
+        "rejected",
+        "verified",
+        "raster comparisons",
+        "path-tree comparisons",
+        "disagreements",
+    ]
+    population_rows = []
+    for name in ("3x3", "4x4", "extended", "native"):
+        report = reports[name]
+        population_rows.append(
+            {
+                "population": report["population"],
+                "inputs": report["input_count"],
+                "components": report["component_count"],
+                "supported": report["supported_components"],
+                "rejected": report["model_rejections"],
+                "verified": report["verified_components"],
+                "raster comparisons": report["raster_oracle_comparisons"],
+                "path-tree comparisons": report["path_tree_comparisons"],
+                "disagreements": report["disagreements"],
+            }
+        )
+    scaling = reports["scaling"]
+    largest = [row for row in scaling["rows"] if row["size"] == 16]
+    scaling_fields = [
+        "family",
+        "n",
+        "C",
+        "q",
+        "reference us",
+        "indexed us",
+        "reference Definition 7 scans",
+        "indexed Definition 7 scans",
+        "reference completion scans",
+        "indexed completion scans",
+    ]
+    scaling_rows = [
+        {
+            "family": row["family"],
+            "n": row["boundary_complexity"],
+            "C": row["aligned_candidate_count"],
+            "q": row["chord_count"],
+            "reference us": row["reference_microseconds"],
+            "indexed us": row["indexed_microseconds"],
+            "reference Definition 7 scans": row["reference_diagnostics"].get(
+                "polygon_definition7_full_boundary_scans", ""
+            ),
+            "indexed Definition 7 scans": row["indexed_diagnostics"].get(
+                "polygon_definition7_full_boundary_scans", ""
+            ),
+            "reference completion scans": row["reference_diagnostics"].get(
+                "polygon_completion_full_boundary_scans", ""
+            ),
+            "indexed completion scans": row["indexed_diagnostics"].get(
+                "polygon_completion_full_boundary_scans", ""
+            ),
+        }
+        for row in largest
+    ]
+    negative = reports["negative"]
+    return [
+        "## v1.0 Indexed polygon engine evidence",
+        "",
+        markdown_table(population_fields, population_rows),
+        "",
+        f"The structural and dissection-validator negative campaign contains {len(negative['records'])} cases with {negative['disagreements']} category disagreements.",
+        f"The polygon-native A-H scaling campaign contains {scaling['verified_rows']} verified rows, {scaling['solver_errors']} solver errors, and {scaling['disagreements']} disagreements.",
+        "",
+        "### Largest A-H scaling rows",
+        "",
+        markdown_table(scaling_fields, scaling_rows),
+        "",
+        "Indexed production rows record zero Definition 7 full-boundary scans, zero global completion candidate rebuilds, zero completion full-boundary/full-cut scans, and zero rectangle-per-cell validator tests.",
+        "Owned allocation values are exact estimates of Rust-owned vectors and indexes, not process peak RSS.",
+        "",
+    ]
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -573,6 +668,7 @@ def main() -> None:
         *current_evidence_sections(args.output_dir),
         *v08_evidence_sections(args.output_dir),
         *v09_evidence_sections(args.output_dir),
+        *v10_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -615,6 +711,17 @@ def main() -> None:
         "v0.8-path-tree-orientation-audit.json",
         "v0.8-path-tree-orientation-audit.md",
         "v0.9-polygon-differential.json",
+        "v1.0-polygon-differential-3x3.json",
+        "v1.0-polygon-differential-3x3.counterexamples.json",
+        "v1.0-polygon-differential-4x4.json",
+        "v1.0-polygon-differential-4x4.counterexamples.json",
+        "v1.0-polygon-backend-differential.json",
+        "v1.0-polygon-backend-differential.counterexamples.json",
+        "v1.0-polygon-negative.json",
+        "v1.0-polygon-native-fixtures.json",
+        "v1.0-polygon-native-fixtures.counterexamples.json",
+        "v1.0-polygon-scaling.csv",
+        "v1.0-polygon-scaling.json",
     ]:
         candidate = args.output_dir / artifact
         if candidate.exists():

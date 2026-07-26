@@ -3,8 +3,9 @@ ordinary polygon input,formal rectilinear boundary,boundary-native integer-coord
 ordinary holes,supported,supported for grid-cell regions and boundary-native polygons,yes,"rings, separated holes, and native two-hole fixture"
 degenerate holes,formal model,unsupported,scope rejection,"point, segment, and arbitrary formal holes excluded"
 endpoint contacts,closed-chord conflicts,integer parity embedding,yes,pairwise geometry iff strict dominance
-effective chord enumeration,O(n log n),GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons,exact differential,no fast general-polygon sweep claim
-polygon completion,horizontal then vertical simple chords,coordinate-compressed exact completion,exact grid differential,arrangement-sensitive O(|X||Y|) storage
+effective chord enumeration,O(n log n),GridInteriorRunEnumerator for grids; IndexedPolygonPairwiseEnumerator over aligned reflex groups for polygons,exact reference differential,O(n log n + C polylog n + Z)-style indexed pairwise path; no full general-polygon sweep claim
+polygon completion,horizontal then vertical simple chords,incremental IndexedPolygonCompletion with shared prepared arrangement,exact cut and rectangle differential,no full classical O(n log n) completion claim
+polygon structural validation,ordinary rectilinear domain,OrthogonalSweepValidator with quadratic Oracle,accepted and negative-category differential,deterministic integer event ordering
 compact biclique partition,O(q log^4 q) for d=4,constructive Theorem 8 recursion,yes,edge multiplicity audited exactly once
 practical Dinic backend,replaceable exact flow,implemented,yes,integral flow and residual cut
 almost-linear theoretical flow backend,used asymptotically,not implemented,no,citation-only complexity component

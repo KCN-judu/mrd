@@ -1,6 +1,6 @@
 # Boundary-Native Polygon Input Model
 
-Version 0.9 accepts one connected ordinary rectilinear polygon described by
+Version 1.0 accepts the same v0.9 domain: one connected ordinary rectilinear polygon described by
 one outer loop and zero or more ordinary two-dimensional hole loops. A loop is
 implicitly closed from its last vertex to its first vertex, and coordinates are
 signed `i64` values. The polygon object contains only boundary coordinates; it
@@ -27,3 +27,9 @@ All topology and area checks use integer arithmetic. Signed doubled area is
 accumulated exactly in `i128`; doubled-coordinate midpoint and side probes are
 used for strict interior predicates. No coordinate-magnitude rasterization is
 part of the production polygon model.
+
+Production builds one `PreparedPolygonContext` after normalization. Structural
+validation, `Boundary`, `BoundaryIndex`, `OrthogonalEdgeIndex`, reflex groups,
+and base coordinate vectors are constructed once and borrowed by downstream
+stages. Standalone reference APIs retain their convenience behavior by building
+a temporary context internally.

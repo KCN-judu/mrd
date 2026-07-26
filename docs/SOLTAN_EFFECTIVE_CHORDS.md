@@ -16,11 +16,14 @@ The phrase “visible aligned reflex vertices” is therefore only a candidate
 filter. It does not establish condition (2), the endpoint provenance in (3),
 or the unique orthogonal elementary-segment requirement in (4).
 
-The grid pairwise implementation remains the independent unit-cell Oracle. The
-general polygon implementation is an exact reference enumerator, not the
-paper's `O(n log n)` sweep. Any grid/polygon chord-set disagreement is a
-correctness failure and keeps the grid path as the production default for grid
-input until minimized and explained.
+The grid pairwise implementation remains the independent unit-cell Oracle.
+`GeneralPolygonPairwiseEnumerator` is the preserved `O(r^2 n)` polygon Oracle.
+`IndexedPolygonPairwiseEnumerator` groups only equal-coordinate reflex vertices,
+uses `OrthogonalEdgeIndex` for collinear overlap and boundary event reporting,
+and applies the same four Definition 7 conditions. Its intermediate complexity
+uses aligned candidate count `C`; it is not the paper's full `O(n log n)` sweep.
+Any complete chord-set disagreement is a correctness failure and blocks the
+indexed default.
 
 The paper's completion order is also normative here: selected effective chords
 are inserted first, then horizontal simple chords, then vertical simple chords.

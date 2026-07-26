@@ -184,8 +184,9 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | ordinary holes | supported | supported for grid-cell regions and boundary-native polygons | yes | rings, separated holes, and native two-hole fixture |
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
-| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; exact Definition 7 pairwise reference for polygons | exact differential | no fast general-polygon sweep claim |
-| polygon completion | horizontal then vertical simple chords | coordinate-compressed exact completion | exact grid differential | arrangement-sensitive O(\|X\|\|Y\|) storage |
+| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; IndexedPolygonPairwiseEnumerator over aligned reflex groups for polygons | exact reference differential | O(n log n + C polylog n + Z)-style indexed pairwise path; no full general-polygon sweep claim |
+| polygon completion | horizontal then vertical simple chords | incremental IndexedPolygonCompletion with shared prepared arrangement | exact cut and rectangle differential | no full classical O(n log n) completion claim |
+| polygon structural validation | ordinary rectilinear domain | OrthogonalSweepValidator with quadratic Oracle | accepted and negative-category differential | deterministic integer event ordering |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component |
@@ -313,3 +314,31 @@ Focused semantic coverage contains 5 Definition 7 tests and 11 validator rejecti
 The isolated CP-SAT rerun compares 27,228 components with 0 disagreements.
 Native nonuniform-coordinate fixtures: `nonuniform-l.json`, `large-gap.json`, `two-holes.json`, `comb.json`, `spiral-corridor.json`, `scaled-complete-bipartite.json`, `reflex-heavy-stretched.json`.
 The one-billion-unit large-gap fixture uses 2 x coordinates, 2 y coordinates, and 1 atomic arrangement cell; production raster use is `false`.
+
+## v1.0 Indexed polygon engine evidence
+
+| population | inputs | components | supported | rejected | verified | raster comparisons | path-tree comparisons | disagreements |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| grid-derived-3 | 511 | 897 | 893 | 4 | 893 | 893 | 867 | 0 |
+| grid-derived-4 | 65535 | 168529 | 166189 | 2340 | 166189 | 0 | 154085 | 0 |
+| extended-polygon-backends | 7657 | 7659 | 7394 | 265 | 7394 | 47 | 2982 | 0 |
+| polygon-native-fixtures-a-through-h | 40 | 40 | 40 | 0 | 40 | 40 | 26 | 0 |
+
+The structural and dissection-validator negative campaign contains 13 cases with 0 category disagreements.
+The polygon-native A-H scaling campaign contains 40 verified rows, 0 solver errors, and 0 disagreements.
+
+### Largest A-H scaling rows
+
+| family | n | C | q | reference us | indexed us | reference Definition 7 scans | indexed Definition 7 scans | reference completion scans | indexed completion scans |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A | 68 | 16 | 0 | 1345 | 144 | 16 | 0 | 32 | 0 |
+| B | 260 | 2048 | 124 | 5641 | 737 | 2048 | 0 | 4 | 0 |
+| C | 68 | 1024 | 30 | 521 | 161 | 1024 | 0 | 4 | 0 |
+| D | 260 | 128 | 64 | 35060 | 685 | 128 | 0 | 64 | 0 |
+| E | 132 | 32 | 0 | 9418 | 387 | 32 | 0 | 64 | 0 |
+| F | 132 | 64 | 32 | 5561 | 399 | 64 | 0 | 32 | 0 |
+| G | 260 | 128 | 64 | 38349 | 707 | 128 | 0 | 64 | 0 |
+| H | 68 | 124 | 15 | 2386 | 176 | 124 | 0 | 34 | 0 |
+
+Indexed production rows record zero Definition 7 full-boundary scans, zero global completion candidate rebuilds, zero completion full-boundary/full-cut scans, and zero rectangle-per-cell validator tests.
+Owned allocation values are exact estimates of Rust-owned vectors and indexes, not process peak RSS.

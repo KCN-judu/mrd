@@ -6,10 +6,11 @@
   point holes, isolated formal-boundary points, arbitrary degenerate formal
   holes, boundary self-contact, and multiple disconnected outer components are
   rejected and are not claimed as supported.
-- General polygon effective chords use an exact pairwise Definition 7
-  implementation. Polygon completion uses exact coordinate compression. These
-  are reference algorithms, not implementations of the paper's general
-  `O(n log n)` enumeration or completion bounds.
+- General polygon production uses indexed aligned-reflex Definition 7 queries
+  and incremental indexed completion. These remove repeated full scans but are
+  not implementations of the paper's full general `O(n log n)` enumeration or
+  completion bounds. The v0.9 pairwise and coordinate-compressed backends remain
+  exact references.
 - CompactOnly enumerates effective chords with the exact grid-specialized
   `GridInteriorRunEnumerator`; the aligned-reflex pair implementation remains
   the differential reference. This does not implement the paper's general
@@ -53,7 +54,7 @@
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less
   than `A`.
-- Polygon coordinate-compressed completion and validation use
+- Polygon indexed completion, recovery, and validation use
   `O(|X||Y|)` arrangement storage. Large coordinate gaps are cheap, but inputs
   with many distinct x and y coordinates can still create a large Cartesian
   arrangement.

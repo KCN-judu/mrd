@@ -522,3 +522,30 @@ diagnostics record `raster_oracle_used=false`.
 These results do not claim ornaments, point/segment holes, a general
 Soltan--Gorpinevich sweep, general `O(n log n)` completion, or an almost-linear
 flow backend.
+
+## v1.0 indexed polygon engine evidence
+
+The v1.0 campaigns rerun the complete polygon semantics with the reference and
+indexed backends. All binary `3x3` polygons contribute 893 supported components;
+all binary `4x4` polygons contribute 166,189. The extended campaign contributes
+7,394 supported components from free polyominoes through ten cells, ordinary
+holes, endpoint/topology adversaries, path-tree witnesses, complete-bipartite
+and dense families, 1,000 deterministic random regions, polygon-native A-H
+families, and metamorphic transforms. Every population has zero disagreements.
+
+The 13-case negative campaign combines nine structural polygon categories with
+four intentionally invalid rectangle sets. Reference and indexed validators
+return the same canonical categories in every case. The A-H scaling campaign
+contains 40 verified rows at sizes `1,2,4,8,16`; it records separate preparation,
+chord, flow, completion, arrangement, validation, total-time, and owned-byte
+diagnostics. Indexed rows report zero Definition 7 full-boundary scans, zero
+global completion candidate rebuilds, zero completion full-boundary/full-cut
+scans, and zero rectangle-per-cell validator tests.
+
+The committed sources are `results/v1.0-polygon-differential-3x3.json`,
+`results/v1.0-polygon-differential-4x4.json`,
+`results/v1.0-polygon-backend-differential.json`,
+`results/v1.0-polygon-negative.json`,
+`results/v1.0-polygon-native-fixtures.json`, and
+`results/v1.0-polygon-scaling.csv`. Numerical paper tables are generated from
+these files.

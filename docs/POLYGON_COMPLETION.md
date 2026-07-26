@@ -27,3 +27,17 @@ If `|X|` and `|Y|` are the coordinate counts, recovery uses
 `O(|X||Y|)` atomic storage and time plus cut lookup costs. This is arrangement
 sensitive, not coordinate-magnitude sensitive, and is not claimed to implement
 the paper's general `O(n log n)` completion algorithm.
+
+`IndexedPolygonCompletion` is the v1.0 production backend. It preserves the
+same selected-cut, horizontal-then-vertical, `(y,x)`, and direction ordering.
+Its frontier is incremental: inserted cuts add endpoints and newly reported
+opposite-orientation intersections, stale heap entries are revalidated lazily,
+and boundary/cut ray stops use static and dynamic indexes. Production counters
+require zero global candidate rebuilds, zero full boundary scans, and zero full
+cut scans.
+
+The final cut family builds one `PreparedCoordinateArrangement`. Scanline
+parity fills occupied spans, dense barrier arrays provide constant-time recovery
+adjacency, and a two-dimensional difference array validates output coverage.
+The reference and indexed backends must return identical selected cuts, added
+cuts, and canonical rectangles.

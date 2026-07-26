@@ -135,15 +135,19 @@ Polygon input is a tagged JSON object:
 }
 ```
 
-`--input-format auto|grid|polygon` defaults to `auto`. Polygon production
-solving uses general pairwise Definition 7 checks, the existing 4D compact
-matching backend, boundary-native simple-chord completion, and coordinate
-compression. It never rasterizes by coordinate magnitude.
+`--input-format auto|grid|polygon` defaults to `auto`. Polygon production uses
+one `PreparedPolygonContext`, the orthogonal sweep validator, indexed aligned-
+reflex Definition 7 checks, the existing 4D compact matching backend,
+incremental indexed completion, and one shared coordinate arrangement. It
+never rasterizes by coordinate magnitude. Every v0.9 scan backend remains
+selectable with the `--polygon-*` overrides.
 
 The v0.9 boundary-native evidence is recorded in
 `results/v0.9-polygon-differential.json` and generated into
 `results/paper-tables.md`; historical v0.2--v0.8.1 result populations remain
-separate and immutable.
+separate and immutable. v1.0 indexed-backend evidence is stored in the
+`results/v1.0-polygon-*` reports and documented in
+`docs/POLYGON_BACKEND_DIFFERENTIAL.md`.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
@@ -160,8 +164,9 @@ populations, seeds, timeouts, and discrepancy counts are recorded in
 
 The four-coordinate Cardinal--Yuditsky specialization has representation bound
 `O(q log^4 q)`. This repository remains a correctness and experimental
-artifact: the general polygon chord enumerator and completion backend are exact
-reference algorithms rather than the classical `O(n log n)` sweeps, and its
+artifact: the indexed polygon chord enumerator is still an aligned-pair
+algorithm rather than the classical general `O(n log n)` sweep, indexed
+completion does not claim the full classical completion bound, and the
 practical Dinic backend is not the cited almost-linear theoretical flow
 algorithm.
 

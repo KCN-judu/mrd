@@ -27,3 +27,10 @@ The independent bounded raster adapter in `rect-verify::polygon` is available
 only for small integer-coordinate differential tests. Width, height, and total
 cell limits are mandatory. Production polygon solving records
 `raster_oracle_used=false` and never calls the adapter.
+
+v1.0 extends the equality contract to reference versus indexed polygon
+geometry, structural validation, chord enumeration, completion, arrangement
+recovery, and output validation. The CLI suites persist producing commit,
+command, input population, supported/rejected counts, errors, timeouts,
+disagreements, and counterexample records. See
+`docs/POLYGON_BACKEND_DIFFERENTIAL.md`.
