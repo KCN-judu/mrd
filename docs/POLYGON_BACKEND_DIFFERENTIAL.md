@@ -1,11 +1,14 @@
 # Polygon backend differential evidence
 
-Every indexed backend is compared with the preserved reference backend before
-production defaults are changed. Equality is structural, not only an optimum
+Every production polygon backend is compared with two preserved pairwise
+Oracles before a default is changed. v1.1 compares
+`ReferencePolygonPairwiseEnumerator`, `IndexedPolygonPairwiseEnumerator`, and
+`SoltanGorpinevichSweepEnumerator`. Equality is structural, not only an optimum
 count:
 
 - normalized polygon and reflex vertices;
-- complete horizontal and vertical Definition 7 chord families;
+- complete horizontal and vertical Definition 7 chord families, endpoint
+  identities, and deterministic IDs;
 - endpoint metadata and clean eligibility certificate;
 - selected representation, flow value, and minimum vertex-cover size;
 - selected horizontal/vertical cuts;
@@ -30,6 +33,8 @@ raster Oracle. Full JSON reports, counterexample bundles, and producing commit
 metadata are stored under `results/v1.0-*`.
 
 On disagreement the report stores the original and currently minimized polygon,
-the reason, and both solver outputs. The current release population contains no
-disagreements, so no minimized regression bundle was added.
-
+the reason, and all three solver outputs. Sweep failures additionally retain
+the bounded event certificate and output provenance; a disagreement blocks the
+default. The v1.1 campaign writes separate reports under `results/v1.1-*` and
+also checks that sweep pair-iteration, Definition 7 fallback, full-boundary
+scan, and duplicate-output counters remain zero.

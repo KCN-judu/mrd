@@ -6,11 +6,12 @@
   point holes, isolated formal-boundary points, arbitrary degenerate formal
   holes, boundary self-contact, and multiple disconnected outer components are
   rejected and are not claimed as supported.
-- General polygon production uses indexed aligned-reflex Definition 7 queries
-  and incremental indexed completion. These remove repeated full scans but are
-  not implementations of the paper's full general `O(n log n)` enumeration or
-  completion bounds. The v0.9 pairwise and coordinate-compressed backends remain
-  exact references.
+- General polygon production uses the source-mapped `sg-sweep` event/status
+  construction and incremental indexed completion. The sweep's `O(n log n + q)`
+  claim is limited to the accepted ordinary-loop model; it does not implement
+  the source's formal-boundary ornaments, isolated points, or degenerate-hole
+  merge/delete cases. `ReferencePolygonPairwiseEnumerator` and
+  `IndexedPolygonPairwiseEnumerator` remain exact reference backends.
 - CompactOnly enumerates effective chords with the exact grid-specialized
   `GridInteriorRunEnumerator`; the aligned-reflex pair implementation remains
   the differential reference. This does not implement the paper's general

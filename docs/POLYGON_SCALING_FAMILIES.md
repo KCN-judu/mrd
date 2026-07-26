@@ -25,3 +25,19 @@ completion candidate rebuilds, zero full cut scans, and zero rectangle-per-cell
 validator tests. Reference rows retain positive scan counters where the
 reference algorithm performs those operations.
 
+## v1.1 sweep candidate-gap evidence
+
+v1.1 reuses families B and C as explicit candidate-gap stress families rather
+than inferring sweep behavior from timings. B has equal-depth notches on all
+four sides, so both horizontal and vertical aligned-reflex groups grow while
+the emitted chord family remains linear. C has ordinary two-dimensional holes
+and a growing horizontal aligned group. The v1.1 rows record exact `C`, `q`,
+the rational `C / max(1, q)`, direct reference and indexed pair iterations,
+sweep event/status/output counts, phase timings, owned-allocation estimates,
+and three-backend chord/cut/rectangle equality.
+
+The structural guards require `sweep_event_count <= 2 * (n + r)` for these
+ordinary-loop event records, `sweep_output_record_count == q`, and zero
+aligned-pair, all-pair, Definition 7 fallback, full-boundary scan, and duplicate
+output counters. These are regression checks for this implementation, not a
+replacement for the source complexity argument.

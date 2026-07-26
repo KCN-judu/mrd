@@ -161,7 +161,7 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "ordinary holes", "theoretical paper": "supported", "current Rust artifact": "supported for grid-cell regions and boundary-native polygons", "tested": "yes", "notes": "rings, separated holes, and native two-hole fixture"},
         {"feature": "degenerate holes", "theoretical paper": "formal model", "current Rust artifact": "unsupported", "tested": "scope rejection", "notes": "point, segment, and arbitrary formal holes excluded"},
         {"feature": "endpoint contacts", "theoretical paper": "closed-chord conflicts", "current Rust artifact": "integer parity embedding", "tested": "yes", "notes": "pairwise geometry iff strict dominance"},
-        {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; IndexedPolygonPairwiseEnumerator over aligned reflex groups for polygons", "tested": "exact reference differential", "notes": "O(n log n + C polylog n + Z)-style indexed pairwise path; no full general-polygon sweep claim"},
+        {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons", "tested": "three-backend exact family differential", "notes": "ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported"},
         {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "incremental IndexedPolygonCompletion with shared prepared arrangement", "tested": "exact cut and rectangle differential", "notes": "no full classical O(n log n) completion claim"},
         {"feature": "polygon structural validation", "theoretical paper": "ordinary rectilinear domain", "current Rust artifact": "OrthogonalSweepValidator with quadratic Oracle", "tested": "accepted and negative-category differential", "notes": "deterministic integer event ordering"},
         {"feature": "compact biclique partition", "theoretical paper": "O(q log^4 q) for d=4", "current Rust artifact": "constructive Theorem 8 recursion", "tested": "yes", "notes": "edge multiplicity audited exactly once"},
@@ -576,6 +576,100 @@ def v10_evidence_sections(output_dir: Path) -> list[str]:
         "Owned allocation values are exact estimates of Rust-owned vectors and indexes, not process peak RSS.",
         "",
     ]
+
+
+def v11_evidence_sections(output_dir: Path) -> list[str]:
+    paths = {
+        "3x3": output_dir / "v1.1-polygon-differential-3x3.json",
+        "4x4": output_dir / "v1.1-polygon-differential-4x4.json",
+        "extended": output_dir / "v1.1-polygon-backend-differential.json",
+        "negative": output_dir / "v1.1-polygon-negative.json",
+        "native": output_dir / "v1.1-polygon-native-fixtures.json",
+        "scaling": output_dir / "v1.1-polygon-scaling.json",
+    }
+    if not all(path.exists() for path in paths.values()):
+        return []
+    reports = {name: read_json(path) for name, path in paths.items()}
+    population_fields = [
+        "population",
+        "inputs",
+        "components",
+        "supported",
+        "verified",
+        "disagreements",
+    ]
+    population_rows = [
+        {
+            "population": reports[name]["population"],
+            "inputs": reports[name]["input_count"],
+            "components": reports[name]["component_count"],
+            "supported": reports[name]["supported_components"],
+            "verified": reports[name]["verified_components"],
+            "disagreements": reports[name]["disagreements"],
+        }
+        for name in ("3x3", "4x4", "extended", "native")
+    ]
+    scaling = reports["scaling"]
+    largest_size = max(row["size"] for row in scaling["rows"])
+    candidate_rows = [
+        row
+        for row in scaling["rows"]
+        if row["size"] == largest_size and row["family"] in ("B", "C")
+    ]
+    candidate_fields = [
+        "family",
+        "n",
+        "holes",
+        "r",
+        "C",
+        "q",
+        "C/max(1,q)",
+        "reference pairs",
+        "indexed pairs",
+        "sweep events",
+        "sweep status ops",
+        "sweep outputs",
+        "three-backend equal",
+    ]
+    candidate_table_rows = [
+        {
+            "family": row["family"],
+            "n": row["boundary_complexity"],
+            "holes": row["hole_count"],
+            "r": row["reflex_count"],
+            "C": row["aligned_candidate_count"],
+            "q": row["chord_count"],
+            "C/max(1,q)": (
+                f"{row['candidate_output_ratio_numerator']}/"
+                f"{row['candidate_output_ratio_denominator']}"
+            ),
+            "reference pairs": row["reference_pair_iterations"],
+            "indexed pairs": row["indexed_pair_iterations"],
+            "sweep events": row["sweep_event_count"],
+            "sweep status ops": row["sweep_status_operations"],
+            "sweep outputs": row["sweep_output_record_count"],
+            "three-backend equal": row["three_backend_equal"],
+        }
+        for row in candidate_rows
+    ]
+    negative = reports["negative"]
+    return [
+        "## v1.1 Soltan--Gorpinevich sweep evidence",
+        "",
+        markdown_table(population_fields, population_rows),
+        "",
+        f"The negative campaign contains {len(negative['records'])} cases with {negative['disagreements']} category disagreements.",
+        "Every differential comparison includes complete chord families, endpoint metadata, clean certificates, flow/cut evidence, and canonical rectangles.",
+        "",
+        f"### Candidate-gap rows at size {largest_size}",
+        "",
+        markdown_table(candidate_fields, candidate_table_rows),
+        "",
+        "Sweep rows report zero aligned-pair iterations, all-pair iterations, Definition 7 fallback checks, full-boundary scans, and duplicate output records. Owned allocation values are Rust-owned estimates, not peak RSS.",
+        "",
+    ]
+
+
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -669,6 +763,7 @@ def main() -> None:
         *v08_evidence_sections(args.output_dir),
         *v09_evidence_sections(args.output_dir),
         *v10_evidence_sections(args.output_dir),
+        *v11_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -722,6 +817,17 @@ def main() -> None:
         "v1.0-polygon-native-fixtures.counterexamples.json",
         "v1.0-polygon-scaling.csv",
         "v1.0-polygon-scaling.json",
+        "v1.1-polygon-differential-3x3.json",
+        "v1.1-polygon-differential-3x3.counterexamples.json",
+        "v1.1-polygon-differential-4x4.json",
+        "v1.1-polygon-differential-4x4.counterexamples.json",
+        "v1.1-polygon-backend-differential.json",
+        "v1.1-polygon-backend-differential.counterexamples.json",
+        "v1.1-polygon-negative.json",
+        "v1.1-polygon-native-fixtures.json",
+        "v1.1-polygon-native-fixtures.counterexamples.json",
+        "v1.1-polygon-scaling.csv",
+        "v1.1-polygon-scaling.json",
     ]:
         candidate = args.output_dir / artifact
         if candidate.exists():

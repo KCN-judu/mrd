@@ -25,5 +25,14 @@ uses aligned candidate count `C`; it is not the paper's full `O(n log n)` sweep.
 Any complete chord-set disagreement is a correctness failure and blocks the
 indexed default.
 
+For the accepted ordinary-loop model, v1.1 adds
+`SoltanGorpinevichSweepEnumerator`. It uses the source-backed specialization
+that a Definition 7 chord is the first boundary hit of the unique
+strict-interior axis ray from a reflex vertex, provided that hit is reflex.
+Its axis-generic status sweep does not call these pairwise predicates during
+construction; the pairwise predicates remain post-construction Oracles in
+fully audited and differential paths. The specialization and its excluded
+formal-boundary cases are specified in `docs/SOLTAN_SWEEP_IMPLEMENTATION.md`.
+
 The paper's completion order is also normative here: selected effective chords
 are inserted first, then horizontal simple chords, then vertical simple chords.

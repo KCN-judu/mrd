@@ -48,6 +48,13 @@ cargo run --release -p rect-cli -- solve \
   --input test-data/polygons/nonuniform-l.json \
   --svg /tmp/nonuniform-l.svg
 
+# `sg-sweep` is the ordinary-polygon default; pairwise backends remain selectable.
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only \
+  --input-format polygon \
+  --polygon-chords sg-sweep \
+  --input test-data/polygons/comb.json
+
 # Keep the pairwise reference enumerator available for differential debugging.
 cargo run --release -p rect-cli -- solve \
   --solver dominance-compact-only \
@@ -136,18 +143,21 @@ Polygon input is a tagged JSON object:
 ```
 
 `--input-format auto|grid|polygon` defaults to `auto`. Polygon production uses
-one `PreparedPolygonContext`, the orthogonal sweep validator, indexed aligned-
-reflex Definition 7 checks, the existing 4D compact matching backend,
-incremental indexed completion, and one shared coordinate arrangement. It
-never rasterizes by coordinate magnitude. Every v0.9 scan backend remains
-selectable with the `--polygon-*` overrides.
+one `PreparedPolygonContext`, the orthogonal sweep validator, the axis-generic
+`sg-sweep` Definition 7 construction, the existing 4D compact matching
+backend, incremental indexed completion, and one shared coordinate arrangement.
+It never rasterizes by coordinate magnitude. `reference-pairwise` and
+`indexed-pairwise` remain selectable with `--polygon-chords` as independent
+correctness Oracles.
 
 The v0.9 boundary-native evidence is recorded in
 `results/v0.9-polygon-differential.json` and generated into
 `results/paper-tables.md`; historical v0.2--v0.8.1 result populations remain
 separate and immutable. v1.0 indexed-backend evidence is stored in the
 `results/v1.0-polygon-*` reports and documented in
-`docs/POLYGON_BACKEND_DIFFERENTIAL.md`.
+`docs/POLYGON_BACKEND_DIFFERENTIAL.md`. The v1.1 three-backend sweep evidence
+is stored in `results/v1.1-polygon-*` and source-mapped in
+`docs/SOLTAN_SWEEP_IMPLEMENTATION.md`.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
@@ -163,12 +173,12 @@ populations, seeds, timeouts, and discrepancy counts are recorded in
 `docs/EXPERIMENTS.md` and `results/manifest.json`.
 
 The four-coordinate Cardinal--Yuditsky specialization has representation bound
-`O(q log^4 q)`. This repository remains a correctness and experimental
-artifact: the indexed polygon chord enumerator is still an aligned-pair
-algorithm rather than the classical general `O(n log n)` sweep, indexed
-completion does not claim the full classical completion bound, and the
-practical Dinic backend is not the cited almost-linear theoretical flow
-algorithm.
+`O(q log^4 q)`. For the accepted ordinary-loop polygon model, `sg-sweep` uses
+`O(n log n + q)` event/status construction without aligned-pair enumeration.
+This repository remains a correctness and experimental artifact: the sweep does
+not implement the source's formal-boundary features, indexed completion does
+not claim the full classical completion bound, and the practical Dinic backend
+is not the cited almost-linear theoretical flow algorithm.
 
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;

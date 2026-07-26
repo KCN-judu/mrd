@@ -124,11 +124,17 @@ loops with exact `i128` signed area, then performs an explicit `O(n^2)` segment
 audit. `Boundary::from_polygon` produces the same compact loop/reflex/index
 semantics used by the grid pipeline without expanding long edges into units.
 
-`GeneralPolygonPairwiseEnumerator` considers aligned reflex pairs and checks all
-four Soltan--Gorpinevich Definition 7 conditions with exact boundary
-intersections and doubled-coordinate interior probes. The resulting chord
-families feed the unchanged 4D embedding, Theorem 8 partition, compressed flow,
-and minimum-cut cover. Clean hole-free polygons may use the boundary-laminar
+`GeneralPolygonPairwiseEnumerator` and `IndexedPolygonPairwiseEnumerator`
+remain independent Definition 7 Oracles. Production
+`SoltanGorpinevichSweepEnumerator` uses one axis-generic event/status sweep:
+for the accepted ordinary-loop model, the unique strict-interior ray of each
+reflex vertex emits its nearest reflex boundary hit. The source-mapped
+specialization, deterministic endpoint event ordering, bounded certificate, and
+excluded formal-boundary cases are recorded in
+`docs/SOLTAN_SWEEP_IMPLEMENTATION.md`. FullyAudited compares all three complete
+chord families; CompactOnly defaults to `sg-sweep`. The selected family feeds
+the unchanged 4D embedding, Theorem 8 partition, compressed flow, and
+minimum-cut cover. Clean hole-free polygons may use the boundary-laminar
 path-tree partition; `Auto` falls back to 4D otherwise.
 
 `CoordinateCompressedCompletion` inserts selected chords, then horizontal and
@@ -150,7 +156,7 @@ count. No production polygon stage rasterizes by coordinate magnitude.
 | C1 is a partition, not only a cover | `verify_exact_partition` | every edge has multiplicity exactly one |
 | Geometric output is valid | solver-independent validator | positive rectangles cover each component cell exactly once |
 | Polygon normalization is canonical | normalization and metamorphic tests | orientation/start/collinear variants normalize identically |
-| General polygon chords satisfy Definition 7 | exact four-condition predicate and grid differential | complete horizontal/vertical families match on supported grid-derived polygons |
+| General polygon chords satisfy Definition 7 | three-backend chord-family differential and source-invariant tests | complete horizontal/vertical families, endpoints, and deterministic IDs match |
 | Polygon completion is coordinate native | cut and rectangle differential | selected/added cut unions and rectangles equal the grid Oracle |
 | Polygon rectangles form an exact dissection | coordinate-compressed validator | no outside coverage, holes, overlap, or uncovered interior |
 
@@ -167,7 +173,9 @@ biclique vertex occurrences.
 | Prepared ordinary polygon input | `rect-core::polygon_index` | `PreparedPolygonContext::new_with_validator` | one normalization/validation/boundary/index build with owned metadata | input-model step | exact build-count and backend differential | v0.9 standalone APIs | no ornaments or degenerate holes |
 | Exact indexed polygon queries | `rect-core::polygon_index` | `OrthogonalEdgeIndex` | segment-tree stabbing and sorted line groups; output-sensitive reporting | predicate layer | point/segment/ray query differential | linear polygon predicates | integer coordinates only |
 | Polygon structural validation | `rect-core::polygon_index` | `OrthogonalSweepValidator` | deterministic orthogonal sweep with exact integer events | input-model step | accepted polygon and broad negative-category differential | `ReferenceQuadraticValidator` | ordinary polygon model only |
-| Indexed polygon effective chords | `rect-oracle-sg::polygon` | `IndexedPolygonPairwiseEnumerator::enumerate_prepared` | `O(n log n + C polylog n + Z)`-style aligned-pair path | general SG sweep is `O(n log n)` | exact 3x3/4x4 and extended chord-family differential | `GeneralPolygonPairwiseEnumerator` | not the full general sweep |
+| Reference polygon effective chords | `rect-oracle-sg::polygon` | `GeneralPolygonPairwiseEnumerator::enumerate_prepared_with_metrics` | `O(r^2 n)` direct Definition 7 audit | independent Oracle, not production | exact 3x3/4x4 and extended chord-family differential | grid-native enumerator | ordinary polygon model only |
+| Indexed polygon pairwise effective chords | `rect-oracle-sg::polygon` | `IndexedPolygonPairwiseEnumerator::enumerate_prepared` | `O(n log n + C polylog n + Z)`-style aligned-pair path | intermediate Oracle path | exact three-backend differential | `GeneralPolygonPairwiseEnumerator` | `C` can be quadratic |
+| SG ordinary-polygon sweep effective chords | `rect-oracle-sg::polygon` | `SoltanGorpinevichSweepEnumerator::enumerate_prepared` | `O(n log n + q)` status construction and output writing | Section 10 Step 1, pp. 76--77, specialized to ordinary loops | source-invariant, 3x3/4x4, extended, hole, metamorphic, and candidate-gap campaigns | both pairwise enumerators | no ornaments, isolated points, or degenerate formal holes |
 | Indexed polygon completion | `rect-oracle-sg::polygon` | `IndexedPolygonCompletion::complete_prepared` | incremental endpoint/intersection frontier plus indexed ray shooting | general linear/log-linear construction in source model | exact selected/added cuts and rectangles | `CoordinateCompressedCompletion` | no full classical completion bound claim |
 | Shared polygon arrangement | `rect-oracle-sg::polygon_arrangement` | `PreparedCoordinateArrangement::new` | scanline span fill, dense barriers/recovery, difference-array validation | verification/output layer | exact rectangle and invalid-output differential | reference recovery/validator | `O(|X||Y|)` storage |
 | Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `PreparedComponentContext`, `GridInteriorRunEnumerator::enumerate_prepared` | one component-local preparation plus output-sensitive prepared-run enumeration; pairwise reference retained | `O(n log n)` enumeration in Soltan--Gorpinevich | exact chord-family equality on exhaustive, polyomino, hole, adversarial, dense, and random populations | `ReferencePairwiseEnumerator` | no ornaments, degenerate formal holes, or general polygon sweep |

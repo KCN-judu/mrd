@@ -67,6 +67,13 @@ pairwise Definition 7 implementations on ordinary holes, endpoint/topological
 fixtures, native polygons, grid-derived polygons, and metamorphic variants.
 It must not be applied to a rejected formal-boundary input.
 
+| Source step | Paper location | Rust surface | Ordinary-loop invariant | Test evidence |
+| --- | --- | --- | --- | --- |
+| construct horizontal/vertical open-interior chords | Definition 7, p. 62; Step 1(a), p. 76 | `enumerate_sweep_axis` | nearest status blocker is the first boundary hit of the strict-interior reflex ray | 3x3/4x4 and extended three-backend equality |
+| reject endpoint configurations without required elementary segments | Step 1(b), p. 76 | `sweep_interior_direction`, reflex set lookup | every accepted loop vertex has one horizontal and one vertical incident segment; a hit must be reflex | four-direction and ordinary-hole tests |
+| merge through eligible boundary vertices | Step 1(c), p. 76 | specialization lemma, no production branch | an ordinary Definition 7 open interval cannot cross a boundary vertex | endpoint/topological fixtures and pairwise Definition 7 Oracle |
+| endpoint filtering and canonical output | Step 1(d), pp. 76--77 | `SweepOutputRecord`, canonical `BTreeSet` insertion | source point precedes target and every emitted endpoint is reflex | output-size/no-duplicate certificate test |
+
 ## Axis-generic event sweep
 
 `SoltanGorpinevichSweepEnumerator` uses one `SweepAxis` implementation twice.
@@ -107,17 +114,17 @@ in the production backend:
 
 | Invariant | Rust surface | Test class |
 | --- | --- | --- |
-| Status contains exactly segments closed over the current scan coordinate | `SweepStatus` event phases | event-order and endpoint fixtures |
+| Status contains exactly segments closed over the current scan coordinate | `enumerate_sweep_axis` event phases | event-order and endpoint fixtures |
 | A reflex query uses only the non-boundary axis ray | `interior_direction` | all four reflex orientations |
 | The selected blocker is the nearest closed orthogonal segment | status predecessor/successor | holes and nested-coordinate fixtures |
 | An output has two reflex endpoints and open strict interior | `SweepOutputRecord` audit | three-backend differential |
 | Every output has one canonical owner and no duplicate ID | canonical output insertion | duplicate suppression unit test |
 | No pairwise or full-boundary fallback ran | `SweepMetrics` | CompactOnly contract tests |
 
-`SweepCertificate` stores aggregate per-axis counters in every production
-result. A debug invocation can retain ordered event summaries and output
-provenance, bounded by a fixed trace limit; the normal serialized solver result
-contains only the bounded summary and aggregate counters. Fully audited tests
+`SweepCertificate` stores bounded ordered event summaries and output provenance;
+the sibling `SweepMetrics` value stores aggregate per-axis counters in every
+production result. The normal serialized solver result therefore has an
+output-sized provenance plus a bounded trace, not an unbounded event log. Fully audited tests
 may independently call the existing Definition 7 predicate and the two
 pairwise enumerators *after* construction.
 
