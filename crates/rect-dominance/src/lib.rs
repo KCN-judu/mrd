@@ -171,7 +171,7 @@ impl Default for PolygonSolveOptions {
             verification_mode: VerificationMode::CompactOnly,
             geometry_backend: PolygonGeometryBackend::Indexed,
             validation_backend: PolygonValidationBackend::OrthogonalSweep,
-            chord_backend: PolygonChordBackend::IndexedPairwise,
+            chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
             completion_backend: PolygonCompletionBackend::IndexedFrontier,
             arrangement_backend: PolygonArrangementBackend::Indexed,
             representation: ConflictRepresentationBackend::GeneralDominance4D,

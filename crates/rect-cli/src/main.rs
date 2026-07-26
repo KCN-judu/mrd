@@ -1205,8 +1205,10 @@ fn solve_command(
                         PolygonValidationBackend::OrthogonalSweep,
                         polygon_validator_kind,
                     ),
-                    chord_backend: polygon_chords
-                        .map_or(PolygonChordBackend::IndexedPairwise, polygon_chords_kind),
+                    chord_backend: polygon_chords.map_or(
+                        PolygonChordBackend::SoltanGorpinevichSweep,
+                        polygon_chords_kind,
+                    ),
                     completion_backend: polygon_completion.map_or(
                         PolygonCompletionBackend::IndexedFrontier,
                         polygon_completion_kind,
@@ -1962,6 +1964,10 @@ mod tests {
             };
             let result = rect_dominance::solve_polygon(&polygon)
                 .unwrap_or_else(|error| panic!("fixture {name} failed: {error}"));
+            assert_eq!(
+                result.diagnostics.polygon_chord_enumerator.as_deref(),
+                Some("sg-sweep")
+            );
             if name == "scaled-complete-bipartite.json" {
                 let families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
                     .enumerate(&polygon)
