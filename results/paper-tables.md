@@ -119,7 +119,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "0.8.1",
     "tag": "v0.8.1-boundary-indexed-adaptive-path-tree",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "689e1d33e8fc3b9ca1db3ab1aef1158aec48272c",
     "evidence": "exact path-tree orientation dispatch, complete indexed frontend differential, minimized mixed-branching families, stable witness generation, benchmark provenance, and final verification gates",
     "result_commits": [
       "8f3ffb1",
