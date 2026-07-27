@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P0
-- Current phase state: complete
+- Current phase: P1
+- Current phase state: committed
 - Last completed phase: P0
-- Last pushed SHA: ae763cacdb95e71130977c6cbaa621502b9ceafc
-- Plan last updated: 2026-07-27T09:40:49Z
+- Last pushed SHA: deee489dda9967f3a5558f5ab9c0f9640ce7a70f
+- Plan last updated: 2026-07-27T10:05:32Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -119,7 +119,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P1 - v1.3 baseline freeze and full audit
 
-**State:** planned. Regenerate and archive complete v1.3 correctness,
+**State:** committed. **Start SHA:** `deee489`. Regenerate and archive complete v1.3 correctness,
 external-oracle, sparse geometry, release-provenance, fallback, ignored-test,
 and benchmark baseline. Require no unexplained disagreement or stale
 provenance; commit the baseline used by later phases. Suggested release:
@@ -372,3 +372,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | phase | state | start SHA | implementation SHAs | closeout SHA | remote SHA | audit report | result files | started at | completed at | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
+| P1 | committed | deee489 | pending | pending | pending | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | pending | none |

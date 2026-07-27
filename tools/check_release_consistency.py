@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from check_p1_baseline import main as check_p1_baseline
+
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = "1.3.0"
@@ -384,6 +386,7 @@ def main() -> None:
         report = json.loads((ROOT / relative).read_text())
         if report.get("disagreements", 0) != 0:
             fail(f"v1.1 report has disagreements: {relative}")
+    check_p1_baseline()
     print(f"release consistency: {VERSION} {TAG} -> {peeled}")
     print(f"reachable manifest commits: {len(commits)}")
 

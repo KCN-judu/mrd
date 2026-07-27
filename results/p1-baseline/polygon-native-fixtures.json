@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "git_commit": "deee489dda9967f3a5558f5ab9c0f9640ce7a70f",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "target/release/rect-cli benchmark --suite polygon-native-fixtures --sizes 1,2,4,8,16 --output results/p1-baseline/polygon-native-fixtures.json",
+    "seed": null,
+    "timestamp": 1785145764,
+    "input_count": 70,
+    "component_count": 70,
+    "input_model": "boundary-native-ordinary-rectilinear-polygon-differential",
+    "unsupported_input_features": [
+      "ornaments",
+      "point-holes",
+      "segment-holes",
+      "degenerate-formal-holes",
+      "disconnected-outer-components"
+    ]
+  },
+  "population": "polygon-native-fixtures-a-through-h",
+  "input_count": 70,
+  "component_count": 70,
+  "supported_components": 70,
+  "model_rejections": 0,
+  "verified_components": 70,
+  "solver_errors": 0,
+  "timeouts": 0,
+  "disagreements": 0,
+  "raster_oracle_comparisons": 70,
+  "path_tree_comparisons": 42,
+  "minimized_counterexamples": []
+}

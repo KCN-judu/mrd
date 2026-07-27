@@ -1,0 +1,29 @@
+{
+  "c0_comparison_count": 337058,
+  "component_count": 337058,
+  "compressed_comparison_count": 337058,
+  "counterexample_count": 0,
+  "exact_cover_comparison_count": 337058,
+  "grid_count": 65536,
+  "height": 4,
+  "metadata": {
+    "command": "target/release/rect-cli exhaustive --width 4 --height 4 --output results/p1-baseline/exhaustive-4x4.json",
+    "component_count": 337058,
+    "git_commit": "deee489dda9967f3a5558f5ab9c0f9640ce7a70f",
+    "input_count": 65536,
+    "input_model": "finite-colored-unit-cell-grid",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "seed": null,
+    "timestamp": 1785145711,
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "sg_comparison_count": 337058,
+  "width": 4
+}
