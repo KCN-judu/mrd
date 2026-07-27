@@ -867,4 +867,59 @@ mod tests {
             SparseSlabValidator.validate(&polygon, &sparse).unwrap();
         }
     }
+
+    #[test]
+    fn sparse_subdivision_accepts_all_ordinary_hole_bridge_topologies() {
+        let outer = || {
+            OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(20, 0),
+                Point::new(20, 20),
+                Point::new(0, 20),
+            ])
+        };
+        let clockwise_rectangle = |left, bottom, right, top| {
+            OrthogonalLoop::new(vec![
+                Point::new(left, bottom),
+                Point::new(left, top),
+                Point::new(right, top),
+                Point::new(right, bottom),
+            ])
+        };
+        let cases = [
+            (
+                "same-boundary-component",
+                RectilinearPolygon::new(outer(), vec![]).unwrap(),
+                BTreeSet::new(),
+                BTreeSet::from([VerticalCutSegment::new(10, 0, 20).unwrap()]),
+            ),
+            (
+                "outer-to-hole",
+                RectilinearPolygon::new(outer(), vec![clockwise_rectangle(6, 6, 10, 10)]).unwrap(),
+                BTreeSet::from([HorizontalCutSegment::new(0, 6, 8).unwrap()]),
+                BTreeSet::new(),
+            ),
+            (
+                "hole-to-hole",
+                RectilinearPolygon::new(
+                    outer(),
+                    vec![
+                        clockwise_rectangle(3, 6, 7, 10),
+                        clockwise_rectangle(13, 6, 17, 10),
+                    ],
+                )
+                .unwrap(),
+                BTreeSet::from([HorizontalCutSegment::new(7, 13, 8).unwrap()]),
+                BTreeSet::new(),
+            ),
+        ];
+        for (name, polygon, horizontal, vertical) in cases {
+            let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+            let subdivision = SparseOrthogonalSubdivision::new(&prepared, &horizontal, &vertical)
+                .unwrap_or_else(|error| panic!("{name}: {error}"));
+            assert!(subdivision.metrics.vertex_count > 0, "{name}");
+            assert!(subdivision.metrics.half_edge_count > 0, "{name}");
+            assert!(!subdivision.faces.is_empty(), "{name}");
+        }
+    }
 }

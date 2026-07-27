@@ -1001,6 +1001,35 @@ mod tests {
     }
 
     #[test]
+    fn compact_polygon_default_keeps_dense_arrangement_trace_false() {
+        let polygon = RectilinearPolygon::new(
+            loop_from(&[(0, 0), (5, 0), (5, 2), (2, 2), (2, 5), (0, 5)]),
+            vec![],
+        )
+        .unwrap();
+        let result = solve_polygon(&polygon).unwrap();
+        let trace = &result.diagnostics.execution_trace;
+        assert!(trace.compact_structure_check_called);
+        assert!(!trace.dense_atomic_cells_materialized);
+        assert!(!trace.dense_occupied_array_materialized);
+        assert!(!trace.dense_horizontal_barrier_array_materialized);
+        assert!(!trace.dense_vertical_barrier_array_materialized);
+        assert!(!trace.dense_coverage_difference_array_materialized);
+        assert_eq!(
+            result.diagnostics.polygon_cut_index_backend.as_deref(),
+            Some("dynamic-stabbing")
+        );
+        assert_eq!(
+            result.diagnostics.polygon_arrangement_backend.as_deref(),
+            Some("sparse-subdivision")
+        );
+        assert_eq!(
+            result.diagnostics.polygon_validator_backend.as_deref(),
+            Some("sparse-slab")
+        );
+    }
+
+    #[test]
     fn rejects_large_coordinate_gap_before_allocating_cells() {
         let polygon = RectilinearPolygon::new(
             loop_from(&[(0, 0), (1_000_000_000, 0), (1_000_000_000, 1), (0, 1)]),

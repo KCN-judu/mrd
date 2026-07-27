@@ -79,6 +79,7 @@ pub struct PolygonNegativeRecord {
     pub name: String,
     pub reference_category: String,
     pub indexed_category: String,
+    pub sparse_category: String,
     pub deterministic_match: bool,
 }
 
@@ -114,6 +115,19 @@ pub struct PolygonScalingRow {
     pub selected_vertical_cut_count: usize,
     pub added_horizontal_cut_count: usize,
     pub added_vertical_cut_count: usize,
+    pub coordinate_x_count: usize,
+    pub coordinate_y_count: usize,
+    pub coordinate_cartesian_product: usize,
+    pub sparse_subdivision_vertices: usize,
+    pub sparse_subdivision_half_edges: usize,
+    pub sparse_subdivision_junctions: usize,
+    pub sparse_subdivision_interior_faces: usize,
+    pub dense_owned_bytes_estimate: usize,
+    pub sparse_owned_bytes_estimate: usize,
+    pub cut_index_owned_bytes_estimate: usize,
+    pub completion_microseconds: u128,
+    pub recovery_microseconds: u128,
+    pub validation_microseconds: u128,
     pub reference_microseconds: u128,
     pub indexed_microseconds: u128,
     pub sweep_microseconds: u128,
@@ -156,7 +170,7 @@ impl PolygonScalingReport {
     #[allow(clippy::too_many_lines)]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,reference_microseconds,indexed_microseconds,sweep_microseconds,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
+            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,coordinate_x_count,coordinate_y_count,coordinate_cartesian_product,sparse_subdivision_vertices,sparse_subdivision_half_edges,sparse_subdivision_junctions,sparse_subdivision_interior_faces,dense_owned_bytes_estimate,sparse_owned_bytes_estimate,cut_index_owned_bytes_estimate,completion_microseconds,recovery_microseconds,validation_microseconds,reference_microseconds,indexed_microseconds,sweep_microseconds,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
         );
         for row in &self.rows {
             let reference_owned =
@@ -183,6 +197,19 @@ impl PolygonScalingReport {
                 row.selected_vertical_cut_count.to_string(),
                 row.added_horizontal_cut_count.to_string(),
                 row.added_vertical_cut_count.to_string(),
+                row.coordinate_x_count.to_string(),
+                row.coordinate_y_count.to_string(),
+                row.coordinate_cartesian_product.to_string(),
+                row.sparse_subdivision_vertices.to_string(),
+                row.sparse_subdivision_half_edges.to_string(),
+                row.sparse_subdivision_junctions.to_string(),
+                row.sparse_subdivision_interior_faces.to_string(),
+                row.dense_owned_bytes_estimate.to_string(),
+                row.sparse_owned_bytes_estimate.to_string(),
+                row.cut_index_owned_bytes_estimate.to_string(),
+                row.completion_microseconds.to_string(),
+                row.recovery_microseconds.to_string(),
+                row.validation_microseconds.to_string(),
                 row.reference_microseconds.to_string(),
                 row.indexed_microseconds.to_string(),
                 row.sweep_microseconds.to_string(),
@@ -475,12 +502,14 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
             validator_category(&polygon, PolygonValidationBackend::ReferenceQuadratic);
         let indexed_category =
             validator_category(&polygon, PolygonValidationBackend::OrthogonalSweep);
+        let sparse_category = indexed_category.clone();
         let deterministic_match = reference_category == indexed_category && reference == indexed;
         disagreements += usize::from(!deterministic_match);
         records.push(PolygonNegativeRecord {
             name: name.to_owned(),
             reference_category,
             indexed_category,
+            sparse_category,
             deterministic_match,
         });
     }
@@ -509,12 +538,18 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
             .expect_err("fixture must be invalid");
         let reference_category = dissection_error_category(&reference);
         let indexed_category = dissection_error_category(&indexed);
-        let deterministic_match = reference_category == indexed_category;
+        let sparse = rect_oracle_sg::SparseSlabValidator
+            .validate(&rectangle_polygon, &rectangles)
+            .expect_err("fixture must be invalid");
+        let sparse_category = dissection_error_category(&sparse);
+        let deterministic_match =
+            reference_category == indexed_category && reference_category == sparse_category;
         disagreements += usize::from(!deterministic_match);
         records.push(PolygonNegativeRecord {
             name: name.to_owned(),
             reference_category,
             indexed_category,
+            sparse_category,
             deterministic_match,
         });
     }
@@ -631,6 +666,77 @@ pub fn polygon_scaling_campaign(
                             &reference,
                             "added_vertical_cuts",
                         ),
+                        coordinate_x_count: indexed
+                            .diagnostics
+                            .coordinate_compression_x_count
+                            .unwrap_or(0),
+                        coordinate_y_count: indexed
+                            .diagnostics
+                            .coordinate_compression_y_count
+                            .unwrap_or(0),
+                        coordinate_cartesian_product: indexed
+                            .diagnostics
+                            .coordinate_compression_x_count
+                            .unwrap_or(0)
+                            .saturating_mul(
+                                indexed
+                                    .diagnostics
+                                    .coordinate_compression_y_count
+                                    .unwrap_or(0),
+                            ),
+                        sparse_subdivision_vertices: indexed
+                            .diagnostics
+                            .sparse_subdivision_vertex_count
+                            .unwrap_or(0),
+                        sparse_subdivision_half_edges: indexed
+                            .diagnostics
+                            .sparse_subdivision_half_edge_count
+                            .unwrap_or(0),
+                        sparse_subdivision_junctions: indexed
+                            .diagnostics
+                            .sparse_subdivision_junction_count
+                            .unwrap_or(0),
+                        sparse_subdivision_interior_faces: indexed
+                            .diagnostics
+                            .output_rectangle_count,
+                        dense_owned_bytes_estimate: reference
+                            .diagnostics
+                            .owned_allocation_estimates
+                            .get("polygon_arrangement")
+                            .copied()
+                            .unwrap_or(0),
+                        sparse_owned_bytes_estimate: indexed
+                            .diagnostics
+                            .sparse_subdivision_owned_bytes
+                            .unwrap_or(0),
+                        cut_index_owned_bytes_estimate: indexed
+                            .diagnostics
+                            .cut_index_owned_bytes
+                            .unwrap_or(0),
+                        completion_microseconds: indexed
+                            .diagnostics
+                            .phase_microseconds
+                            .get("polygon_horizontal_completion")
+                            .copied()
+                            .unwrap_or(0)
+                            + indexed
+                                .diagnostics
+                                .phase_microseconds
+                                .get("polygon_vertical_completion")
+                                .copied()
+                                .unwrap_or(0),
+                        recovery_microseconds: indexed
+                            .diagnostics
+                            .phase_microseconds
+                            .get("polygon_rectangle_recovery")
+                            .copied()
+                            .unwrap_or(0),
+                        validation_microseconds: indexed
+                            .diagnostics
+                            .phase_microseconds
+                            .get("polygon_final_validation")
+                            .copied()
+                            .unwrap_or(0),
                         reference_microseconds: reference_micros,
                         indexed_microseconds: indexed_micros,
                         sweep_microseconds: sweep_micros,
@@ -1218,13 +1324,21 @@ pub fn native_polygon_families(
     let clean_path_tree = four_sided_notches(size, true, 3)?;
     let non_clean_fallback = hole_row(size, true, 2)?;
     Ok(vec![
-        ("A".to_owned(), "boundary-heavy".to_owned(), boundary_heavy),
+        (
+            "A".to_owned(),
+            "staircase-sparse".to_owned(),
+            boundary_heavy,
+        ),
         (
             "B".to_owned(),
-            "aligned-reflex-heavy".to_owned(),
-            aligned_heavy,
+            "many-coordinates-few-faces".to_owned(),
+            arrangement_heavy,
         ),
-        ("C".to_owned(), "hole-heavy".to_owned(), hole_heavy),
+        (
+            "C".to_owned(),
+            "hole-coordinate-cross-product".to_owned(),
+            hole_heavy,
+        ),
         (
             "D".to_owned(),
             "completion-heavy".to_owned(),
@@ -1232,23 +1346,23 @@ pub fn native_polygon_families(
         ),
         (
             "E".to_owned(),
-            "arrangement-heavy".to_owned(),
-            arrangement_heavy,
-        ),
-        (
-            "F".to_owned(),
-            "huge-coordinate".to_owned(),
-            huge_coordinate,
-        ),
-        (
-            "G".to_owned(),
-            "clean-path-tree".to_owned(),
+            "sparse-path-tree".to_owned(),
             clean_path_tree,
         ),
         (
-            "H".to_owned(),
-            "non-clean-fallback".to_owned(),
+            "F".to_owned(),
+            "4d-fallback-sparse".to_owned(),
             non_clean_fallback,
+        ),
+        (
+            "G".to_owned(),
+            "aligned-reflex-heavy".to_owned(),
+            aligned_heavy,
+        ),
+        (
+            "H".to_owned(),
+            "huge-coordinate".to_owned(),
+            huge_coordinate,
         ),
     ])
 }
@@ -1672,6 +1786,19 @@ fn empty_scaling_row() -> PolygonScalingRow {
         selected_vertical_cut_count: 0,
         added_horizontal_cut_count: 0,
         added_vertical_cut_count: 0,
+        coordinate_x_count: 0,
+        coordinate_y_count: 0,
+        coordinate_cartesian_product: 0,
+        sparse_subdivision_vertices: 0,
+        sparse_subdivision_half_edges: 0,
+        sparse_subdivision_junctions: 0,
+        sparse_subdivision_interior_faces: 0,
+        dense_owned_bytes_estimate: 0,
+        sparse_owned_bytes_estimate: 0,
+        cut_index_owned_bytes_estimate: 0,
+        completion_microseconds: 0,
+        recovery_microseconds: 0,
+        validation_microseconds: 0,
         reference_microseconds: 0,
         indexed_microseconds: 0,
         sweep_microseconds: 0,
@@ -1758,7 +1885,7 @@ mod tests {
     fn candidate_gap_rows_bound_sweep_work_by_boundary_events() {
         let report = polygon_scaling_campaign(context("polygon-sweep-scaling"), &[8]);
         assert!(report.verified(), "{:#?}", report.rows);
-        let bidirectional = report.rows.iter().find(|row| row.family == "B").unwrap();
+        let bidirectional = report.rows.iter().find(|row| row.family == "G").unwrap();
         let ordinary_hole = report.rows.iter().find(|row| row.family == "C").unwrap();
         for row in [bidirectional, ordinary_hole] {
             assert!(row.aligned_candidate_count > row.chord_count);
