@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.4
+- Current phase: P8.5
 - Current phase state: in_progress
 - Last completed phase: P7
-- Last pushed SHA: a70e783d03cdbbcbd0f0b82346d5dab5467956a0
-- Plan last updated: 2026-07-28T02:00:00Z
+- Last pushed SHA: 749536cf0ccc0d160d02a1029681ffc85beca8f7
+- Plan last updated: 2026-07-28T02:30:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -408,7 +408,7 @@ in `docs/phase-reports/P08-3-decremental-spanner-certificates.md`; no Theorem
 
 ### P8.4 - Deterministic low-stretch forest collection
 
-**State:** committed. A deterministic checked reweighting baseline now builds
+**State:** complete. A deterministic checked reweighting baseline now builds
 weighted Kruskal forest candidates, records exact per-edge average-stretch
 certificates and operation counts, and retains P8.2 static stretch computation
 as the Oracle. Full evidence is in
@@ -417,7 +417,7 @@ production construction claim is made.
 
 ### P8.5 - Compact cycle tree chain and hidden-stability query
 
-**State:** planned. Implement Definitions 5.6--5.8 and Theorem 5.1's
+**State:** in_progress. Implement Definitions 5.6--5.8 and Theorem 5.1's
 d-level tree chain, shifted single branch, compact cycle encoding, and
 `Update`/`Query`/`Detect` mechanics using P8.1--P8.4. Acceptance requires
 decoded-cycle conservation, agreement with P7's static Oracle on small cases,
