@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P4
-- Current phase state: in_progress
-- Last completed phase: P3
+- Current phase state: complete
+- Last completed phase: P4
 - Last pushed SHA: 3b8347aa1b288a19ec9e07a8474fc591f2281598
-- Plan last updated: 2026-07-27T12:47:26Z
+- Plan last updated: 2026-07-27T13:38:15Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -233,7 +233,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P4 - Presorted compact biclique construction
 
-**State:** in_progress. **Start SHA:** `3b8347a`. Remove recursive re-sorting from Cardinal--Yuditsky using
+**State:** complete. **Start SHA:** `3b8347a`. Remove recursive re-sorting from Cardinal--Yuditsky using
 presorted coordinate orders, stable partitioning, reusable scratch arenas, and
 structural complexity counters. Require exact edge partition, matching, cut,
 cover, and rectangle equality with the current implementation. Suggested
@@ -259,6 +259,19 @@ release: `v1.6.0-presorted-biclique-construction`.
    differentials. Archive structural counters and before/after construction
    timings, prove production recursive sort count is zero, complete the
    mandatory audit, report, closeout commit, push, and remote-SHA verification.
+
+**Acceptance:** complete. Implementation commits `85c1083`, `bfa5a94`,
+`4cf8250`, `9238066`, and `f5c387e` preserve the recursive-sort construction
+as a permanent reference backend and make the presorted construction the
+production path. `BicliqueConstructionMetrics` proves four initial production
+sorts and zero recursive sorts. The audited construction requires canonical
+partition equality and equal emitted occurrences before downstream flow is
+used. P4 evidence is recorded in
+`docs/phase-reports/P04-presorted-biclique-construction.md` and the listed
+`results/p4-*` artifacts. All campaign disagreement and solver-error counts
+are zero. The measured presorted construction is sometimes slower at this
+small scale because stable filtering and audit comparisons add work; P4 claims
+the eliminated recursive sorts, not a universal timing win.
 
 ### Mandatory transition after this phase
 
@@ -451,4 +464,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
 | P2 | complete | fe1be92 | 95abbcf, b8c2d15 | 521f82d | 521f82d | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | 2026-07-27T10:39:44Z | none |
 | P3 | complete | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | 3b8347a | 3b8347a | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |
-| P4 | in_progress | 3b8347a | pending | pending | pending | pending | pending | 2026-07-27T12:47:26Z | pending | none |
+| P4 | complete | 3b8347a | 85c1083, bfa5a94, 4cf8250, 9238066, f5c387e | pending | pending | `docs/phase-reports/P04-presorted-biclique-construction.md` | `results/p4-adversarial.csv`; `results/p4-biclique-construction.csv`; `results/p4-biclique-construction.json`; `results/p4-dense-conflict.csv`; `results/p4-exhaustive-4x4.json`; `results/p4-formal-fixtures.json`; `results/p4-polygon-differential.json`; `results/p4-polygon-differential.counterexamples.json`; `results/p4-polyomino.csv`; `results/p4-random-8x8-seed42.json` | 2026-07-27T12:47:26Z | 2026-07-27T13:38:15Z | none |
