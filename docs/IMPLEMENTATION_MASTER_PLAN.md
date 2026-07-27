@@ -399,10 +399,12 @@ or construction claim is made.
 
 ### P8.3 - Scope-limited decremental spanner certificates
 
-**State:** in_progress. Implement the simple undirected deletion/vertex-split
-domain required by Theorem 8.2 and its CS21 predecessor. Record embedding
-paths, congestion, deletion/split validity, and recourse. Directed graphs,
-insertions, arbitrary updates, and a generic spanner claim are prohibited.
+**State:** committed. The P8.3 certificate layer enforces the simple
+undirected deletion/vertex-split domain, explicit embedding paths, congestion,
+deletion/split validity, and recourse accounting. It rejects directed,
+insertion, arbitrary-update, and generic-spanner semantics. Full evidence is
+in `docs/phase-reports/P08-3-decremental-spanner-certificates.md`; no Theorem
+8.2 construction or bound claim is made.
 
 ### P8.4 - Deterministic low-stretch forest collection
 

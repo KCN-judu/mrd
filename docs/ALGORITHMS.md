@@ -283,6 +283,13 @@ recomputation of Definition 5.3 from the current snapshot. Its recourse
 counters are evidence, not a proof or claim of Lemma 5.4's construction or
 runtime.
 
+`rect-graph::decremental_spanner::DecrementalSpanner` is the P8.3 checked
+certificate layer for the simple undirected deletion/vertex-split domain of
+Theorem 8.2. A certificate supplies its subgraph and explicit simple embedding
+path for every active input edge; validation recomputes path endpoints,
+connectivity, congestion, path length, and recourse counters. There is no
+directed graph, insertion, arbitrary update, expander, or theorem-runtime API.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.
