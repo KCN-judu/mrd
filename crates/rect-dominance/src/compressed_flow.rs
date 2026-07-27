@@ -181,7 +181,7 @@ pub enum CompressedFlowError {
 
 #[cfg(test)]
 mod tests {
-    use rect_graph::{BipartiteGraph, DinicBackend, hopcroft_karp};
+    use rect_graph::{BipartiteGraph, DinicBackend, PushRelabelBackend, hopcroft_karp};
 
     use crate::biclique::BicliquePartition;
 
@@ -207,5 +207,19 @@ mod tests {
             let selected_right = !flow.vertex_cover.right[right];
             assert!(!(selected_left && selected_right));
         }
+    }
+
+    #[test]
+    fn push_relabel_matches_dinic_certificate() {
+        let mut graph = BipartiteGraph::new(4, 4);
+        for (left, right) in [(0, 0), (0, 2), (1, 1), (1, 2), (2, 1), (2, 3), (3, 0)] {
+            graph.add_edge(left, right).unwrap();
+        }
+        let partition = BicliquePartition::from_explicit_edges(&graph);
+        let dinic = solve_biclique_flow(4, 4, &partition, &DinicBackend).unwrap();
+        let push_relabel = solve_biclique_flow(4, 4, &partition, &PushRelabelBackend).unwrap();
+        assert_eq!(push_relabel.flow.value, dinic.flow.value);
+        assert_eq!(push_relabel.vertex_cover.size, dinic.vertex_cover.size);
+        assert_eq!(push_relabel.internal_cut_arc_count, 0);
     }
 }
