@@ -11,6 +11,7 @@ use thiserror::Error;
 use crate::biclique::{BicliqueError, BicliquePartition};
 use crate::compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use crate::embedding::{DominanceEmbedding, EmbeddingError};
+use rect_oracle_sg::{PolygonCompletionResult, PolygonSgError};
 
 /// One exact integer-scaled segment in the source Step 2 family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -49,6 +50,13 @@ pub struct FormalAdmissibleAnalysis {
     pub interior_component_count: usize,
     pub formal_hole_count: usize,
     pub optimum_rectangle_count: usize,
+}
+
+/// End-to-end formal optimum analysis and its verified rectangle completion.
+#[derive(Clone, Debug)]
+pub struct FormalCompletionAnalysis {
+    pub admissible: FormalAdmissibleAnalysis,
+    pub completion: PolygonCompletionResult,
 }
 
 struct ConflictSolutions {
@@ -144,6 +152,35 @@ pub fn analyze_formal_admissible_family(
         interior_component_count,
         formal_hole_count,
         optimum_rectangle_count,
+    })
+}
+
+/// Selects a maximum formal admissible family and completes it into rectangles.
+///
+/// # Errors
+///
+/// Returns an error for any chord, matching, completion, recovery, validation,
+/// or source optimum-count disagreement.
+pub fn complete_formal_polygon(
+    polygon: &FormalRectilinearPolygon,
+) -> Result<FormalCompletionAnalysis, FormalAdmissibleError> {
+    let admissible = analyze_formal_admissible_family(polygon)?;
+    let completion = rect_oracle_sg::CoordinateCompressedCompletion.complete_formal(
+        polygon,
+        &admissible.families.horizontal,
+        &admissible.families.vertical,
+        &admissible.selected_horizontal,
+        &admissible.selected_vertical,
+    )?;
+    if completion.rectangles.len() != admissible.optimum_rectangle_count {
+        return Err(FormalAdmissibleError::CompletionCountMismatch {
+            expected: admissible.optimum_rectangle_count,
+            actual: completion.rectangles.len(),
+        });
+    }
+    Ok(FormalCompletionAnalysis {
+        admissible,
+        completion,
     })
 }
 
@@ -409,6 +446,8 @@ pub enum FormalAdmissibleError {
     Biclique(#[from] BicliqueError),
     #[error(transparent)]
     CompressedFlow(#[from] CompressedFlowError),
+    #[error(transparent)]
+    PolygonCompletion(#[from] PolygonSgError),
     #[error("Step 2 exact-coordinate transformation overflowed")]
     TransformationOverflow,
     #[error("Step 2 changed intersection pair ({horizontal}, {vertical})")]
@@ -435,6 +474,8 @@ pub enum FormalAdmissibleError {
     FormulaOverflow,
     #[error("formal optimum formula underflowed")]
     FormulaUnderflow,
+    #[error("formal completion produced {actual} rectangles; optimum requires {expected}")]
+    CompletionCountMismatch { expected: usize, actual: usize },
 }
 
 #[cfg(test)]
@@ -444,7 +485,9 @@ mod tests {
         RectilinearPolygon,
     };
 
-    use super::analyze_formal_admissible_family;
+    use rect_oracle_sg::CoordinateCompressedCompletion;
+
+    use super::{analyze_formal_admissible_family, complete_formal_polygon};
 
     fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
         OrthogonalLoop::new(vec![
@@ -489,6 +532,16 @@ mod tests {
     }
 
     #[test]
+    fn source_figure_three_completes_to_the_formal_optimum() {
+        let result = complete_formal_polygon(&source_figure_three()).unwrap();
+        assert_eq!(
+            result.completion.rectangles.len(),
+            result.admissible.optimum_rectangle_count
+        );
+        assert!(!result.completion.rectangles.is_empty());
+    }
+
+    #[test]
     fn step_two_separates_collinear_chords_at_an_isolated_endpoint() {
         let polygon = FormalRectilinearPolygon::new(
             RectilinearPolygon::new(rectangle(0, 0, 12, 12), vec![]).unwrap(),
@@ -510,6 +563,25 @@ mod tests {
         assert_eq!(analysis.interior_component_count, 1);
         assert_eq!(analysis.formal_hole_count, 3);
         assert_eq!(analysis.optimum_rectangle_count, 2);
+        let completion = complete_formal_polygon(&polygon).unwrap();
+        assert_eq!(completion.completion.rectangles.len(), 2);
+    }
+
+    #[test]
+    fn segment_hole_is_realized_on_rectangle_boundaries() {
+        let polygon = FormalRectilinearPolygon::new(
+            RectilinearPolygon::new(rectangle(0, 0, 12, 12), vec![]).unwrap(),
+            Ornament {
+                isolated_points: vec![],
+                segments: vec![OrnamentSegment::new(Point::new(3, 6), Point::new(9, 6)).unwrap()],
+            },
+        )
+        .unwrap();
+        let completion = complete_formal_polygon(&polygon).unwrap();
+        assert_eq!(
+            completion.completion.rectangles.len(),
+            completion.admissible.optimum_rectangle_count
+        );
     }
 
     #[test]
@@ -537,6 +609,28 @@ mod tests {
         assert_eq!(analysis.local_nonconvexity_measure, 2);
         assert_eq!(analysis.effective_number, 1);
         assert_eq!(analysis.optimum_rectangle_count, 2);
+        let formal_completion = complete_formal_polygon(&polygon).unwrap();
+        let ordinary_completion = CoordinateCompressedCompletion
+            .complete(
+                polygon.region(),
+                &analysis.families.horizontal,
+                &analysis.families.vertical,
+                &analysis.selected_horizontal,
+                &analysis.selected_vertical,
+            )
+            .unwrap();
+        assert_eq!(
+            formal_completion.completion.rectangles,
+            ordinary_completion.rectangles
+        );
+        assert_eq!(
+            formal_completion.completion.added_horizontal_cuts,
+            ordinary_completion.added_horizontal_cuts
+        );
+        assert_eq!(
+            formal_completion.completion.added_vertical_cuts,
+            ordinary_completion.added_vertical_cuts
+        );
     }
 
     #[test]
@@ -574,6 +668,19 @@ mod tests {
                 analysis.transformation.original_intersection_count,
                 analysis.transformation.transformed_intersection_count,
                 "mask {mask}"
+            );
+            let completion = complete_formal_polygon(&polygon).unwrap_or_else(|error| {
+                panic!(
+                    "completion failed for mask {mask}, optimum {}, m {}, h {}: {error}",
+                    analysis.optimum_rectangle_count,
+                    analysis.local_nonconvexity_measure,
+                    analysis.formal_hole_count
+                )
+            });
+            assert_eq!(
+                completion.completion.rectangles.len(),
+                completion.admissible.optimum_rectangle_count,
+                "completion count for mask {mask}"
             );
         }
     }

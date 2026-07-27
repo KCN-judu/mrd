@@ -215,3 +215,41 @@ derived formal-boundary hole components, and `e` is the maximum independent
 effective-chord family size. Tests cover the paper Fig. 3 family, collinear
 chords sharing an isolated endpoint, empty-ornament ordinary-formula parity,
 and every nonempty subset of a 3-by-3 isolated-point lattice.
+
+## Formal completion and Definition 2 validation
+
+P3.4 implements Section 10 Steps 3--4 (pp. 76 and 78) on the original
+effective-chord identities. The selected maximum admissible family is first
+inserted into the formal boundary. Ornament elementary segments are retained
+as initial barriers, and every formal vertex remains an explicit completion
+candidate.
+
+Completion then follows the source order exactly:
+
+1. the horizontal pass considers a point of remaining local nonconvexity only
+   when it is isolated in the evolving barrier arrangement or incident to a
+   horizontal barrier, matching Step 4(a);
+2. each chosen horizontal ray stops at the nearest ordinary boundary segment,
+   ornament barrier, selected effective chord, or previously added simple
+   chord;
+3. after all horizontal additions, the vertical pass removes every remaining
+   local nonconvexity as required by Step 4(c); and
+4. candidate and ray decisions use exact integer and doubled-coordinate
+   predicates; no raster grid or floating-point approximation is used.
+
+The completed barrier arrangement is recovered independently by the preserved
+dense coordinate arrangement and the sparse orthogonal half-edge subdivision.
+Their canonical rectangle lists must be identical. The result must then pass
+the dense exact coverage validator, both the reference slab-rescan and
+event-segment-tree sparse validators, and an additional formal-boundary audit.
+The latter requires every formal vertex to lie on at least one rectangle
+boundary and every formal elementary segment to be covered completely by the
+union of collinear rectangle sides. These conditions realize Definition 2
+coverage for point and segment holes, whose zero area is not visible to an
+ordinary area-only validator.
+
+End-to-end tests cover the source Fig. 3 polygon, an isolated point-hole
+shared-endpoint regression, a segment hole, empty-ornament equality with the
+ordinary completion Oracle, and all 511 nonempty subsets of a 3-by-3 isolated
+point lattice. Every output rectangle count equals the independently computed
+Theorem 2 value `m + c - h - e`.

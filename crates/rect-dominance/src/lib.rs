@@ -5,8 +5,8 @@ pub mod formal;
 pub mod path_tree;
 
 pub use formal::{
-    FormalAdmissibleAnalysis, FormalAdmissibleError, FormalStep2Segment, FormalStep2Transformation,
-    analyze_formal_admissible_family,
+    FormalAdmissibleAnalysis, FormalAdmissibleError, FormalCompletionAnalysis, FormalStep2Segment,
+    FormalStep2Transformation, analyze_formal_admissible_family, complete_formal_polygon,
 };
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -7,8 +7,9 @@ use std::time::Instant;
 
 use rect_core::{
     Boundary, BoundaryIndex, BoundaryIndexError, BoundaryVertexId, CoordinateRect, DoubledPoint,
-    GeometryError, HorizontalChord, HorizontalChordId, Point, PolygonError, PreparedPolygonContext,
-    RectilinearPolygon, VerticalChord, VerticalChordId,
+    FormalBoundaryIncidence, FormalRectilinearPolygon, GeometryError, HorizontalChord,
+    HorizontalChordId, Point, PolygonError, PreparedPolygonContext, RectilinearPolygon,
+    VerticalChord, VerticalChordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -444,7 +445,113 @@ pub struct IndexedPolygonCompletion;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CoordinateCompressedCompletion;
 
+struct FormalCompletionInputs {
+    incidence: FormalBoundaryIncidence,
+    formal_points: BTreeSet<Point>,
+    selected_horizontal: Vec<HorizontalCutSegment>,
+    selected_vertical: Vec<VerticalCutSegment>,
+    horizontal: BTreeSet<HorizontalCutSegment>,
+    vertical: BTreeSet<VerticalCutSegment>,
+}
+
+struct FormalRecovery {
+    dense: PolygonRecovery,
+    subdivision: SparseSubdivisionMetrics,
+    sparse_validation: SparseSlabMetrics,
+}
+
 impl CoordinateCompressedCompletion {
+    /// Completes a formal polygon with the source Step 3--4 policy.
+    ///
+    /// Ornament segments are initial boundary barriers and all formal vertices
+    /// are completion candidates. Dense and sparse recovery must produce the
+    /// same canonical rectangles before Definition 2 validation succeeds.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid selections, incomplete rays,
+    /// backend disagreement, or incomplete formal-boundary coverage.
+    pub fn complete_formal(
+        &self,
+        polygon: &FormalRectilinearPolygon,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        if horizontal_chords.len() != selected_horizontal.len()
+            || vertical_chords.len() != selected_vertical.len()
+        {
+            return Err(PolygonSgError::SelectionLengthMismatch);
+        }
+        let prepared =
+            PreparedPolygonContext::new(polygon.region()).map_err(|error| match error {
+                rect_core::PreparedPolygonError::Polygon(error) => PolygonSgError::Polygon(error),
+                rect_core::PreparedPolygonError::BoundaryIndex(error) => {
+                    PolygonSgError::BoundaryIndex(error)
+                }
+            })?;
+        let mut inputs = prepare_formal_completion(
+            polygon,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+        )?;
+        let mut added_horizontal_cuts = Vec::new();
+        let mut added_vertical_cuts = Vec::new();
+        let mut metrics = PolygonCompletionMetrics::default();
+        complete_polygon_axis(
+            polygon.region(),
+            &inputs.formal_points,
+            &mut inputs.horizontal,
+            &mut inputs.vertical,
+            true,
+            &mut added_horizontal_cuts,
+            &mut added_vertical_cuts,
+            &mut metrics,
+        )?;
+        complete_polygon_axis(
+            polygon.region(),
+            &inputs.formal_points,
+            &mut inputs.horizontal,
+            &mut inputs.vertical,
+            false,
+            &mut added_horizontal_cuts,
+            &mut added_vertical_cuts,
+            &mut metrics,
+        )?;
+        added_horizontal_cuts = normalize_horizontal_segments(added_horizontal_cuts);
+        added_vertical_cuts = normalize_vertical_segments(added_vertical_cuts);
+        let recovery = recover_and_validate_formal(
+            polygon,
+            &prepared,
+            &inputs.incidence,
+            &inputs.horizontal,
+            &inputs.vertical,
+        )?;
+        metrics.coordinate_compression_x_count = recovery.dense.x_count;
+        metrics.coordinate_compression_y_count = recovery.dense.y_count;
+        metrics.atomic_cell_count = recovery.dense.atomic_cell_count;
+        metrics.rectangle_recovery_visits = recovery.dense.visits;
+        metrics.sparse_subdivision_vertices = recovery.subdivision.vertex_count;
+        metrics.sparse_subdivision_half_edges = recovery.subdivision.half_edge_count;
+        metrics.sparse_subdivision_faces = recovery.subdivision.face_count;
+        metrics.sparse_subdivision_junctions = recovery.subdivision.junction_count;
+        metrics.sparse_subdivision_owned_bytes = recovery.subdivision.owned_bytes;
+        metrics.sparse_subdivision = recovery.subdivision;
+        metrics.sparse_validator_slab_count = recovery.sparse_validation.slab_count;
+        metrics.sparse_validator = recovery.sparse_validation;
+        Ok(PolygonCompletionResult {
+            rectangles: recovery.dense.rectangles,
+            selected_horizontal_cuts: inputs.selected_horizontal,
+            selected_vertical_cuts: inputs.selected_vertical,
+            added_horizontal_cuts,
+            added_vertical_cuts,
+            metrics,
+        })
+    }
+
     /// Completes a selected admissible effective-chord family into rectangles.
     ///
     /// The reference policy inserts selected chords, then horizontal simple
@@ -535,6 +642,7 @@ impl CoordinateCompressedCompletion {
 
         complete_polygon_axis(
             polygon,
+            &BTreeSet::new(),
             &mut horizontal_cuts,
             &mut vertical_cuts,
             true,
@@ -547,6 +655,7 @@ impl CoordinateCompressedCompletion {
             horizontal_at.duration_since(selected_at).as_micros();
         complete_polygon_axis(
             polygon,
+            &BTreeSet::new(),
             &mut horizontal_cuts,
             &mut vertical_cuts,
             false,
@@ -585,6 +694,109 @@ impl CoordinateCompressedCompletion {
     pub const fn name(self) -> &'static str {
         "coordinate-compressed"
     }
+}
+
+fn prepare_formal_completion(
+    polygon: &FormalRectilinearPolygon,
+    horizontal_chords: &[HorizontalChord],
+    vertical_chords: &[VerticalChord],
+    selected_horizontal: &[bool],
+    selected_vertical: &[bool],
+) -> Result<FormalCompletionInputs, PolygonSgError> {
+    let incidence = polygon
+        .incidence()
+        .map_err(|error| PolygonSgError::Formal {
+            message: error.to_string(),
+        })?;
+    let formal_points = incidence
+        .vertices
+        .iter()
+        .map(|vertex| vertex.point)
+        .collect::<BTreeSet<_>>();
+    let selected_horizontal = normalize_horizontal_segments(
+        horizontal_chords
+            .iter()
+            .zip(selected_horizontal)
+            .filter_map(|(&chord, &selected)| {
+                selected.then_some(HorizontalCutSegment::from_chord(chord))
+            })
+            .collect(),
+    );
+    let selected_vertical = normalize_vertical_segments(
+        vertical_chords
+            .iter()
+            .zip(selected_vertical)
+            .filter_map(|(&chord, &selected)| {
+                selected.then_some(VerticalCutSegment::from_chord(chord))
+            })
+            .collect(),
+    );
+    let mut horizontal = selected_horizontal.iter().copied().collect::<BTreeSet<_>>();
+    let mut vertical = selected_vertical.iter().copied().collect::<BTreeSet<_>>();
+    for segment in &incidence.elementary_segments {
+        if !segment
+            .sources
+            .iter()
+            .any(|source| matches!(source, rect_core::FormalBoundarySource::Ornament { .. }))
+        {
+            continue;
+        }
+        let first = incidence.vertices[segment.start.0].point;
+        let second = incidence.vertices[segment.end.0].point;
+        if first.y == second.y {
+            horizontal.insert(HorizontalCutSegment::new(
+                first.x.min(second.x),
+                first.x.max(second.x),
+                first.y,
+            )?);
+        } else {
+            vertical.insert(VerticalCutSegment::new(
+                first.x,
+                first.y.min(second.y),
+                first.y.max(second.y),
+            )?);
+        }
+    }
+    Ok(FormalCompletionInputs {
+        incidence,
+        formal_points,
+        selected_horizontal,
+        selected_vertical,
+        horizontal,
+        vertical,
+    })
+}
+
+fn recover_and_validate_formal(
+    polygon: &FormalRectilinearPolygon,
+    prepared: &PreparedPolygonContext,
+    incidence: &FormalBoundaryIncidence,
+    horizontal: &BTreeSet<HorizontalCutSegment>,
+    vertical: &BTreeSet<VerticalCutSegment>,
+) -> Result<FormalRecovery, PolygonSgError> {
+    let dense = recover_coordinate_rectangles(polygon.region(), horizontal, vertical)?;
+    let sparse = SparseOrthogonalSubdivision::new(prepared, horizontal, vertical)?;
+    let sparse_rectangles = sparse.recover_rectangles(polygon.region())?;
+    if dense.rectangles != sparse_rectangles {
+        return Err(PolygonSgError::FormalRecoveryMismatch);
+    }
+    validate_polygon_dissection(polygon.region(), &dense.rectangles)?;
+    SparseSlabValidator.validate_with_backend(
+        polygon.region(),
+        &dense.rectangles,
+        SparseValidatorBackend::ReferenceSlabRescan,
+    )?;
+    let sparse_validation = SparseSlabValidator.validate_with_backend(
+        polygon.region(),
+        &dense.rectangles,
+        SparseValidatorBackend::EventSegmentTree,
+    )?;
+    validate_formal_boundary_coverage(incidence, &dense.rectangles)?;
+    Ok(FormalRecovery {
+        dense,
+        subdivision: sparse.metrics,
+        sparse_validation,
+    })
 }
 
 fn normalize_horizontal_segments(
@@ -2559,6 +2771,7 @@ impl IndexedPolygonCompletion {
 #[allow(clippy::too_many_arguments)]
 fn complete_polygon_axis(
     polygon: &RectilinearPolygon,
+    extra_candidate_points: &BTreeSet<Point>,
     horizontal_cuts: &mut BTreeSet<HorizontalCutSegment>,
     vertical_cuts: &mut BTreeSet<VerticalCutSegment>,
     horizontal: bool,
@@ -2574,9 +2787,14 @@ fn complete_polygon_axis(
         .and_then(|value| value.checked_mul(4))
         .ok_or(PolygonSgError::CoordinateOverflow)?;
     for _ in 0..=coordinate_bound {
-        let Some((point, direction)) =
-            find_polygon_concave_ray(polygon, horizontal_cuts, vertical_cuts, horizontal, metrics)
-        else {
+        let Some((point, direction)) = find_polygon_concave_ray(
+            polygon,
+            extra_candidate_points,
+            horizontal_cuts,
+            vertical_cuts,
+            horizontal,
+            metrics,
+        ) else {
             return Ok(());
         };
         let stop = find_polygon_ray_stop(
@@ -2614,17 +2832,25 @@ fn complete_polygon_axis(
 
 fn find_polygon_concave_ray(
     polygon: &RectilinearPolygon,
+    extra_candidate_points: &BTreeSet<Point>,
     horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
     vertical_cuts: &BTreeSet<VerticalCutSegment>,
     horizontal: bool,
     metrics: &mut PolygonCompletionMetrics,
 ) -> Option<(Point, PolygonDirection)> {
     metrics.completion_global_candidate_rebuilds += 1;
-    let candidates = polygon_candidate_points(polygon, horizontal_cuts, vertical_cuts, metrics);
+    let candidates = polygon_candidate_points(
+        polygon,
+        extra_candidate_points,
+        horizontal_cuts,
+        vertical_cuts,
+        metrics,
+    );
     for point in candidates {
         let inside = polygon_local_quadrants(polygon, point);
         let blocked = polygon_local_blocked_rays(horizontal_cuts, vertical_cuts, inside, point);
-        if !blocked.iter().any(|&value| value) {
+        let isolated = !blocked.iter().any(|&value| value);
+        if horizontal && !isolated && !blocked[0] && !blocked[2] {
             continue;
         }
         let (roots, sizes) = polygon_local_angle_components(inside, blocked);
@@ -2657,6 +2883,7 @@ fn find_polygon_concave_ray(
 
 fn polygon_candidate_points(
     polygon: &RectilinearPolygon,
+    extra_candidate_points: &BTreeSet<Point>,
     horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
     vertical_cuts: &BTreeSet<VerticalCutSegment>,
     metrics: &mut PolygonCompletionMetrics,
@@ -2665,6 +2892,7 @@ fn polygon_candidate_points(
         .loops()
         .flat_map(|boundary_loop| boundary_loop.vertices.iter().copied())
         .collect::<BTreeSet<_>>();
+    points.extend(extra_candidate_points);
     for segment in horizontal_cuts {
         points.insert(Point::new(segment.left, segment.y));
         points.insert(Point::new(segment.right, segment.y));
@@ -3024,6 +3252,85 @@ fn horizontal_barrier_covers(
         .any(|cut| cut.y == y && cut.left <= left && right <= cut.right)
 }
 
+fn validate_formal_boundary_coverage(
+    incidence: &FormalBoundaryIncidence,
+    rectangles: &[CoordinateRect],
+) -> Result<(), PolygonSgError> {
+    let mut horizontal = BTreeMap::<i64, Vec<(i64, i64)>>::new();
+    let mut vertical = BTreeMap::<i64, Vec<(i64, i64)>>::new();
+    for rectangle in rectangles {
+        horizontal
+            .entry(rectangle.y0)
+            .or_default()
+            .push((rectangle.x0, rectangle.x1));
+        horizontal
+            .entry(rectangle.y1)
+            .or_default()
+            .push((rectangle.x0, rectangle.x1));
+        vertical
+            .entry(rectangle.x0)
+            .or_default()
+            .push((rectangle.y0, rectangle.y1));
+        vertical
+            .entry(rectangle.x1)
+            .or_default()
+            .push((rectangle.y0, rectangle.y1));
+    }
+    for intervals in horizontal.values_mut().chain(vertical.values_mut()) {
+        *intervals = merge_intervals(std::mem::take(intervals));
+    }
+    for vertex in &incidence.vertices {
+        let point = vertex.point;
+        let covered = horizontal
+            .get(&point.y)
+            .is_some_and(|intervals| interval_union_covers(intervals, point.x, point.x))
+            || vertical
+                .get(&point.x)
+                .is_some_and(|intervals| interval_union_covers(intervals, point.y, point.y));
+        if !covered {
+            return Err(PolygonSgError::FormalBoundaryPointNotCovered { point });
+        }
+    }
+    for segment in &incidence.elementary_segments {
+        let first = incidence.vertices[segment.start.0].point;
+        let second = incidence.vertices[segment.end.0].point;
+        let covered = if first.y == second.y {
+            horizontal.get(&first.y).is_some_and(|intervals| {
+                interval_union_covers(intervals, first.x.min(second.x), first.x.max(second.x))
+            })
+        } else {
+            vertical.get(&first.x).is_some_and(|intervals| {
+                interval_union_covers(intervals, first.y.min(second.y), first.y.max(second.y))
+            })
+        };
+        if !covered {
+            return Err(PolygonSgError::FormalBoundarySegmentNotCovered { first, second });
+        }
+    }
+    Ok(())
+}
+
+fn merge_intervals(mut intervals: Vec<(i64, i64)>) -> Vec<(i64, i64)> {
+    intervals.sort_unstable();
+    let mut merged = Vec::<(i64, i64)>::new();
+    for interval in intervals {
+        if let Some(last) = merged.last_mut()
+            && interval.0 <= last.1
+        {
+            last.1 = last.1.max(interval.1);
+        } else {
+            merged.push(interval);
+        }
+    }
+    merged
+}
+
+fn interval_union_covers(intervals: &[(i64, i64)], low: i64, high: i64) -> bool {
+    intervals
+        .iter()
+        .any(|&(start, end)| start <= low && high <= end)
+}
+
 /// Validates an exact coordinate-rectangle partition of an ordinary polygon.
 ///
 /// # Errors
@@ -3187,6 +3494,16 @@ pub enum PolygonSgError {
     SparseSubdivision { message: String },
     #[error("ordinary-loop sweep audit failed: {message}")]
     SweepAuditFailed { message: String },
+    #[error("formal completion failed: {message}")]
+    Formal { message: String },
+    #[error("dense and sparse formal rectangle recovery disagree")]
+    FormalRecoveryMismatch,
+    #[error("formal-boundary point {point:?} is absent from all rectangle boundaries")]
+    FormalBoundaryPointNotCovered { point: Point },
+    #[error(
+        "formal elementary segment {first:?}--{second:?} is not covered by rectangle boundaries"
+    )]
+    FormalBoundarySegmentNotCovered { first: Point, second: Point },
     #[error(transparent)]
     Validation(#[from] PolygonValidationError),
 }
