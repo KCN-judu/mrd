@@ -179,3 +179,39 @@ pairwise Definition 7 implementation on the paper's Fig. 3 and all 511 nonempty
 subsets of a 3-by-3 isolated-point lattice. With an empty ornament it also
 matches both the permanent ordinary pairwise Oracle and the production ordinary
 SG sweep exactly, including canonical chord IDs.
+
+## Section 10 admissible-family transformation
+
+P3.3 implements Step 2 (pp. 77--78) without floating-point coordinates. For
+`p` horizontal and `q` vertical effective chords it uses the common exact
+scale `4(p + q + 1)`, so the source choices become `epsilon = 1/4` and
+`delta_i = i / (4(p + q + 1))`. Horizontal chords are extended by epsilon
+and shifted upward by their distinct delta; vertical chords are extended by
+epsilon and shifted rightward by their distinct delta. Since normalized input
+coordinates are integral, every pair of distinct formal vertices is at least
+one Manhattan unit apart and the source requirement `distance > 2 epsilon`
+holds exactly.
+
+The transformation is one-to-one and retains original chord indices. Its
+certificate checks both source invariants:
+
+1. no two transformed collinear segments have a common point; and
+2. every original horizontal-vertical closed intersection is present after
+   transformation, and no new orthogonal intersection is introduced.
+
+Matching remains expressed on the original chord identities. The permanent
+explicit Oracle materializes every closed-intersection edge and runs
+Hopcroft--Karp plus Konig cover recovery. Independently, the production
+four-dimensional dominance embedding builds the Cardinal--Yuditsky biclique
+partition and solves its compressed exact flow. The implementation verifies
+the compact partition against the explicit graph, requires equal matching
+values and identical deterministic minimum covers, and checks that the cover
+complement is an independent family of the expected maximum size.
+
+The formal optimum is then evaluated exactly as Theorem 2:
+`m + c - h - e`, where `m` is the sum of derived local nonconvexity measures,
+`c = 1` for the current connected ordinary-region model, `h` is the number of
+derived formal-boundary hole components, and `e` is the maximum independent
+effective-chord family size. Tests cover the paper Fig. 3 family, collinear
+chords sharing an isolated endpoint, empty-ornament ordinary-formula parity,
+and every nonempty subset of a 3-by-3 isolated-point lattice.

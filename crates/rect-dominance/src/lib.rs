@@ -1,7 +1,13 @@
 pub mod biclique;
 pub mod compressed_flow;
 pub mod embedding;
+pub mod formal;
 pub mod path_tree;
+
+pub use formal::{
+    FormalAdmissibleAnalysis, FormalAdmissibleError, FormalStep2Segment, FormalStep2Transformation,
+    analyze_formal_admissible_family,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::mem::size_of;
