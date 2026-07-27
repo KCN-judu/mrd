@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -196,20 +196,13 @@ impl PushRelabelBackend {
             add_residual_arc(&mut residual, arc.from.0, arc.to.0, arc.capacity);
         }
 
-        let mut height = global_relabel(&residual, source.0, sink.0);
+        let mut height = vec![0_usize; node_count];
+        height[source.0] = node_count;
         let mut excess = vec![0_u128; node_count];
         let mut current = vec![0_usize; node_count];
-        let mut metrics = PushRelabelMetrics {
-            global_relabel_count: 1,
-            ..PushRelabelMetrics::default()
-        };
-        let mut height_count = count_heights(&height);
-        let mut active = BTreeSet::new();
-
-        // The source is deliberately set to n after the first global relabel.
-        height_count[height[source.0]] -= 1;
-        height[source.0] = node_count;
-        height_count[node_count] += 1;
+        let mut metrics = PushRelabelMetrics::default();
+        let mut active = VecDeque::new();
+        let mut queued = vec![false; node_count];
         for edge_index in 0..residual[source.0].len() {
             let amount = residual[source.0][edge_index].capacity;
             if amount == 0 {
@@ -218,44 +211,20 @@ impl PushRelabelBackend {
             push(&mut residual, &mut excess, source.0, edge_index, amount);
             metrics.push_count += 1;
         }
-        enqueue_active(&mut active, &excess, &height, source.0, sink.0);
-
-        let mut work_since_global = 0_usize;
-        let global_interval = node_count.saturating_mul(2).max(1);
-        while let Some(&(key_height, node)) = active.iter().next_back() {
-            active.remove(&(key_height, node));
-            if node == source.0 || node == sink.0 || excess[node] == 0 || height[node] != key_height
-            {
-                continue;
-            }
+        enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
+        while let Some(node) = active.pop_front() {
+            queued[node] = false;
             while excess[node] != 0 {
                 if current[node] == residual[node].len() {
-                    let old_height = height[node];
-                    let unreachable = node_count.saturating_add(1);
                     let next_height = residual[node]
                         .iter()
                         .filter(|edge| edge.capacity > 0)
-                        .map(|edge| height[edge.to].saturating_add(1).min(unreachable))
+                        .map(|edge| height[edge.to].saturating_add(1))
                         .min()
-                        .unwrap_or(unreachable);
-                    height_count[old_height] -= 1;
+                        .ok_or(FlowError::ValueOverflow)?;
                     height[node] = next_height;
-                    height_count[next_height] += 1;
                     current[node] = 0;
                     metrics.relabel_count += 1;
-                    work_since_global += 1;
-                    if old_height < node_count && height_count[old_height] == 0 {
-                        apply_gap(
-                            old_height,
-                            source.0,
-                            sink.0,
-                            &mut height,
-                            &mut height_count,
-                            &excess,
-                            &mut active,
-                        );
-                        metrics.gap_count += 1;
-                    }
                     continue;
                 }
                 let edge_index = current[node];
@@ -266,22 +235,12 @@ impl PushRelabelBackend {
                         .min(u64::try_from(excess[node]).unwrap_or(u64::MAX));
                     push(&mut residual, &mut excess, node, edge_index, amount);
                     metrics.push_count += 1;
-                    enqueue_active(&mut active, &excess, &height, source.0, sink.0);
+                    enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
                 } else {
                     current[node] += 1;
                 }
             }
-            enqueue_active(&mut active, &excess, &height, source.0, sink.0);
-            if work_since_global >= global_interval {
-                height = global_relabel(&residual, source.0, sink.0);
-                height[source.0] = node_count;
-                height_count = count_heights(&height);
-                current.fill(0);
-                active.clear();
-                enqueue_active(&mut active, &excess, &height, source.0, sink.0);
-                metrics.global_relabel_count += 1;
-                work_since_global = 0;
-            }
+            enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
         }
         let value = u64::try_from(excess[sink.0]).map_err(|_| FlowError::ValueOverflow)?;
         Ok((
@@ -357,68 +316,19 @@ fn push(
     excess[edge.to] += u128::from(amount);
 }
 
-fn global_relabel(graph: &[Vec<ResidualEdge>], source: usize, sink: usize) -> Vec<usize> {
-    let unreachable = graph.len().saturating_add(1);
-    let mut height = vec![unreachable; graph.len()];
-    height[sink] = 0;
-    let mut queue = VecDeque::from([sink]);
-    while let Some(node) = queue.pop_front() {
-        for (predecessor, edges) in graph.iter().enumerate() {
-            if height[predecessor] == unreachable
-                && edges
-                    .iter()
-                    .any(|edge| edge.to == node && edge.capacity > 0)
-            {
-                height[predecessor] = height[node] + 1;
-                queue.push_back(predecessor);
-            }
-        }
-    }
-    height[source] = graph.len();
-    height
-}
-
-fn count_heights(height: &[usize]) -> Vec<usize> {
-    let mut counts = vec![0; height.len() + 2];
-    for &value in height {
-        counts[value] += 1;
-    }
-    counts
-}
-
-fn enqueue_active(
-    active: &mut BTreeSet<(usize, usize)>,
+fn enqueue_fifo(
+    active: &mut VecDeque<usize>,
+    queued: &mut [bool],
     excess: &[u128],
-    height: &[usize],
     source: usize,
     sink: usize,
 ) {
-    for node in 0..height.len() {
-        if node != source && node != sink && excess[node] > 0 {
-            active.insert((height[node], node));
+    for node in 0..excess.len() {
+        if node != source && node != sink && excess[node] > 0 && !queued[node] {
+            queued[node] = true;
+            active.push_back(node);
         }
     }
-}
-
-fn apply_gap(
-    gap: usize,
-    source: usize,
-    sink: usize,
-    height: &mut [usize],
-    height_count: &mut [usize],
-    excess: &[u128],
-    active: &mut BTreeSet<(usize, usize)>,
-) {
-    let unreachable = height.len() + 1;
-    for node in 0..height.len() {
-        if node != source && node != sink && height[node] > gap && height[node] < height.len() {
-            height_count[height[node]] -= 1;
-            height[node] = unreachable;
-            height_count[unreachable] += 1;
-        }
-    }
-    active.clear();
-    enqueue_active(active, excess, height, source, sink);
 }
 
 fn add_residual_arc(graph: &mut [Vec<ResidualEdge>], from: usize, to: usize, capacity: u64) {
