@@ -182,6 +182,20 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
     "result_commits": [
       "bad5f19e8b2bd9c6392d1f198ed8994815f0c2d8"
     ]
+  },
+  {
+    "version": "1.3.0",
+    "tag": "v1.3.0-output-sensitive-sparse-geometry",
+    "peeled_commit": "533e37a867610ff40e8f0fe936091154d3f6ef8b",
+    "evidence": "output-sensitive orthogonal subdivision sweep, event-driven exact slab validation, physically sparse stabbing tree, corrected memory estimates, dense/sparse crossover, and complete differential evidence",
+    "result_commits": [
+      "e73bb2c",
+      "84cc23c",
+      "c01899d",
+      "726da1d",
+      "ad44478",
+      "533e37a867610ff40e8f0fe936091154d3f6ef8b"
+    ]
   }
 ]
 ```

@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.2.0"
-TAG = "v1.2.0-sparse-polygon-subdivision"
+VERSION = "1.3.0"
+TAG = "v1.3.0-output-sensitive-sparse-geometry"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -30,6 +30,9 @@ EXPECTED_DEFAULTS = {
     "compact_polygon_arrangement": "sparse-subdivision",
     "compact_polygon_cut_index": "dynamic-stabbing",
     "compact_polygon_dissection_validator": "sparse-slab",
+    "compact_polygon_subdivision_builder": "orthogonal-sweep",
+    "compact_sparse_validator": "event-segment-tree",
+    "compact_polygon_recovery_policy": "sparse-subdivision",
 }
 HISTORICAL_V08_DEFAULTS = {
     **EXPECTED_DEFAULTS,
@@ -79,6 +82,16 @@ REQUIRED_V12_ARTIFACTS = (
     "results/v1.2-polygon-native-fixtures.json",
     "results/v1.2-polygon-scaling.csv",
     "results/v1.2-polygon-scaling.json",
+)
+REQUIRED_V13_ARTIFACTS = (
+    "results/v1.3-external-oracle.json",
+    "results/v1.3-polygon-differential-3x3.json",
+    "results/v1.3-polygon-differential-4x4.json",
+    "results/v1.3-polygon-backend-differential.json",
+    "results/v1.3-polygon-negative.json",
+    "results/v1.3-polygon-native-fixtures.json",
+    "results/v1.3-output-sensitive-scaling.csv",
+    "results/v1.3-output-sensitive-scaling.json",
 )
 
 
@@ -154,6 +167,8 @@ def assert_implementation_defaults() -> None:
         "cut_index_backend: PolygonCutIndexBackend::DynamicStabbing",
         "recovery_backend: PolygonRecoveryBackend::SparseSubdivision",
         "dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab",
+        "subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep",
+        "sparse_validator_backend: SparseValidatorBackend::EventSegmentTree",
         "arrangement_backend: PolygonArrangementBackend::Indexed",
     ):
         if expected not in defaults.group(0):
@@ -244,6 +259,8 @@ def main() -> None:
         fail("generated evidence does not contain a v1.1 section")
     if "v1.2" not in paper_tables or "v1.2" not in experiments:
         fail("generated evidence does not contain a v1.2 section")
+    if "v1.3" not in paper_tables or "v1.3" not in experiments:
+        fail("generated evidence does not contain a v1.3 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
@@ -270,6 +287,29 @@ def main() -> None:
             fail(f"missing generated v1.2 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v1.2 evidence: {relative}")
+    for relative in REQUIRED_V13_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated v1.3 evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated v1.3 evidence: {relative}")
+    v13_scaling = json.loads(
+        (ROOT / "results/v1.3-output-sensitive-scaling.json").read_text()
+    )
+    if (
+        v13_scaling.get("verified_rows"),
+        v13_scaling.get("solver_errors"),
+        v13_scaling.get("disagreements"),
+    ) != (56, 0, 0):
+        fail("v1.3 scaling summary is stale")
+    for row in v13_scaling.get("rows", []):
+        if row.get("sweep_subdivision_candidate_pair_tests") != 0:
+            fail("v1.3 sweep row performed candidate-pair traversal")
+        if row.get("event_validator_boundary_edge_scans") != 0:
+            fail("v1.3 event validator scanned boundary edges")
+        if row.get("event_validator_active_rectangle_resorts") != 0:
+            fail("v1.3 event validator resorted active rectangles")
+        if not row.get("geometry_backends_equal"):
+            fail("v1.3 geometry backends disagree")
     v09_report = json.loads(
         (ROOT / "results/v0.9-polygon-differential.json").read_text()
     )

@@ -1248,12 +1248,26 @@
       "result_commits": [
         "bad5f19e8b2bd9c6392d1f198ed8994815f0c2d8"
       ]
+    },
+    {
+      "version": "1.3.0",
+      "tag": "v1.3.0-output-sensitive-sparse-geometry",
+      "peeled_commit": "533e37a867610ff40e8f0fe936091154d3f6ef8b",
+      "evidence": "output-sensitive orthogonal subdivision sweep, event-driven exact slab validation, physically sparse stabbing tree, corrected memory estimates, dense/sparse crossover, and complete differential evidence",
+      "result_commits": [
+        "e73bb2c",
+        "84cc23c",
+        "c01899d",
+        "726da1d",
+        "ad44478",
+        "533e37a867610ff40e8f0fe936091154d3f6ef8b"
+      ]
     }
   ],
   "current_release": {
-    "version": "1.2.0",
-    "tag": "v1.2.0-sparse-polygon-subdivision",
-    "peeled_commit": "57308e2b8aa0ea170996a91d8f2fae4a40d2f86e",
+    "version": "1.3.0",
+    "tag": "v1.3.0-output-sensitive-sparse-geometry",
+    "peeled_commit": "533e37a867610ff40e8f0fe936091154d3f6ef8b",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
@@ -1270,7 +1284,10 @@
       "compact_polygon_completion": "indexed-frontier",
       "compact_polygon_arrangement": "sparse-subdivision",
       "compact_polygon_cut_index": "dynamic-stabbing",
-      "compact_polygon_dissection_validator": "sparse-slab"
+      "compact_polygon_dissection_validator": "sparse-slab",
+      "compact_polygon_subdivision_builder": "orthogonal-sweep",
+      "compact_sparse_validator": "event-segment-tree",
+      "compact_polygon_recovery_policy": "sparse-subdivision"
     }
   },
   "generated_tables": [
