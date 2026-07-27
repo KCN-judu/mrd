@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P6
-- Current phase state: complete
+- Current phase: P7
+- Current phase state: in_progress
 - Last completed phase: P6
-- Last pushed SHA: 66b6336e4af980bad8a93a7e416b62d5c539ed97
-- Plan last updated: 2026-07-27T16:20:00Z
+- Last pushed SHA: ece512f90b7b4fbe37a5f091d7dbdb6e2ad1e2eb
+- Plan last updated: 2026-07-27T16:28:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -347,7 +347,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P7 - Exact min-cost circulation and iterative-refinement core
 
-**State:** planned. Implement generic circulation with exact capacities, costs,
+**State:** in_progress. Implement generic circulation with exact capacities, costs,
 demands, residual operations, a baseline minimum-ratio-cycle Oracle,
 iterative refinement, and exact recovery. Superlinear work is permitted here
 to establish correctness before dynamic structures.
@@ -484,4 +484,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P3 | complete | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | 3b8347a | 3b8347a | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |
 | P4 | complete | 3b8347a | 85c1083, bfa5a94, 4cf8250, 9238066, f5c387e | 746989f | 746989f | `docs/phase-reports/P04-presorted-biclique-construction.md` | `results/p4-adversarial.csv`; `results/p4-biclique-construction.csv`; `results/p4-biclique-construction.json`; `results/p4-dense-conflict.csv`; `results/p4-exhaustive-4x4.json`; `results/p4-formal-fixtures.json`; `results/p4-polygon-differential.json`; `results/p4-polygon-differential.counterexamples.json`; `results/p4-polyomino.csv`; `results/p4-random-8x8-seed42.json` | 2026-07-27T12:47:26Z | 2026-07-27T13:38:15Z | none |
 | P5 | complete | 746989f | 1636b75, 986026d, 90acf15 | 66b6336 | 66b6336 | `docs/phase-reports/P05-exact-flow-backends.md` | `results/p5-flow-backends.csv`; `results/p5-flow-backends.json` | 2026-07-27T13:43:00Z | 2026-07-27T15:36:49Z | none |
-| P6 | complete | 66b6336 | 5934890 | pending | pending | `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md` | source mapping only | 2026-07-27T15:48:00Z | 2026-07-27T16:20:00Z | none |
+| P6 | complete | 66b6336 | 5934890 | ece512f | ece512f | `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`; `docs/phase-reports/P06-near-linear-flow-specification.md` | source mapping only | 2026-07-27T15:48:00Z | 2026-07-27T16:20:00Z | none |
+| P7 | in_progress | ece512f | pending | pending | pending | pending | pending | 2026-07-27T16:28:00Z | pending | none |
