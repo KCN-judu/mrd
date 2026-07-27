@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.2
+- Current phase: P8.3
 - Current phase state: in_progress
 - Last completed phase: P7
-- Last pushed SHA: 37088c98abab24f070ed7609f0e434c111291e16
-- Plan last updated: 2026-07-28T01:00:00Z
+- Last pushed SHA: bc09a0f5889e6b7fb6175b880fd87767416e2ee9
+- Plan last updated: 2026-07-28T01:30:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -390,7 +390,7 @@ amortized claim.
 
 ### P8.2 - Dynamic rooted-forest primitive
 
-**State:** committed. A deterministic exact baseline now enforces decremental
+**State:** complete. A deterministic exact baseline now enforces decremental
 forest-edge removal, permitted vertex splits, rooted path update/query, static
 Definition 5.3 stretch certificates, and recourse counters. The static BFS
 recomputation remains the forest Oracle. Full evidence is in
@@ -399,7 +399,7 @@ or construction claim is made.
 
 ### P8.3 - Scope-limited decremental spanner certificates
 
-**State:** planned. Implement the simple undirected deletion/vertex-split
+**State:** in_progress. Implement the simple undirected deletion/vertex-split
 domain required by Theorem 8.2 and its CS21 predecessor. Record embedding
 paths, congestion, deletion/split validity, and recourse. Directed graphs,
 insertions, arbitrary updates, and a generic spanner claim are prohibited.
