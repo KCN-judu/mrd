@@ -91,13 +91,38 @@ impl ExactRatio {
         )
     }
 
-    fn multiply_integer(self, value: i128) -> Result<Self, StableMinRatioError> {
+    /// Subtracts two exact ratios.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact arithmetic overflows.
+    pub fn checked_sub(self, other: Self) -> Result<Self, StableMinRatioError> {
+        self.checked_add(Self::new(
+            other
+                .numerator
+                .checked_neg()
+                .ok_or(StableMinRatioError::Overflow)?,
+            other.denominator,
+        )?)
+    }
+
+    /// Multiplies an exact ratio by an integer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact arithmetic overflows.
+    pub fn checked_mul_integer(self, value: i128) -> Result<Self, StableMinRatioError> {
         Self::new(
             self.numerator
                 .checked_mul(value)
                 .ok_or(StableMinRatioError::Overflow)?,
             self.denominator,
         )
+    }
+
+    #[must_use]
+    pub const fn is_integral(self) -> bool {
+        self.numerator % self.denominator == 0
     }
 }
 
@@ -241,7 +266,7 @@ impl StableMinRatioLedger {
         let objective = dot(&candidate, &update.direction)?;
         let beta = ExactRatio::new(objective, update.eta)?;
         for (flow, direction) in self.flows.iter_mut().zip(&update.direction) {
-            *flow = flow.checked_add(beta.multiply_integer(-*direction)?)?;
+            *flow = flow.checked_add(beta.checked_mul_integer(-*direction)?)?;
         }
         for (index, changed) in explicit.into_iter().enumerate() {
             if changed {
@@ -331,7 +356,7 @@ impl ExactRatio {
     }
 }
 
-#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
 pub enum StableMinRatioError {
     #[error("ratio denominator must be nonzero")]
     ZeroDenominator,

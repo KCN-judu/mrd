@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P9
-- Current phase state: audit_failed
+- Current phase state: in_progress
 - Last completed phase: P8
 - Last pushed SHA: 32d7b49e930c3c735062a20386258eb99ae78aea
-- Plan last updated: 2026-07-28T03:30:00Z
+- Plan last updated: 2026-07-27T17:11:50Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -445,12 +445,15 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P9 - Integrated deterministic almost-linear exact flow
 
-**State:** audit_failed. The source-assumption gate is recorded in
-`docs/phase-reports/P09-integration-gate-audit.md`: fractional IPM state,
-KP15 rounding, Theorem 4.6 accounting, Theorem 5.1 query, source-grade P8
-constructions, and MRD integration evidence are missing. No `AlmostLinear`
-backend or fallback has been introduced. Continue from the report's exact
-implementation order. Suggested release:
+**State:** in_progress. The source-assumption gate is recorded in
+`docs/phase-reports/P09-integration-gate-audit.md`. The first corrective
+subphase is recorded in `docs/phase-reports/P09-fractional-rounding.md`:
+exact rational feasible-flow validation and deterministic costed cycle
+rounding now exist as an explicitly superlinear Oracle. Fractional IPM state,
+Theorem 4.6 accounting, Theorem 5.1 query, source-grade P8 constructions, and
+MRD integration evidence remain missing. No `AlmostLinear` backend or fallback
+has been introduced. Continue in the report's exact implementation order.
+Suggested release:
 `v2.0.0-deterministic-almost-linear-flow`.
 
 ### Mandatory transition after this phase

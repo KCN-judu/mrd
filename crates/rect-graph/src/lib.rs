@@ -27,7 +27,8 @@ pub use hopcroft_karp::{
 };
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
-    CirculationArcId, CirculationNetwork, IterativeRefinementResult, IterativeRefinementStep,
+    CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,
+    FractionalCirculation, IterativeRefinementResult, IterativeRefinementStep,
     MinCostCirculationError, MinCostSolution, MinRatioCycle,
 };
 pub use min_ratio_cycle::{
