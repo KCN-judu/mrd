@@ -3193,9 +3193,11 @@ pub enum PolygonSgError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use rect_core::{
-        Boundary, BoundaryIndex, ColorGrid, CoordinateRect, OrthogonalLoop, Point,
-        PreparedPolygonContext, RectilinearPolygon,
+        Boundary, BoundaryIndex, ColorGrid, CoordinateRect, FormalRectilinearPolygon, Ornament,
+        OrthogonalLoop, Point, PreparedPolygonContext, RectilinearPolygon,
     };
 
     use crate::polygon_arrangement::{
@@ -3241,6 +3243,67 @@ mod tests {
             }
         }
         panic!("3x3 population must contain a polygon with effective chords");
+    }
+
+    #[test]
+    fn formal_empty_ornament_matches_ordinary_local_measure_and_pairwise_chords() {
+        let fixtures = [
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(6, 0),
+                    Point::new(6, 2),
+                    Point::new(2, 2),
+                    Point::new(2, 6),
+                    Point::new(0, 6),
+                ]),
+                vec![],
+            )
+            .unwrap(),
+            RectilinearPolygon::new(rectangle(0, 0, 12, 10), vec![rectangle(4, 3, 8, 7)]).unwrap(),
+            RectilinearPolygon::new(
+                OrthogonalLoop::new(vec![
+                    Point::new(0, 0),
+                    Point::new(12, 0),
+                    Point::new(12, 10),
+                    Point::new(9, 10),
+                    Point::new(9, 4),
+                    Point::new(7, 4),
+                    Point::new(7, 10),
+                    Point::new(5, 10),
+                    Point::new(5, 4),
+                    Point::new(3, 4),
+                    Point::new(3, 10),
+                    Point::new(0, 10),
+                ]),
+                vec![],
+            )
+            .unwrap(),
+        ];
+
+        for polygon in fixtures {
+            let ordinary = GeneralPolygonPairwiseEnumerator
+                .enumerate(&polygon)
+                .unwrap();
+            let boundary = Boundary::from_polygon(&polygon);
+            let reflex = boundary
+                .reflex_vertices
+                .iter()
+                .map(|vertex| vertex.point)
+                .collect::<BTreeSet<_>>();
+            let formal = FormalRectilinearPolygon::new(polygon, Ornament::default()).unwrap();
+            for vertex in formal.vertex_geometry().unwrap() {
+                assert_eq!(
+                    vertex.local_nonconvexity_measure,
+                    u8::from(reflex.contains(&vertex.point)),
+                    "local measure differs at {:?}",
+                    vertex.point
+                );
+            }
+            let formal_chords = formal.effective_chords_pairwise().unwrap();
+            assert_eq!(formal_chords.horizontal, ordinary.horizontal);
+            assert_eq!(formal_chords.vertical, ordinary.vertical);
+        }
     }
 
     #[test]

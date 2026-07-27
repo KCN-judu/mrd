@@ -110,3 +110,33 @@ for formal holes belong to P3; silently dropping the ornament would violate
 the source model.
 
 The permanent fixture is `test-data/polygons/formal-boundary.json`.
+
+## Local nonconvexity and the Definition 7 Oracle
+
+P3.1 extends the derived incidence with the source's Definitions 5 and 6
+(pp. 60--61). At each formal vertex, the implementation probes the four open
+quadrants in exact doubled coordinates and separates adjacent interior
+quadrants by each incident elementary-segment ray. The resulting connected
+quadrant sets are the minimal inner angles: one, two, three, and four quadrants
+represent angles of `pi/2`, `pi`, `3pi/2`, and `2pi`. An isolated point has
+measure two; a non-isolated vertex has measure one exactly when at least one
+inner angle is `3pi/2` or `2pi`. This handles straight-through vertices, segment
+endpoints, L-, T-, and four-way incidences without a degree-based shortcut.
+
+`FormalRectilinearPolygon::effective_chords_pairwise()` is the permanent exact
+Definition 7 Oracle. It considers every aligned pair of positive-measure formal
+vertices and checks all four source clauses directly:
+
+1. the chord is horizontal or vertical;
+2. its open interval is in the formal interior except at finitely many formal
+   boundary contacts;
+3. each endpoint is isolated or has an incident collinear elementary segment;
+4. every interior formal-boundary contact is a vertex of exactly one
+   orthogonal elementary segment.
+
+The Oracle reports stable formal endpoint IDs and canonical chord IDs. Its
+pairwise construction is deliberately not assigned the source's `O(n log n)`
+bound; P3.2's Section 10 merge/delete construction is checked against it. The
+paper's Fig. 3 example is reconstructed as an integer-coordinate fixture and
+produces exactly its six listed effective chords. Empty ornaments additionally
+match the preserved ordinary pairwise Definition 7 implementation exactly.

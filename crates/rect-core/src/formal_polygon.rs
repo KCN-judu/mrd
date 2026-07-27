@@ -4,8 +4,8 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use thiserror::Error;
 
 use crate::{
-    Coord, DoubledPoint, OrthogonalLoop, Point, PolygonError, PolygonLoopId, RectilinearDomain,
-    RectilinearPolygon,
+    Coord, DoubledPoint, HorizontalChord, HorizontalChordId, OrthogonalLoop, Point, PolygonError,
+    PolygonLoopId, RectilinearDomain, RectilinearPolygon, VerticalChord, VerticalChordId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -115,6 +115,57 @@ pub struct FormalBoundaryIncidence {
     pub components: Vec<FormalBoundaryComponent>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FormalDirection {
+    East,
+    North,
+    West,
+    South,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FormalQuadrant {
+    NorthEast,
+    NorthWest,
+    SouthWest,
+    SouthEast,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FormalInnerAngle {
+    pub quadrants: Vec<FormalQuadrant>,
+    pub quarter_turns: u8,
+    pub concave: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FormalVertexGeometry {
+    pub vertex: FormalVertexId,
+    pub point: Point,
+    pub isolated: bool,
+    pub incident_directions: Vec<FormalDirection>,
+    pub interior_quadrants: Vec<FormalQuadrant>,
+    pub inner_angles: Vec<FormalInnerAngle>,
+    pub local_nonconvexity_measure: u8,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct FormalChordEndpoints {
+    pub first: FormalVertexId,
+    pub second: FormalVertexId,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct FormalEffectiveChordFamilies {
+    pub horizontal: Vec<HorizontalChord>,
+    pub vertical: Vec<VerticalChord>,
+    pub horizontal_endpoints: Vec<FormalChordEndpoints>,
+    pub vertical_endpoints: Vec<FormalChordEndpoints>,
+    pub candidate_pair_count: usize,
+}
+
 impl FormalBoundaryIncidence {
     pub fn formal_holes(&self) -> impl Iterator<Item = &FormalBoundaryComponent> {
         self.components
@@ -184,6 +235,30 @@ impl FormalRectilinearPolygon {
     pub fn incidence(&self) -> Result<FormalBoundaryIncidence, FormalPolygonError> {
         self.validate()?;
         Ok(build_incidence(&self.region, &self.ornament))
+    }
+
+    /// Derives the source's inner angles and local-nonconvexity measure at every vertex.
+    ///
+    /// # Errors
+    ///
+    /// Returns a structured validation error if the formal polygon invariants
+    /// no longer hold.
+    pub fn vertex_geometry(&self) -> Result<Vec<FormalVertexGeometry>, FormalPolygonError> {
+        let incidence = self.incidence()?;
+        Ok(build_vertex_geometry(self, &incidence))
+    }
+
+    /// Exact pairwise Definition 7 Oracle for every formal effective chord.
+    ///
+    /// # Errors
+    ///
+    /// Returns a structured validation or coordinate-geometry error.
+    pub fn effective_chords_pairwise(
+        &self,
+    ) -> Result<FormalEffectiveChordFamilies, FormalPolygonError> {
+        let incidence = self.incidence()?;
+        let geometry = build_vertex_geometry(self, &incidence);
+        enumerate_effective_chords_pairwise(self, &incidence, &geometry)
     }
 
     /// Returns the ordinary region's exact doubled area. Removing a finite
@@ -602,6 +677,372 @@ fn build_components(
     raw_components
 }
 
+fn build_vertex_geometry(
+    polygon: &FormalRectilinearPolygon,
+    incidence: &FormalBoundaryIncidence,
+) -> Vec<FormalVertexGeometry> {
+    incidence
+        .vertices
+        .iter()
+        .map(|vertex| {
+            let mut directions = vertex
+                .incident_segments
+                .iter()
+                .map(|segment_id| {
+                    incident_direction(
+                        vertex.id,
+                        &incidence.elementary_segments[segment_id.0],
+                        incidence,
+                    )
+                })
+                .collect::<BTreeSet<_>>();
+            let quadrants = [
+                FormalQuadrant::NorthEast,
+                FormalQuadrant::NorthWest,
+                FormalQuadrant::SouthWest,
+                FormalQuadrant::SouthEast,
+            ];
+            let interior = quadrants.map(|quadrant| {
+                polygon.contains_doubled_point_strict(quadrant_probe(vertex.point, quadrant))
+            });
+            let inner_angles = inner_angles(interior, &directions);
+            let isolated = vertex.isolated;
+            let local_nonconvexity_measure = if isolated {
+                2
+            } else {
+                u8::from(inner_angles.iter().any(|angle| angle.concave))
+            };
+            FormalVertexGeometry {
+                vertex: vertex.id,
+                point: vertex.point,
+                isolated,
+                incident_directions: std::mem::take(&mut directions).into_iter().collect(),
+                interior_quadrants: quadrants
+                    .into_iter()
+                    .zip(interior)
+                    .filter_map(|(quadrant, inside)| inside.then_some(quadrant))
+                    .collect(),
+                inner_angles,
+                local_nonconvexity_measure,
+            }
+        })
+        .collect()
+}
+
+fn incident_direction(
+    vertex: FormalVertexId,
+    segment: &ElementarySegment,
+    incidence: &FormalBoundaryIncidence,
+) -> FormalDirection {
+    let point = incidence.vertices[vertex.0].point;
+    let other = if segment.start == vertex {
+        incidence.vertices[segment.end.0].point
+    } else {
+        incidence.vertices[segment.start.0].point
+    };
+    if other.x > point.x {
+        FormalDirection::East
+    } else if other.y > point.y {
+        FormalDirection::North
+    } else if other.x < point.x {
+        FormalDirection::West
+    } else {
+        FormalDirection::South
+    }
+}
+
+fn quadrant_probe(point: Point, quadrant: FormalQuadrant) -> DoubledPoint {
+    let x = 2 * i128::from(point.x);
+    let y = 2 * i128::from(point.y);
+    match quadrant {
+        FormalQuadrant::NorthEast => DoubledPoint::new(x + 1, y + 1),
+        FormalQuadrant::NorthWest => DoubledPoint::new(x - 1, y + 1),
+        FormalQuadrant::SouthWest => DoubledPoint::new(x - 1, y - 1),
+        FormalQuadrant::SouthEast => DoubledPoint::new(x + 1, y - 1),
+    }
+}
+
+fn inner_angles(
+    interior: [bool; 4],
+    directions: &BTreeSet<FormalDirection>,
+) -> Vec<FormalInnerAngle> {
+    let quadrants = [
+        FormalQuadrant::NorthEast,
+        FormalQuadrant::NorthWest,
+        FormalQuadrant::SouthWest,
+        FormalQuadrant::SouthEast,
+    ];
+    let separators = [
+        FormalDirection::North,
+        FormalDirection::West,
+        FormalDirection::South,
+        FormalDirection::East,
+    ];
+    let mut seen = [false; 4];
+    let mut angles = Vec::new();
+    for start in 0..4 {
+        if !interior[start] || seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut queue = VecDeque::from([start]);
+        let mut members = BTreeSet::new();
+        while let Some(current) = queue.pop_front() {
+            members.insert(current);
+            let clockwise = (current + 1) % 4;
+            if interior[clockwise] && !seen[clockwise] && !directions.contains(&separators[current])
+            {
+                seen[clockwise] = true;
+                queue.push_back(clockwise);
+            }
+            let counterclockwise = (current + 3) % 4;
+            if interior[counterclockwise]
+                && !seen[counterclockwise]
+                && !directions.contains(&separators[counterclockwise])
+            {
+                seen[counterclockwise] = true;
+                queue.push_back(counterclockwise);
+            }
+        }
+        let quarter_turns = u8::try_from(members.len()).expect("at most four quadrants");
+        angles.push(FormalInnerAngle {
+            quadrants: members.into_iter().map(|index| quadrants[index]).collect(),
+            quarter_turns,
+            concave: quarter_turns >= 3,
+        });
+    }
+    angles.sort_by_key(|angle| angle.quadrants.first().copied());
+    angles
+}
+
+fn enumerate_effective_chords_pairwise(
+    polygon: &FormalRectilinearPolygon,
+    incidence: &FormalBoundaryIncidence,
+    geometry: &[FormalVertexGeometry],
+) -> Result<FormalEffectiveChordFamilies, FormalPolygonError> {
+    let candidates = geometry
+        .iter()
+        .filter(|vertex| vertex.local_nonconvexity_measure > 0)
+        .collect::<Vec<_>>();
+    let mut horizontal = Vec::new();
+    let mut vertical = Vec::new();
+    let mut candidate_pair_count = 0;
+    for first_index in 0..candidates.len() {
+        for second_index in first_index + 1..candidates.len() {
+            let first = candidates[first_index];
+            let second = candidates[second_index];
+            if first.point.x != second.point.x && first.point.y != second.point.y {
+                continue;
+            }
+            candidate_pair_count += 1;
+            let (first, second) = if first.point < second.point {
+                (first, second)
+            } else {
+                (second, first)
+            };
+            if definition7_effective_chord(polygon, incidence, first, second) {
+                if first.point.y == second.point.y {
+                    horizontal.push((
+                        first.point.y,
+                        first.point.x,
+                        second.point.x,
+                        first.vertex,
+                        second.vertex,
+                    ));
+                } else {
+                    vertical.push((
+                        first.point.x,
+                        first.point.y,
+                        second.point.y,
+                        first.vertex,
+                        second.vertex,
+                    ));
+                }
+            }
+        }
+    }
+    horizontal.sort_unstable();
+    vertical.sort_unstable();
+    let horizontal_endpoints = horizontal
+        .iter()
+        .map(|&(_, _, _, first, second)| FormalChordEndpoints { first, second })
+        .collect::<Vec<_>>();
+    let vertical_endpoints = vertical
+        .iter()
+        .map(|&(_, _, _, first, second)| FormalChordEndpoints { first, second })
+        .collect::<Vec<_>>();
+    let horizontal = horizontal
+        .into_iter()
+        .enumerate()
+        .map(|(index, (y, left, right, _, _))| {
+            HorizontalChord::new(HorizontalChordId(index), left, right, y).map_err(|_| {
+                FormalPolygonError::GeneratedChordInvalid {
+                    start: Point::new(left, y),
+                    end: Point::new(right, y),
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let vertical = vertical
+        .into_iter()
+        .enumerate()
+        .map(|(index, (x, bottom, top, _, _))| {
+            VerticalChord::new(VerticalChordId(index), x, bottom, top).map_err(|_| {
+                FormalPolygonError::GeneratedChordInvalid {
+                    start: Point::new(x, bottom),
+                    end: Point::new(x, top),
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(FormalEffectiveChordFamilies {
+        horizontal,
+        vertical,
+        horizontal_endpoints,
+        vertical_endpoints,
+        candidate_pair_count,
+    })
+}
+
+fn definition7_effective_chord(
+    polygon: &FormalRectilinearPolygon,
+    incidence: &FormalBoundaryIncidence,
+    first: &FormalVertexGeometry,
+    second: &FormalVertexGeometry,
+) -> bool {
+    let horizontal = first.point.y == second.point.y;
+    if !endpoint_supports_chord(first, horizontal) || !endpoint_supports_chord(second, horizontal) {
+        return false;
+    }
+    definition7_open_interval(polygon, incidence, first.point, second.point, horizontal)
+}
+
+fn endpoint_supports_chord(vertex: &FormalVertexGeometry, horizontal: bool) -> bool {
+    if vertex.isolated {
+        return true;
+    }
+    vertex.incident_directions.iter().any(|direction| {
+        matches!(
+            (horizontal, direction),
+            (true, FormalDirection::East | FormalDirection::West)
+                | (false, FormalDirection::North | FormalDirection::South)
+        )
+    })
+}
+
+fn definition7_open_interval(
+    polygon: &FormalRectilinearPolygon,
+    incidence: &FormalBoundaryIncidence,
+    first: Point,
+    second: Point,
+    horizontal: bool,
+) -> bool {
+    let (start, end, fixed) = if horizontal {
+        (first.x, second.x, first.y)
+    } else {
+        (first.y, second.y, first.x)
+    };
+    let mut breakpoints = BTreeSet::from([start, end]);
+    let vertex_ids = incidence
+        .vertices
+        .iter()
+        .map(|vertex| (vertex.point, vertex.id))
+        .collect::<BTreeMap<_, _>>();
+
+    for segment in &incidence.elementary_segments {
+        let segment_start = incidence.vertices[segment.start.0].point;
+        let segment_end = incidence.vertices[segment.end.0].point;
+        let segment_horizontal = segment_start.y == segment_end.y;
+        if segment_horizontal == horizontal {
+            let same_line = if horizontal {
+                segment_start.y == fixed
+            } else {
+                segment_start.x == fixed
+            };
+            if same_line {
+                let segment_low = if horizontal {
+                    segment_start.x.min(segment_end.x)
+                } else {
+                    segment_start.y.min(segment_end.y)
+                };
+                let segment_high = if horizontal {
+                    segment_start.x.max(segment_end.x)
+                } else {
+                    segment_start.y.max(segment_end.y)
+                };
+                if start.max(segment_low) < end.min(segment_high) {
+                    return false;
+                }
+            }
+            continue;
+        }
+
+        let (coordinate, segment_low, segment_high) = if horizontal {
+            (
+                segment_start.x,
+                segment_start.y.min(segment_end.y),
+                segment_start.y.max(segment_end.y),
+            )
+        } else {
+            (
+                segment_start.y,
+                segment_start.x.min(segment_end.x),
+                segment_start.x.max(segment_end.x),
+            )
+        };
+        if start < coordinate && coordinate < end && segment_low <= fixed && fixed <= segment_high {
+            let point = if horizontal {
+                Point::new(coordinate, fixed)
+            } else {
+                Point::new(fixed, coordinate)
+            };
+            let Some(&vertex_id) = vertex_ids.get(&point) else {
+                return false;
+            };
+            let orthogonal_count = incidence.vertices[vertex_id.0]
+                .incident_segments
+                .iter()
+                .filter(|segment_id| {
+                    let segment = &incidence.elementary_segments[segment_id.0];
+                    let segment_start = incidence.vertices[segment.start.0].point;
+                    let segment_end = incidence.vertices[segment.end.0].point;
+                    (segment_start.y == segment_end.y) != horizontal
+                })
+                .count();
+            if orthogonal_count != 1 {
+                return false;
+            }
+            breakpoints.insert(coordinate);
+        }
+    }
+
+    for &point in &polygon.ornament.isolated_points {
+        let (coordinate, point_fixed) = if horizontal {
+            (point.x, point.y)
+        } else {
+            (point.y, point.x)
+        };
+        if point_fixed == fixed && start < coordinate && coordinate < end {
+            return false;
+        }
+    }
+
+    let breakpoints = breakpoints.into_iter().collect::<Vec<_>>();
+    for pair in breakpoints.windows(2) {
+        let variable = i128::from(pair[0]) + i128::from(pair[1]);
+        let fixed = 2 * i128::from(fixed);
+        let probe = if horizontal {
+            DoubledPoint::new(variable, fixed)
+        } else {
+            DoubledPoint::new(fixed, variable)
+        };
+        if !polygon.contains_doubled_point_strict(probe) {
+            return false;
+        }
+    }
+    true
+}
+
 fn point_in_region_closed(region: &RectilinearPolygon, point: Point) -> bool {
     region.contains_doubled_point_strict(DoubledPoint::from_point(point))
         || region
@@ -764,6 +1205,8 @@ fn segment_intersection(first: OrnamentSegment, second: OrnamentSegment) -> Segm
 pub enum FormalPolygonError {
     #[error(transparent)]
     Polygon(#[from] PolygonError),
+    #[error("generated effective chord from {start:?} to {end:?} is invalid")]
+    GeneratedChordInvalid { start: Point, end: Point },
     #[error("ornament segment {index} has zero length at {point:?}")]
     ZeroLengthOrnamentSegment { index: usize, point: Point },
     #[error("ornament segment {index} from {start:?} to {end:?} is not axis aligned")]
@@ -839,6 +1282,22 @@ mod tests {
         RectilinearPolygon::new(
             rectangle(0, 0, 20, 20),
             vec![rectangle(2, 2, 4, 4), rectangle(16, 16, 18, 18)],
+        )
+        .unwrap()
+    }
+
+    fn source_figure_three() -> FormalRectilinearPolygon {
+        FormalRectilinearPolygon::new(
+            RectilinearPolygon::new(rectangle(0, 0, 12, 12), vec![rectangle(2, 6, 5, 9)]).unwrap(),
+            Ornament {
+                isolated_points: vec![Point::new(6, 3), Point::new(6, 9), Point::new(8, 9)],
+                segments: vec![
+                    OrnamentSegment::new(Point::new(10, 0), Point::new(10, 3)).unwrap(),
+                    OrnamentSegment::new(Point::new(2, 3), Point::new(5, 3)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 6), Point::new(12, 6)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 9), Point::new(10, 12)).unwrap(),
+                ],
+            },
         )
         .unwrap()
     }
@@ -1015,6 +1474,81 @@ mod tests {
         assert!(!polygon.contains_open_horizontal_segment(5, 7, 12));
         assert!(!polygon.contains_open_vertical_segment(20, 8, 12));
         assert!(polygon.contains_open_horizontal_segment(5, 7, 14));
+    }
+
+    #[test]
+    fn derives_source_local_nonconvexity_from_quadrants_and_boundary_rays() {
+        let polygon = FormalRectilinearPolygon::new(
+            RectilinearPolygon::new(rectangle(0, 0, 20, 20), vec![]).unwrap(),
+            Ornament {
+                isolated_points: vec![Point::new(4, 4)],
+                segments: vec![
+                    OrnamentSegment::new(Point::new(8, 8), Point::new(10, 8)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 8), Point::new(12, 8)).unwrap(),
+                    OrnamentSegment::new(Point::new(14, 8), Point::new(16, 8)).unwrap(),
+                    OrnamentSegment::new(Point::new(16, 8), Point::new(16, 10)).unwrap(),
+                    OrnamentSegment::new(Point::new(8, 14), Point::new(10, 14)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 14), Point::new(12, 14)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 14), Point::new(10, 16)).unwrap(),
+                ],
+            },
+        )
+        .unwrap();
+        let geometry = polygon.vertex_geometry().unwrap();
+        let at = |point| {
+            geometry
+                .iter()
+                .find(|vertex| vertex.point == point)
+                .unwrap()
+        };
+        assert_eq!(at(Point::new(4, 4)).local_nonconvexity_measure, 2);
+        assert_eq!(at(Point::new(8, 8)).local_nonconvexity_measure, 1);
+        assert_eq!(
+            at(Point::new(8, 8))
+                .inner_angles
+                .iter()
+                .map(|angle| angle.quarter_turns)
+                .collect::<Vec<_>>(),
+            [4]
+        );
+        assert_eq!(at(Point::new(10, 8)).local_nonconvexity_measure, 0);
+        assert_eq!(at(Point::new(16, 8)).local_nonconvexity_measure, 1);
+        assert_eq!(
+            at(Point::new(16, 8))
+                .inner_angles
+                .iter()
+                .map(|angle| angle.quarter_turns)
+                .collect::<Vec<_>>(),
+            [3, 1]
+        );
+        assert_eq!(at(Point::new(10, 14)).local_nonconvexity_measure, 0);
+        assert_eq!(
+            at(Point::new(10, 14))
+                .inner_angles
+                .iter()
+                .map(|angle| angle.quarter_turns)
+                .collect::<Vec<_>>(),
+            [1, 1, 2]
+        );
+    }
+
+    #[test]
+    fn definition7_oracle_matches_source_figure_three_family() {
+        let families = source_figure_three().effective_chords_pairwise().unwrap();
+        let horizontal = families
+            .horizontal
+            .iter()
+            .map(|chord| (chord.left(), chord.right(), chord.y()))
+            .collect::<Vec<_>>();
+        let vertical = families
+            .vertical
+            .iter()
+            .map(|chord| (chord.x(), chord.bottom(), chord.top()))
+            .collect::<Vec<_>>();
+        assert_eq!(horizontal, [(5, 6, 3), (5, 10, 6), (5, 6, 9), (6, 8, 9)]);
+        assert_eq!(vertical, [(6, 3, 9), (10, 3, 9)]);
+        assert_eq!(families.horizontal_endpoints.len(), horizontal.len());
+        assert_eq!(families.vertical_endpoints.len(), vertical.len());
     }
 
     #[test]
