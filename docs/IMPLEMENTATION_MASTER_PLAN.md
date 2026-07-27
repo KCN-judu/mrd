@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P5
 - Last pushed SHA: 66b6336e4af980bad8a93a7e416b62d5c539ed97
-- Plan last updated: 2026-07-27T15:48:00Z
+- Plan last updated: 2026-07-27T16:02:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -326,6 +326,12 @@ theorem, data structure, assumption, precision rule, and recovery step to an
 intended Rust module. Do not claim implementation from an interface skeleton.
 Mark blocked, rather than inventing a component, if authoritative source is
 unavailable.
+
+**Dependency gap under investigation:** The primary source was retrieved and mapped in
+`docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`. It delegates required constructive
+components to CKLPPS22, KP15, CS21, and dynamic-tree predecessors that are not
+available in this repository. No almost-linear module may be invented from the
+primary paper overview. Retrieve/version-pin those sources before P6 can close.
 
 ### Mandatory transition after this phase
 
