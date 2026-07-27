@@ -69,7 +69,9 @@
 8. Jan van den Brand et al., "A Deterministic Almost-Linear Time Algorithm for
    Minimum-Cost Flow," arXiv:2309.16629 / FOCS 2023.
 
-   This implementation does **not** implement that algorithm. It appears only
-   in the supplied paper's asymptotic analysis. `MaxFlowBackend` keeps geometry
-   independent of practical exact backends (`DinicBackend` and
-   `PushRelabelBackend`) without changing reductions or certificates.
+   `rect-graph::min_cost` implements only a deliberately superlinear exact
+   integer circulation and signed residual minimum-ratio-cycle Oracle. It
+   explicitly does not claim the paper's interior-point reduction, hidden
+   stability, dynamic cycle structure, or almost-linear bound. The permanent
+   practical maximum-flow backends (`DinicBackend` and `PushRelabelBackend`)
+   remain independent of this baseline.

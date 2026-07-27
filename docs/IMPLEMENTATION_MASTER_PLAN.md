@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P7
-- Current phase state: in_progress
+- Current phase state: committed
 - Last completed phase: P6
 - Last pushed SHA: ece512f90b7b4fbe37a5f091d7dbdb6e2ad1e2eb
-- Plan last updated: 2026-07-27T16:28:00Z
+- Plan last updated: 2026-07-28T00:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -347,10 +347,15 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P7 - Exact min-cost circulation and iterative-refinement core
 
-**State:** in_progress. Implement generic circulation with exact capacities, costs,
-demands, residual operations, a baseline minimum-ratio-cycle Oracle,
-iterative refinement, and exact recovery. Superlinear work is permitted here
-to establish correctness before dynamic structures.
+**State:** committed. **Start SHA:** `9f12445`. **Implementation SHAs:**
+`3184ad5`, `4e8326c`, `21fbbd9`. Generic circulation now has exact signed
+`i128` capacities, costs, demands, residual operations, static and signed
+residual minimum-ratio-cycle Oracles, iterative refinement traces, and exact
+recovery verification. Superlinear work is deliberate: no IPM, stability,
+rounding, dynamic structure, or almost-linear claim is made. The bounded-flow
+differential covers all 125 three-cost assignments and reports zero
+disagreements. Full-audit evidence and remaining limitations are recorded in
+`docs/phase-reports/P07-exact-circulation-refinement.md`.
 
 ### Mandatory transition after this phase
 

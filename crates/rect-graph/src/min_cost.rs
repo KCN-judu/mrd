@@ -24,6 +24,11 @@ pub struct CirculationNetwork {
 
 impl CirculationNetwork {
     /// Validates exact feasibility, objective value, and residual optimality.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the flow is malformed, infeasible, has an
+    /// incorrect objective, or admits a negative residual cycle.
     pub fn verify_solution(
         &self,
         solution: &MinCostSolution,
@@ -51,9 +56,14 @@ impl CirculationNetwork {
                 )
                 .ok_or(MinCostCirculationError::Overflow)?;
         }
-        if balance != self.demands
-            || cost != solution.cost
-            || negative_cycle(self, &solution.arc_flows)?.is_some()
+        if balance != self.demands || cost != solution.cost {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        let gradients = self.arcs.iter().map(|arc| arc.cost).collect::<Vec<_>>();
+        let lengths = vec![1; self.arcs.len()];
+        if self
+            .minimum_ratio_residual_cycle(solution, &gradients, &lengths)?
+            .is_some_and(|cycle| cycle.gradient_sum < 0)
         {
             return Err(MinCostCirculationError::InvalidSolution);
         }
@@ -69,6 +79,9 @@ impl CirculationNetwork {
         }
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when `node` is outside the network.
     pub fn set_demand(
         &mut self,
         node: FlowNodeId,
@@ -85,6 +98,9 @@ impl CirculationNetwork {
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Returns an error when `node` is outside the network.
     pub fn add_arc(
         &mut self,
         from: FlowNodeId,
@@ -111,9 +127,13 @@ impl CirculationNetwork {
         Ok(id)
     }
 
-    /// Solves the exact integral min-cost circulation by successive
-    /// Bellman--Ford augmentations followed by negative-cycle cancellation.
-    /// This is deliberately a superlinear correctness Oracle.
+    /// Solves the exact integral min-cost circulation with the deliberately
+    /// superlinear residual-cycle refinement Oracle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when demands are unbalanced, infeasible, or exact
+    /// arithmetic overflows.
     pub fn solve(&self) -> Result<MinCostSolution, MinCostCirculationError> {
         if self
             .demands
@@ -160,30 +180,74 @@ impl CirculationNetwork {
             balance[source] -= amount;
             balance[target] += amount;
         }
-        while let Some(cycle) = negative_cycle(self, &flow)? {
-            let amount = cycle.iter().try_fold(i128::MAX, |a, edge| {
-                Ok::<_, MinCostCirculationError>(a.min(residual_capacity(self, &flow, *edge)))
-            })?;
-            for edge in cycle {
-                apply_residual(&mut flow, edge, amount)?;
-            }
-        }
-        let cost = self
-            .arcs
-            .iter()
-            .zip(&flow)
-            .try_fold(0_i128, |sum, (arc, value)| {
-                sum.checked_add(
-                    arc.cost
-                        .checked_mul(*value)
-                        .ok_or(MinCostCirculationError::Overflow)?,
-                )
-                .ok_or(MinCostCirculationError::Overflow)
-            })?;
-        Ok(MinCostSolution {
+        self.refine_feasible(&MinCostSolution {
+            cost: solution_cost(self, &flow)?,
             arc_flows: flow,
-            cost,
         })
+        .map(|result| result.solution)
+    }
+
+    /// Refines a feasible integral circulation through exact signed residual
+    /// minimum-ratio cycles. Unit residual lengths make every selected
+    /// negative-ratio cycle a strict cost improvement. This finite baseline
+    /// is not the interior-point or dynamic algorithm from the cited source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the initial solution is not exactly feasible or
+    /// exact arithmetic overflows during refinement.
+    pub fn refine_feasible(
+        &self,
+        initial: &MinCostSolution,
+    ) -> Result<IterativeRefinementResult, MinCostCirculationError> {
+        validate_feasible_solution(self, initial)?;
+        let mut solution = initial.clone();
+        let mut steps = Vec::new();
+        loop {
+            let gradients = self.arcs.iter().map(|arc| arc.cost).collect::<Vec<_>>();
+            let lengths = vec![1; self.arcs.len()];
+            let Some(cycle) = self.minimum_ratio_residual_cycle(&solution, &gradients, &lengths)?
+            else {
+                break;
+            };
+            if cycle.gradient_sum >= 0 {
+                break;
+            }
+            let residual = cycle
+                .arcs
+                .iter()
+                .map(|(arc, direction)| Residual {
+                    arc: arc.0,
+                    reverse: *direction < 0,
+                })
+                .collect::<Vec<_>>();
+            let amount = residual.iter().try_fold(i128::MAX, |current, edge| {
+                Ok::<_, MinCostCirculationError>(current.min(residual_capacity(
+                    self,
+                    &solution.arc_flows,
+                    *edge,
+                )))
+            })?;
+            if amount <= 0 {
+                return Err(MinCostCirculationError::InvalidSolution);
+            }
+            let cost_before = solution.cost;
+            for edge in residual {
+                apply_residual(&mut solution.arc_flows, edge, amount)?;
+            }
+            solution.cost = solution_cost(self, &solution.arc_flows)?;
+            if solution.cost >= cost_before {
+                return Err(MinCostCirculationError::InvalidSolution);
+            }
+            steps.push(IterativeRefinementStep {
+                cycle,
+                augmentation: amount,
+                cost_before,
+                cost_after: solution.cost,
+            });
+        }
+        self.verify_solution(&solution)?;
+        Ok(IterativeRefinementResult { solution, steps })
     }
 }
 
@@ -201,9 +265,31 @@ pub struct MinRatioCycle {
     pub length_sum: i128,
 }
 
+/// One strict objective-decreasing update performed by the baseline Oracle.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IterativeRefinementStep {
+    pub cycle: MinRatioCycle,
+    pub augmentation: i128,
+    pub cost_before: i128,
+    pub cost_after: i128,
+}
+
+/// Exact recovered circulation and its auditable baseline refinement trace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IterativeRefinementResult {
+    pub solution: MinCostSolution,
+    pub steps: Vec<IterativeRefinementStep>,
+}
+
 impl CirculationNetwork {
-    /// Exhaustively enumerates simple directed residual cycles. This is a
-    /// superlinear baseline Oracle for Definition 4.2, not a dynamic backend.
+    /// Exhaustively enumerates simple directed cycles in the input graph. This
+    /// is a superlinear baseline Oracle for Definition 4.2, not a dynamic
+    /// backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid dimensions, nonpositive lengths, or exact
+    /// arithmetic overflow.
     pub fn minimum_ratio_cycle(
         &self,
         gradients: &[i128],
@@ -222,6 +308,50 @@ impl CirculationNetwork {
             let mut path = Vec::new();
             enumerate_cycles(
                 self, gradients, lengths, start, start, &mut seen, &mut path, 0, 0, &mut best,
+            )?;
+        }
+        Ok(best)
+    }
+
+    /// Exhaustively enumerates simple cycles in the residual graph of a
+    /// feasible solution. Reverse residual arcs negate their gradient while
+    /// retaining the corresponding positive length.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the solution is not feasible, the input vectors
+    /// are invalid, or exact arithmetic overflows.
+    pub fn minimum_ratio_residual_cycle(
+        &self,
+        solution: &MinCostSolution,
+        gradients: &[i128],
+        lengths: &[i128],
+    ) -> Result<Option<MinRatioCycle>, MinCostCirculationError> {
+        validate_feasible_solution(self, solution)?;
+        if gradients.len() != self.arcs.len()
+            || lengths.len() != self.arcs.len()
+            || lengths.iter().any(|value| *value <= 0)
+        {
+            return Err(MinCostCirculationError::InvalidRatioInput);
+        }
+        let residual_edges = edges(self, &solution.arc_flows);
+        let mut best = None;
+        for start in 0..self.node_count {
+            let mut seen = vec![false; self.node_count];
+            seen[start] = true;
+            let mut path = Vec::new();
+            enumerate_residual_cycles(
+                self,
+                gradients,
+                lengths,
+                &residual_edges,
+                start,
+                start,
+                &mut seen,
+                &mut path,
+                0,
+                0,
+                &mut best,
             )?;
         }
         Ok(best)
@@ -248,6 +378,7 @@ pub enum MinCostCirculationError {
     InvalidSolution,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn enumerate_cycles(
     network: &CirculationNetwork,
     gradients: &[i128],
@@ -273,7 +404,7 @@ fn enumerate_cycles(
         let l = length
             .checked_add(lengths[index])
             .ok_or(MinCostCirculationError::Overflow)?;
-        if next == start && !path.is_empty() {
+        if next == start {
             let mut arcs = path.clone();
             arcs.push((CirculationArcId(index), 1));
             let candidate = MinRatioCycle {
@@ -281,14 +412,8 @@ fn enumerate_cycles(
                 gradient_sum: g,
                 length_sum: l,
             };
-            if best.as_ref().is_none_or(|old| {
-                g.checked_mul(old.length_sum).is_some_and(|left| {
-                    old.gradient_sum
-                        .checked_mul(l)
-                        .is_some_and(|right| left < right)
-                })
-            }) {
-                *best = Some(candidate)
+            if candidate_is_lower(g, l, best.as_ref())? {
+                *best = Some(candidate);
             }
         } else if !seen[next] {
             seen[next] = true;
@@ -301,6 +426,92 @@ fn enumerate_cycles(
         }
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn enumerate_residual_cycles(
+    network: &CirculationNetwork,
+    gradients: &[i128],
+    lengths: &[i128],
+    residual_edges: &[Residual],
+    start: usize,
+    node: usize,
+    seen: &mut [bool],
+    path: &mut Vec<(CirculationArcId, i8)>,
+    gradient: i128,
+    length: i128,
+    best: &mut Option<MinRatioCycle>,
+) -> Result<(), MinCostCirculationError> {
+    for edge in residual_edges
+        .iter()
+        .copied()
+        .filter(|edge| residual_from(network, *edge) == node)
+    {
+        let next = residual_to(network, edge);
+        let signed_gradient = if edge.reverse {
+            gradients[edge.arc]
+                .checked_neg()
+                .ok_or(MinCostCirculationError::Overflow)?
+        } else {
+            gradients[edge.arc]
+        };
+        let g = gradient
+            .checked_add(signed_gradient)
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let l = length
+            .checked_add(lengths[edge.arc])
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let direction = if edge.reverse { -1 } else { 1 };
+        if next == start {
+            let mut arcs = path.clone();
+            arcs.push((CirculationArcId(edge.arc), direction));
+            let candidate = MinRatioCycle {
+                arcs,
+                gradient_sum: g,
+                length_sum: l,
+            };
+            if candidate_is_lower(g, l, best.as_ref())? {
+                *best = Some(candidate);
+            }
+        } else if !seen[next] {
+            seen[next] = true;
+            path.push((CirculationArcId(edge.arc), direction));
+            enumerate_residual_cycles(
+                network,
+                gradients,
+                lengths,
+                residual_edges,
+                start,
+                next,
+                seen,
+                path,
+                g,
+                l,
+                best,
+            )?;
+            path.pop();
+            seen[next] = false;
+        }
+    }
+    Ok(())
+}
+
+fn candidate_is_lower(
+    gradient: i128,
+    length: i128,
+    best: Option<&MinRatioCycle>,
+) -> Result<bool, MinCostCirculationError> {
+    let Some(old) = best else {
+        return Ok(true);
+    };
+    let left = gradient
+        .checked_mul(old.length_sum)
+        .ok_or(MinCostCirculationError::Overflow)?;
+    let right = old
+        .gradient_sum
+        .checked_mul(length)
+        .ok_or(MinCostCirculationError::Overflow)?;
+    Ok(left < right)
 }
 
 #[derive(Clone, Copy)]
@@ -329,13 +540,49 @@ fn residual_capacity(network: &CirculationNetwork, flow: &[i128], edge: Residual
         network.arcs[edge.arc].capacity - flow[edge.arc]
     }
 }
-fn residual_cost(network: &CirculationNetwork, edge: Residual) -> i128 {
-    if edge.reverse {
-        -network.arcs[edge.arc].cost
-    } else {
-        network.arcs[edge.arc].cost
-    }
+fn solution_cost(
+    network: &CirculationNetwork,
+    flow: &[i128],
+) -> Result<i128, MinCostCirculationError> {
+    network
+        .arcs
+        .iter()
+        .zip(flow)
+        .try_fold(0_i128, |sum, (arc, value)| {
+            sum.checked_add(
+                arc.cost
+                    .checked_mul(*value)
+                    .ok_or(MinCostCirculationError::Overflow)?,
+            )
+            .ok_or(MinCostCirculationError::Overflow)
+        })
 }
+
+fn validate_feasible_solution(
+    network: &CirculationNetwork,
+    solution: &MinCostSolution,
+) -> Result<(), MinCostCirculationError> {
+    if solution.arc_flows.len() != network.arcs.len() {
+        return Err(MinCostCirculationError::InvalidSolution);
+    }
+    let mut balance = vec![0_i128; network.node_count];
+    for (arc, flow) in network.arcs.iter().zip(&solution.arc_flows) {
+        if *flow < 0 || *flow > arc.capacity {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        balance[arc.from] = balance[arc.from]
+            .checked_sub(*flow)
+            .ok_or(MinCostCirculationError::Overflow)?;
+        balance[arc.to] = balance[arc.to]
+            .checked_add(*flow)
+            .ok_or(MinCostCirculationError::Overflow)?;
+    }
+    if balance != network.demands || solution.cost != solution_cost(network, &solution.arc_flows)? {
+        return Err(MinCostCirculationError::InvalidSolution);
+    }
+    Ok(())
+}
+
 fn apply_residual(
     flow: &mut [i128],
     edge: Residual,
@@ -392,50 +639,9 @@ fn feasible_path(
     }
     p
 }
-fn negative_cycle(
-    network: &CirculationNetwork,
-    flow: &[i128],
-) -> Result<Option<Vec<Residual>>, MinCostCirculationError> {
-    let mut d = vec![0_i128; network.node_count];
-    let mut p = vec![None; network.node_count];
-    let mut changed = None;
-    for _ in 0..network.node_count {
-        changed = None;
-        for e in edges(network, flow) {
-            let u = residual_from(network, e);
-            let v = residual_to(network, e);
-            let n = d[u]
-                .checked_add(residual_cost(network, e))
-                .ok_or(MinCostCirculationError::Overflow)?;
-            if n < d[v] {
-                d[v] = n;
-                p[v] = Some(e);
-                changed = Some(v)
-            }
-        }
-    }
-    let Some(mut v) = changed else {
-        return Ok(None);
-    };
-    for _ in 0..network.node_count {
-        v = residual_from(network, p[v].ok_or(MinCostCirculationError::Infeasible)?)
-    }
-    let start = v;
-    let mut cycle = Vec::new();
-    loop {
-        let e = p[v].ok_or(MinCostCirculationError::Infeasible)?;
-        cycle.push(e);
-        v = residual_from(network, e);
-        if v == start {
-            break;
-        }
-    }
-    Ok(Some(cycle))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{CirculationNetwork, MinCostCirculationError};
+    use super::{CirculationNetwork, MinCostCirculationError, MinCostSolution};
     use crate::FlowNodeId;
 
     #[test]
@@ -503,5 +709,122 @@ mod tests {
         assert_eq!(result.gradient_sum, -2);
         assert_eq!(result.length_sum, 2);
         assert_eq!(result.arcs, vec![(a, 1), (b, 1)]);
+    }
+
+    #[test]
+    fn selects_and_cancels_a_negative_self_loop() {
+        let mut network = CirculationNetwork::new(1);
+        let loop_arc = network
+            .add_arc(FlowNodeId(0), FlowNodeId(0), 2, -3)
+            .unwrap();
+        let ratio = network.minimum_ratio_cycle(&[-3], &[1]).unwrap().unwrap();
+        assert_eq!(ratio.arcs, vec![(loop_arc, 1)]);
+        let solution = network.solve().unwrap();
+        assert_eq!(solution.arc_flows, vec![2]);
+        assert_eq!(solution.cost, -6);
+        network.verify_solution(&solution).unwrap();
+    }
+
+    #[test]
+    fn residual_ratio_cycle_includes_reverse_arcs() {
+        let mut network = CirculationNetwork::new(2);
+        let forward = network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 5).unwrap();
+        let backward = network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 1).unwrap();
+        let flow = MinCostSolution {
+            arc_flows: vec![2, 2],
+            cost: 12,
+        };
+        let cycle = network
+            .minimum_ratio_residual_cycle(&flow, &[5, 1], &[1, 1])
+            .unwrap()
+            .unwrap();
+        assert_eq!(cycle.gradient_sum, -6);
+        assert_eq!(cycle.length_sum, 2);
+        assert_eq!(cycle.arcs, vec![(backward, -1), (forward, -1)]);
+    }
+
+    #[test]
+    fn refinement_records_strict_objective_decreases_and_recovers_optimum() {
+        let mut network = CirculationNetwork::new(2);
+        let forward = network
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 3, -4)
+            .unwrap();
+        let backward = network.add_arc(FlowNodeId(1), FlowNodeId(0), 3, 1).unwrap();
+        let result = network
+            .refine_feasible(&MinCostSolution {
+                arc_flows: vec![0, 0],
+                cost: 0,
+            })
+            .unwrap();
+        assert_eq!(result.solution.arc_flows[forward.0], 3);
+        assert_eq!(result.solution.arc_flows[backward.0], 3);
+        assert_eq!(result.solution.cost, -9);
+        assert_eq!(result.steps.len(), 1);
+        assert_eq!(result.steps[0].cost_before, 0);
+        assert_eq!(result.steps[0].cost_after, -9);
+        network.verify_solution(&result.solution).unwrap();
+    }
+
+    #[test]
+    fn rejects_incorrectly_recovered_solution() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 1, 2).unwrap();
+        network.set_demand(FlowNodeId(0), -1).unwrap();
+        network.set_demand(FlowNodeId(1), 1).unwrap();
+        assert_eq!(
+            network.verify_solution(&MinCostSolution {
+                arc_flows: vec![1],
+                cost: 3,
+            }),
+            Err(MinCostCirculationError::InvalidSolution)
+        );
+    }
+
+    #[test]
+    fn agrees_with_bounded_flow_enumeration_for_all_tiny_cost_assignments() {
+        for first_cost in -2..=2 {
+            for second_cost in -2..=2 {
+                for direct_cost in -2..=2 {
+                    let mut network = CirculationNetwork::new(3);
+                    network.set_demand(FlowNodeId(0), -2).unwrap();
+                    network.set_demand(FlowNodeId(2), 2).unwrap();
+                    network
+                        .add_arc(FlowNodeId(0), FlowNodeId(1), 2, first_cost)
+                        .unwrap();
+                    network
+                        .add_arc(FlowNodeId(1), FlowNodeId(2), 2, second_cost)
+                        .unwrap();
+                    network
+                        .add_arc(FlowNodeId(0), FlowNodeId(2), 2, direct_cost)
+                        .unwrap();
+                    let expected = brute_force_cost(&network).unwrap();
+                    let actual = network.solve().unwrap();
+                    assert_eq!(actual.cost, expected);
+                    network.verify_solution(&actual).unwrap();
+                }
+            }
+        }
+    }
+
+    fn brute_force_cost(network: &CirculationNetwork) -> Option<i128> {
+        let mut best = None;
+        for first in 0..=2 {
+            for second in 0..=2 {
+                for direct in 0..=2 {
+                    let flow = [first, second, direct];
+                    let mut balance = vec![0; network.node_count];
+                    let mut cost = 0;
+                    for (arc, amount) in network.arcs.iter().zip(flow) {
+                        balance[arc.from] -= amount;
+                        balance[arc.to] += amount;
+                        cost += arc.cost * amount;
+                    }
+                    if balance == network.demands {
+                        best = Some(best.map_or(cost, |old: i128| old.min(cost)));
+                    }
+                }
+            }
+        }
+        best
     }
 }

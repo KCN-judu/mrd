@@ -248,6 +248,24 @@ Dinic and highest-label push-relabel are practical implemented exact flow
 backends. The almost-linear exact max-flow result is cited only for the paper's
 asymptotic theorem and is not implemented here.
 
+## Exact min-cost circulation baseline
+
+`rect-graph::min_cost::CirculationNetwork` is a separate generic exact
+integer circulation Oracle. It first routes signed node demands over residual
+capacity, then `refine_feasible` exhaustively enumerates simple signed
+residual cycles and augments the lowest exact cost-to-unit-length ratio while
+that ratio is negative. Every recorded refinement step exposes the cycle,
+augmentation, and objective before/after the update; the recovered result is
+checked for exact balances, capacities, objective value, and absence of a
+negative residual cycle. Positive residual lengths and cross-multiplied `i128`
+comparisons avoid floating-point decisions.
+
+This is deliberately superlinear and is retained as a correctness Oracle. It
+does not implement the FOCS 2023 interior-point method, approximate gradients,
+hidden-stability witness, fractional rounding, or dynamic min-ratio-cycle data
+structure. Those requirements remain gated by
+`docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.
