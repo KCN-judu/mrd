@@ -103,6 +103,24 @@ impl DynamicMinRatioReplay {
         self.ledger.detect(epsilon)
     }
 
+    /// Replays one deterministic shift.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid tree-chain level.
+    pub fn shift(&mut self, level: usize) -> Result<(), DynamicMinRatioError> {
+        self.chain.shift(level)
+    }
+
+    /// Replays one deterministic rebuild.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid tree-chain level.
+    pub fn rebuild(&mut self, level: usize) -> Result<(), DynamicMinRatioError> {
+        self.chain.rebuild(level)
+    }
+
     #[must_use]
     pub const fn chain(&self) -> &ShiftedTreeChain {
         &self.chain
@@ -166,6 +184,76 @@ impl ShiftedTreeChain {
     }
 }
 
+/// Explicitly unsupported operations outside the P8 certificate domain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnsupportedDynamicOperation {
+    EdgeInsertion,
+    DirectedEdge,
+    ArbitraryTopologyUpdate,
+}
+
+/// Exact replay/audit work counters for the P8.6 integration.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DynamicAuditMetrics {
+    pub compact_cycle_checks: u64,
+    pub rejected_operations: u64,
+}
+
+/// Integrates P8.1 and P8.5 only as a checked deterministic replay component.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DynamicMinRatioAudit {
+    replay: DynamicMinRatioReplay,
+    metrics: DynamicAuditMetrics,
+}
+
+impl DynamicMinRatioAudit {
+    #[must_use]
+    pub fn new(replay: DynamicMinRatioReplay) -> Self {
+        Self {
+            replay,
+            metrics: DynamicAuditMetrics::default(),
+        }
+    }
+
+    /// Validates a compact cycle with P7's exact static circulation Oracle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the compact encoding is not a circulation.
+    pub fn verify_cycle(
+        &mut self,
+        cycle: &CompactCycle,
+        network: &CirculationNetwork,
+    ) -> Result<(), DynamicMinRatioError> {
+        cycle.decode(network)?;
+        self.metrics.compact_cycle_checks += 1;
+        Ok(())
+    }
+
+    /// Rejects operations not admitted by P8's scoped certificate layers.
+    ///
+    /// # Errors
+    ///
+    /// Always returns an explicit unsupported-operation error.
+    pub fn reject_unsupported(
+        &mut self,
+        _: UnsupportedDynamicOperation,
+    ) -> Result<(), DynamicMinRatioError> {
+        self.metrics.rejected_operations += 1;
+        Err(DynamicMinRatioError::UnsupportedOperation)
+    }
+
+    #[must_use]
+    pub const fn metrics(&self) -> DynamicAuditMetrics {
+        self.metrics
+    }
+
+    #[must_use]
+    pub const fn replay(&self) -> &DynamicMinRatioReplay {
+        &self.replay
+    }
+}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum DynamicMinRatioError {
     #[error("tree chain branch count is invalid")]
@@ -174,11 +262,16 @@ pub enum DynamicMinRatioError {
     InvalidLevel,
     #[error("compact cycle is invalid: {0}")]
     InvalidCycle(MinCostCirculationError),
+    #[error("operation is outside the checked P8 dynamic domain")]
+    UnsupportedOperation,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CompactCycle, CompactCycleSegment, DynamicMinRatioReplay, ShiftedTreeChain};
+    use super::{
+        CompactCycle, CompactCycleSegment, DynamicMinRatioAudit, DynamicMinRatioError,
+        DynamicMinRatioReplay, ShiftedTreeChain, UnsupportedDynamicOperation,
+    };
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId, StableEdge, StableMinRatioLedger, StableUpdate,
         StableWitness,
@@ -263,5 +356,55 @@ mod tests {
             replay.detect(ExactRatio::new(1, 1).unwrap()).unwrap().len(),
             2
         );
+    }
+
+    #[test]
+    fn integration_audit_counts_static_checks_and_rejects_scope_expansion() {
+        let ledger = StableMinRatioLedger::new(
+            2,
+            vec![
+                StableEdge {
+                    from: FlowNodeId(0),
+                    to: FlowNodeId(1),
+                    gradient: -2,
+                    length: 1,
+                },
+                StableEdge {
+                    from: FlowNodeId(1),
+                    to: FlowNodeId(0),
+                    gradient: 0,
+                    length: 1,
+                },
+            ],
+            ExactRatio::new(1, 4).unwrap(),
+            ExactRatio::new(1, 2).unwrap(),
+            StableWitness {
+                circulation: vec![1, 1],
+                upper_bounds: vec![1, 1],
+            },
+        )
+        .unwrap();
+        let replay = DynamicMinRatioReplay::new(ShiftedTreeChain::new(vec![1]).unwrap(), ledger);
+        let mut audit = DynamicMinRatioAudit::new(replay);
+        let mut network = CirculationNetwork::new(2);
+        let forward = network.add_arc(FlowNodeId(0), FlowNodeId(1), 1, 0).unwrap();
+        let backward = network.add_arc(FlowNodeId(1), FlowNodeId(0), 1, 0).unwrap();
+        audit
+            .verify_cycle(
+                &CompactCycle {
+                    segments: vec![
+                        CompactCycleSegment::OffTreeEdge(forward, 1),
+                        CompactCycleSegment::OffTreeEdge(backward, 1),
+                    ],
+                },
+                &network,
+            )
+            .unwrap();
+        assert_eq!(
+            audit.reject_unsupported(UnsupportedDynamicOperation::EdgeInsertion),
+            Err(DynamicMinRatioError::UnsupportedOperation)
+        );
+        assert_eq!(audit.metrics().compact_cycle_checks, 1);
+        assert_eq!(audit.metrics().rejected_operations, 1);
     }
 }

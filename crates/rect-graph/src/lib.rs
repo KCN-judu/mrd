@@ -18,8 +18,9 @@ pub use dinic::{
     PushRelabelBackend, PushRelabelMetrics,
 };
 pub use dynamic_min_ratio::{
-    CompactCycle, CompactCycleSegment, DynamicMinRatioError, DynamicMinRatioReplay,
-    ShiftedTreeChain, TreeChainMetrics,
+    CompactCycle, CompactCycleSegment, DynamicAuditMetrics, DynamicMinRatioAudit,
+    DynamicMinRatioError, DynamicMinRatioReplay, ShiftedTreeChain, TreeChainMetrics,
+    UnsupportedDynamicOperation,
 };
 pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,

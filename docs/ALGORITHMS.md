@@ -305,6 +305,12 @@ deterministic Definition 5.9/5.10 shift/rebuild trace, while
 ledger. It does not search for an approximate cycle or claim Theorem 5.1's
 data structure or amortized bound.
 
+`DynamicMinRatioAudit` is the P8.6 integration boundary: it validates compact
+cycles against P7, retains P8.1/P8.5 replay state, and counts every check and
+rejected request. Edge insertion, directed edges, and arbitrary topology
+updates return explicit unsupported-operation errors. It is an audit component,
+not an approximate dynamic cycle solver.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.

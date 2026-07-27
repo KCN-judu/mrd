@@ -425,11 +425,11 @@ query, dynamic data-structure, or amortized-bound claim.
 
 ### P8.6 - Dynamic minimum-ratio integration audit
 
-**State:** in_progress. Integrate the P8.5 structure only behind its checked
-stable-state contract. Require deterministic replay, static-Oracle comparison,
-explicit unsupported-operation rejection, and full amortized-work evidence.
-This closes P8 only as a dynamic component; P9 remains responsible for any
-end-to-end min-cost-flow integration and almost-linear gate.
+**State:** committed. The P8.6 audit integrates checked P8 replay, P7 static
+cycle validation, explicit unsupported-operation rejection, and exact replay
+work counters. Full evidence is in
+`docs/phase-reports/P08-6-dynamic-min-ratio-audit.md`. P8 supplies baseline
+components only; P9 retains every end-to-end and almost-linear source gate.
 
 ### Mandatory transition after this phase
 
