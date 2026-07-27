@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P2
-- Current phase state: committed
-- Last completed phase: P1
-- Last pushed SHA: fe1be927a99d1734afb72bd9cc46ee394112da48
-- Plan last updated: 2026-07-27T10:37:14Z
+- Current phase: P3
+- Current phase state: in_progress
+- Last completed phase: P2
+- Last pushed SHA: 521f82d2a33e31bccfbb1c363fdbf0049751c2d6
+- Plan last updated: 2026-07-27T10:39:44Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -139,7 +139,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P2 - Formal boundary representation
 
-**State:** committed. **Start SHA:** `fe1be92`. **Implementation SHAs:**
+**State:** complete. **Start SHA:** `fe1be92`. **Implementation SHAs:**
 `95abbcf`, `b8c2d15`. Implement ornaments, point holes, segment holes, isolated
 formal-boundary points, formal incidence, canonical normalization, exact
 serialization, and structured validation. Preserve the ordinary polygon model
@@ -174,11 +174,40 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P3 - Formal-hole SG sweep and completion
 
-**State:** planned. Implement the original Soltan--Gorpinevich formal-boundary
+**State:** in_progress. **Start SHA:** `521f82d`. Implement the original Soltan--Gorpinevich formal-boundary
 event model, merge/delete cases, effective chords, completion, sparse
 subdivision, and validation for newly supported degeneracies. Require exact
 ordinary-input agreement, source-mapped invariants, and dedicated formal-hole
 fixtures. Suggested release: `v1.5.0-formal-hole-geometry`.
+
+### P3 subphases
+
+1. **P3.1 - Local nonconvexity and Definition 7 Oracle.** Derive inner-angle
+   sectors and the source measure at every formal vertex, including isolated
+   points and vertices with coincident or multiple incident elementary
+   segments. Implement an exact pairwise Definition 7 predicate/enumerator as
+   the permanent formal-boundary Oracle and verify the paper's Fig. 3 family.
+2. **P3.2 - Source merge/delete effective-chord construction.** Implement the
+   axis-generic Section 10 Step 1(a)--(d) construction, including finite formal
+   boundary contacts, repeated endpoint deletion, repeated non-isolated-vertex
+   merging, canonical fixed-point filtering, provenance, and proof-matching
+   counters. Require exact equality with the P3.1 Oracle and the existing
+   ordinary `sg-sweep` on empty ornaments.
+3. **P3.3 - Formal admissible-family and optimum integration.** Feed formal
+   chord families, including collinear chords sharing isolated endpoints,
+   through the permanent explicit and compact conflict/matching Oracles without
+   changing orthogonal-intersection semantics. Verify identical maximum
+   admissible families, cuts, covers, and optimum counts across backends.
+4. **P3.4 - Formal completion, subdivision, and validation.** Add selected
+   effective chords to the formal boundary, repeatedly add source-valid simple
+   chords that remove remaining local nonconvexity, recover rectangles from the
+   resulting formal subdivision, and validate Definition 2 coverage without
+   raster assumptions. Preserve ordinary completion and sparse validation as
+   differential Oracles.
+5. **P3.5 - CLI integration and phase audit.** Enable formal `solve`, add
+   dedicated point-hole, segment-hole, attached-hole, shared-endpoint, and
+   source-example fixtures, document theorem-to-code invariants, run ordinary
+   and formal differential campaigns, and complete the mandatory audit.
 
 ### Mandatory transition after this phase
 
@@ -389,4 +418,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
 | P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
-| P2 | committed | fe1be92 | 95abbcf, b8c2d15 | pending | pending | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | pending | none |
+| P2 | complete | fe1be92 | 95abbcf, b8c2d15 | 521f82d | 521f82d | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | 2026-07-27T10:39:44Z | none |
+| P3 | in_progress | 521f82d | pending | pending | pending | pending | pending | 2026-07-27T10:39:44Z | none | none |
