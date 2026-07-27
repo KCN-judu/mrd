@@ -1,0 +1,10 @@
+{
+  "sampleRate": 48000,
+  "fps": 30,
+  "cues": [
+    {"id": "archive-room", "frame": 0, "durationFrames": 510, "stem": "room-tone"},
+    {"id": "paper-contact", "frame": 27, "durationFrames": 24, "stem": "archive-ambience"},
+    {"id": "pencil-boundary-bridge", "frame": 107, "durationFrames": 169, "stem": "interaction"},
+    {"id": "clue-lock", "frame": 456, "durationFrames": 42, "stem": "effects"}
+  ]
+}

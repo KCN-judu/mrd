@@ -1,0 +1,43 @@
+{
+  "name": "mrd-documentary",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cinematic mathematical documentary for minimum rectangular dissection",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "build": "remotion bundle src/index.ts",
+    "typecheck": "tsc",
+    "lint": "eslint src scripts",
+    "test": "npm run data:verify && npm run typecheck",
+    "data:verify": "node scripts/verify-data.mjs",
+    "audio:generate": "node scripts/generate-guide-audio.mjs",
+    "audio:audit": "node scripts/audit-audio.mjs",
+    "render:stills": "remotion still src/index.ts MRDMoodTest1080 out/review/MRDMoodTestStill.png --frame=465",
+    "render:sample": "remotion render src/index.ts MRDMoodTest1080 out/review/MRDMoodTestSample.mp4 --frames=0-179 --scale=0.5 --codec=h264 --crf=23",
+    "render:review": "remotion render src/index.ts MRDMoodTest1080 out/review/MRDMoodTest1080.mp4 --codec=h264 --crf=18 --audio-codec=aac",
+    "render:master": "remotion render src/index.ts MRDDocumentary4K out/final/MRDDocumentary4K.mp4 --codec=h264 --crf=15 --audio-codec=aac"
+  },
+  "dependencies": {
+    "@react-three/fiber": "9.6.1",
+    "@remotion/cli": "4.0.499",
+    "@remotion/media": "4.0.499",
+    "@remotion/three": "4.0.499",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.499",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.499",
+    "@types/react": "19.2.7",
+    "@types/three": "0.183.1",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "prettier": "3.8.1",
+    "typescript": "5.9.3"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

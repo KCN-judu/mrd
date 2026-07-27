@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "algorithmCommit": "093961fc6dbd39d853a18bb793160ac290ed0baf",
+  "algorithmRelease": "v1.3.0-output-sensitive-sparse-geometry",
+  "sources": [
+    {
+      "id": "polygon/comb@093961f",
+      "path": "test-data/polygons/comb.json",
+      "sha256": "073001128c4b6870eeca197182b7f523c31a137ffd1f4bdd1f6817e289a35675",
+      "derivedPath": "media/mrd-documentary/data/mood-test.json",
+      "generator": "target/release/rect-cli",
+      "generatorSha256": "c9995799cf90978af480c6a62f284702a12da99defa792e64acce0818bce0bca",
+      "solver": "dominance-compact-only",
+      "polygonChords": "sg-sweep"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "sourceId": "polygon/comb@093961f",
+  "algorithmCommit": "093961fc6dbd39d853a18bb793160ac290ed0baf",
+  "fixturePath": "test-data/polygons/comb.json",
+  "fixtureSha256": "073001128c4b6870eeca197182b7f523c31a137ffd1f4bdd1f6817e289a35675",
+  "polygon": {
+    "outer": [[0,0],[20,0],[20,10],[18,10],[18,4],[16,4],[16,10],[14,10],[14,4],[12,4],[12,10],[10,10],[10,4],[8,4],[8,10],[6,10],[6,4],[4,4],[4,10],[0,10]],
+    "holes": []
+  },
+  "effectiveChords": [
+    {"orientation":"horizontal","left":6,"right":8,"y":4},
+    {"orientation":"horizontal","left":10,"right":12,"y":4},
+    {"orientation":"horizontal","left":14,"right":16,"y":4}
+  ],
+  "revealedChordIndex": 1,
+  "optimumRectangleCount": 6,
+  "diagnostics": {
+    "boundaryVertexCount": 20,
+    "reflexVertexCount": 8,
+    "effectiveChordCount": 3,
+    "polygonChordEnumerator": "sg-sweep",
+    "polygonRecoveryBackend": "sparse-subdivision",
+    "polygonValidatorBackend": "sparse-slab"
+  }
+}
