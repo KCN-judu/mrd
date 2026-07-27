@@ -69,7 +69,12 @@ impl ExactRatio {
                 .ok_or(StableMinRatioError::Overflow)?)
     }
 
-    fn add(self, other: Self) -> Result<Self, StableMinRatioError> {
+    /// Adds two exact ratios.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact arithmetic overflows.
+    pub fn checked_add(self, other: Self) -> Result<Self, StableMinRatioError> {
         Self::new(
             self.numerator
                 .checked_mul(other.denominator)
@@ -236,7 +241,7 @@ impl StableMinRatioLedger {
         let objective = dot(&candidate, &update.direction)?;
         let beta = ExactRatio::new(objective, update.eta)?;
         for (flow, direction) in self.flows.iter_mut().zip(&update.direction) {
-            *flow = flow.add(beta.multiply_integer(-*direction)?)?;
+            *flow = flow.checked_add(beta.multiply_integer(-*direction)?)?;
         }
         for (index, changed) in explicit.into_iter().enumerate() {
             if changed {

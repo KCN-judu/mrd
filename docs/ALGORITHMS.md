@@ -290,6 +290,13 @@ path for every active input edge; validation recomputes path endpoints,
 connectivity, congestion, path length, and recourse counters. There is no
 directed graph, insertion, arbitrary update, expander, or theorem-runtime API.
 
+`rect-graph::lsf_mwu::ForestCollection` is the P8.4 exact small-instance
+baseline for Lemma 5.5's forest collection. It deterministically reweights
+edges after exact P8.2 stretch measurements, constructs weighted Kruskal trees,
+and emits exact per-edge average-stretch certificates with operation counters.
+It does not claim Lemma 5.5's `O(log^7 n)` guarantee or its production-scale
+construction.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.

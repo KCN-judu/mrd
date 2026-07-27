@@ -408,10 +408,12 @@ in `docs/phase-reports/P08-3-decremental-spanner-certificates.md`; no Theorem
 
 ### P8.4 - Deterministic low-stretch forest collection
 
-**State:** in_progress. Implement the deterministic multiplicative-weights forest
-collection of Lemma 5.5 over the P8.2 and P8.3 checked primitives. Require
-deterministic ordering, per-edge average-stretch certificates, and operation
-accounting; retain explicit small-instance forest enumeration as an Oracle.
+**State:** committed. A deterministic checked reweighting baseline now builds
+weighted Kruskal forest candidates, records exact per-edge average-stretch
+certificates and operation counts, and retains P8.2 static stretch computation
+as the Oracle. Full evidence is in
+`docs/phase-reports/P08-4-forest-collection.md`; no Lemma 5.5 bound or
+production construction claim is made.
 
 ### P8.5 - Compact cycle tree chain and hidden-stability query
 
