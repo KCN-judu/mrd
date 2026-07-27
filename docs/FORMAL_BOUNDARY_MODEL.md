@@ -140,3 +140,42 @@ bound; P3.2's Section 10 merge/delete construction is checked against it. The
 paper's Fig. 3 example is reconstructed as an integer-coordinate fixture and
 produces exactly its six listed effective chords. Empty ornaments additionally
 match the preserved ordinary pairwise Definition 7 implementation exactly.
+
+## Section 10 source construction
+
+P3.2 implements the horizontal and vertical procedures of Section 10 Step 1
+(pp. 76--77) with one axis-generic fixed-point construction:
+
+1. Step (a) groups all formal vertices by axis line and considers consecutive
+   pairs only. Any nonconsecutive pair contains a formal vertex in its open
+   interval and therefore cannot itself be a primitive open-interior chord.
+2. An exact ordinary-boundary parity index classifies each candidate midpoint.
+   Collinear formal elementary segments are rejected directly, and an offline
+   strict-endpoint sweep removes candidates crossed by an orthogonal formal
+   elementary segment. The event order is end, query, start, so a contact at a
+   candidate endpoint is not treated as an open-interval crossing.
+3. Step (b) deletes a surviving chord when either endpoint has two incident
+   orthogonal elementary segments.
+4. Step (c) repeatedly merges adjacent surviving chords through a shared
+   non-isolated formal vertex. Chords sharing an isolated vertex remain
+   separate, as required by Observation 3.
+5. Step (d) deletes a merged chord unless both endpoints have positive local
+   nonconvexity measure and are isolated or incident to a collinear elementary
+   segment.
+
+The adjacent candidate intervals on any one axis line are disjoint. During the
+orthogonal sweep at most one candidate is active per line, and an invalid
+candidate is reported and removed at most once. Sorting vertices and events,
+indexed parity queries, active-map updates, and range starts cost `O(log n)`
+each; total event and reported-crossing counts are `O(n)`. The implemented
+construction therefore realizes the source's `O(n log n)` Step 1 bound using
+`O(n)` retained state. Metrics record every adjacent-pair test, midpoint query,
+candidate insertion/removal, orthogonal range query, reported crossing,
+collinear rejection, source deletion/merge/filter operation, and output. The
+`full_boundary_scans` counter is zero by construction and enforced in tests.
+
+The construction does not call the P3.1 Oracle. It matches that independent
+pairwise Definition 7 implementation on the paper's Fig. 3 and all 511 nonempty
+subsets of a 3-by-3 isolated-point lattice. With an empty ornament it also
+matches both the permanent ordinary pairwise Oracle and the production ordinary
+SG sweep exactly, including canonical chord IDs.

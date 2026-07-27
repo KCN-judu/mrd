@@ -17,9 +17,11 @@ pub use context::{PreparedComponentContext, PreparedContextError};
 pub use formal_polygon::{
     ElementarySegment, ElementarySegmentId, FormalBoundaryComponent, FormalBoundaryComponentId,
     FormalBoundaryComponentKind, FormalBoundaryDimension, FormalBoundaryIncidence,
-    FormalBoundarySource, FormalChordEndpoints, FormalDirection, FormalEffectiveChordFamilies,
-    FormalInnerAngle, FormalPolygonError, FormalQuadrant, FormalRectilinearPolygon, FormalVertex,
-    FormalVertexGeometry, FormalVertexId, Ornament, OrnamentSegment,
+    FormalBoundarySource, FormalChordAxis, FormalChordConstructionMetrics,
+    FormalChordConstructionRecord, FormalChordConstructionResult, FormalChordEndpoints,
+    FormalDirection, FormalEffectiveChordFamilies, FormalInnerAngle, FormalPolygonError,
+    FormalQuadrant, FormalRectilinearPolygon, FormalVertex, FormalVertexGeometry, FormalVertexId,
+    Ornament, OrnamentSegment,
 };
 pub use formats::{FormatError, SvgOverlay, render_dissection_svg, render_polygon_dissection_svg};
 pub use geometry::{

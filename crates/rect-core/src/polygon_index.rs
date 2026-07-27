@@ -493,6 +493,18 @@ impl OrthogonalEdgeIndex {
                 == 1
     }
 
+    /// Returns odd-even topological containment without a boundary check.
+    ///
+    /// Callers may use this only when boundary contacts are rejected by a
+    /// separate exact index or sweep.
+    #[must_use]
+    pub(crate) fn contains_doubled_point_by_parity(&self, point: DoubledPoint) -> bool {
+        self.vertical_half_open
+            .count_keys_right_of(point.y, point.x)
+            % 2
+            == 1
+    }
+
     /// Returns loop identities whose bounded interiors contain the point.
     #[must_use]
     pub fn containing_loop_ids(&self, point: DoubledPoint) -> BTreeSet<BoundaryLoopId> {

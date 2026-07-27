@@ -3303,6 +3303,14 @@ mod tests {
             let formal_chords = formal.effective_chords_pairwise().unwrap();
             assert_eq!(formal_chords.horizontal, ordinary.horizontal);
             assert_eq!(formal_chords.vertical, ordinary.vertical);
+            let source = formal.effective_chords_source().unwrap();
+            let sweep = SoltanGorpinevichSweepEnumerator
+                .enumerate(formal.region())
+                .unwrap();
+            assert_eq!(source.families.horizontal, ordinary.horizontal);
+            assert_eq!(source.families.vertical, ordinary.vertical);
+            assert_eq!(source.families.horizontal, sweep.horizontal);
+            assert_eq!(source.families.vertical, sweep.vertical);
         }
     }
 
