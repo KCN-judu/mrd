@@ -12,5 +12,5 @@ pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
 };
 pub use min_cost::{
-    CirculationArcId, CirculationNetwork, MinCostCirculationError, MinCostSolution,
+    CirculationArcId, CirculationNetwork, MinCostCirculationError, MinCostSolution, MinRatioCycle,
 };

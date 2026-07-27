@@ -156,6 +156,41 @@ pub struct MinCostSolution {
     pub cost: i128,
 }
 
+/// An exact simple-cycle minimum-ratio result for the static Oracle.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MinRatioCycle {
+    pub arcs: Vec<(CirculationArcId, i8)>,
+    pub gradient_sum: i128,
+    pub length_sum: i128,
+}
+
+impl CirculationNetwork {
+    /// Exhaustively enumerates simple directed residual cycles. This is a
+    /// superlinear baseline Oracle for Definition 4.2, not a dynamic backend.
+    pub fn minimum_ratio_cycle(
+        &self,
+        gradients: &[i128],
+        lengths: &[i128],
+    ) -> Result<Option<MinRatioCycle>, MinCostCirculationError> {
+        if gradients.len() != self.arcs.len()
+            || lengths.len() != self.arcs.len()
+            || lengths.iter().any(|value| *value <= 0)
+        {
+            return Err(MinCostCirculationError::InvalidRatioInput);
+        }
+        let mut best = None;
+        for start in 0..self.node_count {
+            let mut seen = vec![false; self.node_count];
+            seen[start] = true;
+            let mut path = Vec::new();
+            enumerate_cycles(
+                self, gradients, lengths, start, start, &mut seen, &mut path, 0, 0, &mut best,
+            )?;
+        }
+        Ok(best)
+    }
+}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum MinCostCirculationError {
     #[error("node {node} is outside network with {node_count} nodes")]
@@ -168,6 +203,63 @@ pub enum MinCostCirculationError {
     Infeasible,
     #[error("exact integer arithmetic overflowed")]
     Overflow,
+    #[error("gradient/length dimensions differ or a length is not positive")]
+    InvalidRatioInput,
+}
+
+fn enumerate_cycles(
+    network: &CirculationNetwork,
+    gradients: &[i128],
+    lengths: &[i128],
+    start: usize,
+    node: usize,
+    seen: &mut [bool],
+    path: &mut Vec<(CirculationArcId, i8)>,
+    gradient: i128,
+    length: i128,
+    best: &mut Option<MinRatioCycle>,
+) -> Result<(), MinCostCirculationError> {
+    for (index, arc) in network
+        .arcs
+        .iter()
+        .enumerate()
+        .filter(|(_, arc)| arc.from == node)
+    {
+        let next = arc.to;
+        let g = gradient
+            .checked_add(gradients[index])
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let l = length
+            .checked_add(lengths[index])
+            .ok_or(MinCostCirculationError::Overflow)?;
+        if next == start && !path.is_empty() {
+            let mut arcs = path.clone();
+            arcs.push((CirculationArcId(index), 1));
+            let candidate = MinRatioCycle {
+                arcs,
+                gradient_sum: g,
+                length_sum: l,
+            };
+            if best.as_ref().is_none_or(|old| {
+                g.checked_mul(old.length_sum).is_some_and(|left| {
+                    old.gradient_sum
+                        .checked_mul(l)
+                        .is_some_and(|right| left < right)
+                })
+            }) {
+                *best = Some(candidate)
+            }
+        } else if !seen[next] {
+            seen[next] = true;
+            path.push((CirculationArcId(index), 1));
+            enumerate_cycles(
+                network, gradients, lengths, start, next, seen, path, g, l, best,
+            )?;
+            path.pop();
+            seen[next] = false;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -353,5 +445,21 @@ mod tests {
         network.set_demand(FlowNodeId(0), -1).unwrap();
         network.set_demand(FlowNodeId(1), 1).unwrap();
         assert_eq!(network.solve(), Err(MinCostCirculationError::Infeasible));
+    }
+
+    #[test]
+    fn selects_the_lowest_exact_simple_cycle_ratio() {
+        let mut network = CirculationNetwork::new(3);
+        let a = network.add_arc(FlowNodeId(0), FlowNodeId(1), 1, 0).unwrap();
+        let b = network.add_arc(FlowNodeId(1), FlowNodeId(0), 1, 0).unwrap();
+        network.add_arc(FlowNodeId(0), FlowNodeId(2), 1, 0).unwrap();
+        network.add_arc(FlowNodeId(2), FlowNodeId(0), 1, 0).unwrap();
+        let result = network
+            .minimum_ratio_cycle(&[-2, 0, -1, 0], &[1, 1, 1, 1])
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.gradient_sum, -2);
+        assert_eq!(result.length_sum, 2);
+        assert_eq!(result.arcs, vec![(a, 1), (b, 1)]);
     }
 }
