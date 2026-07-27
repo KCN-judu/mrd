@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.6
+- Current phase: P9
 - Current phase state: in_progress
-- Last completed phase: P7
-- Last pushed SHA: 200bcc84b21581a4065fdda6a261a3de291563d9
-- Plan last updated: 2026-07-28T03:00:00Z
+- Last completed phase: P8
+- Last pushed SHA: 32d7b49e930c3c735062a20386258eb99ae78aea
+- Plan last updated: 2026-07-28T03:30:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -425,7 +425,7 @@ query, dynamic data-structure, or amortized-bound claim.
 
 ### P8.6 - Dynamic minimum-ratio integration audit
 
-**State:** committed. The P8.6 audit integrates checked P8 replay, P7 static
+**State:** complete. The P8.6 audit integrates checked P8 replay, P7 static
 cycle validation, explicit unsupported-operation rejection, and exact replay
 work counters. Full evidence is in
 `docs/phase-reports/P08-6-dynamic-min-ratio-audit.md`. P8 supplies baseline
@@ -445,7 +445,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P9 - Integrated deterministic almost-linear exact flow
 
-**State:** planned. Integrate dynamic minimum-ratio-cycle with iterative
+**State:** in_progress. Integrate dynamic minimum-ratio-cycle with iterative
 refinement and exact max/min-cost recovery. Name it `AlmostLinear` only with
 complete source mapping, all assumptions checked, no Dinic/push-relabel
 fallback, exact differential gates, proof-matching counters, checked
