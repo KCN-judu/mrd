@@ -964,6 +964,37 @@ mod tests {
             incidence.elementary_segments.len(),
             ordinary.boundary_complexity()
         );
+
+        for doubled_x in -2..=42 {
+            for doubled_y in -2..=42 {
+                let point = crate::DoubledPoint::new(doubled_x, doubled_y);
+                assert_eq!(
+                    formal.contains_doubled_point_strict(point),
+                    ordinary.contains_doubled_point_strict(point),
+                    "point predicate differs at ({doubled_x}, {doubled_y})"
+                );
+            }
+        }
+        for first in -1..=21 {
+            for second in first + 1..=21 {
+                for doubled_coordinate in -2..=42 {
+                    assert_eq!(
+                        formal.contains_open_horizontal_segment(first, second, doubled_coordinate,),
+                        ordinary.contains_open_horizontal_segment(
+                            first,
+                            second,
+                            doubled_coordinate,
+                        ),
+                        "horizontal predicate differs for ({first}, {second}, {doubled_coordinate})"
+                    );
+                    assert_eq!(
+                        formal.contains_open_vertical_segment(doubled_coordinate, first, second,),
+                        ordinary.contains_open_vertical_segment(doubled_coordinate, first, second,),
+                        "vertical predicate differs for ({doubled_coordinate}, {first}, {second})"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
