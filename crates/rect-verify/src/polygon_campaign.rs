@@ -131,6 +131,27 @@ pub struct PolygonScalingRow {
     pub reference_microseconds: u128,
     pub indexed_microseconds: u128,
     pub sweep_microseconds: u128,
+    pub subdivision_input_segment_count: usize,
+    pub subdivision_reported_intersections: usize,
+    pub reference_subdivision_candidate_pair_tests: usize,
+    pub sweep_subdivision_candidate_pair_tests: usize,
+    pub reference_subdivision_recovery_microseconds: u128,
+    pub sweep_subdivision_recovery_microseconds: u128,
+    pub dense_recovery_microseconds: u128,
+    pub reference_validator_microseconds: u128,
+    pub event_validator_microseconds: u128,
+    pub dense_validator_microseconds: u128,
+    pub reference_validator_boundary_edge_scans: usize,
+    pub reference_validator_active_rectangle_resorts: usize,
+    pub event_validator_boundary_edge_scans: usize,
+    pub event_validator_active_rectangle_resorts: usize,
+    pub sparse_materialized_tree_nodes: usize,
+    pub sparse_logical_tree_nodes: usize,
+    pub geometry_backends_equal: bool,
+    pub auto_selected_backend: String,
+    pub actual_fastest_recovery_backend: String,
+    pub auto_time_regret_microseconds: u128,
+    pub auto_memory_regret_bytes: usize,
     /// `C / max(1, q)` is represented exactly by these two fields.
     pub candidate_output_ratio_numerator: usize,
     pub candidate_output_ratio_denominator: usize,
@@ -170,7 +191,7 @@ impl PolygonScalingReport {
     #[allow(clippy::too_many_lines)]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,coordinate_x_count,coordinate_y_count,coordinate_cartesian_product,sparse_subdivision_vertices,sparse_subdivision_half_edges,sparse_subdivision_junctions,sparse_subdivision_interior_faces,dense_owned_bytes_estimate,sparse_owned_bytes_estimate,cut_index_owned_bytes_estimate,completion_microseconds,recovery_microseconds,validation_microseconds,reference_microseconds,indexed_microseconds,sweep_microseconds,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
+            "family,family_name,size,boundary_complexity,hole_count,reflex_count,aligned_candidate_count,chord_count,candidate_output_ratio_numerator,candidate_output_ratio_denominator,selected_horizontal_cut_count,selected_vertical_cut_count,added_horizontal_cut_count,added_vertical_cut_count,coordinate_x_count,coordinate_y_count,coordinate_cartesian_product,sparse_subdivision_vertices,sparse_subdivision_half_edges,sparse_subdivision_junctions,sparse_subdivision_interior_faces,dense_owned_bytes_estimate,sparse_owned_bytes_estimate,cut_index_owned_bytes_estimate,completion_microseconds,recovery_microseconds,validation_microseconds,reference_microseconds,indexed_microseconds,sweep_microseconds,subdivision_input_segment_count,subdivision_reported_intersections,reference_subdivision_candidate_pair_tests,sweep_subdivision_candidate_pair_tests,reference_subdivision_recovery_microseconds,sweep_subdivision_recovery_microseconds,dense_recovery_microseconds,reference_validator_microseconds,event_validator_microseconds,dense_validator_microseconds,reference_validator_boundary_edge_scans,reference_validator_active_rectangle_resorts,event_validator_boundary_edge_scans,event_validator_active_rectangle_resorts,sparse_materialized_tree_nodes,sparse_logical_tree_nodes,geometry_backends_equal,auto_selected_backend,actual_fastest_recovery_backend,auto_time_regret_microseconds,auto_memory_regret_bytes,reference_pair_iterations,indexed_pair_iterations,sweep_event_count,sweep_status_operations,sweep_output_record_count,chord_families_equal,optimum_equal,cuts_equal,rectangles_equal,three_backend_equal,reference_boundary_edge_visits,indexed_boundary_edge_visits,reference_definition7_full_boundary_scans,indexed_definition7_full_boundary_scans,sweep_aligned_pair_iterations,sweep_all_pair_iterations,sweep_definition7_fallback_checks,sweep_full_boundary_scans,sweep_duplicate_output_count,reference_completion_candidate_rebuilds,indexed_completion_candidate_rebuilds,reference_completion_cut_pair_tests,indexed_completion_cut_pair_tests,reference_completion_full_boundary_scans,indexed_completion_full_boundary_scans,reference_completion_full_cut_scans,indexed_completion_full_cut_scans,reference_arrangement_boundary_edge_visits,indexed_arrangement_boundary_edge_visits,reference_validator_rectangle_cell_tests,indexed_validator_rectangle_cell_tests,reference_prepare_owned_bytes,indexed_prepare_owned_bytes,sweep_prepare_owned_bytes,reference_owned_allocations,indexed_owned_allocations,sweep_owned_allocations,status,message\n",
         );
         for row in &self.rows {
             let reference_owned =
@@ -213,6 +234,27 @@ impl PolygonScalingReport {
                 row.reference_microseconds.to_string(),
                 row.indexed_microseconds.to_string(),
                 row.sweep_microseconds.to_string(),
+                row.subdivision_input_segment_count.to_string(),
+                row.subdivision_reported_intersections.to_string(),
+                row.reference_subdivision_candidate_pair_tests.to_string(),
+                row.sweep_subdivision_candidate_pair_tests.to_string(),
+                row.reference_subdivision_recovery_microseconds.to_string(),
+                row.sweep_subdivision_recovery_microseconds.to_string(),
+                row.dense_recovery_microseconds.to_string(),
+                row.reference_validator_microseconds.to_string(),
+                row.event_validator_microseconds.to_string(),
+                row.dense_validator_microseconds.to_string(),
+                row.reference_validator_boundary_edge_scans.to_string(),
+                row.reference_validator_active_rectangle_resorts.to_string(),
+                row.event_validator_boundary_edge_scans.to_string(),
+                row.event_validator_active_rectangle_resorts.to_string(),
+                row.sparse_materialized_tree_nodes.to_string(),
+                row.sparse_logical_tree_nodes.to_string(),
+                row.geometry_backends_equal.to_string(),
+                row.auto_selected_backend.clone(),
+                row.actual_fastest_recovery_backend.clone(),
+                row.auto_time_regret_microseconds.to_string(),
+                row.auto_memory_regret_bytes.to_string(),
                 row.reference_pair_iterations.to_string(),
                 row.indexed_pair_iterations.to_string(),
                 row.sweep_event_count.to_string(),
@@ -603,6 +645,22 @@ pub fn polygon_scaling_campaign(
         for (family, family_name, polygon) in families {
             match solve_triple(&polygon) {
                 Ok((reference, indexed, sweep, reference_micros, indexed_micros, sweep_micros)) => {
+                    let (dense_geometry, reference_sparse, auto) =
+                        match solve_geometry_variants(&polygon) {
+                            Ok(variants) => variants,
+                            Err(message) => {
+                                solver_errors += 1;
+                                rows.push(PolygonScalingRow {
+                                    family,
+                                    family_name,
+                                    size,
+                                    status: "solver-error".to_owned(),
+                                    message: Some(message),
+                                    ..empty_scaling_row()
+                                });
+                                continue;
+                            }
+                        };
                     let cuts_equal = certificate_field(&reference, "selected_horizontal_cuts")
                         == certificate_field(&indexed, "selected_horizontal_cuts")
                         && certificate_field(&reference, "selected_horizontal_cuts")
@@ -639,10 +697,46 @@ pub fn polygon_scaling_campaign(
                             && sweep.diagnostics.sweep_definition7_fallback_checks == Some(0)
                             && sweep.diagnostics.sweep_full_boundary_scans == Some(0)
                             && sweep.diagnostics.sweep_duplicate_output_count == Some(0);
+                    let geometry_backends_equal = dense_geometry.rectangles == sweep.rectangles
+                        && reference_sparse.rectangles == sweep.rectangles
+                        && auto.rectangles == sweep.rectangles;
+                    let sweep_recovery_microseconds =
+                        phase_time(&sweep, "polygon_rectangle_recovery");
+                    let reference_sparse_recovery_microseconds =
+                        phase_time(&reference_sparse, "polygon_rectangle_recovery");
+                    let dense_recovery_microseconds =
+                        phase_time(&dense_geometry, "polygon_rectangle_recovery");
+                    let auto_recovery_microseconds =
+                        phase_time(&auto, "polygon_rectangle_recovery");
+                    let (actual_fastest_recovery_backend, fastest_recovery_microseconds) =
+                        if dense_recovery_microseconds <= sweep_recovery_microseconds {
+                            ("dense-arrangement", dense_recovery_microseconds)
+                        } else {
+                            ("sparse-subdivision", sweep_recovery_microseconds)
+                        };
+                    let dense_bytes = dense_geometry
+                        .diagnostics
+                        .dense_recovery_retained_byte_estimate
+                        .unwrap_or(0);
+                    let sparse_bytes = sweep
+                        .diagnostics
+                        .sparse_subdivision_owned_bytes
+                        .unwrap_or(0);
+                    let auto_selected_backend = auto
+                        .diagnostics
+                        .polygon_selected_recovery_backend
+                        .clone()
+                        .unwrap_or_default();
+                    let selected_bytes = if auto_selected_backend == "dense-arrangement" {
+                        dense_bytes
+                    } else {
+                        sparse_bytes
+                    };
                     let three_backend_equal = chord_families_equal
                         && optimum_equal
                         && cuts_equal
                         && rectangles_equal
+                        && geometry_backends_equal
                         && sweep_contract_valid;
                     let verified = three_backend_equal;
                     disagreements += usize::from(!verified);
@@ -747,6 +841,69 @@ pub fn polygon_scaling_campaign(
                         reference_microseconds: reference_micros,
                         indexed_microseconds: indexed_micros,
                         sweep_microseconds: sweep_micros,
+                        subdivision_input_segment_count: sweep
+                            .diagnostics
+                            .subdivision_input_segment_count
+                            .unwrap_or(0),
+                        subdivision_reported_intersections: sweep
+                            .diagnostics
+                            .subdivision_reported_intersections
+                            .unwrap_or(0),
+                        reference_subdivision_candidate_pair_tests: reference_sparse
+                            .diagnostics
+                            .subdivision_candidate_pair_tests
+                            .unwrap_or(0),
+                        sweep_subdivision_candidate_pair_tests: sweep
+                            .diagnostics
+                            .subdivision_candidate_pair_tests
+                            .unwrap_or(0),
+                        reference_subdivision_recovery_microseconds:
+                            reference_sparse_recovery_microseconds,
+                        sweep_subdivision_recovery_microseconds: sweep_recovery_microseconds,
+                        dense_recovery_microseconds,
+                        reference_validator_microseconds: phase_time(
+                            &reference_sparse,
+                            "polygon_final_validation",
+                        ),
+                        event_validator_microseconds: phase_time(
+                            &sweep,
+                            "polygon_final_validation",
+                        ),
+                        dense_validator_microseconds: phase_time(
+                            &dense_geometry,
+                            "polygon_final_validation",
+                        ),
+                        reference_validator_boundary_edge_scans: reference_sparse
+                            .diagnostics
+                            .validator_boundary_edge_scans
+                            .unwrap_or(0),
+                        reference_validator_active_rectangle_resorts: reference_sparse
+                            .diagnostics
+                            .validator_active_rectangle_resorts
+                            .unwrap_or(0),
+                        event_validator_boundary_edge_scans: sweep
+                            .diagnostics
+                            .validator_boundary_edge_scans
+                            .unwrap_or(0),
+                        event_validator_active_rectangle_resorts: sweep
+                            .diagnostics
+                            .validator_active_rectangle_resorts
+                            .unwrap_or(0),
+                        sparse_materialized_tree_nodes: sweep
+                            .diagnostics
+                            .cut_index_materialized_tree_node_count
+                            .unwrap_or(0),
+                        sparse_logical_tree_nodes: sweep
+                            .diagnostics
+                            .cut_index_logical_tree_node_count
+                            .unwrap_or(0),
+                        geometry_backends_equal,
+                        auto_selected_backend,
+                        actual_fastest_recovery_backend: actual_fastest_recovery_backend.to_owned(),
+                        auto_time_regret_microseconds: auto_recovery_microseconds
+                            .saturating_sub(fastest_recovery_microseconds),
+                        auto_memory_regret_bytes: selected_bytes
+                            .saturating_sub(dense_bytes.min(sparse_bytes)),
                         reference_pair_iterations: reference
                             .diagnostics
                             .polygon_aligned_reflex_candidate_pairs
@@ -1182,6 +1339,46 @@ fn solve_triple(
     ))
 }
 
+fn solve_geometry_variants(
+    polygon: &RectilinearPolygon,
+) -> Result<
+    (
+        PolygonDissectionResult,
+        PolygonDissectionResult,
+        PolygonDissectionResult,
+    ),
+    String,
+> {
+    let mut dense_options = sweep_options();
+    dense_options.recovery_backend = PolygonRecoveryBackend::DenseCoordinateArrangement;
+    dense_options.dissection_validator_backend =
+        PolygonDissectionValidatorBackend::DenseArrangement;
+    let dense = solve_polygon_with_options(polygon, dense_options)
+        .map_err(|error| format!("dense geometry solve failed: {error}"))?;
+
+    let mut reference_sparse_options = sweep_options();
+    reference_sparse_options.subdivision_builder_backend =
+        SubdivisionBuilderBackend::ReferenceRangeScan;
+    reference_sparse_options.sparse_validator_backend = SparseValidatorBackend::ReferenceSlabRescan;
+    let reference_sparse = solve_polygon_with_options(polygon, reference_sparse_options)
+        .map_err(|error| format!("reference sparse geometry solve failed: {error}"))?;
+
+    let mut auto_options = sweep_options();
+    auto_options.recovery_backend = PolygonRecoveryBackend::Auto;
+    let auto = solve_polygon_with_options(polygon, auto_options)
+        .map_err(|error| format!("auto recovery solve failed: {error}"))?;
+    Ok((dense, reference_sparse, auto))
+}
+
+fn phase_time(result: &PolygonDissectionResult, phase: &str) -> u128 {
+    result
+        .diagnostics
+        .phase_microseconds
+        .get(phase)
+        .copied()
+        .unwrap_or(0)
+}
+
 const fn reference_options() -> PolygonSolveOptions {
     PolygonSolveOptions {
         verification_mode: VerificationMode::CompactOnly,
@@ -1334,6 +1531,12 @@ pub fn native_polygon_families(
     let huge_coordinate = four_sided_notches(size.min(8), true, 1_000_000_000_000)?;
     let clean_path_tree = four_sided_notches(size, true, 3)?;
     let non_clean_fallback = hole_row(size, true, 2)?;
+    let range_dense_intersection_sparse = four_sided_notches(size, false, 2)?;
+    let intersection_dense = four_sided_notches(size, true, 2)?;
+    let validator_active_heavy = hole_row(size, false, 2)?;
+    let validator_boundary_heavy = varying_top_notches(size.saturating_mul(3), 2)?;
+    let sparse_tree_node_heavy = hole_row(size.saturating_mul(2), true, 3)?;
+    let dense_sparse_crossover = varying_top_notches(size.saturating_mul(2), 3)?;
     Ok(vec![
         (
             "A".to_owned(),
@@ -1374,6 +1577,36 @@ pub fn native_polygon_families(
             "H".to_owned(),
             "huge-coordinate".to_owned(),
             huge_coordinate,
+        ),
+        (
+            "v1.3-A".to_owned(),
+            "range-dense-intersection-sparse".to_owned(),
+            range_dense_intersection_sparse,
+        ),
+        (
+            "v1.3-B".to_owned(),
+            "intersection-dense".to_owned(),
+            intersection_dense,
+        ),
+        (
+            "v1.3-C".to_owned(),
+            "validator-active-heavy".to_owned(),
+            validator_active_heavy,
+        ),
+        (
+            "v1.3-D".to_owned(),
+            "validator-boundary-heavy".to_owned(),
+            validator_boundary_heavy,
+        ),
+        (
+            "v1.3-E".to_owned(),
+            "sparse-tree-node-heavy".to_owned(),
+            sparse_tree_node_heavy,
+        ),
+        (
+            "v1.3-F".to_owned(),
+            "dense-sparse-crossover".to_owned(),
+            dense_sparse_crossover,
         ),
     ])
 }
@@ -1813,6 +2046,27 @@ fn empty_scaling_row() -> PolygonScalingRow {
         reference_microseconds: 0,
         indexed_microseconds: 0,
         sweep_microseconds: 0,
+        subdivision_input_segment_count: 0,
+        subdivision_reported_intersections: 0,
+        reference_subdivision_candidate_pair_tests: 0,
+        sweep_subdivision_candidate_pair_tests: 0,
+        reference_subdivision_recovery_microseconds: 0,
+        sweep_subdivision_recovery_microseconds: 0,
+        dense_recovery_microseconds: 0,
+        reference_validator_microseconds: 0,
+        event_validator_microseconds: 0,
+        dense_validator_microseconds: 0,
+        reference_validator_boundary_edge_scans: 0,
+        reference_validator_active_rectangle_resorts: 0,
+        event_validator_boundary_edge_scans: 0,
+        event_validator_active_rectangle_resorts: 0,
+        sparse_materialized_tree_nodes: 0,
+        sparse_logical_tree_nodes: 0,
+        geometry_backends_equal: false,
+        auto_selected_backend: String::new(),
+        actual_fastest_recovery_backend: String::new(),
+        auto_time_regret_microseconds: 0,
+        auto_memory_regret_bytes: 0,
         candidate_output_ratio_numerator: 0,
         candidate_output_ratio_denominator: 0,
         reference_pair_iterations: 0,
@@ -1891,7 +2145,7 @@ mod tests {
     #[test]
     fn all_native_scaling_families_are_valid_and_distinct() {
         let families = native_polygon_families(2).unwrap();
-        assert_eq!(families.len(), 8);
+        assert_eq!(families.len(), 14);
         for (_, _, polygon) in families {
             assert!(polygon.boundary_complexity() >= 4);
         }
@@ -1907,7 +2161,7 @@ mod tests {
     fn small_scaling_campaign_matches_backends() {
         let report = polygon_scaling_campaign(context("polygon-scaling"), &[1]);
         assert!(report.verified(), "{:#?}", report.rows);
-        assert_eq!(report.verified_rows, 8);
+        assert_eq!(report.verified_rows, 14);
     }
 
     #[test]
