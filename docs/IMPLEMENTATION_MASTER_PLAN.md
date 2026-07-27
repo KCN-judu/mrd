@@ -451,8 +451,8 @@ subphase is recorded in `docs/phase-reports/P09-fractional-rounding.md`:
 exact rational feasible-flow validation, deterministic costed cycle rounding,
 and a bounded-domain rational surrogate-potential verifier now exist. These
 are explicitly superlinear/auditing components, not the fixed-point IPM from
-the source. Source-grade IPM accounting, Theorem 5.1 query, source-grade P8
-constructions, and MRD integration evidence remain missing. No `AlmostLinear`
+the source. Source-grade IPM accounting, a source-grade Theorem 5.1 query,
+source-grade P8 constructions, and MRD integration evidence remain missing. No `AlmostLinear`
 backend or fallback has been introduced. Continue in the report's exact
 implementation order.
 Suggested release:

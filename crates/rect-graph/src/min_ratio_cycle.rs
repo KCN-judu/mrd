@@ -310,6 +310,15 @@ impl StableMinRatioLedger {
         Ok(())
     }
 
+    /// Returns the currently validated directed edge coordinates.
+    ///
+    /// The returned slice is intended for independent exact audit Oracles; it
+    /// does not expose the hidden witness retained by this ledger.
+    #[must_use]
+    pub fn edges(&self) -> &[StableEdge] {
+        &self.edges
+    }
+
     /// Returns the exact accumulated flow coordinate and appends a replay log.
     ///
     /// # Errors

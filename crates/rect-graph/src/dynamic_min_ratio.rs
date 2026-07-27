@@ -103,6 +103,29 @@ impl DynamicMinRatioReplay {
         self.ledger.detect(epsilon)
     }
 
+    /// Computes the exact current minimum-ratio signed simple cycle by
+    /// exhaustive enumeration. This is an auditable dynamic-query Oracle, not
+    /// the source's subpolynomial dynamic data structure.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact ratio arithmetic overflows.
+    pub fn minimum_ratio_cycle(&self) -> Result<Option<DynamicCycleQuery>, DynamicMinRatioError> {
+        self.minimum_ratio_cycle_with_work().map(|(query, _)| query)
+    }
+
+    /// Runs the exact query and returns its explicit simple-cycle candidate
+    /// count for audit accounting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact ratio arithmetic overflows.
+    pub fn minimum_ratio_cycle_with_work(
+        &self,
+    ) -> Result<(Option<DynamicCycleQuery>, u64), DynamicMinRatioError> {
+        minimum_ratio_cycle(self.ledger.edges())
+    }
+
     /// Replays one deterministic shift.
     ///
     /// # Errors
@@ -197,6 +220,17 @@ pub enum UnsupportedDynamicOperation {
 pub struct DynamicAuditMetrics {
     pub compact_cycle_checks: u64,
     pub rejected_operations: u64,
+    pub exact_cycle_queries: u64,
+    pub enumerated_cycle_candidates: u64,
+}
+
+/// Exact signed simple-cycle result for the current stable-ledger coordinates.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DynamicCycleQuery {
+    pub cycle: Vec<(MinRatioEdgeId, i8)>,
+    pub gradient_sum: i128,
+    pub length_sum: i128,
+    pub ratio: ExactRatio,
 }
 
 /// Integrates P8.1 and P8.5 only as a checked deterministic replay component.
@@ -243,6 +277,26 @@ impl DynamicMinRatioAudit {
         Err(DynamicMinRatioError::UnsupportedOperation)
     }
 
+    /// Runs the exact enumerating query and records its candidate work.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact arithmetic overflows.
+    pub fn query_best_cycle(&mut self) -> Result<Option<DynamicCycleQuery>, DynamicMinRatioError> {
+        let (query, candidates) = self.replay.minimum_ratio_cycle_with_work()?;
+        self.metrics.exact_cycle_queries = self
+            .metrics
+            .exact_cycle_queries
+            .checked_add(1)
+            .ok_or(DynamicMinRatioError::Overflow)?;
+        self.metrics.enumerated_cycle_candidates = self
+            .metrics
+            .enumerated_cycle_candidates
+            .checked_add(candidates)
+            .ok_or(DynamicMinRatioError::Overflow)?;
+        Ok(query)
+    }
+
     #[must_use]
     pub const fn metrics(&self) -> DynamicAuditMetrics {
         self.metrics
@@ -264,6 +318,120 @@ pub enum DynamicMinRatioError {
     InvalidCycle(MinCostCirculationError),
     #[error("operation is outside the checked P8 dynamic domain")]
     UnsupportedOperation,
+    #[error("exact dynamic-query arithmetic overflowed")]
+    Overflow,
+}
+
+fn minimum_ratio_cycle(
+    edges: &[crate::StableEdge],
+) -> Result<(Option<DynamicCycleQuery>, u64), DynamicMinRatioError> {
+    let node_count = edges
+        .iter()
+        .flat_map(|edge| [edge.from.0, edge.to.0])
+        .max()
+        .map_or(0, |node| node + 1);
+    let mut adjacency = vec![Vec::<(usize, MinRatioEdgeId, i8)>::new(); node_count];
+    for (index, edge) in edges.iter().enumerate() {
+        let id = MinRatioEdgeId(index);
+        adjacency[edge.from.0].push((edge.to.0, id, 1));
+        adjacency[edge.to.0].push((edge.from.0, id, -1));
+    }
+    let mut best = None;
+    let mut candidates = 0_u64;
+    for start in 0..node_count {
+        let mut seen = vec![false; node_count];
+        seen[start] = true;
+        enumerate_cycles(
+            edges,
+            &adjacency,
+            start,
+            start,
+            &mut seen,
+            &mut Vec::new(),
+            0,
+            0,
+            &mut best,
+            &mut candidates,
+        )?;
+    }
+    Ok((best, candidates))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn enumerate_cycles(
+    edges: &[crate::StableEdge],
+    adjacency: &[Vec<(usize, MinRatioEdgeId, i8)>],
+    start: usize,
+    node: usize,
+    seen: &mut [bool],
+    path: &mut Vec<(MinRatioEdgeId, i8)>,
+    gradient: i128,
+    length: i128,
+    best: &mut Option<DynamicCycleQuery>,
+    candidates: &mut u64,
+) -> Result<(), DynamicMinRatioError> {
+    for (next, id, direction) in &adjacency[node] {
+        if path.iter().any(|(previous, _)| previous == id) {
+            continue;
+        }
+        let edge = edges.get(id.0).ok_or(DynamicMinRatioError::Overflow)?;
+        let signed_gradient = edge
+            .gradient
+            .checked_mul(i128::from(*direction))
+            .ok_or(DynamicMinRatioError::Overflow)?;
+        let next_gradient = gradient
+            .checked_add(signed_gradient)
+            .ok_or(DynamicMinRatioError::Overflow)?;
+        let next_length = length
+            .checked_add(edge.length)
+            .ok_or(DynamicMinRatioError::Overflow)?;
+        if *next == start {
+            *candidates = candidates
+                .checked_add(1)
+                .ok_or(DynamicMinRatioError::Overflow)?;
+            let mut cycle = path.clone();
+            cycle.push((*id, *direction));
+            let ratio = ExactRatio::new(next_gradient, next_length)
+                .map_err(|_| DynamicMinRatioError::Overflow)?;
+            let candidate = DynamicCycleQuery {
+                cycle,
+                gradient_sum: next_gradient,
+                length_sum: next_length,
+                ratio,
+            };
+            let replace = match best.as_ref() {
+                None => true,
+                Some(current) => {
+                    current
+                        .ratio
+                        .at_least(candidate.ratio)
+                        .map_err(|_| DynamicMinRatioError::Overflow)?
+                        && current.ratio != candidate.ratio
+                }
+            };
+            if replace {
+                *best = Some(candidate);
+            }
+        } else if !seen[*next] {
+            seen[*next] = true;
+            path.push((*id, *direction));
+            enumerate_cycles(
+                edges,
+                adjacency,
+                start,
+                *next,
+                seen,
+                path,
+                next_gradient,
+                next_length,
+                best,
+                candidates,
+            )?;
+            path.pop();
+            seen[*next] = false;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -400,11 +568,17 @@ mod tests {
                 &network,
             )
             .unwrap();
+        let query = audit.query_best_cycle().unwrap().unwrap();
+        assert_eq!(query.gradient_sum, -2);
+        assert_eq!(query.length_sum, 2);
+        assert_eq!(query.ratio, ExactRatio::new(-1, 1).unwrap());
         assert_eq!(
             audit.reject_unsupported(UnsupportedDynamicOperation::EdgeInsertion),
             Err(DynamicMinRatioError::UnsupportedOperation)
         );
         assert_eq!(audit.metrics().compact_cycle_checks, 1);
         assert_eq!(audit.metrics().rejected_operations, 1);
+        assert_eq!(audit.metrics().exact_cycle_queries, 1);
+        assert!(audit.metrics().enumerated_cycle_candidates >= 1);
     }
 }
