@@ -67,6 +67,27 @@ pairwise Definition 7 implementations on ordinary holes, endpoint/topological
 fixtures, native polygons, grid-derived polygons, and metamorphic variants.
 It must not be applied to a rejected formal-boundary input.
 
+### First-hit characterization
+
+For an accepted ordinary non-contact loop, take a reflex vertex and the ray
+opposite its incident same-axis boundary edge.  The first boundary hit on that
+strict-interior ray is an effective chord endpoint exactly when it is reflex.
+The open ray has no boundary point before that hit by first-hit minimality; an
+intermediate vertex would have one horizontal and one vertical incident edge,
+so a boundary edge would meet the ray interior and contradict the same
+minimality.  The two endpoint local-angle conditions are precisely reflexness
+in the ordinary-loop model.  Thus the segment satisfies every Definition 7
+condition.  Conversely, Definition 7's strict interior condition makes its
+target the first boundary hit, and its endpoint condition makes that target
+reflex.
+
+The FullyAudited sweep audit checks this statement operationally: each emitted
+segment is rechecked by the indexed Definition 7 predicate, every reference
+chord has a first-hit record, the recorded blocker is the nearest boundary
+blocker, and equal-coordinate buckets use insertion, query, then removal
+order.  The claim deliberately excludes the formal degenerate cases described
+above.
+
 | Source step | Paper location | Rust surface | Ordinary-loop invariant | Test evidence |
 | --- | --- | --- | --- | --- |
 | construct horizontal/vertical open-interior chords | Definition 7, p. 62; Step 1(a), p. 76 | `enumerate_sweep_axis` | nearest status blocker is the first boundary hit of the strict-interior reflex ray | 3x3/4x4 and extended three-backend equality |

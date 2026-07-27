@@ -138,10 +138,13 @@ minimum-cut cover. Clean hole-free polygons may use the boundary-laminar
 path-tree partition; `Auto` falls back to 4D otherwise.
 
 `CoordinateCompressedCompletion` inserts selected chords, then horizontal and
-vertical simple chords, and flood-fills atomic coordinate rectangles. The
-polygon validator independently checks positive area, containment, holes,
-interior disjointness, exact union, total area, and the declared rectangle
-count. No production polygon stage rasterizes by coordinate magnitude.
+vertical simple chords, and flood-fills atomic coordinate rectangles; it remains
+the dense reference. CompactOnly uses the same policy with a statically closed
+dynamic stabbing index, sparse half-edge face recovery, and an exact vertical
+slab validator. The polygon validator independently checks positive area,
+containment, holes, interior disjointness, exact union, total area, and the
+declared rectangle count. No production polygon stage rasterizes by coordinate
+magnitude or materializes the coordinate Cartesian product.
 
 ## Acceptance matrix
 
@@ -178,6 +181,9 @@ biclique vertex occurrences.
 | SG ordinary-polygon sweep effective chords | `rect-oracle-sg::polygon` | `SoltanGorpinevichSweepEnumerator::enumerate_prepared` | `O(n log n + q)` status construction and output writing | Section 10 Step 1, pp. 76--77, specialized to ordinary loops | source-invariant, 3x3/4x4, extended, hole, metamorphic, and candidate-gap campaigns | both pairwise enumerators | no ornaments, isolated points, or degenerate formal holes |
 | Indexed polygon completion | `rect-oracle-sg::polygon` | `IndexedPolygonCompletion::complete_prepared` | incremental endpoint/intersection frontier plus indexed ray shooting | general linear/log-linear construction in source model | exact selected/added cuts and rectangles | `CoordinateCompressedCompletion` | no full classical completion bound claim |
 | Shared polygon arrangement | `rect-oracle-sg::polygon_arrangement` | `PreparedCoordinateArrangement::new` | scanline span fill, dense barriers/recovery, difference-array validation | verification/output layer | exact rectangle and invalid-output differential | reference recovery/validator | `O(|X||Y|)` storage |
+| Dynamic polygon cut index | `rect-oracle-sg::polygon_cut_index` | `DynamicStabbingCutIndex` | static-universe segment-tree stabbing plus canonical line intervals | data-structure implementation of completion ray/query needs | line-map equality and zero scan counters | `DynamicPolygonCutIndex` | ordinary integer-coordinate closure only |
+| Sparse polygon recovery | `rect-oracle-sg::polygon_sparse` | `SparseOrthogonalSubdivision::recover_rectangles` | sparse segment splitting, half-edge face walk, and rectangle checks | output layer, not claimed as the source's full general completion bound | dense/sparse cut and rectangle equality | `PreparedCoordinateArrangement` | ordinary nondegenerate loops only |
+| Sparse polygon validation | `rect-oracle-sg::polygon_sparse` | `SparseSlabValidator::validate` | vertical slab interval sweep | exact dissection validation | dense/sparse result-category equality | dense difference-array validator | no degenerate formal holes |
 | Boundary and effective-chord generation, SG Definition 7 | `rect-core::boundary`, `rect-oracle-sg` | `PreparedComponentContext`, `GridInteriorRunEnumerator::enumerate_prepared` | one component-local preparation plus output-sensitive prepared-run enumeration; pairwise reference retained | `O(n log n)` enumeration in Soltan--Gorpinevich | exact chord-family equality on exhaustive, polyomino, hole, adversarial, dense, and random populations | `ReferencePairwiseEnumerator` | no ornaments, degenerate formal holes, or general polygon sweep |
 | Closed horizontal/vertical chord intersection | `rect-core::geometry` | `closed_chords_intersect` | `O(1)` integer comparisons | `O(1)` predicate | every endpoint case and signed exhaustive segment range | independently coded strict dominance | closed chords; endpoint contact conflicts |
 | Endpoint-preserving 4D parity embedding | `rect-dominance::embedding` | `DominanceEmbedding::new`, `assert_pairwise_equivalence` | `O(q log q)` construction; FullyAudited adds `O(h*v)` pairwise audit | rank embedding plus dominance reporting | endpoint and metamorphic suites | closed geometric predicate | pairwise audit is excluded from CompactOnly |

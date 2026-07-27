@@ -38,3 +38,12 @@ the bounded event certificate and output provenance; a disagreement blocks the
 default. The v1.1 campaign writes separate reports under `results/v1.1-*` and
 also checks that sweep pair-iteration, Definition 7 fallback, full-boundary
 scan, and duplicate-output counters remain zero.
+
+v1.2 extends each feasible completion comparison to four exact paths:
+`CoordinateCompressedCompletion`; indexed completion with the reference
+line-map and dense recovery; indexed completion with dynamic stabbing and dense
+recovery; and dynamic stabbing with sparse face recovery and slab validation.
+All paths must agree on selected cuts, added-cut order, canonical cut unions,
+rectangles, area, and validator result category.  Dynamic production diagnostics
+must report zero coordinate-line and interval scans; sparse CompactOnly traces
+must report no dense arrangement allocations.

@@ -41,3 +41,14 @@ ordinary-loop event records, `sweep_output_record_count == q`, and zero
 aligned-pair, all-pair, Definition 7 fallback, full-boundary scan, and duplicate
 output counters. These are regression checks for this implementation, not a
 replacement for the source complexity argument.
+
+## v1.2 sparse-subdivision extensions
+
+The v1.2 generator records `|X|`, `|Y|`, `|X||Y|`, sparse vertices,
+half-edges, junctions, interior cycles, dense/sparse owned estimates, cut-index
+owned bytes, and completion/recovery/validation timings. New families stress
+staircase-sparse, many-coordinates-few-faces, staggered ordinary-hole coordinate
+cross-products, completion-heavy cuts, clean path-tree sparse output, and
+ordinary-hole 4D-fallback sparse output. Every feasible row compares
+line-map/dynamic and dense/sparse final geometry exactly; tables are generated
+from committed evidence rather than copied into this document.

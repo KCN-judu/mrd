@@ -41,3 +41,20 @@ parity fills occupied spans, dense barrier arrays provide constant-time recovery
 adjacency, and a two-dimensional difference array validates output coverage.
 The reference and indexed backends must return identical selected cuts, added
 cuts, and canonical rectangles.
+
+## v1.2 sparse production path
+
+The CompactOnly default is now `DynamicStabbingCutIndex` plus
+`SparseOrthogonalSubdivision` plus `SparseSlabValidator`.  It preserves the
+policy above but does not build a coordinate Cartesian product.  The line-map
+cut index and `PreparedCoordinateArrangement` are permanent dense/reference
+oracles.  See [POLYGON_COMPLETION_COORDINATE_CLOSURE.md](POLYGON_COMPLETION_COORDINATE_CLOSURE.md),
+[DYNAMIC_ORTHOGONAL_CUT_INDEX.md](DYNAMIC_ORTHOGONAL_CUT_INDEX.md),
+[SPARSE_POLYGON_SUBDIVISION.md](SPARSE_POLYGON_SUBDIVISION.md), and
+[SPARSE_POLYGON_VALIDATION.md](SPARSE_POLYGON_VALIDATION.md).
+
+CompactOnly traces explicitly report whether any dense atomic cells, occupancy
+or barrier arrays, or coverage difference arrays were materialized.  A sparse
+production run requires all five flags to be false.  FullyAudited deliberately
+materializes the dense oracle and compares cut families, rectangles, and both
+validator outcomes.

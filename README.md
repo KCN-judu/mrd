@@ -145,8 +145,10 @@ Polygon input is a tagged JSON object:
 `--input-format auto|grid|polygon` defaults to `auto`. Polygon production uses
 one `PreparedPolygonContext`, the orthogonal sweep validator, the axis-generic
 `sg-sweep` Definition 7 construction, the existing 4D compact matching
-backend, incremental indexed completion, and one shared coordinate arrangement.
-It never rasterizes by coordinate magnitude. `reference-pairwise` and
+backend, incremental indexed completion, dynamic orthogonal cut stabbing,
+sparse face-walk recovery, and sparse slab validation. It never rasterizes by
+coordinate magnitude or materializes the coordinate Cartesian product on the
+CompactOnly path. `reference-pairwise` and
 `indexed-pairwise` remain selectable with `--polygon-chords` as independent
 correctness Oracles.
 
@@ -157,7 +159,9 @@ separate and immutable. v1.0 indexed-backend evidence is stored in the
 `results/v1.0-polygon-*` reports and documented in
 `docs/POLYGON_BACKEND_DIFFERENTIAL.md`. The v1.1 three-backend sweep evidence
 is stored in `results/v1.1-polygon-*` and source-mapped in
-`docs/SOLTAN_SWEEP_IMPLEMENTATION.md`.
+`docs/SOLTAN_SWEEP_IMPLEMENTATION.md`. v1.2 adds the sparse completion
+contracts in `docs/DYNAMIC_ORTHOGONAL_CUT_INDEX.md`,
+`docs/SPARSE_POLYGON_SUBDIVISION.md`, and `docs/SPARSE_POLYGON_VALIDATION.md`.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.

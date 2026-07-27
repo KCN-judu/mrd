@@ -55,10 +55,13 @@
   the component-local bounding box. Very sparse components with a large local
   box can therefore use `O(A)` memory even when their cell count is much less
   than `A`.
-- Polygon indexed completion, recovery, and validation use
-  `O(|X||Y|)` arrangement storage. Large coordinate gaps are cheap, but inputs
-  with many distinct x and y coordinates can still create a large Cartesian
-  arrangement.
+- CompactOnly polygon completion now uses a static-coordinate dynamic stabbing
+  index, sparse half-edge recovery, and slab validation, so it does not
+  materialize an `O(|X||Y|)` arrangement. The dense coordinate arrangement is
+  intentionally retained for FullyAudited and differential oracle paths.
+  Sparse construction is specialized to ordinary nondegenerate rectilinear
+  loops; it does not extend support to ornaments, point/segment holes, or other
+  formal degeneracies.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The
