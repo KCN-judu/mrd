@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P3
-- Current phase state: in_progress
+- Current phase state: committed
 - Last completed phase: P2
-- Last pushed SHA: 521f82d2a33e31bccfbb1c363fdbf0049751c2d6
-- Plan last updated: 2026-07-27T10:39:44Z
+- Last pushed SHA: 659d7fbbe0ae513058a5a1f41f2cd3d3a39e7118
+- Plan last updated: 2026-07-27T12:41:01Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -174,11 +174,21 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P3 - Formal-hole SG sweep and completion
 
-**State:** in_progress. **Start SHA:** `521f82d`. Implement the original Soltan--Gorpinevich formal-boundary
+**State:** committed. **Start SHA:** `521f82d`. Implement the original Soltan--Gorpinevich formal-boundary
 event model, merge/delete cases, effective chords, completion, sparse
 subdivision, and validation for newly supported degeneracies. Require exact
 ordinary-input agreement, source-mapped invariants, and dedicated formal-hole
 fixtures. Suggested release: `v1.5.0-formal-hole-geometry`.
+
+**Acceptance:** complete. Implementation commits `093961f`, `fd1bbc6`,
+`3d94851`, `996ad44`, `659d7fb`, and `6cd0845` implement all five
+subphases. The full audit is recorded in
+`docs/phase-reports/P03-formal-hole-geometry.md`; permanent evidence is
+`results/p3-formal-fixtures.json` and
+`results/p3-polygon-differential.json` with its empty counterexample file.
+There were no correctness disagreements or unresolved P3 limitations within
+the accepted one-component formal input model. Closeout SHA is pending this
+documentation commit and remote verification.
 
 ### P3 subphases
 
@@ -419,4 +429,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
 | P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
 | P2 | complete | fe1be92 | 95abbcf, b8c2d15 | 521f82d | 521f82d | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | 2026-07-27T10:39:44Z | none |
-| P3 | in_progress | 521f82d | pending | pending | pending | pending | pending | 2026-07-27T10:39:44Z | none | none |
+| P3 | committed | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | pending | pending | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |

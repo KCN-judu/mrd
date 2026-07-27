@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "git_commit": "6cd0845c46da32ad5290d25ad7bdcb77effaff3f",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "target/debug/rect-cli benchmark --suite formal-fixtures --output results/p3-formal-fixtures.json",
+    "seed": null,
+    "timestamp": 1785155257,
+    "input_count": 8,
+    "component_count": 8,
+    "input_model": "formal-rectilinear-polygon",
+    "unsupported_input_features": []
+  },
+  "fixture_records": [
+    {
+      "name": "point-hole",
+      "local_nonconvexity_measure": 2,
+      "interior_component_count": 1,
+      "formal_hole_count": 1,
+      "effective_number": 0,
+      "optimum_rectangle_count": 2,
+      "rectangle_count": 2,
+      "certificates_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "segment-hole",
+      "local_nonconvexity_measure": 2,
+      "interior_component_count": 1,
+      "formal_hole_count": 1,
+      "effective_number": 0,
+      "optimum_rectangle_count": 2,
+      "rectangle_count": 2,
+      "certificates_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "attached-hole",
+      "local_nonconvexity_measure": 1,
+      "interior_component_count": 1,
+      "formal_hole_count": 0,
+      "effective_number": 0,
+      "optimum_rectangle_count": 2,
+      "rectangle_count": 2,
+      "certificates_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "shared-endpoint",
+      "local_nonconvexity_measure": 6,
+      "interior_component_count": 1,
+      "formal_hole_count": 3,
+      "effective_number": 2,
+      "optimum_rectangle_count": 2,
+      "rectangle_count": 2,
+      "certificates_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "source-figure-three",
+      "local_nonconvexity_measure": 15,
+      "interior_component_count": 1,
+      "formal_hole_count": 5,
+      "effective_number": 4,
+      "optimum_rectangle_count": 7,
+      "rectangle_count": 7,
+      "certificates_equal": true,
+      "status": "verified",
+      "message": null
+    }
+  ],
+  "ordinary_parity_records": [
+    {
+      "name": "rectangle",
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "l-shape",
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "name": "ordinary-hole",
+      "optimum_equal": true,
+      "rectangles_equal": true,
+      "status": "verified",
+      "message": null
+    }
+  ],
+  "verified": 8,
+  "solver_errors": 0,
+  "disagreements": 0
+}
