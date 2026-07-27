@@ -552,7 +552,8 @@ mod tests {
                 let mixed = seed
                     .wrapping_mul(6_364_136_223_846_793_005)
                     .wrapping_add(index as u64 * 1_442_695_040_888_963_407);
-                let capacity = mixed.rotate_left((index % 31) as u32) % 8;
+                let shift = u32::try_from(index % 31).expect("modulo 31 fits in u32");
+                let capacity = mixed.rotate_left(shift) % 8;
                 network
                     .add_arc(FlowNodeId(*from), FlowNodeId(*to), capacity)
                     .unwrap();

@@ -1457,6 +1457,7 @@ pub fn benchmark_biclique_construction(
     }
 }
 
+#[allow(clippy::too_many_lines)] // Staged error reporting keeps benchmark failures attributable.
 fn benchmark_biclique_component<C>(
     instance_name: &str,
     family: &str,
@@ -1557,11 +1558,11 @@ fn benchmark_biclique_component<C>(
         row.push_relabel_flow_microseconds = Some(push_relabel_started.elapsed().as_micros());
         row.dinic_flow_value = Some(dinic.flow.value);
         row.push_relabel_flow_value = Some(push_relabel.flow.value);
-        if dinic.flow.value != push_relabel.flow.value {
+        if dinic.flow.value == push_relabel.flow.value {
+            "verified".clone_into(&mut row.status);
+        } else {
             "counterexample".clone_into(&mut row.status);
             row.message = Some("Dinic and push-relabel flow values differ".to_owned());
-        } else {
-            "verified".clone_into(&mut row.status);
         }
     } else {
         "counterexample".clone_into(&mut row.status);
