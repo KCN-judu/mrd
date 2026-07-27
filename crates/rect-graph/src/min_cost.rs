@@ -23,6 +23,42 @@ pub struct CirculationNetwork {
 }
 
 impl CirculationNetwork {
+    /// Validates that signed arc occurrences form a nonempty circulation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid arc, direction, arithmetic overflow, or
+    /// nonconserving signed edge sequence.
+    pub fn validate_signed_circulation(
+        &self,
+        arcs: &[(CirculationArcId, i8)],
+    ) -> Result<(), MinCostCirculationError> {
+        if arcs.is_empty() {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        let mut balance = vec![0_i128; self.node_count];
+        for (id, direction) in arcs {
+            let arc = self
+                .arcs
+                .get(id.0)
+                .ok_or(MinCostCirculationError::InvalidSolution)?;
+            let (from, to) = match direction {
+                1 => (arc.from, arc.to),
+                -1 => (arc.to, arc.from),
+                _ => return Err(MinCostCirculationError::InvalidSolution),
+            };
+            balance[from] = balance[from]
+                .checked_sub(1)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            balance[to] = balance[to]
+                .checked_add(1)
+                .ok_or(MinCostCirculationError::Overflow)?;
+        }
+        if balance.iter().any(|value| *value != 0) {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        Ok(())
+    }
     /// Validates exact feasibility, objective value, and residual optimality.
     ///
     /// # Errors

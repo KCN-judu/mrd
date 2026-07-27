@@ -297,6 +297,14 @@ and emits exact per-edge average-stretch certificates with operation counters.
 It does not claim Lemma 5.5's `O(log^7 n)` guarantee or its production-scale
 construction.
 
+`rect-graph::dynamic_min_ratio` is the P8.5 compact-cycle baseline. A compact
+cycle separates signed off-tree edges from signed tree paths, then decodes
+through P7's exact circulation validator. `ShiftedTreeChain` gives a
+deterministic Definition 5.9/5.10 shift/rebuild trace, while
+`DynamicMinRatioReplay` delegates `Update`/`Query`/`Detect` to P8.1's checked
+ledger. It does not search for an approximate cycle or claim Theorem 5.1's
+data structure or amortized bound.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.

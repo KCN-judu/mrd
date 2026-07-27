@@ -1,6 +1,7 @@
 pub mod bitset;
 pub mod decremental_spanner;
 pub mod dinic;
+pub mod dynamic_min_ratio;
 pub mod hopcroft_karp;
 pub mod lsf_mwu;
 pub mod min_cost;
@@ -15,6 +16,10 @@ pub use decremental_spanner::{
 pub use dinic::{
     DinicBackend, FlowBackendKind, FlowError, FlowNetwork, FlowNodeId, FlowResult, MaxFlowBackend,
     PushRelabelBackend, PushRelabelMetrics,
+};
+pub use dynamic_min_ratio::{
+    CompactCycle, CompactCycleSegment, DynamicMinRatioError, DynamicMinRatioReplay,
+    ShiftedTreeChain, TreeChainMetrics,
 };
 pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,

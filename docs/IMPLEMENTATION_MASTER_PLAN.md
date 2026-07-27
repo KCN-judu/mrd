@@ -417,11 +417,11 @@ production construction claim is made.
 
 ### P8.5 - Compact cycle tree chain and hidden-stability query
 
-**State:** in_progress. Implement Definitions 5.6--5.8 and Theorem 5.1's
-d-level tree chain, shifted single branch, compact cycle encoding, and
-`Update`/`Query`/`Detect` mechanics using P8.1--P8.4. Acceptance requires
-decoded-cycle conservation, agreement with P7's static Oracle on small cases,
-shift/rebuild trace checks, and exact recourse counters.
+**State:** committed. The P8.5 baseline now decodes compact signed cycles with
+P7 exact conservation validation, replays deterministic shift/rebuild traces,
+and composes P8.1 `Update`/`Query`/`Detect` replay. Full evidence is in
+`docs/phase-reports/P08-5-compact-cycle-chain.md`; it makes no Theorem 5.1
+query, dynamic data-structure, or amortized-bound claim.
 
 ### P8.6 - Dynamic minimum-ratio integration audit
 
