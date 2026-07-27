@@ -1375,6 +1375,10 @@ pub fn benchmark_biclique_construction(
     context: BenchmarkContext,
     sizes: &[usize],
 ) -> BicliqueConstructionBenchmarkReport {
+    let command = context.command.split_once(" benchmark").map_or_else(
+        || context.command.clone(),
+        |(_, suffix)| format!("rect-cli benchmark{suffix}"),
+    );
     let instances = sizes
         .iter()
         .map(|&size| dense_conflict_grid(size, size))
@@ -1418,7 +1422,7 @@ pub fn benchmark_biclique_construction(
         metadata: BenchmarkMetadata {
             git_commit: context.git_commit,
             rustc_version: context.rustc_version,
-            command: context.command,
+            command,
             seed: context.seed,
             timestamp: context.timestamp,
             input_count,
