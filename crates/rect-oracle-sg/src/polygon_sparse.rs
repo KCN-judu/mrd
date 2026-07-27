@@ -45,6 +45,48 @@ pub enum PolygonDissectionValidatorBackend {
     SparseSlab,
 }
 
+/// Selects how orthogonal subdivision intersections are reported.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SubdivisionBuilderBackend {
+    /// Preserved v1.2 horizontal-range scan Oracle.
+    ReferenceRangeScan,
+    /// Output-sensitive closed-endpoint x sweep.
+    #[default]
+    OrthogonalSweep,
+}
+
+impl SubdivisionBuilderBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceRangeScan => "reference-range-scan",
+            Self::OrthogonalSweep => "orthogonal-sweep",
+        }
+    }
+}
+
+/// Selects the sparse dissection validator implementation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SparseValidatorBackend {
+    /// Preserved v1.2 slab-rescan Oracle.
+    ReferenceSlabRescan,
+    /// Event-driven y segment tree.
+    #[default]
+    EventSegmentTree,
+}
+
+impl SparseValidatorBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceSlabRescan => "reference-slab-rescan",
+            Self::EventSegmentTree => "event-segment-tree",
+        }
+    }
+}
+
 impl PolygonDissectionValidatorBackend {
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -91,6 +133,20 @@ pub struct SubdivisionFace {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SparseSubdivisionMetrics {
+    pub builder_backend: String,
+    pub input_segment_count: usize,
+    pub horizontal_segment_count: usize,
+    pub vertical_segment_count: usize,
+    pub sweep_event_count: usize,
+    pub active_set_insertions: usize,
+    pub active_set_removals: usize,
+    pub range_queries: usize,
+    pub candidate_pair_tests: usize,
+    pub reported_intersections: usize,
+    pub t_junction_count: usize,
+    pub endpoint_contact_count: usize,
+    pub atomic_segment_count: usize,
+    pub materialized_split_coordinates: usize,
     pub vertex_count: usize,
     pub half_edge_count: usize,
     pub face_count: usize,
@@ -100,16 +156,74 @@ pub struct SparseSubdivisionMetrics {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SparseSlabMetrics {
+    pub validator_backend: String,
+    pub x_event_count: usize,
+    pub y_coordinate_count: usize,
+    pub range_add_count: usize,
+    pub parity_toggle_count: usize,
+    pub segment_tree_node_visits: usize,
+    pub root_checks: usize,
+    pub boundary_edge_scans: usize,
+    pub active_rectangle_resorts: usize,
     pub slab_count: usize,
     pub polygon_interval_events: usize,
     pub rectangle_interval_events: usize,
     pub owned_bytes: usize,
 }
 
+/// Canonical positive-length atomic segment emitted by a subdivision builder.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+pub struct SubdivisionAtomicSegment {
+    pub first: Point,
+    pub second: Point,
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Segment {
     first: Point,
     second: Point,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum SegmentProvenance {
+    Boundary,
+    Cut,
+}
+
+fn normalize_collinear_segments(
+    sourced: Vec<(Segment, SegmentProvenance)>,
+) -> Result<Vec<Segment>, PolygonSgError> {
+    let mut by_line = BTreeMap::<(bool, i64), Vec<(Segment, SegmentProvenance)>>::new();
+    for item @ (segment, _) in sourced {
+        by_line
+            .entry((segment.horizontal(), segment.line()))
+            .or_default()
+            .push(item);
+    }
+    let mut normalized = BTreeSet::new();
+    for line in by_line.values_mut() {
+        line.sort_unstable_by_key(|(segment, provenance)| {
+            (segment.low(), segment.high(), *provenance)
+        });
+        let mut previous: Option<(Segment, SegmentProvenance)> = None;
+        for &(segment, provenance) in line.iter() {
+            if let Some((prior, prior_provenance)) = previous {
+                if segment == prior && provenance == prior_provenance {
+                    continue;
+                }
+                if segment.low() < prior.high() {
+                    return Err(PolygonSgError::SparseSubdivision {
+                        message: format!(
+                            "conflicting collinear segment overlap between {prior:?} ({prior_provenance:?}) and {segment:?} ({provenance:?})"
+                        ),
+                    });
+                }
+            }
+            normalized.insert(segment);
+            previous = Some((segment, provenance));
+        }
+    }
+    Ok(normalized.into_iter().collect())
 }
 
 impl Segment {
@@ -194,12 +308,168 @@ impl Direction {
     }
 }
 
+fn initial_split_coordinates(segments: &[Segment]) -> Vec<BTreeSet<i64>> {
+    segments
+        .iter()
+        .map(|segment| BTreeSet::from([segment.low(), segment.high()]))
+        .collect()
+}
+
+fn record_intersection(
+    segments: &[Segment],
+    split_coordinates: &mut [BTreeSet<i64>],
+    horizontal_id: usize,
+    vertical_id: usize,
+    point: Point,
+    junctions: &mut BTreeSet<Point>,
+    metrics: &mut SparseSubdivisionMetrics,
+) {
+    split_coordinates[horizontal_id].insert(point.x);
+    split_coordinates[vertical_id].insert(point.y);
+    junctions.insert(point);
+    metrics.reported_intersections += 1;
+    let horizontal = segments[horizontal_id];
+    let vertical = segments[vertical_id];
+    let horizontal_endpoint = point.x == horizontal.low() || point.x == horizontal.high();
+    let vertical_endpoint = point.y == vertical.low() || point.y == vertical.high();
+    if horizontal_endpoint && vertical_endpoint {
+        metrics.endpoint_contact_count += 1;
+    } else if horizontal_endpoint || vertical_endpoint {
+        metrics.t_junction_count += 1;
+    }
+}
+
+fn reference_range_scan_splits(
+    segments: &[Segment],
+) -> (
+    Vec<BTreeSet<i64>>,
+    BTreeSet<Point>,
+    SparseSubdivisionMetrics,
+) {
+    let mut split_coordinates = initial_split_coordinates(segments);
+    let mut junctions = BTreeSet::new();
+    let mut vertical_by_x = BTreeMap::<i64, Vec<usize>>::new();
+    let mut horizontal_ids = Vec::new();
+    for (id, segment) in segments.iter().copied().enumerate() {
+        if segment.horizontal() {
+            horizontal_ids.push(id);
+        } else {
+            vertical_by_x.entry(segment.line()).or_default().push(id);
+        }
+    }
+    let mut metrics = SparseSubdivisionMetrics {
+        builder_backend: SubdivisionBuilderBackend::ReferenceRangeScan
+            .name()
+            .to_owned(),
+        input_segment_count: segments.len(),
+        horizontal_segment_count: horizontal_ids.len(),
+        vertical_segment_count: segments.len() - horizontal_ids.len(),
+        ..SparseSubdivisionMetrics::default()
+    };
+    for horizontal_id in horizontal_ids {
+        let horizontal = segments[horizontal_id];
+        for (&x, vertical_ids) in vertical_by_x.range(horizontal.low()..=horizontal.high()) {
+            for &vertical_id in vertical_ids {
+                metrics.candidate_pair_tests += 1;
+                let vertical = segments[vertical_id];
+                if vertical.low() <= horizontal.line() && horizontal.line() <= vertical.high() {
+                    record_intersection(
+                        segments,
+                        &mut split_coordinates,
+                        horizontal_id,
+                        vertical_id,
+                        Point::new(x, horizontal.line()),
+                        &mut junctions,
+                        &mut metrics,
+                    );
+                }
+            }
+        }
+    }
+    metrics.materialized_split_coordinates = split_coordinates.iter().map(BTreeSet::len).sum();
+    (split_coordinates, junctions, metrics)
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum IntersectionEventKind {
+    HorizontalStart,
+    VerticalQuery,
+    HorizontalEnd,
+}
+
+fn orthogonal_sweep_splits(
+    segments: &[Segment],
+) -> (
+    Vec<BTreeSet<i64>>,
+    BTreeSet<Point>,
+    SparseSubdivisionMetrics,
+) {
+    let mut split_coordinates = initial_split_coordinates(segments);
+    let mut junctions = BTreeSet::new();
+    let mut events = Vec::with_capacity(segments.len().saturating_mul(2));
+    let mut horizontal_count = 0;
+    for (id, segment) in segments.iter().copied().enumerate() {
+        if segment.horizontal() {
+            horizontal_count += 1;
+            events.push((segment.low(), IntersectionEventKind::HorizontalStart, id));
+            events.push((segment.high(), IntersectionEventKind::HorizontalEnd, id));
+        } else {
+            events.push((segment.line(), IntersectionEventKind::VerticalQuery, id));
+        }
+    }
+    events.sort_unstable();
+    let mut active = BTreeSet::<(i64, usize)>::new();
+    let mut metrics = SparseSubdivisionMetrics {
+        builder_backend: SubdivisionBuilderBackend::OrthogonalSweep.name().to_owned(),
+        input_segment_count: segments.len(),
+        horizontal_segment_count: horizontal_count,
+        vertical_segment_count: segments.len() - horizontal_count,
+        sweep_event_count: events.len(),
+        ..SparseSubdivisionMetrics::default()
+    };
+    for (x, kind, id) in events {
+        let segment = segments[id];
+        match kind {
+            IntersectionEventKind::HorizontalStart => {
+                active.insert((segment.line(), id));
+                metrics.active_set_insertions += 1;
+            }
+            IntersectionEventKind::VerticalQuery => {
+                metrics.range_queries += 1;
+                let intersections = active
+                    .range((segment.low(), 0)..=(segment.high(), usize::MAX))
+                    .copied()
+                    .collect::<Vec<_>>();
+                for (y, horizontal_id) in intersections {
+                    record_intersection(
+                        segments,
+                        &mut split_coordinates,
+                        horizontal_id,
+                        id,
+                        Point::new(x, y),
+                        &mut junctions,
+                        &mut metrics,
+                    );
+                }
+            }
+            IntersectionEventKind::HorizontalEnd => {
+                active.remove(&(segment.line(), id));
+                metrics.active_set_removals += 1;
+            }
+        }
+    }
+    metrics.materialized_split_coordinates = split_coordinates.iter().map(BTreeSet::len).sum();
+    (split_coordinates, junctions, metrics)
+}
+
 /// Sparse embedded orthogonal graph built from boundary and final cuts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SparseOrthogonalSubdivision {
     pub vertices: Vec<SubdivisionVertex>,
     pub half_edges: Vec<SubdivisionHalfEdge>,
     pub faces: Vec<SubdivisionFace>,
+    pub split_junctions: Vec<Point>,
+    pub atomic_segments: Vec<SubdivisionAtomicSegment>,
     pub metrics: SparseSubdivisionMetrics,
 }
 
@@ -217,81 +487,55 @@ impl SparseOrthogonalSubdivision {
         horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
         vertical_cuts: &BTreeSet<VerticalCutSegment>,
     ) -> Result<Self, PolygonSgError> {
-        let mut segments = BTreeSet::new();
+        Self::new_with_backend(
+            prepared,
+            horizontal_cuts,
+            vertical_cuts,
+            SubdivisionBuilderBackend::OrthogonalSweep,
+        )
+    }
+
+    /// Builds the same canonical subdivision with an explicit intersection
+    /// reporting backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for malformed segments, failed sparse graph
+    /// construction, or exact arithmetic overflow.
+    #[allow(clippy::too_many_lines)]
+    pub fn new_with_backend(
+        prepared: &PreparedPolygonContext,
+        horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
+        vertical_cuts: &BTreeSet<VerticalCutSegment>,
+        backend: SubdivisionBuilderBackend,
+    ) -> Result<Self, PolygonSgError> {
+        let mut segments = Vec::new();
         for boundary_loop in prepared.polygon().loops() {
             for (first, second) in boundary_loop.edges() {
-                segments.insert(Segment::new(first, second)?);
+                segments.push((Segment::new(first, second)?, SegmentProvenance::Boundary));
             }
         }
         for cut in horizontal_cuts {
-            segments.insert(Segment::new(
-                Point::new(cut.left, cut.y),
-                Point::new(cut.right, cut.y),
-            )?);
+            segments.push((
+                Segment::new(Point::new(cut.left, cut.y), Point::new(cut.right, cut.y))?,
+                SegmentProvenance::Cut,
+            ));
         }
         for cut in vertical_cuts {
-            segments.insert(Segment::new(
-                Point::new(cut.x, cut.bottom),
-                Point::new(cut.x, cut.top),
-            )?);
+            segments.push((
+                Segment::new(Point::new(cut.x, cut.bottom), Point::new(cut.x, cut.top))?,
+                SegmentProvenance::Cut,
+            ));
         }
-        let segments = segments.into_iter().collect::<Vec<_>>();
+        let segments = normalize_collinear_segments(segments)?;
 
-        let mut horizontal_by_y = BTreeMap::<i64, Vec<usize>>::new();
-        let mut vertical_by_x = BTreeMap::<i64, Vec<usize>>::new();
-        let mut points = BTreeSet::new();
-        for (id, segment) in segments.iter().copied().enumerate() {
-            points.extend([segment.first, segment.second]);
-            if segment.horizontal() {
-                horizontal_by_y.entry(segment.line()).or_default().push(id);
-            } else {
-                vertical_by_x.entry(segment.line()).or_default().push(id);
-            }
-        }
-        for horizontal_ids in horizontal_by_y.values() {
-            for &horizontal_id in horizontal_ids {
-                let horizontal = segments[horizontal_id];
-                for (&x, vertical_ids) in vertical_by_x.range(horizontal.low()..=horizontal.high())
-                {
-                    for &vertical_id in vertical_ids {
-                        let vertical = segments[vertical_id];
-                        if vertical.low() <= horizontal.line()
-                            && horizontal.line() <= vertical.high()
-                        {
-                            points.insert(Point::new(x, horizontal.line()));
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut horizontal_points = BTreeMap::<i64, BTreeSet<i64>>::new();
-        let mut vertical_points = BTreeMap::<i64, BTreeSet<i64>>::new();
-        for point in &points {
-            horizontal_points
-                .entry(point.y)
-                .or_default()
-                .insert(point.x);
-            vertical_points.entry(point.x).or_default().insert(point.y);
-        }
-
+        let (split_coordinates, split_junctions, mut metrics) = match backend {
+            SubdivisionBuilderBackend::ReferenceRangeScan => reference_range_scan_splits(&segments),
+            SubdivisionBuilderBackend::OrthogonalSweep => orthogonal_sweep_splits(&segments),
+        };
         let mut atomic_edges = BTreeSet::new();
-        for segment in segments {
-            let coordinates = if segment.horizontal() {
-                horizontal_points
-                    .get(&segment.line())
-                    .into_iter()
-                    .flat_map(|coordinates| coordinates.range(segment.low()..=segment.high()))
-                    .copied()
-                    .collect::<Vec<_>>()
-            } else {
-                vertical_points
-                    .get(&segment.line())
-                    .into_iter()
-                    .flat_map(|coordinates| coordinates.range(segment.low()..=segment.high()))
-                    .copied()
-                    .collect::<Vec<_>>()
-            };
+        for (segment, coordinates) in segments.iter().zip(&split_coordinates) {
+            let coordinates = coordinates.iter().copied().collect::<Vec<_>>();
             for pair in coordinates.windows(2) {
                 let first = if segment.horizontal() {
                     Point::new(pair[0], segment.line())
@@ -306,6 +550,14 @@ impl SparseOrthogonalSubdivision {
                 atomic_edges.insert(Segment::new(first, second)?);
             }
         }
+        metrics.atomic_segment_count = atomic_edges.len();
+        let atomic_segments = atomic_edges
+            .iter()
+            .map(|segment| SubdivisionAtomicSegment {
+                first: segment.first,
+                second: segment.second,
+            })
+            .collect::<Vec<_>>();
 
         let vertex_points = atomic_edges
             .iter()
@@ -435,22 +687,29 @@ impl SparseOrthogonalSubdivision {
                     .is_some_and(|edges| edges.len() >= 3)
             })
             .count();
+        metrics.vertex_count = vertices.len();
+        metrics.half_edge_count = half_edges.len();
+        metrics.face_count = faces.len();
+        metrics.junction_count = junction_count;
+        metrics.owned_bytes = vertices.len() * std::mem::size_of::<SubdivisionVertex>()
+            + half_edges.len() * std::mem::size_of::<SubdivisionHalfEdge>()
+            + faces
+                .iter()
+                .map(|face| face.boundary.len() * std::mem::size_of::<SubdivisionHalfEdgeId>())
+                .sum::<usize>();
         let metrics = SparseSubdivisionMetrics {
             vertex_count: vertices.len(),
             half_edge_count: half_edges.len(),
             face_count: faces.len(),
             junction_count,
-            owned_bytes: vertices.len() * std::mem::size_of::<SubdivisionVertex>()
-                + half_edges.len() * std::mem::size_of::<SubdivisionHalfEdge>()
-                + faces
-                    .iter()
-                    .map(|face| face.boundary.len() * std::mem::size_of::<SubdivisionHalfEdgeId>())
-                    .sum::<usize>(),
+            ..metrics
         };
         Ok(Self {
             vertices,
             half_edges,
             faces,
+            split_junctions: split_junctions.into_iter().collect(),
+            atomic_segments,
             metrics,
         })
     }
@@ -594,6 +853,39 @@ impl SparseSlabValidator {
         polygon: &RectilinearPolygon,
         rectangles: &[CoordinateRect],
     ) -> Result<SparseSlabMetrics, PolygonValidationError> {
+        self.validate_with_backend(
+            polygon,
+            rectangles,
+            SparseValidatorBackend::EventSegmentTree,
+        )
+    }
+
+    /// Validates with an explicitly selected sparse backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first exact geometry, coverage, or area error.
+    pub fn validate_with_backend(
+        &self,
+        polygon: &RectilinearPolygon,
+        rectangles: &[CoordinateRect],
+        backend: SparseValidatorBackend,
+    ) -> Result<SparseSlabMetrics, PolygonValidationError> {
+        match backend {
+            SparseValidatorBackend::ReferenceSlabRescan => {
+                self.validate_reference(polygon, rectangles)
+            }
+            SparseValidatorBackend::EventSegmentTree => {
+                self.validate_event_tree(polygon, rectangles)
+            }
+        }
+    }
+
+    fn validate_reference(
+        &self,
+        polygon: &RectilinearPolygon,
+        rectangles: &[CoordinateRect],
+    ) -> Result<SparseSlabMetrics, PolygonValidationError> {
         let mut rectangle_area = 0_i128;
         let mut x_coordinates = polygon
             .loops()
@@ -632,6 +924,10 @@ impl SparseSlabValidator {
             .collect::<Vec<_>>();
         let mut active = BTreeSet::new();
         let mut metrics = SparseSlabMetrics {
+            validator_backend: SparseValidatorBackend::ReferenceSlabRescan
+                .name()
+                .to_owned(),
+            x_event_count: x_coordinates.len(),
             owned_bytes: x_coordinates.len() * std::mem::size_of::<i64>()
                 + horizontal_boundary.len() * std::mem::size_of::<(Point, Point)>(),
             ..SparseSlabMetrics::default()
@@ -651,6 +947,9 @@ impl SparseSlabValidator {
                 continue;
             }
             metrics.slab_count += 1;
+            metrics.boundary_edge_scans += horizontal_boundary.len();
+            metrics.active_rectangle_resorts += 1;
+            metrics.root_checks += 1;
             let doubled_x = i128::from(pair[0]) + i128::from(pair[1]);
             let mut crossings = horizontal_boundary
                 .iter()
@@ -682,6 +981,402 @@ impl SparseSlabValidator {
         }
         Ok(metrics)
     }
+
+    fn validate_event_tree(
+        &self,
+        polygon: &RectilinearPolygon,
+        rectangles: &[CoordinateRect],
+    ) -> Result<SparseSlabMetrics, PolygonValidationError> {
+        let polygon_area_twice = polygon
+            .twice_signed_area()
+            .map_err(PolygonValidationError::Polygon)?;
+        let mut rectangle_area = 0_i128;
+        let mut y_coordinates = polygon
+            .loops()
+            .flat_map(|boundary_loop| boundary_loop.vertices.iter().map(|point| point.y))
+            .collect::<BTreeSet<_>>();
+        let mut events = BTreeMap::<i64, Vec<SlabEvent>>::new();
+        for boundary_loop in polygon.loops() {
+            for (first, second) in boundary_loop.edges() {
+                if first.y != second.y {
+                    continue;
+                }
+                let left = first.x.min(second.x);
+                let right = first.x.max(second.x);
+                events
+                    .entry(left)
+                    .or_default()
+                    .push(SlabEvent::PolygonToggle(first.y));
+                events
+                    .entry(right)
+                    .or_default()
+                    .push(SlabEvent::PolygonToggle(first.y));
+            }
+        }
+        for (index, rectangle) in rectangles.iter().copied().enumerate() {
+            if rectangle.x0 >= rectangle.x1 || rectangle.y0 >= rectangle.y1 {
+                return Err(PolygonValidationError::NonPositiveRectangle { rectangle: index });
+            }
+            rectangle_area = rectangle_area
+                .checked_add(rectangle.area())
+                .ok_or(PolygonValidationError::AreaOverflow)?;
+            y_coordinates.extend([rectangle.y0, rectangle.y1]);
+            events
+                .entry(rectangle.x0)
+                .or_default()
+                .push(SlabEvent::RectangleStart {
+                    bottom: rectangle.y0,
+                    top: rectangle.y1,
+                });
+            events
+                .entry(rectangle.x1)
+                .or_default()
+                .push(SlabEvent::RectangleEnd {
+                    bottom: rectangle.y0,
+                    top: rectangle.y1,
+                });
+        }
+        let rectangle_area_twice = rectangle_area
+            .checked_mul(2)
+            .ok_or(PolygonValidationError::AreaOverflow)?;
+        if rectangle_area_twice != polygon_area_twice {
+            return Err(PolygonValidationError::AreaMismatch {
+                polygon_area_twice,
+                rectangle_area_twice,
+            });
+        }
+
+        let y_coordinates = y_coordinates.into_iter().collect::<Vec<_>>();
+        let mut tree = ValidationSegmentTree::new(y_coordinates.len().saturating_sub(1));
+        let x_coordinates = events.keys().copied().collect::<Vec<_>>();
+        let mut metrics = SparseSlabMetrics {
+            validator_backend: SparseValidatorBackend::EventSegmentTree.name().to_owned(),
+            x_event_count: events.values().map(Vec::len).sum(),
+            y_coordinate_count: y_coordinates.len(),
+            owned_bytes: y_coordinates.capacity() * std::mem::size_of::<i64>()
+                + tree.owned_bytes_estimate(),
+            ..SparseSlabMetrics::default()
+        };
+        for pair in x_coordinates.windows(2) {
+            let x = pair[0];
+            let Some(changes) = events.get_mut(&x) else {
+                continue;
+            };
+            changes.sort_unstable();
+            for event in changes.iter().copied() {
+                match event {
+                    SlabEvent::PolygonToggle(y) => {
+                        let start = y_coordinates
+                            .binary_search(&y)
+                            .map_err(|_| PolygonValidationError::AreaOverflow)?;
+                        if start + 1 < y_coordinates.len() {
+                            tree.toggle(start, y_coordinates.len() - 2, &mut metrics);
+                            metrics.parity_toggle_count += 1;
+                        }
+                    }
+                    SlabEvent::RectangleEnd { bottom, top } => {
+                        update_rectangle_coverage(
+                            &mut tree,
+                            &y_coordinates,
+                            bottom,
+                            top,
+                            -1,
+                            &mut metrics,
+                        )?;
+                    }
+                    SlabEvent::RectangleStart { bottom, top } => {
+                        update_rectangle_coverage(
+                            &mut tree,
+                            &y_coordinates,
+                            bottom,
+                            top,
+                            1,
+                            &mut metrics,
+                        )?;
+                    }
+                }
+            }
+            if pair[0] == pair[1] || tree.leaf_count == 0 {
+                continue;
+            }
+            metrics.slab_count += 1;
+            metrics.root_checks += 1;
+            let doubled_x = i128::from(pair[0]) + i128::from(pair[1]);
+            if let Some(leaf) = tree.first_leaf(ValidationViolation::Overlap, &mut metrics) {
+                let point = slab_witness(doubled_x, &y_coordinates, leaf);
+                let covering = covering_rectangles(rectangles, point);
+                return Err(PolygonValidationError::Overlap {
+                    first: covering[0],
+                    second: covering[1],
+                    point,
+                });
+            }
+            if let Some(leaf) = tree.first_leaf(ValidationViolation::Uncovered, &mut metrics) {
+                return Err(PolygonValidationError::UncoveredInterior {
+                    point: slab_witness(doubled_x, &y_coordinates, leaf),
+                });
+            }
+            if let Some(leaf) = tree.first_leaf(ValidationViolation::Outside, &mut metrics) {
+                let point = slab_witness(doubled_x, &y_coordinates, leaf);
+                return Err(PolygonValidationError::OutsidePolygon {
+                    rectangle: covering_rectangles(rectangles, point)[0],
+                    point,
+                });
+            }
+        }
+        Ok(metrics)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum SlabEvent {
+    PolygonToggle(i64),
+    RectangleEnd { bottom: i64, top: i64 },
+    RectangleStart { bottom: i64, top: i64 },
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ValidationNode {
+    present: [bool; 2],
+    minimum: [i32; 2],
+    maximum: [i32; 2],
+    lazy_add: i32,
+    lazy_toggle: bool,
+}
+
+#[derive(Clone, Copy)]
+enum ValidationViolation {
+    Overlap,
+    Uncovered,
+    Outside,
+}
+
+struct ValidationSegmentTree {
+    nodes: Vec<ValidationNode>,
+    leaf_count: usize,
+}
+
+impl ValidationSegmentTree {
+    fn new(leaf_count: usize) -> Self {
+        let mut tree = Self {
+            nodes: vec![ValidationNode::default(); leaf_count.saturating_mul(4).max(1)],
+            leaf_count,
+        };
+        if leaf_count > 0 {
+            tree.build(1, 0, leaf_count - 1);
+        }
+        tree
+    }
+
+    fn build(&mut self, node: usize, start: usize, end: usize) {
+        if start == end {
+            self.nodes[node].present[0] = true;
+            return;
+        }
+        let middle = start + (end - start) / 2;
+        self.build(node * 2, start, middle);
+        self.build(node * 2 + 1, middle + 1, end);
+        self.pull(node);
+    }
+
+    fn owned_bytes_estimate(&self) -> usize {
+        self.nodes.capacity() * std::mem::size_of::<ValidationNode>()
+    }
+
+    fn add(&mut self, low: usize, high: usize, delta: i32, metrics: &mut SparseSlabMetrics) {
+        self.update_add(1, 0, self.leaf_count - 1, low, high, delta, metrics);
+    }
+
+    fn toggle(&mut self, low: usize, high: usize, metrics: &mut SparseSlabMetrics) {
+        self.update_toggle(1, 0, self.leaf_count - 1, low, high, metrics);
+    }
+
+    fn apply_add(&mut self, node: usize, delta: i32) {
+        for parity in 0..2 {
+            if self.nodes[node].present[parity] {
+                self.nodes[node].minimum[parity] += delta;
+                self.nodes[node].maximum[parity] += delta;
+            }
+        }
+        self.nodes[node].lazy_add += delta;
+    }
+
+    fn apply_toggle(&mut self, node: usize) {
+        self.nodes[node].present.swap(0, 1);
+        self.nodes[node].minimum.swap(0, 1);
+        self.nodes[node].maximum.swap(0, 1);
+        self.nodes[node].lazy_toggle = !self.nodes[node].lazy_toggle;
+    }
+
+    fn push(&mut self, node: usize) {
+        if self.nodes[node].lazy_toggle {
+            self.apply_toggle(node * 2);
+            self.apply_toggle(node * 2 + 1);
+            self.nodes[node].lazy_toggle = false;
+        }
+        let delta = self.nodes[node].lazy_add;
+        if delta != 0 {
+            self.apply_add(node * 2, delta);
+            self.apply_add(node * 2 + 1, delta);
+            self.nodes[node].lazy_add = 0;
+        }
+    }
+
+    fn pull(&mut self, node: usize) {
+        for parity in 0..2 {
+            let left = self.nodes[node * 2];
+            let right = self.nodes[node * 2 + 1];
+            self.nodes[node].present[parity] = left.present[parity] || right.present[parity];
+            self.nodes[node].minimum[parity] = if left.present[parity] && right.present[parity] {
+                left.minimum[parity].min(right.minimum[parity])
+            } else if left.present[parity] {
+                left.minimum[parity]
+            } else {
+                right.minimum[parity]
+            };
+            self.nodes[node].maximum[parity] = if left.present[parity] && right.present[parity] {
+                left.maximum[parity].max(right.maximum[parity])
+            } else if left.present[parity] {
+                left.maximum[parity]
+            } else {
+                right.maximum[parity]
+            };
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn update_add(
+        &mut self,
+        node: usize,
+        start: usize,
+        end: usize,
+        low: usize,
+        high: usize,
+        delta: i32,
+        metrics: &mut SparseSlabMetrics,
+    ) {
+        metrics.segment_tree_node_visits += 1;
+        if low <= start && end <= high {
+            self.apply_add(node, delta);
+            return;
+        }
+        self.push(node);
+        let middle = start + (end - start) / 2;
+        if low <= middle {
+            self.update_add(node * 2, start, middle, low, high, delta, metrics);
+        }
+        if high > middle {
+            self.update_add(node * 2 + 1, middle + 1, end, low, high, delta, metrics);
+        }
+        self.pull(node);
+    }
+
+    fn update_toggle(
+        &mut self,
+        node: usize,
+        start: usize,
+        end: usize,
+        low: usize,
+        high: usize,
+        metrics: &mut SparseSlabMetrics,
+    ) {
+        metrics.segment_tree_node_visits += 1;
+        if low <= start && end <= high {
+            self.apply_toggle(node);
+            return;
+        }
+        self.push(node);
+        let middle = start + (end - start) / 2;
+        if low <= middle {
+            self.update_toggle(node * 2, start, middle, low, high, metrics);
+        }
+        if high > middle {
+            self.update_toggle(node * 2 + 1, middle + 1, end, low, high, metrics);
+        }
+        self.pull(node);
+    }
+
+    fn violates(node: ValidationNode, violation: ValidationViolation) -> bool {
+        match violation {
+            ValidationViolation::Overlap => {
+                (node.present[0] && node.maximum[0] > 1) || (node.present[1] && node.maximum[1] > 1)
+            }
+            ValidationViolation::Uncovered => node.present[1] && node.minimum[1] == 0,
+            ValidationViolation::Outside => node.present[0] && node.maximum[0] > 0,
+        }
+    }
+
+    fn first_leaf(
+        &mut self,
+        violation: ValidationViolation,
+        metrics: &mut SparseSlabMetrics,
+    ) -> Option<usize> {
+        Self::violates(self.nodes[1], violation)
+            .then(|| self.find_first(1, 0, self.leaf_count - 1, violation, metrics))
+    }
+
+    fn find_first(
+        &mut self,
+        node: usize,
+        start: usize,
+        end: usize,
+        violation: ValidationViolation,
+        metrics: &mut SparseSlabMetrics,
+    ) -> usize {
+        metrics.segment_tree_node_visits += 1;
+        if start == end {
+            return start;
+        }
+        self.push(node);
+        let middle = start + (end - start) / 2;
+        if Self::violates(self.nodes[node * 2], violation) {
+            self.find_first(node * 2, start, middle, violation, metrics)
+        } else {
+            self.find_first(node * 2 + 1, middle + 1, end, violation, metrics)
+        }
+    }
+}
+
+fn update_rectangle_coverage(
+    tree: &mut ValidationSegmentTree,
+    y_coordinates: &[i64],
+    bottom: i64,
+    top: i64,
+    delta: i32,
+    metrics: &mut SparseSlabMetrics,
+) -> Result<(), PolygonValidationError> {
+    let low = y_coordinates
+        .binary_search(&bottom)
+        .map_err(|_| PolygonValidationError::AreaOverflow)?;
+    let high = y_coordinates
+        .binary_search(&top)
+        .map_err(|_| PolygonValidationError::AreaOverflow)?;
+    if low < high {
+        tree.add(low, high - 1, delta, metrics);
+        metrics.range_add_count += 1;
+    }
+    Ok(())
+}
+
+fn slab_witness(doubled_x: i128, y_coordinates: &[i64], leaf: usize) -> DoubledPoint {
+    DoubledPoint::new(
+        doubled_x,
+        i128::from(y_coordinates[leaf]) + i128::from(y_coordinates[leaf + 1]),
+    )
+}
+
+fn covering_rectangles(rectangles: &[CoordinateRect], point: DoubledPoint) -> Vec<usize> {
+    rectangles
+        .iter()
+        .enumerate()
+        .filter_map(|(index, rectangle)| {
+            (2 * i128::from(rectangle.x0) < point.x
+                && point.x < 2 * i128::from(rectangle.x1)
+                && 2 * i128::from(rectangle.y0) < point.y
+                && point.y < 2 * i128::from(rectangle.y1))
+            .then_some(index)
+        })
+        .collect()
 }
 
 fn rectangle_unions(
@@ -791,7 +1486,7 @@ mod tests {
     use crate::polygon::{HorizontalCutSegment, VerticalCutSegment};
     use crate::polygon_arrangement::PreparedCoordinateArrangement;
 
-    use super::{SparseOrthogonalSubdivision, SparseSlabValidator};
+    use super::{SparseOrthogonalSubdivision, SparseSlabValidator, SubdivisionBuilderBackend};
 
     #[test]
     fn sparse_subdivision_recovers_single_rectangle_without_dense_cells() {
@@ -866,6 +1561,61 @@ mod tests {
             assert_eq!(sparse, dense);
             SparseSlabValidator.validate(&polygon, &sparse).unwrap();
         }
+    }
+
+    #[test]
+    fn orthogonal_sweep_matches_range_scan_junctions_and_atomic_segments() {
+        let polygon = RectilinearPolygon::new(
+            OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(8, 0),
+                Point::new(8, 8),
+                Point::new(0, 8),
+            ]),
+            vec![],
+        )
+        .unwrap();
+        let horizontal = BTreeSet::from([
+            HorizontalCutSegment::new(0, 8, 2).unwrap(),
+            HorizontalCutSegment::new(0, 4, 4).unwrap(),
+            HorizontalCutSegment::new(2, 8, 6).unwrap(),
+        ]);
+        let vertical = BTreeSet::from([
+            VerticalCutSegment::new(2, 0, 6).unwrap(),
+            VerticalCutSegment::new(4, 2, 8).unwrap(),
+            VerticalCutSegment::new(8, 0, 8).unwrap(),
+        ]);
+        let prepared = PreparedPolygonContext::new(&polygon).unwrap();
+        let reference = SparseOrthogonalSubdivision::new_with_backend(
+            &prepared,
+            &horizontal,
+            &vertical,
+            SubdivisionBuilderBackend::ReferenceRangeScan,
+        )
+        .unwrap();
+        let sweep = SparseOrthogonalSubdivision::new_with_backend(
+            &prepared,
+            &horizontal,
+            &vertical,
+            SubdivisionBuilderBackend::OrthogonalSweep,
+        )
+        .unwrap();
+        assert_eq!(reference.split_junctions, sweep.split_junctions);
+        assert_eq!(reference.atomic_segments, sweep.atomic_segments);
+        assert_eq!(reference.vertices, sweep.vertices);
+        assert_eq!(reference.half_edges, sweep.half_edges);
+        assert_eq!(reference.faces, sweep.faces);
+        assert_eq!(sweep.metrics.candidate_pair_tests, 0);
+        assert!(sweep.metrics.t_junction_count > 0);
+        assert!(sweep.metrics.endpoint_contact_count > 0);
+        assert_eq!(
+            reference
+                .recover_rectangles(&polygon)
+                .map_err(|error| error.to_string()),
+            sweep
+                .recover_rectangles(&polygon)
+                .map_err(|error| error.to_string())
+        );
     }
 
     #[test]

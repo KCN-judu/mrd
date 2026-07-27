@@ -22,7 +22,8 @@ pub use polygon_arrangement::{
 pub use polygon_cut_index::{CutIndexMetrics, DynamicStabbingCutIndex, PolygonCutIndexBackend};
 pub use polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
-    SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics,
+    SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics, SparseValidatorBackend,
+    SubdivisionAtomicSegment, SubdivisionBuilderBackend,
 };
 
 use std::cmp::Reverse;
