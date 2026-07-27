@@ -8,7 +8,7 @@ This file is the persistent source of truth for the documentary production.
 - Algorithm release represented: `v1.3.0-output-sensitive-sparse-geometry`
 - Video-project branch: `codex/mrd-documentary`
 - Current production phase: `V1 - Storyboard and animatic`
-- Current phase state: `in_progress`
+- Current phase state: `rendered`
 - Target master duration: 4 minutes 48 seconds, subject to narration timing
 - Master format: 3840x2160, 30 fps, stereo 48 kHz
 - Review format: 1920x1080 H.264
@@ -71,19 +71,19 @@ formal-boundary and almost-linear-flow frontier remains visible at the end.
 
 | ID | Time | Scene | Data or evidence | State |
 | --- | --- | --- | --- | --- |
-| S01 | 00:00-00:18 | Cold open: how many rectangles? | verified production fixture, TBD in V1 | planned |
-| S02 | 00:18-00:48 | 1993 archive | Soltan-Gorpinevich 1993, pp. 57-79 | planned |
-| S03 | 00:48-01:18 | Effective chords | exact exported ordinary-polygon fixture | planned |
-| S04 | 01:18-01:46 | Geometry becomes conflict | exact crossing edges from same fixture | planned |
-| S05 | 01:46-02:18 | Endpoint-preserving 4D dominance | `rect-dominance` ranked parity embedding | planned |
-| S06 | 02:18-02:44 | Dense conflict, compact blocks | exact Theorem 8 partition export | planned |
-| S07 | 02:44-03:09 | Matching through compressed flow | exact network capacities and arcs | planned |
-| S08 | 03:09-03:26 | Minimum cut | residual source side and recovered cover | planned |
-| S09 | 03:26-03:48 | Clean hole-free path tree | exact eligible fixture and HLD export | planned |
-| S10 | 03:48-04:05 | Implementation timeline | tags, commit dates, release evidence | planned |
-| S11 | 04:05-04:25 | Final verified dissection | exact nontrivial fixture, TBD in V1 | planned |
-| S12 | 04:25-04:40 | Unfinished frontier | documented limitations | planned |
-| S13 | 04:40-04:48 | End card | current verified version and citations | planned |
+| S01 | 00:00-00:18 | Cold open: how many rectangles? | `polygon/scaled-complete-bipartite@093961f` | rendered |
+| S02 | 00:18-00:48 | 1993 archive | Soltan-Gorpinevich 1993, pp. 57-79 | rendered |
+| S03 | 00:48-01:18 | Effective chords | `polygon/scaled-complete-bipartite@093961f` | rendered |
+| S04 | 01:18-01:46 | Geometry becomes conflict | 16 exact crossing edges from same fixture | rendered |
+| S05 | 01:46-02:18 | Endpoint-preserving 4D dominance | `rect-dominance` ranked parity embedding | rendered |
+| S06 | 02:18-02:44 | Dense conflict, compact blocks | exact `K4,4` block, sigma 8 | rendered |
+| S07 | 02:44-03:09 | Matching through compressed flow | 11 nodes, 16 arcs, integral capacities | rendered |
+| S08 | 03:09-03:26 | Minimum cut | exact vertical cover of size 4 | rendered |
+| S09 | 03:26-03:48 | Clean hole-free path tree | `path-tree/mutated-notch-074-034@093961f` | rendered |
+| S10 | 03:48-04:05 | Implementation timeline | tags and release evidence | rendered |
+| S11 | 04:05-04:25 | Final verified dissection | 13 exact solver rectangles | rendered |
+| S12 | 04:25-04:40 | Unfinished frontier | documented limitations | rendered |
+| S13 | 04:40-04:48 | End card | current verified version and citations | rendered |
 
 ## Narration status
 
@@ -91,9 +91,10 @@ formal-boundary and almost-linear-flow frontier remains visible at the end.
 - Chinese narrative concept: approved by V0 treatment
 - English provisional script: first V1 pass drafted
 - Chinese provisional script: first V1 pass drafted
-- Guide narration: not recorded
-- Timed JSON: not generated
-- SRT/VTT: not generated
+- English guide narration: generated with system `Samantha`, 48 kHz stereo
+- Chinese guide narration: generated with system `Tingting`, 48 kHz stereo
+- Timed JSON: 38 cues per language, generated and verified
+- SRT/VTT: English and Chinese generated and verified
 
 ## Asset inventory
 
@@ -101,6 +102,10 @@ formal-boundary and almost-linear-flow frontier remains visible at the end.
 - Mood-test geometry: `test-data/polygons/comb.json`; repository-generated MIT/Apache-2.0 project asset.
 - Mood-test paper texture: procedurally generated in Remotion; commit eligible.
 - Mood-test room tone and page/pencil bridge: self-generated synthesis; commit eligible.
+- V1 hero fixture: `scaled-complete-bipartite.json`; repository-generated and commit eligible.
+- V1 path-tree witness: `mutated-notch-074-034`; committed repository evidence.
+- V1 system TTS: guide-only timing assets; not approved final-public narration.
+- V1 guide bed: deterministic original synthesis; commit eligible, provisional.
 - Final archive photography, music, narration, and sound effects: not yet acquired.
 
 ## Music and sound plan
@@ -126,7 +131,9 @@ and `audio/beat-map.json`.
 ## Render status
 
 - Mood test 1080p: rendered and audited at `out/review/MRDMoodTest1080.mp4`
-- V1 animatic: not rendered
+- V1 animatic 1080p: rendered and audited at `out/animatic/MRDAnimatic1080.mp4`
+- V1 low-resolution sample: rendered at `out/animatic/MRDAnimaticSample.mp4`
+- V1 all-scene contact sheet: `out/animatic/all-scenes-contact-sheet.png`
 - Isolated prototypes: not rendered
 - Main review master: not rendered
 - Delivery masters: not rendered
@@ -136,6 +143,8 @@ and `audio/beat-map.json`.
 - V0 mood test must prove tactile paper, an exact boundary, a motivated camera transition, one restrained glow, and a sound bridge.
 - The test must not imply that `comb.json` is the final hero fixture.
 - Review must include extracted frames, contact sheet, `ffprobe`, and an audio stream check.
+- V1 review passed all 13 midpoint stills, exact 8,640-frame count, black-frame
+  detection, caption boundaries, 48 kHz stereo audio, and guide loudness/peak audit.
 
 ## Commits
 
@@ -181,12 +190,18 @@ After this phase has been reviewed, committed, and pushed:
 
 ## Phase V1 - Storyboard and animatic
 
-State: `in_progress`
+State: `rendered`
 
 Deliverables: complete written storyboard, shot list, time-coded animatic,
 provisional bilingual narration, blocking visuals, guide audio, and
 `MRDAnimatic1080.mp4`. Review narrative clarity, mathematical sequence,
 duration, pacing, and non-specialist comprehension.
+
+Implementation and review result: complete pending commit/push closeout. The
+authoritative timeline is `script/animatic-scenes.json`; English and Chinese
+guide tracks and caption sidecars are generated; the exact fixture chain and
+path-tree witness are recorded in `data/animatic-math.json`; the 1080p master
+and sample passed the V1 QA record in `qa.md`.
 
 ### Mandatory transition after this phase
 

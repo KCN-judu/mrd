@@ -1,0 +1,115 @@
+WEBVTT
+
+00:00:00.650 --> 00:00:02.975
+A shape can be divided in countless ways.
+
+00:00:03.155 --> 00:00:06.302
+But somewhere inside it, one division is the smallest.
+
+00:00:06.482 --> 00:00:13.116
+The question is not only how to draw the rectangles. It is how to know that no smaller answer is hiding somewhere else.
+
+00:00:18.650 --> 00:00:23.323
+In 1993, Valeriu Soltan and Alexei Gorpinevich wrote down a structural answer.
+
+00:00:23.503 --> 00:00:33.478
+Not a brute-force search through every possible dissection. A map from geometry to combinatorics, built to include holes that could even collapse to points or segments.
+
+00:00:33.658 --> 00:00:42.796
+The present implementation begins from a narrower, ordinary polygon model. But the trail still starts here, with the paper's decisive geometric objects.
+
+00:00:48.650 --> 00:00:51.623
+The boundary hides a finite set of effective chords.
+
+00:00:51.803 --> 00:01:00.315
+They begin and end at local nonconvexity. Between those endpoints, the formal interior and boundary conditions decide whether a chord truly exists.
+
+00:01:00.495 --> 00:01:13.264
+On the ordinary polygons accepted today, an exact sweep finds these chords from the first boundary hit of each interior reflex ray. Blocked candidates disappear. The surviving cuts become the first reliable marks on the map.
+
+00:01:18.650 --> 00:01:21.501
+Not every surviving chord can be chosen together.
+
+00:01:21.681 --> 00:01:33.764
+A horizontal chord may cross a vertical one. Choosing both would make the family inadmissible. So every horizontal chord belongs on one side, every vertical chord on the other, and every crossing becomes an edge.
+
+00:01:33.944 --> 00:01:36.931
+The geometry has become a bipartite conflict graph.
+
+00:01:46.650 --> 00:01:49.591
+The endpoints now enter four ordered coordinates.
+
+00:01:49.771 --> 00:01:59.143
+For general polygon input, the implementation ranks each relevant coordinate. Horizontal chords occupy even positions. Vertical chords occupy odd positions.
+
+00:01:59.323 --> 00:02:05.752
+One comparison preserves the left endpoint. Another preserves the right. Two more preserve the vertical span.
+
+00:02:05.932 --> 00:02:14.756
+A closed crossing becomes strict dominance in all four coordinates. This is not a picture of literal four-dimensional space. It is an exact ordered test.
+
+00:02:18.650 --> 00:02:22.202
+The conflict graph may be dense. But its order is not arbitrary.
+
+00:02:22.382 --> 00:02:35.517
+Repeated neighborhoods align into complete bipartite blocks. The constructive partition used here follows the four-coordinate dominance relation, and the audited path checks that every explicit conflict appears exactly once.
+
+00:02:35.697 --> 00:02:38.712
+The edge cloud contracts. The same relation remains.
+
+00:02:44.650 --> 00:02:47.755
+Each block becomes a chamber in a smaller flow network.
+
+00:02:47.935 --> 00:02:56.575
+The source reaches horizontal chords. Horizontal chords reach biclique nodes. Those nodes reach vertical chords, and vertical chords reach the sink.
+
+00:02:56.755 --> 00:03:06.881
+The implementation uses integral capacities and Dinic. It does not materialize every conflict edge on the compact path. Yet the network still remembers the same matching value.
+
+00:03:09.650 --> 00:03:11.213
+Then the final pulse stops.
+
+00:03:11.393 --> 00:03:19.954
+The residual network leaves a minimum cut. Its outer arcs recover a minimum vertex cover: the precise set of conflicting choices that must be removed.
+
+00:03:20.134 --> 00:03:23.871
+What remains is a maximum admissible family of effective chords.
+
+00:03:26.650 --> 00:03:30.189
+For clean, hole-free polygons, another structure can appear.
+
+00:03:30.369 --> 00:03:43.656
+Cut with one chord orientation and the resulting regions form a dual tree. The opposite chords become paths through that tree. Heavy-light chains turn those paths into canonical intervals, feeding the same compact matching machinery.
+
+00:03:43.836 --> 00:03:47.375
+It is a specialized route, not a replacement for every polygon.
+
+00:03:48.650 --> 00:03:59.981
+Over successive releases, the theorem became an executable artifact: exact Oracles, endpoint-safe dominance, compact execution, indexed completion, path-tree representation, boundary-native polygons, the source-mapped sweep, and output-sensitive sparse geometry.
+
+00:04:00.161 --> 00:04:04.500
+Slower paths stayed in the repository as independent references. Compact structures kept certificates.
+
+00:04:05.650 --> 00:04:07.167
+Now return to the opening shape.
+
+00:04:07.347 --> 00:04:14.822
+The selected effective chords enter first. Simple completion chords follow. The sparse subdivision closes, and its interior faces settle into rectangles.
+
+00:04:15.002 --> 00:04:24.500
+An independent validator checks containment, overlap, holes, union, area, and the declared count. For this fixture, the answer is not merely plausible. It is the exact optimum recorded by the solver.
+
+00:04:25.650 --> 00:04:26.677
+But the map is not complete.
+
+00:04:26.857 --> 00:04:35.702
+Formal boundary ornaments can now be represented and checked, but their solving pipeline remains unfinished. Dinic is practical and exact, but it is not the deterministic almost-linear flow algorithm from the theoretical frontier.
+
+00:04:35.882 --> 00:04:39.500
+The evidence is extensive. It is still finite evidence, not a proof of the full end-to-end bound.
+
+00:04:40.650 --> 00:04:43.580
+Compact matching for minimum rectangular dissection.
+
+00:04:43.760 --> 00:04:47.500
+From a 1993 structural theorem to an exact, auditable implementation.

@@ -6,5 +6,17 @@
     {"id": "paper-contact", "frame": 27, "durationFrames": 24, "stem": "archive-ambience"},
     {"id": "pencil-boundary-bridge", "frame": 107, "durationFrames": 169, "stem": "interaction"},
     {"id": "clue-lock", "frame": 456, "durationFrames": 42, "stem": "effects"}
+  ],
+  "animaticCues": [
+    {"id": "page-turn-boundary", "frame": 540, "durationFrames": 90, "stem": "archive-ambience"},
+    {"id": "pencil-digital-chord", "frame": 1440, "durationFrames": 120, "stem": "interaction"},
+    {"id": "library-machine", "frame": 2340, "durationFrames": 150, "stem": "room-tone"},
+    {"id": "parity-note-1", "frame": 3197, "durationFrames": 23, "stem": "guide-music"},
+    {"id": "parity-note-2", "frame": 3273, "durationFrames": 23, "stem": "guide-music"},
+    {"id": "parity-note-3", "frame": 3353, "durationFrames": 23, "stem": "guide-music"},
+    {"id": "parity-note-4", "frame": 3430, "durationFrames": 39, "stem": "guide-music"},
+    {"id": "flow-pulses", "frame": 4920, "durationFrames": 750, "stem": "effects"},
+    {"id": "flow-cut-silence", "frame": 5658, "durationFrames": 45, "stem": "mix-automation"},
+    {"id": "rectangle-cadence", "frame": 7380, "durationFrames": 173, "stem": "guide-music"}
   ]
 }

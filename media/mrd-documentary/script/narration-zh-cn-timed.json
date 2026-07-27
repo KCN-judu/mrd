@@ -1,0 +1,312 @@
+{
+  "schemaVersion": 1,
+  "language": "zh-CN",
+  "voice": "Tingting",
+  "durationMs": 288000,
+  "captions": [
+    {
+      "text": "一个形状，可以被分成无数种矩形组合。",
+      "startMs": 650,
+      "endMs": 4310,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "但在这些组合之中，总有一种使用的矩形最少。",
+      "startMs": 4490,
+      "endMs": 8759,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "问题不只是怎样画出这些矩形，而是怎样确定：不会还有一个更小的答案，藏在别处。",
+      "startMs": 8939,
+      "endMs": 16665,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "1993 年，Valeriu Soltan 和 Alexei Gorpinevich 写下了一个结构性的答案。",
+      "startMs": 18650,
+      "endMs": 27680,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "它不是把所有切分方法逐一尝试，而是把几何问题变成组合问题。原论文的形式模型，甚至允许孔退化成点或线段。",
+      "startMs": 27860,
+      "endMs": 37259,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "现在的实现从范围更窄的普通多边形开始。但这条路线仍然从这里出发，从论文指出的关键几何对象出发。",
+      "startMs": 37439,
+      "endMs": 46101,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "边界之中，隐藏着一组有限的有效弦。",
+      "startMs": 48650,
+      "endMs": 52145,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "它们的两端位于局部非凸的位置。两个端点之间，还必须满足严格的内部与边界条件，才能真正成为有效弦。",
+      "startMs": 52325,
+      "endMs": 62195,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "对于当前支持的普通多边形，精确扫描会沿着反射顶点朝内部发出的射线，找到第一次碰到的边界。被阻挡的候选消失，留下的切线成为地图上第一批可靠的标记。",
+      "startMs": 62375,
+      "endMs": 77179,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "这些弦并不能全部同时选择。",
+      "startMs": 78650,
+      "endMs": 81490,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "一条水平弦可能与一条垂直弦相交。如果同时保留，两者就会冲突。于是，水平弦放在一侧，垂直弦放在另一侧，每一次相交都变成一条边。",
+      "startMs": 81670,
+      "endMs": 95217,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "几何结构，就这样变成了一个二分冲突图。",
+      "startMs": 95397,
+      "endMs": 99548,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "接下来，每条弦被送入四个有序坐标。",
+      "startMs": 106650,
+      "endMs": 110108,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "对于一般多边形输入，当前实现会先对相关坐标进行排序编号。水平弦占据偶数位置，垂直弦占据奇数位置。",
+      "startMs": 110288,
+      "endMs": 120052,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "一个比较保留左端点，一个比较保留右端点，另外两个比较保留垂直范围。",
+      "startMs": 120232,
+      "endMs": 126945,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "闭区间相交，被转化成四个坐标上的严格支配关系。这不是对四维欧氏空间的直接描绘，而是一项精确的有序判定。",
+      "startMs": 127125,
+      "endMs": 137500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "冲突图可能非常稠密，但它的秩序并不任意。",
+      "startMs": 138650,
+      "endMs": 142744,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "重复的邻接关系会排列成完整二分块。这里使用的构造性划分来自四坐标支配关系；在完整审计路径中，每一条显式冲突边都必须恰好出现一次。",
+      "startMs": 142924,
+      "endMs": 156024,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "密集的边云收拢了，原来的关系仍然被完整保留。",
+      "startMs": 156204,
+      "endMs": 160707,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "每一个二分块，都会变成较小流网络中的一个节点。",
+      "startMs": 164650,
+      "endMs": 169376,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "源点连接水平弦，水平弦连接二分块节点；这些节点再连接垂直弦，最后到达汇点。",
+      "startMs": 169556,
+      "endMs": 177158,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "当前实现使用整数容量和 Dinic 算法。紧凑路径不需要展开每一条冲突边，但这个网络仍然记得同一个匹配值。",
+      "startMs": 177338,
+      "endMs": 187817,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "最后一个脉冲停下。",
+      "startMs": 189650,
+      "endMs": 191484,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "残量网络留下一个最小割。最外层的割边恢复出最小顶点覆盖，也就是必须移除的那组冲突选择。",
+      "startMs": 191664,
+      "endMs": 200429,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "剩下的，正是一组最大的可同时保留的有效弦。",
+      "startMs": 200609,
+      "endMs": 204889,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "对于干净、无孔的多边形，还会出现另一种结构。",
+      "startMs": 206650,
+      "endMs": 210407,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "先用一个方向的弦切开多边形，各个区域会组成一棵对偶树。另一个方向的弦，则变成树上的路径。重轻链分解把这些路径变成规范区间，再送入同一套紧凑匹配结构。",
+      "startMs": 210587,
+      "endMs": 223222,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "这是一条专用路线，并不替代所有多边形的通用路径。",
+      "startMs": 223402,
+      "endMs": 227500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "在连续多个版本中，理论逐步变成了可以执行、可以检查的成果：精确 Oracle、端点安全的支配编码、紧凑执行、索引化补全、路径树表示、原生边界多边形、对应原论文的扫描，以及输出敏感的稀疏几何。",
+      "startMs": 228650,
+      "endMs": 239894,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S10"
+    },
+    {
+      "text": "较慢的路径没有被删除，它们作为独立参照保留在仓库里。紧凑结构也保留了证书。",
+      "startMs": 240074,
+      "endMs": 244500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S10"
+    },
+    {
+      "text": "现在，回到开场的形状。",
+      "startMs": 245650,
+      "endMs": 247359,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "先加入选中的有效弦，再加入简单补全弦。稀疏细分逐渐闭合，内部的面最终落成一个个矩形。",
+      "startMs": 247539,
+      "endMs": 254065,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "独立验证器会检查包含关系、重叠、孔、并集、面积和声明的数量。对于这个实例，画面中的结果不只是看起来合理，而是求解器记录的精确最优解。",
+      "startMs": 254245,
+      "endMs": 264500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "但这张地图还没有完成。",
+      "startMs": 265650,
+      "endMs": 267024,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "形式边界装饰现在已经能够被表示和验证，但它们的求解流程仍未完成。Dinic 实用而且精确，但它并不是理论前沿中的确定性近线性流算法。",
+      "startMs": 267204,
+      "endMs": 275323,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "现有实验很多，但它们仍然是有限证据，不是完整端到端复杂度的证明。",
+      "startMs": 275503,
+      "endMs": 279500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "最小矩形切分的紧凑匹配。",
+      "startMs": 280650,
+      "endMs": 282813,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S13"
+    },
+    {
+      "text": "从 1993 年的结构定理，到一个精确、可审计的实现。",
+      "startMs": 282993,
+      "endMs": 287500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S13"
+    }
+  ]
+}

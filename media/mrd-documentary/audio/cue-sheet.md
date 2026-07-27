@@ -19,3 +19,18 @@
 6. final rectangle placement -> resolved musical cadence
 
 All timings after V0 remain provisional until V1 narration and animatic.
+
+## V1 animatic guide cues
+
+| Time | Cue | Stem | Source | Purpose |
+| ---: | --- | --- | --- | --- |
+| 00:18.000 | archive entry tone | archive ambience | deterministic synthesis | page enters the 1993 chamber |
+| 00:48.000 | pencil/chord handoff | interaction | deterministic synthesis | paper line becomes exact chord geometry |
+| 01:18.000 | cool machine tone | room tone | deterministic synthesis | archive-to-conflict sound bridge |
+| 01:46.550-01:53.650 | four-note motif | guide music | deterministic synthesis | four ordered comparisons |
+| 02:44.000-03:09.000 | network pulse series | mathematical effects | deterministic synthesis | topology-valid flow movement |
+| 03:08.600-03:10.100 | controlled silence | mix automation | deterministic synthesis | flow-to-minimum-cut impact |
+| 04:06.000-04:11.750 | resolved four-note motif | guide music | deterministic synthesis | rectangle completion cadence |
+
+Guide dialogue uses `Samantha` for English and `Tingting` for Chinese. Both
+tracks and the guide bed are AAC, stereo, 48 kHz, exactly 288 seconds.

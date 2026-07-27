@@ -12,10 +12,15 @@
     "test": "npm run data:verify && npm run typecheck",
     "data:verify": "node scripts/verify-data.mjs",
     "audio:generate": "node scripts/generate-guide-audio.mjs",
+    "audio:v1": "node scripts/generate-v1-assets.mjs",
     "audio:audit": "node scripts/audit-audio.mjs",
+    "data:v1": "node scripts/export-v1-data.mjs",
     "render:stills": "remotion still src/index.ts MRDMoodTest1080 out/review/MRDMoodTestStill.png --frame=465",
     "render:sample": "remotion render src/index.ts MRDMoodTest1080 out/review/MRDMoodTestSample.mp4 --frames=0-179 --scale=0.5 --codec=h264 --crf=23",
     "render:review": "remotion render src/index.ts MRDMoodTest1080 out/review/MRDMoodTest1080.mp4 --codec=h264 --crf=18 --audio-codec=aac",
+    "render:animatic:stills": "mkdir -p out/animatic/stills && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S01.png --frame=300 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S02.png --frame=1000 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S03.png --frame=1950 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S04.png --frame=2780 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S05.png --frame=3700 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S06.png --frame=4550 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S07.png --frame=5300 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S08.png --frame=5960 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S09.png --frame=6500 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S10.png --frame=7100 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S11.png --frame=7700 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S12.png --frame=8180 --log=error && remotion still src/index.ts MRDAnimatic1080 out/animatic/stills/S13.png --frame=8520 --log=error",
+    "render:animatic:sample": "remotion render src/index.ts MRDAnimatic1080 out/animatic/MRDAnimaticSample.mp4 --frames=2320-2530 --scale=0.5 --codec=h264 --crf=23 --audio-codec=aac",
+    "render:animatic": "remotion render src/index.ts MRDAnimatic1080 out/animatic/MRDAnimatic1080.mp4 --codec=h264 --crf=18 --audio-codec=aac --concurrency=2 --log=error",
     "render:master": "remotion render src/index.ts MRDDocumentary4K out/final/MRDDocumentary4K.mp4 --codec=h264 --crf=15 --audio-codec=aac"
   },
   "dependencies": {

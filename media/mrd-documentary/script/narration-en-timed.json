@@ -1,0 +1,312 @@
+{
+  "schemaVersion": 1,
+  "language": "en",
+  "voice": "Samantha",
+  "durationMs": 288000,
+  "captions": [
+    {
+      "text": "A shape can be divided in countless ways.",
+      "startMs": 650,
+      "endMs": 2975,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "But somewhere inside it, one division is the smallest.",
+      "startMs": 3155,
+      "endMs": 6302,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "The question is not only how to draw the rectangles. It is how to know that no smaller answer is hiding somewhere else.",
+      "startMs": 6482,
+      "endMs": 13116,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S01"
+    },
+    {
+      "text": "In 1993, Valeriu Soltan and Alexei Gorpinevich wrote down a structural answer.",
+      "startMs": 18650,
+      "endMs": 23323,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "Not a brute-force search through every possible dissection. A map from geometry to combinatorics, built to include holes that could even collapse to points or segments.",
+      "startMs": 23503,
+      "endMs": 33478,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "The present implementation begins from a narrower, ordinary polygon model. But the trail still starts here, with the paper's decisive geometric objects.",
+      "startMs": 33658,
+      "endMs": 42796,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S02"
+    },
+    {
+      "text": "The boundary hides a finite set of effective chords.",
+      "startMs": 48650,
+      "endMs": 51623,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "They begin and end at local nonconvexity. Between those endpoints, the formal interior and boundary conditions decide whether a chord truly exists.",
+      "startMs": 51803,
+      "endMs": 60315,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "On the ordinary polygons accepted today, an exact sweep finds these chords from the first boundary hit of each interior reflex ray. Blocked candidates disappear. The surviving cuts become the first reliable marks on the map.",
+      "startMs": 60495,
+      "endMs": 73264,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S03"
+    },
+    {
+      "text": "Not every surviving chord can be chosen together.",
+      "startMs": 78650,
+      "endMs": 81501,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "A horizontal chord may cross a vertical one. Choosing both would make the family inadmissible. So every horizontal chord belongs on one side, every vertical chord on the other, and every crossing becomes an edge.",
+      "startMs": 81681,
+      "endMs": 93764,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "The geometry has become a bipartite conflict graph.",
+      "startMs": 93944,
+      "endMs": 96931,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S04"
+    },
+    {
+      "text": "The endpoints now enter four ordered coordinates.",
+      "startMs": 106650,
+      "endMs": 109591,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "For general polygon input, the implementation ranks each relevant coordinate. Horizontal chords occupy even positions. Vertical chords occupy odd positions.",
+      "startMs": 109771,
+      "endMs": 119143,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "One comparison preserves the left endpoint. Another preserves the right. Two more preserve the vertical span.",
+      "startMs": 119323,
+      "endMs": 125752,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "A closed crossing becomes strict dominance in all four coordinates. This is not a picture of literal four-dimensional space. It is an exact ordered test.",
+      "startMs": 125932,
+      "endMs": 134756,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S05"
+    },
+    {
+      "text": "The conflict graph may be dense. But its order is not arbitrary.",
+      "startMs": 138650,
+      "endMs": 142202,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "Repeated neighborhoods align into complete bipartite blocks. The constructive partition used here follows the four-coordinate dominance relation, and the audited path checks that every explicit conflict appears exactly once.",
+      "startMs": 142382,
+      "endMs": 155517,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "The edge cloud contracts. The same relation remains.",
+      "startMs": 155697,
+      "endMs": 158712,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S06"
+    },
+    {
+      "text": "Each block becomes a chamber in a smaller flow network.",
+      "startMs": 164650,
+      "endMs": 167755,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "The source reaches horizontal chords. Horizontal chords reach biclique nodes. Those nodes reach vertical chords, and vertical chords reach the sink.",
+      "startMs": 167935,
+      "endMs": 176575,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "The implementation uses integral capacities and Dinic. It does not materialize every conflict edge on the compact path. Yet the network still remembers the same matching value.",
+      "startMs": 176755,
+      "endMs": 186881,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S07"
+    },
+    {
+      "text": "Then the final pulse stops.",
+      "startMs": 189650,
+      "endMs": 191213,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "The residual network leaves a minimum cut. Its outer arcs recover a minimum vertex cover: the precise set of conflicting choices that must be removed.",
+      "startMs": 191393,
+      "endMs": 199954,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "What remains is a maximum admissible family of effective chords.",
+      "startMs": 200134,
+      "endMs": 203871,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S08"
+    },
+    {
+      "text": "For clean, hole-free polygons, another structure can appear.",
+      "startMs": 206650,
+      "endMs": 210189,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "Cut with one chord orientation and the resulting regions form a dual tree. The opposite chords become paths through that tree. Heavy-light chains turn those paths into canonical intervals, feeding the same compact matching machinery.",
+      "startMs": 210369,
+      "endMs": 223656,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "It is a specialized route, not a replacement for every polygon.",
+      "startMs": 223836,
+      "endMs": 227375,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S09"
+    },
+    {
+      "text": "Over successive releases, the theorem became an executable artifact: exact Oracles, endpoint-safe dominance, compact execution, indexed completion, path-tree representation, boundary-native polygons, the source-mapped sweep, and output-sensitive sparse geometry.",
+      "startMs": 228650,
+      "endMs": 239981,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S10"
+    },
+    {
+      "text": "Slower paths stayed in the repository as independent references. Compact structures kept certificates.",
+      "startMs": 240161,
+      "endMs": 244500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S10"
+    },
+    {
+      "text": "Now return to the opening shape.",
+      "startMs": 245650,
+      "endMs": 247167,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "The selected effective chords enter first. Simple completion chords follow. The sparse subdivision closes, and its interior faces settle into rectangles.",
+      "startMs": 247347,
+      "endMs": 254822,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "An independent validator checks containment, overlap, holes, union, area, and the declared count. For this fixture, the answer is not merely plausible. It is the exact optimum recorded by the solver.",
+      "startMs": 255002,
+      "endMs": 264500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S11"
+    },
+    {
+      "text": "But the map is not complete.",
+      "startMs": 265650,
+      "endMs": 266677,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "Formal boundary ornaments can now be represented and checked, but their solving pipeline remains unfinished. Dinic is practical and exact, but it is not the deterministic almost-linear flow algorithm from the theoretical frontier.",
+      "startMs": 266857,
+      "endMs": 275702,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "The evidence is extensive. It is still finite evidence, not a proof of the full end-to-end bound.",
+      "startMs": 275882,
+      "endMs": 279500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S12"
+    },
+    {
+      "text": "Compact matching for minimum rectangular dissection.",
+      "startMs": 280650,
+      "endMs": 283580,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S13"
+    },
+    {
+      "text": "From a 1993 structural theorem to an exact, auditable implementation.",
+      "startMs": 283760,
+      "endMs": 287500,
+      "timestampMs": null,
+      "confidence": null,
+      "sceneId": "S13"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Compiled Mood-Test Specification
+# Compiled Production Specification
 
 ## Toolchain decision
 
@@ -68,3 +68,34 @@ prop to reduce texture density only; dimensions remain composition-defined.
 Remotion is required for deterministic frame rendering. `@remotion/media` is
 required for audio. Three.js is intentionally not used in the mood test. No
 animation, texture, sound, or stock-asset package is used.
+
+## V1 animatic architecture
+
+`script/animatic-scenes.json` is the authoritative 13-scene timeline. Every
+scene records frame bounds, shot IDs, source IDs, and bilingual narration.
+`MRDAnimatic1080` renders those contiguous sequences at 1920x1080, 30 fps, and
+8,640 frames. English guide narration, guide bed, and English captions are on
+by default; props select Chinese narration/captions or disable individual
+audio/text layers.
+
+`scripts/export-v1-data.mjs` regenerates `data/animatic-math.json` from the
+recorded v1.3 release binary, `scaled-complete-bipartite.json`, and the committed
+`mutated-notch-074-034` path-tree witness. The blocking visual chain uses:
+
+- 36 boundary vertices and 16 reflex vertices;
+- four horizontal and four vertical effective chords;
+- all 16 exact cross-orientation conflicts;
+- one exact `K4,4` biclique with sigma 8;
+- an 11-node, 16-arc compressed flow network with matching/cut value 4;
+- a five-region path-tree witness;
+- 13 exact output rectangles.
+
+The dominance scene shows the source-backed even/odd mathematical construction
+for one crossing pair while explicitly stating that general polygon input uses
+ranked coordinates. It does not claim direct raw-coordinate parity is the
+implemented general backend.
+
+`scripts/generate-v1-assets.mjs` uses macOS system voices only for timing guides,
+exports the Remotion caption JSON shape plus SRT/VTT, and creates an original
+deterministic guide bed. These files are not approved final-public narration or
+music. The final voice and licensed/final score remain V5 work.

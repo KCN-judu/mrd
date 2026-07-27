@@ -1,10 +1,17 @@
 import './index.css';
 import React from 'react';
 import {Composition, Folder, Still} from 'remotion';
+import {Animatic, type AnimaticProps} from './documentary/Animatic';
 import {MoodTest, MoodTestPoster, type MoodTestProps} from './documentary/MoodTest';
 import {Placeholder} from './documentary/Placeholder';
 
 const moodProps = {quality: 'review', withAudio: true} satisfies MoodTestProps;
+const animaticProps = {
+  language: 'en',
+  withNarration: true,
+  withGuideBed: true,
+  withCaptions: true,
+} satisfies AnimaticProps;
 
 const Main4K = () => <Placeholder label="Compact Matching for Minimum Rectangular Dissection" />;
 const Main1080 = () => <Placeholder label="Compact Matching for Minimum Rectangular Dissection" />;
@@ -31,6 +38,17 @@ export const RemotionRoot: React.FC = () => {
           component={Thumbnail}
           width={1920}
           height={1080}
+        />
+      </Folder>
+      <Folder name="V1-Animatic">
+        <Composition
+          id="MRDAnimatic1080"
+          component={Animatic}
+          durationInFrames={8640}
+          fps={30}
+          width={1920}
+          height={1080}
+          defaultProps={animaticProps}
         />
       </Folder>
       <Folder name="Masters">

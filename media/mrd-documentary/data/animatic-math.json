@@ -1,0 +1,954 @@
+{
+  "schemaVersion": 1,
+  "algorithmCommit": "093961fc6dbd39d853a18bb793160ac290ed0baf",
+  "generatedBy": "target/release/rect-cli",
+  "generatorSha256": "c9995799cf90978af480c6a62f284702a12da99defa792e64acce0818bce0bca",
+  "fixture": {
+    "sourceId": "polygon/scaled-complete-bipartite@093961f",
+    "path": "test-data/polygons/scaled-complete-bipartite.json",
+    "sha256": "e3a76f2ca0edac9101d7f29dafb84a8d6990acb198c1ac520ffd8ed0a57564e2",
+    "polygon": {
+      "outer": [
+        [
+          7,
+          -11
+        ],
+        [
+          57,
+          -11
+        ],
+        [
+          57,
+          3
+        ],
+        [
+          62,
+          3
+        ],
+        [
+          62,
+          -11
+        ],
+        [
+          72,
+          -11
+        ],
+        [
+          72,
+          10
+        ],
+        [
+          77,
+          10
+        ],
+        [
+          77,
+          -11
+        ],
+        [
+          147,
+          -11
+        ],
+        [
+          147,
+          59
+        ],
+        [
+          127,
+          59
+        ],
+        [
+          127,
+          66
+        ],
+        [
+          147,
+          66
+        ],
+        [
+          147,
+          80
+        ],
+        [
+          122,
+          80
+        ],
+        [
+          122,
+          87
+        ],
+        [
+          147,
+          87
+        ],
+        [
+          147,
+          185
+        ],
+        [
+          77,
+          185
+        ],
+        [
+          77,
+          150
+        ],
+        [
+          72,
+          150
+        ],
+        [
+          72,
+          185
+        ],
+        [
+          62,
+          185
+        ],
+        [
+          62,
+          157
+        ],
+        [
+          57,
+          157
+        ],
+        [
+          57,
+          185
+        ],
+        [
+          7,
+          185
+        ],
+        [
+          7,
+          87
+        ],
+        [
+          22,
+          87
+        ],
+        [
+          22,
+          80
+        ],
+        [
+          7,
+          80
+        ],
+        [
+          7,
+          66
+        ],
+        [
+          17,
+          66
+        ],
+        [
+          17,
+          59
+        ],
+        [
+          7,
+          59
+        ]
+      ],
+      "holes": []
+    },
+    "horizontalChords": [
+      {
+        "id": 0,
+        "left": 17,
+        "right": 127,
+        "y": 59
+      },
+      {
+        "id": 1,
+        "left": 17,
+        "right": 127,
+        "y": 66
+      },
+      {
+        "id": 2,
+        "left": 22,
+        "right": 122,
+        "y": 80
+      },
+      {
+        "id": 3,
+        "left": 22,
+        "right": 122,
+        "y": 87
+      }
+    ],
+    "verticalChords": [
+      {
+        "bottom": 3,
+        "id": 0,
+        "top": 157,
+        "x": 57
+      },
+      {
+        "bottom": 3,
+        "id": 1,
+        "top": 157,
+        "x": 62
+      },
+      {
+        "bottom": 10,
+        "id": 2,
+        "top": 150,
+        "x": 72
+      },
+      {
+        "bottom": 10,
+        "id": 3,
+        "top": 150,
+        "x": 77
+      }
+    ],
+    "crossings": [
+      {
+        "horizontal": 0,
+        "vertical": 0
+      },
+      {
+        "horizontal": 0,
+        "vertical": 1
+      },
+      {
+        "horizontal": 0,
+        "vertical": 2
+      },
+      {
+        "horizontal": 0,
+        "vertical": 3
+      },
+      {
+        "horizontal": 1,
+        "vertical": 0
+      },
+      {
+        "horizontal": 1,
+        "vertical": 1
+      },
+      {
+        "horizontal": 1,
+        "vertical": 2
+      },
+      {
+        "horizontal": 1,
+        "vertical": 3
+      },
+      {
+        "horizontal": 2,
+        "vertical": 0
+      },
+      {
+        "horizontal": 2,
+        "vertical": 1
+      },
+      {
+        "horizontal": 2,
+        "vertical": 2
+      },
+      {
+        "horizontal": 2,
+        "vertical": 3
+      },
+      {
+        "horizontal": 3,
+        "vertical": 0
+      },
+      {
+        "horizontal": 3,
+        "vertical": 1
+      },
+      {
+        "horizontal": 3,
+        "vertical": 2
+      },
+      {
+        "horizontal": 3,
+        "vertical": 3
+      }
+    ],
+    "directParity": {
+      "horizontal": [
+        {
+          "id": 0,
+          "coordinates": [
+            34,
+            -254,
+            118,
+            -118
+          ]
+        },
+        {
+          "id": 1,
+          "coordinates": [
+            34,
+            -254,
+            132,
+            -132
+          ]
+        },
+        {
+          "id": 2,
+          "coordinates": [
+            44,
+            -244,
+            160,
+            -160
+          ]
+        },
+        {
+          "id": 3,
+          "coordinates": [
+            44,
+            -244,
+            174,
+            -174
+          ]
+        }
+      ],
+      "vertical": [
+        {
+          "id": 0,
+          "coordinates": [
+            115,
+            -113,
+            315,
+            -5
+          ]
+        },
+        {
+          "id": 1,
+          "coordinates": [
+            125,
+            -123,
+            315,
+            -5
+          ]
+        },
+        {
+          "id": 2,
+          "coordinates": [
+            145,
+            -143,
+            301,
+            -19
+          ]
+        },
+        {
+          "id": 3,
+          "coordinates": [
+            155,
+            -153,
+            301,
+            -19
+          ]
+        }
+      ]
+    },
+    "bicliques": [
+      {
+        "id": 0,
+        "horizontal": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "vertical": [
+          0,
+          1,
+          2,
+          3
+        ]
+      }
+    ],
+    "compressedNetwork": {
+      "nodes": [
+        {
+          "id": "source",
+          "kind": "source"
+        },
+        {
+          "id": "h0",
+          "kind": "horizontal",
+          "chordId": 0
+        },
+        {
+          "id": "h1",
+          "kind": "horizontal",
+          "chordId": 1
+        },
+        {
+          "id": "h2",
+          "kind": "horizontal",
+          "chordId": 2
+        },
+        {
+          "id": "h3",
+          "kind": "horizontal",
+          "chordId": 3
+        },
+        {
+          "id": "b0",
+          "kind": "biclique"
+        },
+        {
+          "id": "v0",
+          "kind": "vertical",
+          "chordId": 0
+        },
+        {
+          "id": "v1",
+          "kind": "vertical",
+          "chordId": 1
+        },
+        {
+          "id": "v2",
+          "kind": "vertical",
+          "chordId": 2
+        },
+        {
+          "id": "v3",
+          "kind": "vertical",
+          "chordId": 3
+        },
+        {
+          "id": "sink",
+          "kind": "sink"
+        }
+      ],
+      "arcs": [
+        {
+          "from": "source",
+          "to": "h0",
+          "capacity": 1
+        },
+        {
+          "from": "source",
+          "to": "h1",
+          "capacity": 1
+        },
+        {
+          "from": "source",
+          "to": "h2",
+          "capacity": 1
+        },
+        {
+          "from": "source",
+          "to": "h3",
+          "capacity": 1
+        },
+        {
+          "from": "h0",
+          "to": "b0",
+          "capacity": 5
+        },
+        {
+          "from": "h1",
+          "to": "b0",
+          "capacity": 5
+        },
+        {
+          "from": "h2",
+          "to": "b0",
+          "capacity": 5
+        },
+        {
+          "from": "h3",
+          "to": "b0",
+          "capacity": 5
+        },
+        {
+          "from": "b0",
+          "to": "v0",
+          "capacity": 5
+        },
+        {
+          "from": "b0",
+          "to": "v1",
+          "capacity": 5
+        },
+        {
+          "from": "b0",
+          "to": "v2",
+          "capacity": 5
+        },
+        {
+          "from": "b0",
+          "to": "v3",
+          "capacity": 5
+        },
+        {
+          "from": "v0",
+          "to": "sink",
+          "capacity": 1
+        },
+        {
+          "from": "v1",
+          "to": "sink",
+          "capacity": 1
+        },
+        {
+          "from": "v2",
+          "to": "sink",
+          "capacity": 1
+        },
+        {
+          "from": "v3",
+          "to": "sink",
+          "capacity": 1
+        }
+      ],
+      "internalCapacity": 5
+    },
+    "minimumVertexCover": {
+      "horizontal": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "vertical": [
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "selectedHorizontalCuts": [],
+    "selectedVerticalCuts": [
+      {
+        "bottom": 3,
+        "top": 157,
+        "x": 57
+      },
+      {
+        "bottom": 3,
+        "top": 157,
+        "x": 62
+      },
+      {
+        "bottom": 10,
+        "top": 150,
+        "x": 72
+      },
+      {
+        "bottom": 10,
+        "top": 150,
+        "x": 77
+      }
+    ],
+    "completionCuts": {
+      "horizontal": [
+        {
+          "left": 17,
+          "right": 57,
+          "y": 59
+        },
+        {
+          "left": 17,
+          "right": 57,
+          "y": 66
+        },
+        {
+          "left": 22,
+          "right": 57,
+          "y": 80
+        },
+        {
+          "left": 22,
+          "right": 57,
+          "y": 87
+        },
+        {
+          "left": 77,
+          "right": 122,
+          "y": 80
+        },
+        {
+          "left": 77,
+          "right": 122,
+          "y": 87
+        },
+        {
+          "left": 77,
+          "right": 127,
+          "y": 59
+        },
+        {
+          "left": 77,
+          "right": 127,
+          "y": 66
+        }
+      ],
+      "vertical": []
+    },
+    "rectangles": [
+      {
+        "x0": 7,
+        "y0": -11,
+        "x1": 57,
+        "y1": 59
+      },
+      {
+        "x0": 7,
+        "y0": 66,
+        "x1": 57,
+        "y1": 80
+      },
+      {
+        "x0": 7,
+        "y0": 87,
+        "x1": 57,
+        "y1": 185
+      },
+      {
+        "x0": 17,
+        "y0": 59,
+        "x1": 57,
+        "y1": 66
+      },
+      {
+        "x0": 22,
+        "y0": 80,
+        "x1": 57,
+        "y1": 87
+      },
+      {
+        "x0": 57,
+        "y0": 3,
+        "x1": 62,
+        "y1": 157
+      },
+      {
+        "x0": 62,
+        "y0": -11,
+        "x1": 72,
+        "y1": 185
+      },
+      {
+        "x0": 72,
+        "y0": 10,
+        "x1": 77,
+        "y1": 150
+      },
+      {
+        "x0": 77,
+        "y0": -11,
+        "x1": 147,
+        "y1": 59
+      },
+      {
+        "x0": 77,
+        "y0": 59,
+        "x1": 127,
+        "y1": 66
+      },
+      {
+        "x0": 77,
+        "y0": 66,
+        "x1": 147,
+        "y1": 80
+      },
+      {
+        "x0": 77,
+        "y0": 80,
+        "x1": 122,
+        "y1": 87
+      },
+      {
+        "x0": 77,
+        "y0": 87,
+        "x1": 147,
+        "y1": 185
+      }
+    ],
+    "metrics": {
+      "boundaryComplexity": 36,
+      "reflexVertices": 16,
+      "horizontalChords": 4,
+      "verticalChords": 4,
+      "conflicts": 16,
+      "bicliques": 1,
+      "bicliqueSigma": 8,
+      "flowValue": 4,
+      "matchingSize": 4,
+      "minimumVertexCoverSize": 4,
+      "compressedNetworkVertices": 11,
+      "compressedNetworkArcs": 16,
+      "optimumRectangles": 13
+    },
+    "representation": "dominance-4d",
+    "chordEnumerator": "sg-sweep"
+  },
+  "pathTree": {
+    "sourceId": "path-tree/mutated-notch-074-034@093961f",
+    "path": "results/path-tree-witnesses/witness-004-01cb5df6b16637a5.json",
+    "sha256": "b651d21e89532c05207d97ced2d090253f9429fc685cea900c0cc08f7452cdd7",
+    "name": "mutated-notch-074-034",
+    "family": "mutated-notch-grid",
+    "width": 11,
+    "height": 13,
+    "orientation": "vertical-tree-horizontal-paths",
+    "horizontalChords": 5,
+    "verticalChords": 4,
+    "dualTree": {
+      "region_count": 5,
+      "edges": [
+        {
+          "chord": 1,
+          "first": 0,
+          "second": 1
+        },
+        {
+          "chord": 0,
+          "first": 1,
+          "second": 2
+        },
+        {
+          "chord": 3,
+          "first": 1,
+          "second": 3
+        },
+        {
+          "chord": 2,
+          "first": 1,
+          "second": 4
+        }
+      ],
+      "adjacency": [
+        [
+          [
+            1,
+            1
+          ]
+        ],
+        [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            0
+          ],
+          [
+            3,
+            3
+          ],
+          [
+            4,
+            2
+          ]
+        ],
+        [
+          [
+            1,
+            0
+          ]
+        ],
+        [
+          [
+            1,
+            3
+          ]
+        ],
+        [
+          [
+            1,
+            2
+          ]
+        ]
+      ],
+      "cell_region_ids": [],
+      "boundary_gap_regions": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        2,
+        2,
+        2,
+        1,
+        1,
+        1,
+        1,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        1,
+        1,
+        1,
+        1,
+        1,
+        4,
+        4,
+        4,
+        4,
+        4,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "boundary_gap_membership_tests": 0,
+      "boundary_gap_event_push_count": 4,
+      "boundary_gap_event_pop_count": 4
+    },
+    "compactPaths": [
+      {
+        "chord_index": 0,
+        "start_region": 1,
+        "end_region": 3
+      },
+      {
+        "chord_index": 1,
+        "start_region": 0,
+        "end_region": 0
+      },
+      {
+        "chord_index": 2,
+        "start_region": 0,
+        "end_region": 3
+      },
+      {
+        "chord_index": 3,
+        "start_region": 0,
+        "end_region": 0
+      },
+      {
+        "chord_index": 4,
+        "start_region": 4,
+        "end_region": 1
+      }
+    ],
+    "hld": {
+      "parent": [
+        0,
+        0,
+        1,
+        1,
+        1
+      ],
+      "parent_edge": [
+        null,
+        1,
+        0,
+        3,
+        2
+      ],
+      "depth": [
+        0,
+        1,
+        2,
+        2,
+        2
+      ],
+      "subtree_size": [
+        5,
+        4,
+        1,
+        1,
+        1
+      ],
+      "heavy_child": [
+        1,
+        2,
+        null,
+        null,
+        null
+      ],
+      "chain_head": [
+        0,
+        0,
+        0,
+        3,
+        4
+      ],
+      "chain_id": [
+        0,
+        0,
+        0,
+        2,
+        1
+      ],
+      "edge_position": [
+        0,
+        0,
+        1,
+        0,
+        0
+      ],
+      "chain_edges": [
+        [
+          1,
+          0
+        ],
+        [
+          2
+        ],
+        [
+          3
+        ]
+      ]
+    },
+    "bicliquePartition": {
+      "bicliques": [
+        {
+          "id": 0,
+          "left": [
+            2
+          ],
+          "right": [
+            1
+          ]
+        },
+        {
+          "id": 1,
+          "left": [
+            4
+          ],
+          "right": [
+            2
+          ]
+        },
+        {
+          "id": 2,
+          "left": [
+            0,
+            2
+          ],
+          "right": [
+            3
+          ]
+        }
+      ]
+    },
+    "metrics": {
+      "boundary_complexity": 40,
+      "boundary_gap_event_pop_count": 4,
+      "boundary_gap_event_push_count": 4,
+      "dual_regions": 5,
+      "reflex_vertices": 18
+    }
+  }
+}

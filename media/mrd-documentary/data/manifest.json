@@ -12,6 +12,26 @@
       "generatorSha256": "c9995799cf90978af480c6a62f284702a12da99defa792e64acce0818bce0bca",
       "solver": "dominance-compact-only",
       "polygonChords": "sg-sweep"
+    },
+    {
+      "id": "polygon/scaled-complete-bipartite@093961f",
+      "path": "test-data/polygons/scaled-complete-bipartite.json",
+      "sha256": "e3a76f2ca0edac9101d7f29dafb84a8d6990acb198c1ac520ffd8ed0a57564e2",
+      "derivedPath": "media/mrd-documentary/data/animatic-math.json",
+      "derivedKey": "fixture",
+      "generator": "target/release/rect-cli",
+      "generatorSha256": "c9995799cf90978af480c6a62f284702a12da99defa792e64acce0818bce0bca",
+      "solver": "dominance-compressed",
+      "polygonChords": "sg-sweep"
+    },
+    {
+      "id": "path-tree/mutated-notch-074-034@093961f",
+      "path": "results/path-tree-witnesses/witness-004-01cb5df6b16637a5.json",
+      "sha256": "b651d21e89532c05207d97ced2d090253f9429fc685cea900c0cc08f7452cdd7",
+      "derivedPath": "media/mrd-documentary/data/animatic-math.json",
+      "derivedKey": "pathTree",
+      "generator": "committed path-tree witness",
+      "solver": "path-tree-compact"
     }
   ]
 }
