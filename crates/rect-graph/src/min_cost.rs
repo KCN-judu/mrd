@@ -299,6 +299,107 @@ impl CirculationNetwork {
         validate_fractional_solution(self, solution)
     }
 
+    /// Returns the exact rational objective of a flow coordinate vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when dimensions differ or arithmetic overflows.
+    pub fn fractional_cost(
+        &self,
+        arc_flows: &[ExactRatio],
+    ) -> Result<ExactRatio, MinCostCirculationError> {
+        fractional_cost(self, arc_flows)
+    }
+
+    /// Validates that rational edge coordinates form a circulation.
+    ///
+    /// This checks only zero net update demand; capacity constraints belong to
+    /// a full [`FractionalCirculation`] validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a malformed vector, nonzero divergence, or exact
+    /// arithmetic overflow.
+    pub fn verify_fractional_circulation(
+        &self,
+        arc_flows: &[ExactRatio],
+    ) -> Result<(), MinCostCirculationError> {
+        if arc_flows.len() != self.arcs.len() {
+            return Err(MinCostCirculationError::InvalidFractionalSolution);
+        }
+        let zero = ratio_from_integer(0)?;
+        let mut balance = vec![zero; self.node_count];
+        for (arc, flow) in self.arcs.iter().zip(arc_flows) {
+            balance[arc.from] = balance[arc.from]
+                .checked_sub(*flow)
+                .map_err(map_ratio_error)?;
+            balance[arc.to] = balance[arc.to]
+                .checked_add(*flow)
+                .map_err(map_ratio_error)?;
+        }
+        if balance.iter().any(|value| *value != zero) {
+            return Err(MinCostCirculationError::InvalidFractionalSolution);
+        }
+        Ok(())
+    }
+
+    /// Checks that every integral input coordinate lies in the supplied
+    /// positive bounded domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the bound is not positive, a coordinate exceeds
+    /// it, or absolute-value arithmetic overflows.
+    pub fn verify_input_domain(&self, maximum_abs: i128) -> Result<(), MinCostCirculationError> {
+        if maximum_abs <= 0 {
+            return Err(MinCostCirculationError::InvalidFractionalSolution);
+        }
+        for value in self
+            .demands
+            .iter()
+            .copied()
+            .chain(self.arcs.iter().flat_map(|arc| [arc.capacity, arc.cost]))
+        {
+            if value
+                .checked_abs()
+                .ok_or(MinCostCirculationError::Overflow)?
+                > maximum_abs
+            {
+                return Err(MinCostCirculationError::InvalidFractionalSolution);
+            }
+        }
+        Ok(())
+    }
+
+    /// Returns exact lower and upper slack for every rational coordinate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for dimension mismatch, an out-of-capacity flow, or
+    /// exact arithmetic overflow.
+    pub fn fractional_slacks(
+        &self,
+        arc_flows: &[ExactRatio],
+    ) -> Result<Vec<(ExactRatio, ExactRatio)>, MinCostCirculationError> {
+        if arc_flows.len() != self.arcs.len() {
+            return Err(MinCostCirculationError::InvalidFractionalSolution);
+        }
+        let zero = ratio_from_integer(0)?;
+        self.arcs
+            .iter()
+            .zip(arc_flows)
+            .map(|(arc, flow)| {
+                let capacity = ratio_from_integer(arc.capacity)?;
+                if !flow.at_least(zero).map_err(map_ratio_error)?
+                    || !capacity.at_least(*flow).map_err(map_ratio_error)?
+                {
+                    return Err(MinCostCirculationError::InvalidFractionalSolution);
+                }
+                Ok((*flow, capacity.checked_sub(*flow).map_err(map_ratio_error)?))
+            })
+            .collect()
+    }
+
     /// Deterministically rounds a rational feasible circulation to an
     /// integral feasible circulation of no greater cost.
     ///

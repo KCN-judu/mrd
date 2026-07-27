@@ -448,11 +448,13 @@ After the phase has passed its full audit, been committed, and been pushed:
 **State:** in_progress. The source-assumption gate is recorded in
 `docs/phase-reports/P09-integration-gate-audit.md`. The first corrective
 subphase is recorded in `docs/phase-reports/P09-fractional-rounding.md`:
-exact rational feasible-flow validation and deterministic costed cycle
-rounding now exist as an explicitly superlinear Oracle. Fractional IPM state,
-Theorem 4.6 accounting, Theorem 5.1 query, source-grade P8 constructions, and
-MRD integration evidence remain missing. No `AlmostLinear` backend or fallback
-has been introduced. Continue in the report's exact implementation order.
+exact rational feasible-flow validation, deterministic costed cycle rounding,
+and a bounded-domain rational surrogate-potential verifier now exist. These
+are explicitly superlinear/auditing components, not the fixed-point IPM from
+the source. Source-grade IPM accounting, Theorem 5.1 query, source-grade P8
+constructions, and MRD integration evidence remain missing. No `AlmostLinear`
+backend or fallback has been introduced. Continue in the report's exact
+implementation order.
 Suggested release:
 `v2.0.0-deterministic-almost-linear-flow`.
 

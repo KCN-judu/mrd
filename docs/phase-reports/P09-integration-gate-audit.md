@@ -11,9 +11,9 @@ the source gate in the master plan.
 
 | Required contract | Current evidence | Status |
 | --- | --- | --- |
-| Exact rational fractional flow and IPM potential | `CirculationNetwork` stores only integral `i128` flows; no `interior_point` module exists | missing |
-| KP15 deterministic fractional-to-integral rounding | no `min_cost::rounding` module or rational differential | missing |
-| Theorem 4.6 bounded-domain/IPM accounting | no capacity/cost domain gate, potential, or update total counters | missing |
+| Exact rational fractional flow and IPM potential | P9 has `FractionalCirculation` plus `RationalInteriorPointState`; it verifies an exact rational reciprocal-slack surrogate, not the source's fixed-point log/fractional-power potential | partial |
+| KP15 deterministic fractional-to-integral rounding | `round_fractional_costed` implements deterministic cycle cancellation with an exact rational differential, but uses a BFS Oracle rather than the source's link-cut-tree bound | partial |
+| Theorem 4.6 bounded-domain/IPM accounting | bounded integral inputs, strict rational slacks, observed surrogate-potential decrease, and exact coordinate-update totals are checked; the cited source version labels the relevant IPM result Theorem 4.3 and its log Taylor fact Lemma 4.6 | partial |
 | Theorem 5.1 approximate dynamic query | P8 replay explicitly does not search for a cycle | missing |
 | Source-grade low-stretch/spanner construction | P8.2--P8.4 are checked baselines with no claimed theorem bounds | missing |
 | Exact recovery and MRD compressed-flow parity | no selected `AlmostLinear` backend or compressed-flow differential | missing |

@@ -106,6 +106,31 @@ impl ExactRatio {
         )?)
     }
 
+    /// Multiplies two exact ratios.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact arithmetic overflows.
+    pub fn checked_mul(self, other: Self) -> Result<Self, StableMinRatioError> {
+        Self::new(
+            self.numerator
+                .checked_mul(other.numerator)
+                .ok_or(StableMinRatioError::Overflow)?,
+            self.denominator
+                .checked_mul(other.denominator)
+                .ok_or(StableMinRatioError::Overflow)?,
+        )
+    }
+
+    /// Returns the reciprocal of a nonzero exact ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for zero or when normalization overflows.
+    pub fn reciprocal(self) -> Result<Self, StableMinRatioError> {
+        Self::new(self.denominator, self.numerator)
+    }
+
     /// Multiplies an exact ratio by an integer.
     ///
     /// # Errors

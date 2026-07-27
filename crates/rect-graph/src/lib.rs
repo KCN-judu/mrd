@@ -3,6 +3,7 @@ pub mod decremental_spanner;
 pub mod dinic;
 pub mod dynamic_min_ratio;
 pub mod hopcroft_karp;
+pub mod interior_point;
 pub mod lsf_mwu;
 pub mod min_cost;
 pub mod min_ratio_cycle;
@@ -25,6 +26,7 @@ pub use dynamic_min_ratio::{
 pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
 };
+pub use interior_point::{InteriorPointError, InteriorPointMetrics, RationalInteriorPointState};
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,
