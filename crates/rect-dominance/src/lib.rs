@@ -28,10 +28,11 @@ use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
     GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
-    IndexedPolygonPairwiseEnumerator, PolygonSgError, PreparedCoordinateArrangement,
+    IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
+    PolygonRecoveryBackend, PolygonSgError, PreparedCoordinateArrangement,
     ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, classify_clean_polygon,
-    complete_with_prepared_backend, validate_polygon_dissection_count,
+    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, audit_sweep_provenance,
+    classify_clean_polygon, complete_with_prepared_backend, validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -161,6 +162,10 @@ pub struct PolygonSolveOptions {
     pub validation_backend: PolygonValidationBackend,
     pub chord_backend: PolygonChordBackend,
     pub completion_backend: PolygonCompletionBackend,
+    pub cut_index_backend: PolygonCutIndexBackend,
+    pub recovery_backend: PolygonRecoveryBackend,
+    pub dissection_validator_backend: PolygonDissectionValidatorBackend,
+    /// Legacy dense/reference arrangement selector retained for old callers.
     pub arrangement_backend: PolygonArrangementBackend,
     pub representation: ConflictRepresentationBackend,
 }
@@ -173,6 +178,9 @@ impl Default for PolygonSolveOptions {
             validation_backend: PolygonValidationBackend::OrthogonalSweep,
             chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
             completion_backend: PolygonCompletionBackend::IndexedFrontier,
+            cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
+            recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
+            dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
             arrangement_backend: PolygonArrangementBackend::Indexed,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
         }
@@ -252,6 +260,7 @@ pub fn solve_polygon_with_options(
                 GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
             let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
             let sweep = SoltanGorpinevichSweepEnumerator.enumerate_prepared(&prepared)?;
+            audit_sweep_provenance(&prepared, &sweep)?;
             if reference.families.horizontal != indexed.families.horizontal
                 || reference.families.vertical != indexed.families.vertical
                 || reference.families.horizontal != sweep.families.horizontal
@@ -403,18 +412,36 @@ pub fn solve_polygon_with_options(
                 &selected_horizontal,
                 &selected_vertical,
             )?;
-            let indexed = IndexedPolygonCompletion.complete_prepared(
+            let indexed = IndexedPolygonCompletion.complete_prepared_with_backends(
                 &prepared,
                 &families.horizontal,
                 &families.vertical,
                 &selected_horizontal,
                 &selected_vertical,
+                options.cut_index_backend,
+                options.recovery_backend,
+                options.dissection_validator_backend,
+            )?;
+            let line_map = IndexedPolygonCompletion.complete_prepared_with_backends(
+                &prepared,
+                &families.horizontal,
+                &families.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+                PolygonCutIndexBackend::ReferenceLineMaps,
+                options.recovery_backend,
+                options.dissection_validator_backend,
             )?;
             if reference.selected_horizontal_cuts != indexed.selected_horizontal_cuts
                 || reference.selected_vertical_cuts != indexed.selected_vertical_cuts
                 || reference.added_horizontal_cuts != indexed.added_horizontal_cuts
                 || reference.added_vertical_cuts != indexed.added_vertical_cuts
                 || reference.rectangles != indexed.rectangles
+                || line_map.selected_horizontal_cuts != indexed.selected_horizontal_cuts
+                || line_map.selected_vertical_cuts != indexed.selected_vertical_cuts
+                || line_map.added_horizontal_cuts != indexed.added_horizontal_cuts
+                || line_map.added_vertical_cuts != indexed.added_vertical_cuts
+                || line_map.rectangles != indexed.rectangles
             {
                 return Err(DominanceError::PolygonCompletionMismatch);
             }
@@ -433,12 +460,15 @@ pub fn solve_polygon_with_options(
                     &selected_vertical,
                 )?,
             PolygonCompletionBackend::IndexedFrontier => IndexedPolygonCompletion
-                .complete_prepared(
+                .complete_prepared_with_backends(
                     &prepared,
                     &families.horizontal,
                     &families.vertical,
                     &selected_horizontal,
                     &selected_vertical,
+                    options.cut_index_backend,
+                    options.recovery_backend,
+                    options.dissection_validator_backend,
                 )?,
         },
     };
@@ -448,15 +478,11 @@ pub fn solve_polygon_with_options(
             actual: completion.rectangles.len(),
         });
     }
-    if options.verification_mode == VerificationMode::FullyAudited
-        || options.arrangement_backend == PolygonArrangementBackend::Reference
-    {
+    if options.verification_mode == VerificationMode::FullyAudited {
         validate_polygon_dissection_count(polygon, optimum_rectangle_count, &completion.rectangles)
             .map_err(PolygonSgError::from)?;
     }
-    if options.verification_mode == VerificationMode::FullyAudited
-        || options.arrangement_backend == PolygonArrangementBackend::Indexed
-    {
+    if options.verification_mode == VerificationMode::FullyAudited {
         let horizontal_cuts = completion
             .selected_horizontal_cuts
             .iter()
@@ -476,6 +502,11 @@ pub fn solve_polygon_with_options(
             .map_err(PolygonSgError::from)?;
     }
     let completed_at = Instant::now();
+    let dense_arrangement_used = options.verification_mode == VerificationMode::FullyAudited
+        || options.completion_backend == PolygonCompletionBackend::CoordinateReference
+        || options.recovery_backend == PolygonRecoveryBackend::DenseCoordinateArrangement
+        || options.dissection_validator_backend
+            == PolygonDissectionValidatorBackend::DenseArrangement;
     Ok(PolygonDissectionResult {
         optimum_rectangle_count,
         rectangles: completion.rectangles,
@@ -491,8 +522,9 @@ pub fn solve_polygon_with_options(
             coordinate_compression_y_count: Some(completion.metrics.coordinate_compression_y_count),
             atomic_cell_count: Some(completion.metrics.atomic_cell_count),
             polygon_completion_backend: Some(options.completion_backend.name().to_owned()),
-            polygon_arrangement_backend: Some(options.arrangement_backend.name().to_owned()),
-            polygon_validator_backend: Some(options.arrangement_backend.name().to_owned()),
+            polygon_arrangement_backend: Some(options.recovery_backend.name().to_owned()),
+            polygon_validator_backend: Some(options.dissection_validator_backend.name().to_owned()),
+            polygon_cut_index_backend: Some(options.cut_index_backend.name().to_owned()),
             polygon_prepare_build_count: Some(prepared.metrics().polygon_prepare_build_count),
             polygon_normalization_count: Some(prepared.metrics().polygon_normalization_count),
             polygon_validation_count: Some(prepared.metrics().polygon_validation_count),
@@ -597,6 +629,31 @@ pub fn solve_polygon_with_options(
             polygon_validator_rectangle_cell_tests: Some(
                 completion.metrics.polygon_validator_rectangle_cell_tests,
             ),
+            cut_index_insertions: Some(completion.metrics.cut_index.insertions),
+            cut_index_canonical_node_insertions: Some(
+                completion.metrics.cut_index.canonical_node_insertions,
+            ),
+            cut_index_stabbing_queries: Some(completion.metrics.cut_index.stabbing_queries),
+            cut_index_tree_node_visits: Some(completion.metrics.cut_index.tree_node_visits),
+            cut_index_ordered_set_queries: Some(completion.metrics.cut_index.ordered_set_queries),
+            cut_index_reported_intersections: Some(
+                completion.metrics.cut_index.reported_intersections,
+            ),
+            cut_index_coordinate_line_scans: Some(
+                completion.metrics.cut_index.coordinate_line_scans,
+            ),
+            cut_index_interval_scans: Some(completion.metrics.cut_index.interval_scans),
+            cut_index_owned_bytes: Some(completion.metrics.cut_index.owned_bytes),
+            sparse_subdivision_vertex_count: Some(completion.metrics.sparse_subdivision_vertices),
+            sparse_subdivision_half_edge_count: Some(
+                completion.metrics.sparse_subdivision_half_edges,
+            ),
+            sparse_subdivision_face_count: Some(completion.metrics.sparse_subdivision_faces),
+            sparse_subdivision_junction_count: Some(
+                completion.metrics.sparse_subdivision_junctions,
+            ),
+            sparse_subdivision_owned_bytes: Some(completion.metrics.sparse_subdivision_owned_bytes),
+            sparse_validator_slab_count: Some(completion.metrics.sparse_validator_slab_count),
             raster_oracle_used: Some(false),
             boundary_complexity: boundary.boundary_complexity(),
             outer_loop_count: boundary.outer_loop_count(),
@@ -671,6 +728,11 @@ pub fn solve_polygon_with_options(
             .collect(),
             execution_trace: ExecutionTrace {
                 compact_structure_check_called: true,
+                dense_atomic_cells_materialized: dense_arrangement_used,
+                dense_occupied_array_materialized: dense_arrangement_used,
+                dense_horizontal_barrier_array_materialized: dense_arrangement_used,
+                dense_vertical_barrier_array_materialized: dense_arrangement_used,
+                dense_coverage_difference_array_materialized: dense_arrangement_used,
                 ..ExecutionTrace::default()
             },
             owned_allocation_estimates: BTreeMap::from([
@@ -681,6 +743,14 @@ pub fn solve_polygon_with_options(
                 (
                     "polygon_arrangement".to_owned(),
                     completion.metrics.arrangement_owned_bytes,
+                ),
+                (
+                    "polygon_cut_index".to_owned(),
+                    completion.metrics.cut_index.owned_bytes,
+                ),
+                (
+                    "polygon_sparse_subdivision".to_owned(),
+                    completion.metrics.sparse_subdivision_owned_bytes,
                 ),
             ]),
             ..Diagnostics::default()

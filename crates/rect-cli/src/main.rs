@@ -17,7 +17,10 @@ use rect_dominance::{
     RegionDualBackend, VerificationMode, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
-use rect_oracle_sg::CompletionBackendKind;
+use rect_oracle_sg::{
+    CompletionBackendKind, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
+    PolygonRecoveryBackend,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -68,6 +71,12 @@ enum Command {
         polygon_completion: Option<PolygonCompletionArg>,
         #[arg(long, value_enum)]
         polygon_arrangement: Option<PolygonArrangementArg>,
+        #[arg(long, value_enum)]
+        polygon_cut_index: Option<PolygonCutIndexArg>,
+        #[arg(long, value_enum)]
+        polygon_recovery: Option<PolygonRecoveryArg>,
+        #[arg(long, value_enum)]
+        polygon_dissection_validator: Option<PolygonDissectionValidatorArg>,
     },
     Verify {
         #[arg(long)]
@@ -265,6 +274,24 @@ enum PolygonArrangementArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonCutIndexArg {
+    LineMapReference,
+    DynamicStabbing,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonRecoveryArg {
+    DenseArrangement,
+    SparseSubdivision,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum PolygonDissectionValidatorArg {
+    DenseArrangement,
+    SparseSlab,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
     CleanCensus,
@@ -414,6 +441,9 @@ fn run() -> Result<(), CliError> {
             polygon_chords,
             polygon_completion,
             polygon_arrangement,
+            polygon_cut_index,
+            polygon_recovery,
+            polygon_dissection_validator,
         } => solve_command(
             solver,
             input_format,
@@ -427,6 +457,9 @@ fn run() -> Result<(), CliError> {
             polygon_chords,
             polygon_completion,
             polygon_arrangement,
+            polygon_cut_index,
+            polygon_recovery,
+            polygon_dissection_validator,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -1117,6 +1150,9 @@ fn solve_command(
     polygon_chords: Option<PolygonChordsArg>,
     polygon_completion: Option<PolygonCompletionArg>,
     polygon_arrangement: Option<PolygonArrangementArg>,
+    polygon_cut_index: Option<PolygonCutIndexArg>,
+    polygon_recovery: Option<PolygonRecoveryArg>,
+    polygon_dissection_validator: Option<PolygonDissectionValidatorArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -1128,6 +1164,9 @@ fn solve_command(
                 || polygon_chords.is_some()
                 || polygon_completion.is_some()
                 || polygon_arrangement.is_some()
+                || polygon_cut_index.is_some()
+                || polygon_recovery.is_some()
+                || polygon_dissection_validator.is_some()
             {
                 return Err(CliError::Input(
                     "polygon backend options require boundary-native polygon input".to_owned(),
@@ -1212,6 +1251,28 @@ fn solve_command(
                     completion_backend: polygon_completion.map_or(
                         PolygonCompletionBackend::IndexedFrontier,
                         polygon_completion_kind,
+                    ),
+                    cut_index_backend: polygon_cut_index.map_or(
+                        PolygonCutIndexBackend::DynamicStabbing,
+                        polygon_cut_index_kind,
+                    ),
+                    recovery_backend: polygon_recovery.map_or_else(
+                        || {
+                            polygon_arrangement
+                                .map_or(PolygonRecoveryBackend::SparseSubdivision, |_| {
+                                    PolygonRecoveryBackend::DenseCoordinateArrangement
+                                })
+                        },
+                        polygon_recovery_kind,
+                    ),
+                    dissection_validator_backend: polygon_dissection_validator.map_or_else(
+                        || {
+                            polygon_arrangement
+                                .map_or(PolygonDissectionValidatorBackend::SparseSlab, |_| {
+                                    PolygonDissectionValidatorBackend::DenseArrangement
+                                })
+                        },
+                        polygon_dissection_validator_kind,
                     ),
                     arrangement_backend: polygon_arrangement
                         .map_or(PolygonArrangementBackend::Indexed, polygon_arrangement_kind),
@@ -1369,6 +1430,31 @@ const fn polygon_arrangement_kind(backend: PolygonArrangementArg) -> PolygonArra
     match backend {
         PolygonArrangementArg::Reference => PolygonArrangementBackend::Reference,
         PolygonArrangementArg::Indexed => PolygonArrangementBackend::Indexed,
+    }
+}
+
+const fn polygon_cut_index_kind(backend: PolygonCutIndexArg) -> PolygonCutIndexBackend {
+    match backend {
+        PolygonCutIndexArg::LineMapReference => PolygonCutIndexBackend::ReferenceLineMaps,
+        PolygonCutIndexArg::DynamicStabbing => PolygonCutIndexBackend::DynamicStabbing,
+    }
+}
+
+const fn polygon_recovery_kind(backend: PolygonRecoveryArg) -> PolygonRecoveryBackend {
+    match backend {
+        PolygonRecoveryArg::DenseArrangement => PolygonRecoveryBackend::DenseCoordinateArrangement,
+        PolygonRecoveryArg::SparseSubdivision => PolygonRecoveryBackend::SparseSubdivision,
+    }
+}
+
+const fn polygon_dissection_validator_kind(
+    backend: PolygonDissectionValidatorArg,
+) -> PolygonDissectionValidatorBackend {
+    match backend {
+        PolygonDissectionValidatorArg::DenseArrangement => {
+            PolygonDissectionValidatorBackend::DenseArrangement
+        }
+        PolygonDissectionValidatorArg::SparseSlab => PolygonDissectionValidatorBackend::SparseSlab,
     }
 }
 
@@ -1764,6 +1850,9 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -1810,6 +1899,9 @@ mod tests {
             Some(RepresentationArg::PathTree),
             Some(RegionDualArg::BoundaryLaminar),
             Some(PathTreeOrientationArg::HorizontalTree),
+            None,
+            None,
+            None,
             None,
             None,
             None,
@@ -1864,7 +1956,10 @@ mod tests {
             Some(PolygonValidatorArg::OrthogonalSweep),
             Some(PolygonChordsArg::IndexedPairwise),
             Some(PolygonCompletionArg::IndexedFrontier),
-            Some(PolygonArrangementArg::Indexed),
+            None,
+            None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -1874,7 +1969,17 @@ mod tests {
         assert_eq!(value["input_model"], "rectilinear-polygon");
         assert_eq!(value["result"]["optimum_rectangle_count"], 2);
         assert_eq!(value["result"]["diagnostics"]["raster_oracle_used"], false);
-        assert_eq!(value["result"]["diagnostics"]["atomic_cell_count"], 4);
+        let diagnostics = &value["result"]["diagnostics"];
+        assert_eq!(diagnostics["atomic_cell_count"], 0);
+        assert_eq!(
+            diagnostics["execution_trace"]["dense_atomic_cells_materialized"],
+            false
+        );
+        assert!(
+            diagnostics["sparse_subdivision_vertex_count"]
+                .as_u64()
+                .is_some_and(|count| count > 0)
+        );
         assert!(!fs::read(&svg).unwrap().is_empty());
         fs::remove_dir_all(root).unwrap();
     }
@@ -1907,6 +2012,9 @@ mod tests {
             Some(PolygonChordsArg::SgSweep),
             Some(PolygonCompletionArg::IndexedFrontier),
             Some(PolygonArrangementArg::Indexed),
+            None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -1992,11 +2100,18 @@ mod tests {
             }
             if name == "reflex-heavy-stretched.json" {
                 assert!(result.diagnostics.reflex_vertex_count >= 8);
+                assert_eq!(result.diagnostics.atomic_cell_count, Some(0));
                 assert!(
                     result
                         .diagnostics
-                        .coordinate_compression_x_count
+                        .sparse_subdivision_vertex_count
                         .is_some_and(|count| count >= 10)
+                );
+                assert!(
+                    !result
+                        .diagnostics
+                        .execution_trace
+                        .dense_atomic_cells_materialized
                 );
             }
         }

@@ -15,6 +15,11 @@ use thiserror::Error;
 
 use crate::EffectiveChordFamilies;
 use crate::polygon_arrangement::PreparedCoordinateArrangement;
+use crate::polygon_cut_index::{CompletionCutIndex, CutIndexMetrics, PolygonCutIndexBackend};
+use crate::polygon_sparse::{
+    PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
+    SparseSlabValidator,
+};
 use crate::{
     ChordRef, CleanHoleFreeCertificate, CleanRejectionReason, EffectiveChordEndpointIndex,
 };
@@ -59,6 +64,9 @@ pub struct SweepEventSummary {
     pub inserted_segment_count: usize,
     pub query_count: usize,
     pub removed_segment_count: usize,
+    /// The sweep processes every equal-coordinate bucket as insert, query,
+    /// remove, which implements the required closed-event convention.
+    pub insert_query_remove_order: bool,
 }
 
 /// Provenance for one canonical sweep output record.
@@ -127,7 +135,7 @@ pub struct HorizontalCutSegment {
 }
 
 impl HorizontalCutSegment {
-    fn new(left: i64, right: i64, y: i64) -> Result<Self, PolygonSgError> {
+    pub(crate) fn new(left: i64, right: i64, y: i64) -> Result<Self, PolygonSgError> {
         if left >= right {
             return Err(PolygonSgError::InvalidSimpleChord {
                 start: Point::new(left, y),
@@ -153,7 +161,7 @@ pub struct VerticalCutSegment {
 }
 
 impl VerticalCutSegment {
-    fn new(x: i64, bottom: i64, top: i64) -> Result<Self, PolygonSgError> {
+    pub(crate) fn new(x: i64, bottom: i64, top: i64) -> Result<Self, PolygonSgError> {
         if bottom >= top {
             return Err(PolygonSgError::InvalidSimpleChord {
                 start: Point::new(x, bottom),
@@ -201,6 +209,13 @@ pub struct PolygonCompletionMetrics {
     pub arrangement_span_writes: usize,
     pub polygon_validator_rectangle_cell_tests: usize,
     pub arrangement_owned_bytes: usize,
+    pub cut_index: CutIndexMetrics,
+    pub sparse_subdivision_vertices: usize,
+    pub sparse_subdivision_half_edges: usize,
+    pub sparse_subdivision_faces: usize,
+    pub sparse_subdivision_junctions: usize,
+    pub sparse_subdivision_owned_bytes: usize,
+    pub sparse_validator_slab_count: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -315,7 +330,11 @@ impl DynamicPolygonCutIndex {
             .collect()
     }
 
-    fn nearest_blocker(&self, point: Point, direction: PolygonDirection) -> Option<Point> {
+    pub(crate) fn nearest_blocker(
+        &self,
+        point: Point,
+        direction: PolygonDirection,
+    ) -> Option<Point> {
         match direction {
             PolygonDirection::East => {
                 let perpendicular = self
@@ -595,6 +614,30 @@ fn normalize_vertical_segments(mut segments: Vec<VerticalCutSegment>) -> Vec<Ver
     }
     normalized.sort_unstable();
     normalized
+}
+
+fn completion_coordinate_universe(
+    prepared: &PreparedPolygonContext,
+    selected_horizontal: &[HorizontalCutSegment],
+    selected_vertical: &[VerticalCutSegment],
+) -> BTreeSet<i64> {
+    let mut coordinates = prepared
+        .polygon()
+        .loops()
+        .flat_map(|boundary_loop| {
+            boundary_loop
+                .vertices
+                .iter()
+                .flat_map(|point| [point.x, point.y])
+        })
+        .collect::<BTreeSet<_>>();
+    for cut in selected_horizontal {
+        coordinates.extend([cut.left, cut.right, cut.y]);
+    }
+    for cut in selected_vertical {
+        coordinates.extend([cut.x, cut.bottom, cut.top]);
+    }
+    coordinates
 }
 
 impl GeneralPolygonPairwiseEnumerator {
@@ -1000,6 +1043,208 @@ impl SoltanGorpinevichSweepEnumerator {
     }
 }
 
+/// Fully audits ordinary-loop sweep output against Definition 7 and the
+/// preserved pairwise oracle.
+///
+/// # Errors
+///
+/// Returns [`PolygonSgError::SweepAuditFailed`] when a provenance record,
+/// nearest blocker, event bucket, or reference chord is inconsistent.
+pub fn audit_sweep_provenance(
+    prepared: &PreparedPolygonContext,
+    result: &PolygonChordEnumerationResult,
+) -> Result<(), PolygonSgError> {
+    let certificate =
+        result
+            .sweep_certificate
+            .as_ref()
+            .ok_or_else(|| PolygonSgError::SweepAuditFailed {
+                message: "sweep result omitted its certificate".to_owned(),
+            })?;
+    let reference = GeneralPolygonPairwiseEnumerator.enumerate_prepared(prepared)?;
+    let expected = reference_chord_keys(&reference);
+    let recorded = certificate
+        .output_records
+        .iter()
+        .map(sweep_record_key)
+        .collect::<BTreeSet<_>>();
+    if recorded != expected || sweep_family_keys(&result.families) != expected {
+        return Err(PolygonSgError::SweepAuditFailed {
+            message: "reference effective chord lacks matching first-hit provenance".to_owned(),
+        });
+    }
+    let mut metrics = PolygonChordEnumerationMetrics::default();
+    for record in &certificate.output_records {
+        let (low, high, fixed) = match record.axis {
+            SweepAxis::Horizontal => (
+                record.source_point.x.min(record.target_point.x),
+                record.source_point.x.max(record.target_point.x),
+                record.source_point.y,
+            ),
+            SweepAxis::Vertical => (
+                record.source_point.y.min(record.target_point.y),
+                record.source_point.y.max(record.target_point.y),
+                record.source_point.x,
+            ),
+        };
+        let definition_7 = match record.axis {
+            SweepAxis::Horizontal => {
+                horizontal_satisfies_definition_7_indexed(prepared, low, high, fixed, &mut metrics)?
+            }
+            SweepAxis::Vertical => {
+                vertical_satisfies_definition_7_indexed(prepared, fixed, low, high, &mut metrics)?
+            }
+        };
+        if !definition_7 {
+            return Err(PolygonSgError::SweepAuditFailed {
+                message: "sweep output violates Definition 7".to_owned(),
+            });
+        }
+        if prepared.boundary_index().vertex_id(record.source_point) != Some(record.source)
+            || prepared.boundary_index().vertex_id(record.target_point) != Some(record.target)
+        {
+            return Err(PolygonSgError::SweepAuditFailed {
+                message: "sweep record boundary identities are stale".to_owned(),
+            });
+        }
+        let increasing = sweep_interior_direction(prepared.boundary(), record.source, record.axis)?;
+        let direction = match (record.axis, increasing) {
+            (SweepAxis::Horizontal, true) => rect_core::OrthogonalDirection::East,
+            (SweepAxis::Horizontal, false) => rect_core::OrthogonalDirection::West,
+            (SweepAxis::Vertical, true) => rect_core::OrthogonalDirection::North,
+            (SweepAxis::Vertical, false) => rect_core::OrthogonalDirection::South,
+        };
+        if prepared
+            .edge_index()
+            .nearest_boundary_blocker(record.source_point, direction)
+            != Some(record.target_point)
+        {
+            return Err(PolygonSgError::SweepAuditFailed {
+                message: "recorded sweep blocker is not the nearest boundary blocker".to_owned(),
+            });
+        }
+        let blocker = prepared
+            .edge_index()
+            .edge(record.blocker_edge_id)
+            .ok_or_else(|| PolygonSgError::SweepAuditFailed {
+                message: "recorded blocker edge is absent".to_owned(),
+            })?;
+        let blocker_valid = match record.axis {
+            SweepAxis::Horizontal => {
+                !blocker.is_horizontal()
+                    && blocker.first.x == record.target_point.x
+                    && blocker.bottom() <= record.target_point.y
+                    && record.target_point.y <= blocker.top()
+            }
+            SweepAxis::Vertical => {
+                blocker.is_horizontal()
+                    && blocker.first.y == record.target_point.y
+                    && blocker.left() <= record.target_point.x
+                    && record.target_point.x <= blocker.right()
+            }
+        };
+        if !blocker_valid {
+            return Err(PolygonSgError::SweepAuditFailed {
+                message: "recorded blocker edge does not realize the target".to_owned(),
+            });
+        }
+    }
+    audit_sweep_event_buckets(prepared, certificate)?;
+    Ok(())
+}
+
+fn reference_chord_keys(families: &EffectiveChordFamilies) -> BTreeSet<(SweepAxis, i64, i64, i64)> {
+    families
+        .horizontal
+        .iter()
+        .map(|chord| {
+            (
+                SweepAxis::Horizontal,
+                chord.y(),
+                chord.left(),
+                chord.right(),
+            )
+        })
+        .chain(
+            families
+                .vertical
+                .iter()
+                .map(|chord| (SweepAxis::Vertical, chord.x(), chord.bottom(), chord.top())),
+        )
+        .collect()
+}
+
+fn sweep_family_keys(families: &EffectiveChordFamilies) -> BTreeSet<(SweepAxis, i64, i64, i64)> {
+    reference_chord_keys(families)
+}
+
+fn sweep_record_key(record: &SweepOutputRecord) -> (SweepAxis, i64, i64, i64) {
+    match record.axis {
+        SweepAxis::Horizontal => (
+            record.axis,
+            record.source_point.y,
+            record.source_point.x.min(record.target_point.x),
+            record.source_point.x.max(record.target_point.x),
+        ),
+        SweepAxis::Vertical => (
+            record.axis,
+            record.source_point.x,
+            record.source_point.y.min(record.target_point.y),
+            record.source_point.y.max(record.target_point.y),
+        ),
+    }
+}
+
+fn audit_sweep_event_buckets(
+    prepared: &PreparedPolygonContext,
+    certificate: &SweepCertificate,
+) -> Result<(), PolygonSgError> {
+    for axis in [SweepAxis::Horizontal, SweepAxis::Vertical] {
+        let mut expected = BTreeMap::<i64, (usize, usize, usize)>::new();
+        for edge_id in 0..prepared.edge_index().edge_count() {
+            let edge = prepared
+                .edge_index()
+                .edge(edge_id)
+                .expect("edge identity is indexed");
+            let status = match axis {
+                SweepAxis::Horizontal => !edge.is_horizontal(),
+                SweepAxis::Vertical => edge.is_horizontal(),
+            };
+            if status {
+                let (start, end) = match axis {
+                    SweepAxis::Horizontal => (edge.bottom(), edge.top()),
+                    SweepAxis::Vertical => (edge.left(), edge.right()),
+                };
+                expected.entry(start).or_default().0 += 1;
+                expected.entry(end).or_default().2 += 1;
+            }
+        }
+        for vertex in &prepared.boundary().reflex_vertices {
+            let coordinate = match axis {
+                SweepAxis::Horizontal => vertex.point.y,
+                SweepAxis::Vertical => vertex.point.x,
+            };
+            expected.entry(coordinate).or_default().1 += 1;
+        }
+        for (coordinate, (insertions, queries, removals)) in expected {
+            if let Some(summary) = certificate
+                .event_summaries
+                .iter()
+                .find(|summary| summary.axis == axis && summary.coordinate == coordinate)
+                && (summary.inserted_segment_count != insertions
+                    || summary.query_count != queries
+                    || summary.removed_segment_count != removals
+                    || !summary.insert_query_remove_order)
+            {
+                return Err(PolygonSgError::SweepAuditFailed {
+                    message: "closed-event tie summary disagrees with the boundary".to_owned(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_lines)]
 fn enumerate_sweep_axis(
     prepared: &PreparedPolygonContext,
@@ -1153,6 +1398,7 @@ fn enumerate_sweep_axis(
                 inserted_segment_count: bucket.insertions.len(),
                 query_count: bucket.queries.len(),
                 removed_segment_count: bucket.removals.len(),
+                insert_query_remove_order: true,
             });
         } else {
             certificate.event_trace_truncated = true;
@@ -1582,7 +1828,7 @@ fn incident_vertices(
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum PolygonDirection {
+pub(crate) enum PolygonDirection {
     East,
     North,
     West,
@@ -1615,7 +1861,8 @@ struct PolygonFrontierCandidate {
 
 struct IndexedPolygonCompletionState<'a> {
     prepared: &'a PreparedPolygonContext,
-    cuts: DynamicPolygonCutIndex,
+    cuts: CompletionCutIndex,
+    coordinate_universe: BTreeSet<i64>,
     candidates: BTreeSet<Point>,
     generations: BTreeMap<Point, u64>,
     frontier: BinaryHeap<Reverse<PolygonFrontierCandidate>>,
@@ -1626,11 +1873,15 @@ impl<'a> IndexedPolygonCompletionState<'a> {
         prepared: &'a PreparedPolygonContext,
         selected_horizontal: &[HorizontalCutSegment],
         selected_vertical: &[VerticalCutSegment],
+        cut_index_backend: PolygonCutIndexBackend,
         metrics: &mut PolygonCompletionMetrics,
     ) -> Result<Self, PolygonSgError> {
+        let coordinate_universe =
+            completion_coordinate_universe(prepared, selected_horizontal, selected_vertical);
         let mut state = Self {
             prepared,
-            cuts: DynamicPolygonCutIndex::default(),
+            cuts: CompletionCutIndex::new(cut_index_backend, coordinate_universe.clone())?,
+            coordinate_universe,
             candidates: BTreeSet::new(),
             generations: BTreeMap::new(),
             frontier: BinaryHeap::new(),
@@ -1640,45 +1891,61 @@ impl<'a> IndexedPolygonCompletionState<'a> {
             .loops()
             .flat_map(|boundary_loop| boundary_loop.vertices.iter().copied())
         {
-            state.insert_candidate(point, metrics);
+            state.insert_candidate(point, metrics)?;
         }
         for &segment in selected_horizontal {
             let (inserted, intersections) =
-                state.cuts.insert_horizontal_with_intersections(segment);
+                state.cuts.insert_horizontal_with_intersections(segment)?;
             if !inserted {
                 return Err(PolygonSgError::InvalidSimpleChord {
                     start: Point::new(segment.left, segment.y),
                 });
             }
-            state.insert_candidate(Point::new(segment.left, segment.y), metrics);
-            state.insert_candidate(Point::new(segment.right, segment.y), metrics);
+            state.insert_candidate(Point::new(segment.left, segment.y), metrics)?;
+            state.insert_candidate(Point::new(segment.right, segment.y), metrics)?;
             for point in intersections {
                 metrics.completion_intersections_reported += 1;
-                state.insert_candidate(point, metrics);
+                state.insert_candidate(point, metrics)?;
             }
         }
         for &segment in selected_vertical {
-            let (inserted, intersections) = state.cuts.insert_vertical_with_intersections(segment);
+            let (inserted, intersections) =
+                state.cuts.insert_vertical_with_intersections(segment)?;
             if !inserted {
                 return Err(PolygonSgError::InvalidSimpleChord {
                     start: Point::new(segment.x, segment.bottom),
                 });
             }
-            state.insert_candidate(Point::new(segment.x, segment.bottom), metrics);
-            state.insert_candidate(Point::new(segment.x, segment.top), metrics);
+            state.insert_candidate(Point::new(segment.x, segment.bottom), metrics)?;
+            state.insert_candidate(Point::new(segment.x, segment.top), metrics)?;
             for point in intersections {
                 metrics.completion_intersections_reported += 1;
-                state.insert_candidate(point, metrics);
+                state.insert_candidate(point, metrics)?;
             }
         }
         Ok(state)
     }
 
-    fn insert_candidate(&mut self, point: Point, metrics: &mut PolygonCompletionMetrics) {
+    fn ensure_completion_point(&self, point: Point) -> Result<(), PolygonSgError> {
+        for coordinate in [point.x, point.y] {
+            if !self.coordinate_universe.contains(&coordinate) {
+                return Err(PolygonSgError::CompletionCoordinateOutsideUniverse { coordinate });
+            }
+        }
+        Ok(())
+    }
+
+    fn insert_candidate(
+        &mut self,
+        point: Point,
+        metrics: &mut PolygonCompletionMetrics,
+    ) -> Result<(), PolygonSgError> {
+        self.ensure_completion_point(point)?;
         if self.candidates.insert(point) {
             self.generations.insert(point, 0);
             metrics.completion_candidate_insertions += 1;
         }
+        Ok(())
     }
 
     fn local_quadrants(&self, point: Point) -> [bool; 4] {
@@ -1700,7 +1967,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
         ]
     }
 
-    fn local_blocked_rays(&self, inside: [bool; 4], point: Point) -> [bool; 4] {
+    fn local_blocked_rays(&mut self, inside: [bool; 4], point: Point) -> [bool; 4] {
         [
             self.cuts.contains_horizontal_ray(point, true) || inside[1] != inside[2],
             self.cuts.contains_vertical_ray(point, true) || inside[2] != inside[3],
@@ -1710,7 +1977,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
     }
 
     fn candidate_valid(
-        &self,
+        &mut self,
         point: Point,
         direction: PolygonDirection,
         metrics: &mut PolygonCompletionMetrics,
@@ -1780,8 +2047,8 @@ impl<'a> IndexedPolygonCompletionState<'a> {
         point: Point,
         horizontal: bool,
         metrics: &mut PolygonCompletionMetrics,
-    ) {
-        self.insert_candidate(point, metrics);
+    ) -> Result<(), PolygonSgError> {
+        self.insert_candidate(point, metrics)?;
         *self.generations.entry(point).or_default() = self
             .generations
             .get(&point)
@@ -1789,6 +2056,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
             .unwrap_or_default()
             .wrapping_add(1);
         self.enqueue_point(point, horizontal, metrics);
+        Ok(())
     }
 
     fn pop_candidate(
@@ -1811,11 +2079,11 @@ impl<'a> IndexedPolygonCompletionState<'a> {
     }
 
     fn ray_stop(
-        &self,
+        &mut self,
         point: Point,
         direction: PolygonDirection,
         metrics: &mut PolygonCompletionMetrics,
-    ) -> Option<Point> {
+    ) -> Result<Option<Point>, PolygonSgError> {
         metrics.completion_boundary_ray_queries += 1;
         metrics.completion_cut_ray_queries += 1;
         let boundary = self.prepared.edge_index().nearest_boundary_blocker(
@@ -1828,12 +2096,16 @@ impl<'a> IndexedPolygonCompletionState<'a> {
             },
         );
         let cut = self.cuts.nearest_blocker(point, direction);
-        match direction {
+        let stop = match direction {
             PolygonDirection::East => boundary.into_iter().chain(cut).min_by_key(|stop| stop.x),
             PolygonDirection::West => boundary.into_iter().chain(cut).max_by_key(|stop| stop.x),
             PolygonDirection::North => boundary.into_iter().chain(cut).min_by_key(|stop| stop.y),
             PolygonDirection::South => boundary.into_iter().chain(cut).max_by_key(|stop| stop.y),
+        };
+        if let Some(stop) = stop {
+            self.ensure_completion_point(stop)?;
         }
+        Ok(stop)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1853,7 +2125,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
                 let segment =
                     HorizontalCutSegment::new(point.x.min(stop.x), point.x.max(stop.x), point.y)?;
                 let (inserted, intersections) =
-                    self.cuts.insert_horizontal_with_intersections(segment);
+                    self.cuts.insert_horizontal_with_intersections(segment)?;
                 if !inserted {
                     return Err(PolygonSgError::InvalidSimpleChord { start: point });
                 }
@@ -1866,7 +2138,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
                 let segment =
                     VerticalCutSegment::new(point.x, point.y.min(stop.y), point.y.max(stop.y))?;
                 let (inserted, intersections) =
-                    self.cuts.insert_vertical_with_intersections(segment);
+                    self.cuts.insert_vertical_with_intersections(segment)?;
                 if !inserted {
                     return Err(PolygonSgError::InvalidSimpleChord { start: point });
                 }
@@ -1877,7 +2149,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
             }
         }
         for affected_point in affected {
-            self.refresh_point(affected_point, horizontal_phase, metrics);
+            self.refresh_point(affected_point, horizontal_phase, metrics)?;
         }
         Ok(())
     }
@@ -1907,7 +2179,7 @@ impl<'a> IndexedPolygonCompletionState<'a> {
             };
             let point = Point::new(candidate.x, candidate.y);
             let stop = self
-                .ray_stop(point, candidate.direction, metrics)
+                .ray_stop(point, candidate.direction, metrics)?
                 .ok_or(PolygonSgError::UnboundedSimpleChord { start: point })?;
             self.insert_simple_chord(
                 point,
@@ -1965,6 +2237,68 @@ impl IndexedPolygonCompletion {
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        self.complete_prepared_with_backends(
+            prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+            PolygonCutIndexBackend::DynamicStabbing,
+            PolygonRecoveryBackend::SparseSubdivision,
+            PolygonDissectionValidatorBackend::SparseSlab,
+        )
+    }
+
+    /// Completes selected chords with an explicit mutable cut-index backend.
+    ///
+    /// The line-map backend is retained only as a completion differential
+    /// oracle.  The dynamic backend uses the statically closed coordinate
+    /// universe documented in `POLYGON_COMPLETION_COORDINATE_CLOSURE.md`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for invalid selection, completion geometry,
+    /// or a violation of the coordinate-closure contract.
+    pub fn complete_prepared_with_cut_index(
+        &self,
+        prepared: &PreparedPolygonContext,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+        cut_index_backend: PolygonCutIndexBackend,
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        self.complete_prepared_with_backends(
+            prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+            cut_index_backend,
+            PolygonRecoveryBackend::SparseSubdivision,
+            PolygonDissectionValidatorBackend::SparseSlab,
+        )
+    }
+
+    /// Completes selected chords with explicit index, recovery, and validation
+    /// backends. Dense variants remain available for differential auditing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for selection, coordinate-closure,
+    /// completion, recovery, or validation failure.
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    pub fn complete_prepared_with_backends(
+        &self,
+        prepared: &PreparedPolygonContext,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+        cut_index_backend: PolygonCutIndexBackend,
+        recovery_backend: PolygonRecoveryBackend,
+        validator_backend: PolygonDissectionValidatorBackend,
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
         let started = Instant::now();
         if horizontal_chords.len() != selected_horizontal.len()
             || vertical_chords.len() != selected_vertical.len()
@@ -1994,6 +2328,7 @@ impl IndexedPolygonCompletion {
             prepared,
             &selected_horizontal_cuts,
             &selected_vertical_cuts,
+            cut_index_backend,
             &mut metrics,
         )?;
         let selected_at = Instant::now();
@@ -2032,25 +2367,63 @@ impl IndexedPolygonCompletion {
             .vertical_segments()
             .into_iter()
             .collect::<BTreeSet<_>>();
-        let mut arrangement =
-            PreparedCoordinateArrangement::new(prepared, &horizontal_cuts, &vertical_cuts)?;
-        let rectangles = arrangement.recover_rectangles()?;
+        let mut dense_arrangement = None;
+        let rectangles = match recovery_backend {
+            PolygonRecoveryBackend::DenseCoordinateArrangement => {
+                let mut arrangement =
+                    PreparedCoordinateArrangement::new(prepared, &horizontal_cuts, &vertical_cuts)?;
+                let rectangles = arrangement.recover_rectangles()?;
+                metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
+                metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
+                metrics.atomic_cell_count = arrangement.metrics().arrangement_atomic_cells;
+                metrics.rectangle_recovery_visits =
+                    arrangement.metrics().arrangement_rectangle_recovery_visits;
+                metrics.arrangement_point_location_queries =
+                    arrangement.metrics().arrangement_point_location_queries;
+                metrics.arrangement_boundary_edge_visits =
+                    arrangement.metrics().arrangement_boundary_edge_visits;
+                metrics.arrangement_span_writes = arrangement.metrics().arrangement_span_writes;
+                metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
+                dense_arrangement = Some(arrangement);
+                rectangles
+            }
+            PolygonRecoveryBackend::SparseSubdivision => {
+                let subdivision =
+                    SparseOrthogonalSubdivision::new(prepared, &horizontal_cuts, &vertical_cuts)?;
+                metrics.sparse_subdivision_vertices = subdivision.metrics.vertex_count;
+                metrics.sparse_subdivision_half_edges = subdivision.metrics.half_edge_count;
+                metrics.sparse_subdivision_faces = subdivision.metrics.face_count;
+                metrics.sparse_subdivision_junctions = subdivision.metrics.junction_count;
+                metrics.sparse_subdivision_owned_bytes = subdivision.metrics.owned_bytes;
+                subdivision.recover_rectangles(prepared.polygon())?
+            }
+        };
         let recovered_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             recovered_at.duration_since(vertical_at).as_micros();
-        metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
-        metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
-        metrics.atomic_cell_count = arrangement.metrics().arrangement_atomic_cells;
-        metrics.rectangle_recovery_visits =
-            arrangement.metrics().arrangement_rectangle_recovery_visits;
-        metrics.arrangement_point_location_queries =
-            arrangement.metrics().arrangement_point_location_queries;
-        metrics.arrangement_boundary_edge_visits =
-            arrangement.metrics().arrangement_boundary_edge_visits;
-        metrics.arrangement_span_writes = arrangement.metrics().arrangement_span_writes;
-        metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
-        arrangement.validate_rectangles(prepared.polygon(), &rectangles)?;
+        match validator_backend {
+            PolygonDissectionValidatorBackend::DenseArrangement => {
+                let arrangement = match dense_arrangement {
+                    Some(arrangement) => arrangement,
+                    None => PreparedCoordinateArrangement::new(
+                        prepared,
+                        &horizontal_cuts,
+                        &vertical_cuts,
+                    )?,
+                };
+                arrangement.validate_rectangles(prepared.polygon(), &rectangles)?;
+                metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
+                metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
+                metrics.atomic_cell_count = arrangement.metrics().arrangement_atomic_cells;
+                metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
+            }
+            PolygonDissectionValidatorBackend::SparseSlab => {
+                let slab = SparseSlabValidator.validate(prepared.polygon(), &rectangles)?;
+                metrics.sparse_validator_slab_count = slab.slab_count;
+            }
+        }
         metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();
+        metrics.cut_index = state.cuts.metrics();
         Ok(PolygonCompletionResult {
             rectangles,
             selected_horizontal_cuts,
@@ -2682,6 +3055,8 @@ pub enum PolygonSgError {
     InvalidBoundaryVertexId(BoundaryVertexId),
     #[error("doubled-coordinate arithmetic overflowed")]
     CoordinateOverflow,
+    #[error("completion coordinate {coordinate} is outside the proven static universe")]
+    CompletionCoordinateOutsideUniverse { coordinate: i64 },
     #[error("effective-chord selection vectors have the wrong length")]
     SelectionLengthMismatch,
     #[error("simple chord from {start:?} is empty or duplicates an existing cut")]
@@ -2692,6 +3067,10 @@ pub enum PolygonSgError {
     CompletionDidNotTerminate,
     #[error("completion region at {point:?} is not a coordinate rectangle")]
     NonRectangularCompletionRegion { point: Point },
+    #[error("sparse polygon subdivision failed: {message}")]
+    SparseSubdivision { message: String },
+    #[error("ordinary-loop sweep audit failed: {message}")]
+    SweepAuditFailed { message: String },
     #[error(transparent)]
     Validation(#[from] PolygonValidationError),
 }
@@ -2870,6 +3249,7 @@ mod tests {
                 let prepared = PreparedPolygonContext::new(&polygon).unwrap();
                 let indexed_result = indexed.enumerate_prepared(&prepared).unwrap();
                 let sweep_result = sweep.enumerate_prepared(&prepared).unwrap();
+                super::audit_sweep_provenance(&prepared, &sweep_result).unwrap();
                 assert_eq!(grid_families.horizontal, polygon_families.horizontal);
                 assert_eq!(grid_families.vertical, polygon_families.vertical);
                 assert_eq!(
@@ -2957,6 +3337,7 @@ mod tests {
             let sweep = SoltanGorpinevichSweepEnumerator
                 .enumerate_prepared(&prepared)
                 .unwrap();
+            super::audit_sweep_provenance(&prepared, &sweep).unwrap();
             assert_eq!(reference.horizontal, indexed.families.horizontal);
             assert_eq!(reference.vertical, indexed.families.vertical);
             assert_eq!(reference.horizontal, sweep.families.horizontal);
@@ -3029,6 +3410,12 @@ mod tests {
         assert_eq!(result.families.horizontal, reference.horizontal);
         assert_eq!(result.families.vertical, reference.vertical);
         let certificate = result.sweep_certificate.unwrap();
+        assert!(
+            certificate
+                .event_summaries
+                .iter()
+                .all(|summary| summary.insert_query_remove_order)
+        );
         let mut records = std::collections::BTreeSet::new();
         for record in &certificate.output_records {
             assert!(record.source_point < record.target_point);

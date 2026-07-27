@@ -2,6 +2,8 @@
 
 pub mod polygon;
 pub mod polygon_arrangement;
+pub mod polygon_cut_index;
+pub mod polygon_sparse;
 
 pub use polygon::{
     CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
@@ -10,11 +12,17 @@ pub use polygon::{
     PolygonCompletionResult, PolygonSgError, PolygonValidationError,
     ReferencePolygonPairwiseEnumerator, SoltanGorpinevichSweepEnumerator, SweepAxis,
     SweepCertificate, SweepEventSummary, SweepOutputRecord, VerticalCutSegment,
-    classify_clean_polygon, validate_polygon_dissection, validate_polygon_dissection_count,
+    audit_sweep_provenance, classify_clean_polygon, validate_polygon_dissection,
+    validate_polygon_dissection_count,
 };
 pub use polygon_arrangement::{
     ArrangementMetrics, IndexedArrangementValidator, PreparedCoordinateArrangement,
     ReferenceArrangementValidator,
+};
+pub use polygon_cut_index::{CutIndexMetrics, DynamicStabbingCutIndex, PolygonCutIndexBackend};
+pub use polygon_sparse::{
+    PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
+    SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics,
 };
 
 use std::cmp::Reverse;

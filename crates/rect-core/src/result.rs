@@ -45,6 +45,16 @@ pub struct ExecutionTrace {
     pub unit_chord_cuts_materialized: bool,
     /// True when a prepared occupancy context is copied/transposed.
     pub prepared_occupancy_transposed: bool,
+    /// True when polygon completion builds coordinate-compressed atomic cells.
+    pub dense_atomic_cells_materialized: bool,
+    /// True when a polygon dense occupancy array is allocated.
+    pub dense_occupied_array_materialized: bool,
+    /// True when a polygon dense horizontal barrier array is allocated.
+    pub dense_horizontal_barrier_array_materialized: bool,
+    /// True when a polygon dense vertical barrier array is allocated.
+    pub dense_vertical_barrier_array_materialized: bool,
+    /// True when a polygon dense two-dimensional coverage difference array is allocated.
+    pub dense_coverage_difference_array_materialized: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -75,6 +85,8 @@ pub struct Diagnostics {
     pub polygon_geometry_backend: Option<String>,
     #[serde(default)]
     pub polygon_arrangement_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_cut_index_backend: Option<String>,
     #[serde(default)]
     pub polygon_prepare_build_count: Option<usize>,
     #[serde(default)]
@@ -159,6 +171,36 @@ pub struct Diagnostics {
     pub polygon_arrangement_span_writes: Option<usize>,
     #[serde(default)]
     pub polygon_validator_rectangle_cell_tests: Option<usize>,
+    #[serde(default)]
+    pub cut_index_insertions: Option<usize>,
+    #[serde(default)]
+    pub cut_index_canonical_node_insertions: Option<usize>,
+    #[serde(default)]
+    pub cut_index_stabbing_queries: Option<usize>,
+    #[serde(default)]
+    pub cut_index_tree_node_visits: Option<usize>,
+    #[serde(default)]
+    pub cut_index_ordered_set_queries: Option<usize>,
+    #[serde(default)]
+    pub cut_index_reported_intersections: Option<usize>,
+    #[serde(default)]
+    pub cut_index_coordinate_line_scans: Option<usize>,
+    #[serde(default)]
+    pub cut_index_interval_scans: Option<usize>,
+    #[serde(default)]
+    pub cut_index_owned_bytes: Option<usize>,
+    #[serde(default)]
+    pub sparse_subdivision_vertex_count: Option<usize>,
+    #[serde(default)]
+    pub sparse_subdivision_half_edge_count: Option<usize>,
+    #[serde(default)]
+    pub sparse_subdivision_face_count: Option<usize>,
+    #[serde(default)]
+    pub sparse_subdivision_junction_count: Option<usize>,
+    #[serde(default)]
+    pub sparse_subdivision_owned_bytes: Option<usize>,
+    #[serde(default)]
+    pub sparse_validator_slab_count: Option<usize>,
     #[serde(default)]
     pub raster_oracle_used: Option<bool>,
     pub cell_count: usize,

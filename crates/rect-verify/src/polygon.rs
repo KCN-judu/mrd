@@ -15,9 +15,10 @@ use rect_dominance::{
 use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonChordEnumerationMetrics, PolygonCompletionResult, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, SweepCertificate, classify_clean_polygon,
-    validate_polygon_dissection,
+    PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonCutIndexBackend,
+    PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PreparedCoordinateArrangement,
+    SoltanGorpinevichSweepEnumerator, SparseSlabValidator, SweepCertificate,
+    classify_clean_polygon, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -77,6 +78,8 @@ pub struct PolygonRepresentationEvidence {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct PolygonCompletionEvidence {
     pub reference: PolygonCompletionResult,
+    pub line_map_dense: PolygonCompletionResult,
+    pub dynamic_dense: PolygonCompletionResult,
     pub indexed: PolygonCompletionResult,
 }
 
@@ -87,6 +90,8 @@ pub struct PolygonValidatorEvidence {
     pub reference_accepts_indexed: bool,
     pub indexed_accepts_reference: bool,
     pub indexed_accepts_indexed: bool,
+    pub sparse_accepts_reference: bool,
+    pub sparse_accepts_indexed: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -205,6 +210,9 @@ pub fn verify_polygon(
         validation_backend: PolygonValidationBackend::OrthogonalSweep,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
+        cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
+        recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
+        dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::GeneralDominance4D,
     };
@@ -275,13 +283,46 @@ pub fn verify_polygon(
             backend: "coordinate-reference",
             message: error.to_string(),
         })?;
-    let indexed_completion = IndexedPolygonCompletion
-        .complete_prepared(
+    let line_map_dense_completion = IndexedPolygonCompletion
+        .complete_prepared_with_backends(
             &indexed_prepared,
             &indexed_families.horizontal,
             &indexed_families.vertical,
             &selected_horizontal,
             &selected_vertical,
+            PolygonCutIndexBackend::ReferenceLineMaps,
+            PolygonRecoveryBackend::DenseCoordinateArrangement,
+            PolygonDissectionValidatorBackend::DenseArrangement,
+        )
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "line-map-dense",
+            message: error.to_string(),
+        })?;
+    let dynamic_dense_completion = IndexedPolygonCompletion
+        .complete_prepared_with_backends(
+            &indexed_prepared,
+            &indexed_families.horizontal,
+            &indexed_families.vertical,
+            &selected_horizontal,
+            &selected_vertical,
+            PolygonCutIndexBackend::DynamicStabbing,
+            PolygonRecoveryBackend::DenseCoordinateArrangement,
+            PolygonDissectionValidatorBackend::DenseArrangement,
+        )
+        .map_err(|error| PolygonVerificationError::Backend {
+            backend: "dynamic-dense",
+            message: error.to_string(),
+        })?;
+    let indexed_completion = IndexedPolygonCompletion
+        .complete_prepared_with_backends(
+            &indexed_prepared,
+            &indexed_families.horizontal,
+            &indexed_families.vertical,
+            &selected_horizontal,
+            &selected_vertical,
+            PolygonCutIndexBackend::DynamicStabbing,
+            PolygonRecoveryBackend::SparseSubdivision,
+            PolygonDissectionValidatorBackend::SparseSlab,
         )
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "indexed-frontier",
@@ -321,6 +362,12 @@ pub fn verify_polygon(
             .is_ok(),
         indexed_accepts_indexed: arrangement
             .validate_rectangles(indexed_prepared.polygon(), &indexed_completion.rectangles)
+            .is_ok(),
+        sparse_accepts_reference: SparseSlabValidator
+            .validate(indexed_prepared.polygon(), &reference_completion.rectangles)
+            .is_ok(),
+        sparse_accepts_indexed: SparseSlabValidator
+            .validate(indexed_prepared.polygon(), &indexed_completion.rectangles)
             .is_ok(),
     };
     let raster_oracle = raster_limits
@@ -362,10 +409,32 @@ pub fn verify_polygon(
     {
         disagreements.push("reference and indexed completion differ".to_owned());
     }
+    for (name, completion) in [
+        ("line-map-dense", &line_map_dense_completion),
+        ("dynamic-dense", &dynamic_dense_completion),
+    ] {
+        if completion.selected_horizontal_cuts != indexed_completion.selected_horizontal_cuts
+            || completion.selected_vertical_cuts != indexed_completion.selected_vertical_cuts
+            || completion.added_horizontal_cuts != indexed_completion.added_horizontal_cuts
+            || completion.added_vertical_cuts != indexed_completion.added_vertical_cuts
+            || completion.rectangles != indexed_completion.rectangles
+        {
+            disagreements.push(format!(
+                "{name} completion differs from sparse dynamic completion"
+            ));
+        }
+    }
+    if indexed_completion.metrics.cut_index.coordinate_line_scans != 0
+        || indexed_completion.metrics.cut_index.interval_scans != 0
+    {
+        disagreements.push("dynamic cut index reported a forbidden linear scan".to_owned());
+    }
     if !validator_results.reference_accepts_reference
         || !validator_results.reference_accepts_indexed
         || !validator_results.indexed_accepts_reference
         || !validator_results.indexed_accepts_indexed
+        || !validator_results.sparse_accepts_reference
+        || !validator_results.sparse_accepts_indexed
     {
         disagreements.push("one or more exact validators rejected a completion".to_owned());
     }
@@ -422,6 +491,8 @@ pub fn verify_polygon(
         },
         completion_results: PolygonCompletionEvidence {
             reference: reference_completion,
+            line_map_dense: line_map_dense_completion,
+            dynamic_dense: dynamic_dense_completion,
             indexed: indexed_completion,
         },
         validator_results,

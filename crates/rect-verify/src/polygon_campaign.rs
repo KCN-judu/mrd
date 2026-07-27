@@ -14,7 +14,8 @@ use rect_dominance::{
 };
 use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    IndexedPolygonPairwiseEnumerator, PolygonValidationError, PreparedCoordinateArrangement,
+    IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
+    PolygonRecoveryBackend, PolygonValidationError, PreparedCoordinateArrangement,
     SoltanGorpinevichSweepEnumerator, VerticalCutSegment, classify_clean_polygon,
     validate_polygon_dissection,
 };
@@ -1075,6 +1076,9 @@ const fn reference_options() -> PolygonSolveOptions {
         validation_backend: PolygonValidationBackend::ReferenceQuadratic,
         chord_backend: PolygonChordBackend::ReferencePairwise,
         completion_backend: PolygonCompletionBackend::CoordinateReference,
+        cut_index_backend: PolygonCutIndexBackend::ReferenceLineMaps,
+        recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
+        dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
         arrangement_backend: PolygonArrangementBackend::Reference,
         representation: ConflictRepresentationBackend::Auto,
     }
@@ -1087,6 +1091,9 @@ const fn indexed_options() -> PolygonSolveOptions {
         validation_backend: PolygonValidationBackend::OrthogonalSweep,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
+        cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
+        recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
+        dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::Auto,
     }
