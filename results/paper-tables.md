@@ -177,7 +177,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
   {
     "version": "1.2.0",
     "tag": "v1.2.0-sparse-polygon-subdivision",
-    "peeled_commit": "PENDING",
+    "peeled_commit": "57308e2b8aa0ea170996a91d8f2fae4a40d2f86e",
     "evidence": "dynamic orthogonal cut stabbing, sparse half-edge subdivision, exact face-walk rectangle recovery, sparse slab validation, and complete dense/sparse differential evidence",
     "result_commits": [
       "bad5f19e8b2bd9c6392d1f198ed8994815f0c2d8"
