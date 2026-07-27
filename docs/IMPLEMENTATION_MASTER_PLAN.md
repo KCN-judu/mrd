@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 32d7b49e930c3c735062a20386258eb99ae78aea
-- Plan last updated: 2026-07-27T17:11:50Z
+- Last pushed SHA: ffb371ff085d161ca4ae7136a4e64a896de1f5b3
+- Plan last updated: 2026-07-27T23:36:48Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -371,7 +371,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P8 - Deterministic dynamic minimum-ratio-cycle structures
 
-**State:** in_progress. **Start SHA:** `237d55b`. P8 is deliberately split
+**State:** complete. **Start SHA:** `237d55b`. P8 is deliberately split
 before implementation. No subphase may claim the primary source's amortized
 bound unless its own checked operation domain, source-shaped accounting, and
 acceptance evidence are present. Each subphase receives an audit, report,
@@ -457,6 +457,79 @@ backend or fallback has been introduced. Continue in the report's exact
 implementation order.
 Suggested release:
 `v2.0.0-deterministic-almost-linear-flow`.
+
+P9 is split into the following source-gated subphases. Completion of an Oracle
+subphase proves only its stated audit contract; it does not satisfy a theorem
+gate that is explicitly retained by a later subphase.
+
+### P9.1 - Exact fractional and integration Oracles
+
+**State:** complete as an Oracle baseline. Commits `0abf2a1`, `d1cefdd`,
+`48250f5`, `959ed00`, `4e66be4`, and `ffb371f` provide exact rational
+fractional-flow validation and rounding, a rational surrogate-potential state,
+an enumerating dynamic-cycle Oracle, a static greedy-spanner constructor,
+compressed-flow parity, and the restored practical Push--Relabel reference.
+The reports under `docs/phase-reports/P09-*.md` preserve each limitation. None
+of these components is source-grade evidence for Theorem 4.6 or Theorem 5.1 of
+the deterministic paper.
+
+### P9.2 - Certified fixed-point IPM
+
+**State:** in_progress. **Start SHA:** `ffb371f`. Implement the deterministic
+paper's Theorem 4.6 interface by tracing its delegated CKLPPS22 Theorem 4.3
+potential-reduction method. This subphase is further split so numerical
+correctness cannot be inferred from an end-to-end test alone:
+
+1. P9.2.1 implements bounded-word dyadic interval arithmetic with explicit
+   precision, outward rounding, overflow/word-size accounting, and certified
+   enclosures for `log(x)` and `x^-alpha` on the checked positive domain.
+2. P9.2.2 evaluates Equation (9) and Definition 4.2 lengths/gradients with
+   certified error intervals; every approximation must prove the factor-two
+   length and scaled-gradient error hypotheses used by Theorem 4.3.
+3. P9.2.3 implements and certifies Lemma 4.4 updates, including circulation,
+   step size, strict-interior, potential-decrease, iteration, coordinate-update,
+   and Detect accounting.
+4. P9.2.4 implements the source initial-point and additive-half termination
+   boundary, then uses deterministic KP15 rounding and the P7 exact Oracle for
+   recovery differentials.
+
+No P9.2 item may use `f64`, the existing rational surrogate, or an unchecked
+transcendental result as evidence for Equation (9). The fixed-point word-size
+gate must match the papers' `O(log^O(1) z)` model and reject inputs whose chosen
+precision cannot certify the required inequalities.
+
+### P9.3 - Source-grade low-stretch and spanner structures
+
+**State:** planned. Replace the P8/P9 static certificate baselines with the
+source constructions and accounting required by Lemmas 5.4--5.5, Theorem 8.2,
+and Theorem 1.2. Preserve each exact constructor/verifier as an Oracle. Require
+the precise decremental/vertex-split domain, embeddings, stretch, congestion,
+recourse, rebuild, and bounded-weight assumptions before recording a source
+runtime guarantee.
+
+### P9.4 - Source-grade dynamic minimum-ratio cycle
+
+**State:** planned. Implement the deterministic paper's Theorem 5.1, including
+the complete tree chain, shifted branches, dynamic sparsification, link-cut
+updates, hidden-stability approximation, compact cycle output, and amortized
+`Update`/`Query`/`Detect` accounting. The enumerating cycle query and P8 replay
+remain permanent exact Oracles and are not allowed as a fallback.
+
+### P9.5 - Integrated exact flow backend
+
+**State:** planned. Introduce an `AlmostLinear` backend only after P9.2--P9.4
+prove every source assumption. Integrate the IPM, dynamic query, additive-half
+termination, deterministic rounding, and exact recovery without invoking
+Dinic, Push--Relabel, or an enumerating Oracle. Differentially require identical
+flow values and valid cuts, covers, chords, and rectangles on MRD compressed
+networks.
+
+### P9.6 - Phase-wide source and complexity audit
+
+**State:** planned. Audit theorem-to-code traceability, checked domains,
+precision, operation counters, no-fallback traces, exact differentials, and
+compressed-network evidence. P9 remains `in_progress` or `audit_failed` until
+this audit proves the advertised deterministic almost-linear bound.
 
 ### Mandatory transition after this phase
 
@@ -551,3 +624,6 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P5 | complete | 746989f | 1636b75, 986026d, 90acf15 | 66b6336 | 66b6336 | `docs/phase-reports/P05-exact-flow-backends.md` | `results/p5-flow-backends.csv`; `results/p5-flow-backends.json` | 2026-07-27T13:43:00Z | 2026-07-27T15:36:49Z | none |
 | P6 | complete | 66b6336 | 5934890 | ece512f | ece512f | `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`; `docs/phase-reports/P06-near-linear-flow-specification.md` | source mapping only | 2026-07-27T15:48:00Z | 2026-07-27T16:20:00Z | none |
 | P7 | in_progress | ece512f | pending | pending | pending | pending | pending | 2026-07-27T16:28:00Z | pending | none |
+| P7 | complete | 9f12445 | 3184ad5, 4e8326c, 21fbbd9 | 237d55b | 237d55b | `docs/phase-reports/P07-exact-circulation-refinement.md` | exact bounded-flow differential; zero disagreements | 2026-07-27T15:48:41Z | 2026-07-27T16:23:23Z | supersedes the stale pre-closeout P7 row above |
+| P8 | complete | 237d55b | 37088c9, bc09a0f, a70e783, 749536c, 200bcc8, 32d7b49 | 32d7b49 | 32d7b49 | `docs/phase-reports/P08-1-stable-min-ratio-contract.md` through `P08-6-dynamic-min-ratio-audit.md` | checked baseline contracts and exact Oracles only | 2026-07-27T16:24:35Z | 2026-07-27T17:02:26Z | source-grade constructions deferred to P9.3--P9.4 |
+| P9 | in_progress | 32d7b49 | 0abf2a1, d1cefdd, 48250f5, 959ed00, 4e66be4, ffb371f | pending | ffb371f | `docs/phase-reports/P09-integration-gate-audit.md` | exact P9.1 Oracles; no almost-linear backend | 2026-07-27T17:02:52Z | pending | P9.2--P9.6 source gates remain |
