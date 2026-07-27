@@ -19,6 +19,32 @@ pub struct BicliquePartition {
     pub bicliques: Vec<Biclique>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BicliqueConstructionBackend {
+    RecursiveSortReference,
+    Presorted,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BicliqueConstructionMetrics {
+    pub initial_sort_count: usize,
+    pub recursive_sort_count: usize,
+    pub stable_partition_visits: usize,
+    pub scratch_buffer_acquisitions: usize,
+    pub scratch_growth_count: usize,
+    pub scratch_point_capacity: usize,
+    pub recursive_node_count: usize,
+    pub emitted_vertex_occurrences: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BicliqueConstruction {
+    pub backend: BicliqueConstructionBackend,
+    pub partition: BicliquePartition,
+    pub metrics: BicliqueConstructionMetrics,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BicliqueBlock {
     pub id: BicliqueId,
@@ -79,15 +105,65 @@ impl BicliquePartition {
     /// Returns [`BicliqueError`] when a cross-side coordinate equality or a
     /// non-decreasing recursive subproblem violates the source construction.
     pub fn comparability_theorem_8(embedding: &DominanceEmbedding) -> Result<Self, BicliqueError> {
+        Ok(Self::comparability_theorem_8_with_backend(
+            embedding,
+            BicliqueConstructionBackend::RecursiveSortReference,
+        )?
+        .partition)
+    }
+
+    /// Constructs the Theorem 8 partition with an explicitly selected backend.
+    ///
+    /// The reference backend preserves the historical recursive re-sorting
+    /// implementation. The presorted backend sorts each coordinate once and
+    /// derives every recursive coordinate order by stable filtering.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] when a cross-side coordinate equality or a
+    /// non-decreasing recursive subproblem violates the source construction.
+    pub fn comparability_theorem_8_with_backend(
+        embedding: &DominanceEmbedding,
+        backend: BicliqueConstructionBackend,
+    ) -> Result<BicliqueConstruction, BicliqueError> {
         verify_coordinate_order_assumptions(embedding)?;
         let mut partition = Self::default();
-        let left = (0..embedding.horizontal.len()).collect::<Vec<_>>();
-        let right = (0..embedding.vertical.len()).collect::<Vec<_>>();
-        partition_recursive(embedding, &left, &right, 4, &mut partition.bicliques)?;
+        let mut metrics = BicliqueConstructionMetrics::default();
+        match backend {
+            BicliqueConstructionBackend::RecursiveSortReference => {
+                let left = (0..embedding.horizontal.len()).collect::<Vec<_>>();
+                let right = (0..embedding.vertical.len()).collect::<Vec<_>>();
+                partition_recursive_reference(
+                    embedding,
+                    &left,
+                    &right,
+                    4,
+                    &mut partition.bicliques,
+                    &mut metrics,
+                )?;
+            }
+            BicliqueConstructionBackend::Presorted => {
+                let orders = initial_coordinate_orders(embedding, &mut metrics);
+                let mut scratch = PresortedScratch::default();
+                partition_recursive_presorted(
+                    embedding,
+                    orders,
+                    4,
+                    &mut partition.bicliques,
+                    &mut scratch,
+                    &mut metrics,
+                )?;
+                metrics.scratch_point_capacity = scratch.point_capacity();
+            }
+        }
         for (index, biclique) in partition.bicliques.iter_mut().enumerate() {
             biclique.id = BicliqueId(index);
         }
-        Ok(partition)
+        Ok(BicliqueConstruction {
+            backend,
+            partition,
+            metrics,
+        })
     }
 
     #[must_use]
@@ -332,17 +408,20 @@ enum SidePoint {
     Right(usize),
 }
 
-fn partition_recursive(
+fn partition_recursive_reference(
     embedding: &DominanceEmbedding,
     left: &[usize],
     right: &[usize],
     dimensions: usize,
     output: &mut Vec<Biclique>,
+    metrics: &mut BicliqueConstructionMetrics,
 ) -> Result<(), BicliqueError> {
+    metrics.recursive_node_count += 1;
     if left.is_empty() || right.is_empty() {
         return Ok(());
     }
     if dimensions == 0 {
+        metrics.emitted_vertex_occurrences += left.len() + right.len();
         output.push(Biclique {
             id: BicliqueId(output.len()),
             left: left.to_vec(),
@@ -358,6 +437,7 @@ fn partition_recursive(
         .map(SidePoint::Left)
         .chain(right.iter().copied().map(SidePoint::Right))
         .collect::<Vec<_>>();
+    metrics.recursive_sort_count += 1;
     points.sort_by_key(|point| match *point {
         SidePoint::Left(index) => (
             embedding.horizontal[index].coordinates[coordinate],
@@ -387,22 +467,200 @@ fn partition_recursive(
         dimensions - 1,
         low_left.len() + high_right.len(),
     )?;
-    partition_recursive(embedding, &low_left, &high_right, dimensions - 1, output)?;
+    partition_recursive_reference(
+        embedding,
+        &low_left,
+        &high_right,
+        dimensions - 1,
+        output,
+        metrics,
+    )?;
     verify_recursive_reduction(
         dimensions,
         points.len(),
         dimensions,
         low_left.len() + low_right.len(),
     )?;
-    partition_recursive(embedding, &low_left, &low_right, dimensions, output)?;
+    partition_recursive_reference(
+        embedding, &low_left, &low_right, dimensions, output, metrics,
+    )?;
     verify_recursive_reduction(
         dimensions,
         points.len(),
         dimensions,
         high_left.len() + high_right.len(),
     )?;
-    partition_recursive(embedding, &high_left, &high_right, dimensions, output)?;
+    partition_recursive_reference(
+        embedding,
+        &high_left,
+        &high_right,
+        dimensions,
+        output,
+        metrics,
+    )?;
     Ok(())
+}
+
+type CoordinateOrders = [Vec<SidePoint>; 4];
+
+#[derive(Default)]
+struct PresortedScratch {
+    available: Vec<CoordinateOrders>,
+}
+
+impl PresortedScratch {
+    fn acquire(
+        &mut self,
+        capacity: usize,
+        metrics: &mut BicliqueConstructionMetrics,
+    ) -> CoordinateOrders {
+        metrics.scratch_buffer_acquisitions += 1;
+        let mut orders = self.available.pop().unwrap_or_default();
+        for order in &mut orders {
+            order.clear();
+            if order.capacity() < capacity {
+                order.reserve(capacity);
+                metrics.scratch_growth_count += 1;
+            }
+        }
+        orders
+    }
+
+    fn release(&mut self, mut orders: CoordinateOrders) {
+        for order in &mut orders {
+            order.clear();
+        }
+        self.available.push(orders);
+    }
+
+    fn point_capacity(&self) -> usize {
+        self.available
+            .iter()
+            .flat_map(|orders| orders.iter())
+            .map(Vec::capacity)
+            .sum()
+    }
+}
+
+#[derive(Clone, Copy)]
+enum PresortedChild {
+    Cross,
+    Low,
+    High,
+}
+
+fn initial_coordinate_orders(
+    embedding: &DominanceEmbedding,
+    metrics: &mut BicliqueConstructionMetrics,
+) -> CoordinateOrders {
+    std::array::from_fn(|coordinate| {
+        let mut order = (0..embedding.horizontal.len())
+            .map(SidePoint::Left)
+            .chain((0..embedding.vertical.len()).map(SidePoint::Right))
+            .collect::<Vec<_>>();
+        order.sort_by_key(|&point| point_key(embedding, point, coordinate));
+        metrics.initial_sort_count += 1;
+        order
+    })
+}
+
+fn partition_recursive_presorted(
+    embedding: &DominanceEmbedding,
+    orders: CoordinateOrders,
+    dimensions: usize,
+    output: &mut Vec<Biclique>,
+    scratch: &mut PresortedScratch,
+    metrics: &mut BicliqueConstructionMetrics,
+) -> Result<(), BicliqueError> {
+    metrics.recursive_node_count += 1;
+    let vertex_count = orders[0].len();
+    let left_count = orders[0]
+        .iter()
+        .filter(|point| matches!(point, SidePoint::Left(_)))
+        .count();
+    let right_count = vertex_count - left_count;
+    if left_count == 0 || right_count == 0 {
+        scratch.release(orders);
+        return Ok(());
+    }
+    if dimensions == 0 {
+        let (left, right) = split_sides(&orders[0]);
+        metrics.emitted_vertex_occurrences += vertex_count;
+        output.push(Biclique {
+            id: BicliqueId(output.len()),
+            left,
+            right,
+        });
+        scratch.release(orders);
+        return Ok(());
+    }
+
+    let coordinate = dimensions - 1;
+    let split = vertex_count / 2;
+    if split == 0 || split == vertex_count {
+        scratch.release(orders);
+        return Err(BicliqueError::NonDecreasingRecursion {
+            dimensions,
+            vertex_count,
+        });
+    }
+    let pivot_key = point_key(embedding, orders[coordinate][split - 1], coordinate);
+
+    for (child, child_dimensions) in [
+        (PresortedChild::Cross, dimensions - 1),
+        (PresortedChild::Low, dimensions),
+        (PresortedChild::High, dimensions),
+    ] {
+        let mut child_orders = scratch.acquire(vertex_count, metrics);
+        for order_index in 0..4 {
+            for &point in &orders[order_index] {
+                metrics.stable_partition_visits += 1;
+                let is_low = point_key(embedding, point, coordinate) <= pivot_key;
+                let include = match (child, point) {
+                    (PresortedChild::Cross, SidePoint::Left(_)) | (PresortedChild::Low, _) => {
+                        is_low
+                    }
+                    (PresortedChild::Cross, SidePoint::Right(_)) | (PresortedChild::High, _) => {
+                        !is_low
+                    }
+                };
+                if include {
+                    child_orders[order_index].push(point);
+                }
+            }
+        }
+        verify_recursive_reduction(
+            dimensions,
+            vertex_count,
+            child_dimensions,
+            child_orders[0].len(),
+        )?;
+        partition_recursive_presorted(
+            embedding,
+            child_orders,
+            child_dimensions,
+            output,
+            scratch,
+            metrics,
+        )?;
+    }
+    scratch.release(orders);
+    Ok(())
+}
+
+fn point_key(
+    embedding: &DominanceEmbedding,
+    point: SidePoint,
+    coordinate: usize,
+) -> (i128, u8, usize) {
+    match point {
+        SidePoint::Left(index) => (
+            embedding.horizontal[index].coordinates[coordinate],
+            0,
+            index,
+        ),
+        SidePoint::Right(index) => (embedding.vertical[index].coordinates[coordinate], 1, index),
+    }
 }
 
 fn verify_coordinate_order_assumptions(
@@ -516,9 +774,9 @@ mod tests {
         BicliqueId, HorizontalChord, HorizontalChordId, VerticalChord, VerticalChordId,
     };
 
-    use crate::embedding::DominanceEmbedding;
+    use crate::embedding::{DominanceEmbedding, DominancePoint};
 
-    use super::{Biclique, BicliqueError, BicliquePartition};
+    use super::{Biclique, BicliqueConstructionBackend, BicliqueError, BicliquePartition};
 
     #[test]
     fn theorem_8_recursion_is_an_edge_partition() {
@@ -544,6 +802,87 @@ mod tests {
         assert_eq!(certificate.duplicate_edge_count, 0);
         assert_eq!(certificate.missing_edge_count, 0);
         assert_eq!(certificate.fabricated_edge_count, 0);
+    }
+
+    #[test]
+    fn presorted_backend_matches_reference_exactly() {
+        for seed in 0_u64..256 {
+            let seed_index = usize::try_from(seed).unwrap();
+            let horizontal_count = seed_index % 9;
+            let vertical_count = (seed_index / 3) % 9;
+            let embedding = synthetic_embedding(seed, horizontal_count, vertical_count);
+            let reference = BicliquePartition::comparability_theorem_8_with_backend(
+                &embedding,
+                BicliqueConstructionBackend::RecursiveSortReference,
+            )
+            .unwrap();
+            let presorted = BicliquePartition::comparability_theorem_8_with_backend(
+                &embedding,
+                BicliqueConstructionBackend::Presorted,
+            )
+            .unwrap();
+
+            assert_eq!(
+                presorted.partition, reference.partition,
+                "partition mismatch for seed {seed}"
+            );
+            assert_eq!(presorted.metrics.initial_sort_count, 4);
+            assert_eq!(presorted.metrics.recursive_sort_count, 0);
+            assert_eq!(
+                presorted.metrics.emitted_vertex_occurrences,
+                presorted.partition.total_vertex_occurrences()
+            );
+            assert_eq!(reference.metrics.initial_sort_count, 0);
+            assert_eq!(
+                reference.metrics.emitted_vertex_occurrences,
+                reference.partition.total_vertex_occurrences()
+            );
+            if horizontal_count != 0 && vertical_count != 0 {
+                assert!(reference.metrics.recursive_sort_count > 0);
+                assert!(presorted.metrics.stable_partition_visits > 0);
+                assert!(presorted.metrics.scratch_buffer_acquisitions > 0);
+                assert!(presorted.metrics.scratch_growth_count > 0);
+                assert!(presorted.metrics.scratch_point_capacity > 0);
+            }
+        }
+    }
+
+    fn synthetic_embedding(
+        seed: u64,
+        horizontal_count: usize,
+        vertical_count: usize,
+    ) -> DominanceEmbedding {
+        let horizontal = (0..horizontal_count)
+            .map(|index| DominancePoint {
+                coordinates: std::array::from_fn(|coordinate| {
+                    synthetic_coordinate(seed, coordinate, index, false)
+                }),
+            })
+            .collect();
+        let vertical = (0..vertical_count)
+            .map(|index| DominancePoint {
+                coordinates: std::array::from_fn(|coordinate| {
+                    synthetic_coordinate(seed, coordinate, index, true)
+                }),
+            })
+            .collect();
+        DominanceEmbedding {
+            horizontal,
+            vertical,
+        }
+    }
+
+    fn synthetic_coordinate(seed: u64, coordinate: usize, index: usize, right: bool) -> i128 {
+        let mut value = seed
+            ^ ((coordinate as u64 + 1).wrapping_mul(0x9e37_79b9_7f4a_7c15))
+            ^ ((index as u64 + 1).wrapping_mul(0xbf58_476d_1ce4_e5b9));
+        value ^= value >> 30;
+        value = value.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        value ^= value >> 27;
+        value = value.wrapping_mul(0x94d0_49bb_1331_11eb);
+        value ^= value >> 31;
+        let bucket = i128::from(u8::try_from(value % 13).unwrap()) - 6;
+        bucket * 2 + i128::from(right)
     }
 
     #[test]
