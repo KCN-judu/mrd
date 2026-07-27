@@ -5,7 +5,7 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P9
-- Current phase state: in_progress
+- Current phase state: audit_failed
 - Last completed phase: P8
 - Last pushed SHA: 32d7b49e930c3c735062a20386258eb99ae78aea
 - Plan last updated: 2026-07-28T03:30:00Z
@@ -445,12 +445,12 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P9 - Integrated deterministic almost-linear exact flow
 
-**State:** in_progress. Integrate dynamic minimum-ratio-cycle with iterative
-refinement and exact max/min-cost recovery. Name it `AlmostLinear` only with
-complete source mapping, all assumptions checked, no Dinic/push-relabel
-fallback, exact differential gates, proof-matching counters, checked
-polynomial capacity/cost bounds, and identical compressed MRD cuts, covers,
-chords, and rectangles. Suggested release:
+**State:** audit_failed. The source-assumption gate is recorded in
+`docs/phase-reports/P09-integration-gate-audit.md`: fractional IPM state,
+KP15 rounding, Theorem 4.6 accounting, Theorem 5.1 query, source-grade P8
+constructions, and MRD integration evidence are missing. No `AlmostLinear`
+backend or fallback has been introduced. Continue from the report's exact
+implementation order. Suggested release:
 `v2.0.0-deterministic-almost-linear-flow`.
 
 ### Mandatory transition after this phase
