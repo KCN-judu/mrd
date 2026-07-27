@@ -3,6 +3,7 @@ use std::fmt::Write;
 use std::time::Instant;
 
 use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
+use rect_dominance::compressed_flow::solve_biclique_flow;
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
     biclique::{BicliqueConstructionMetrics, BicliquePartition},
@@ -10,6 +11,7 @@ use rect_dominance::{
     solve_with_representation_and_region_dual,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
+use rect_graph::{DinicBackend, PushRelabelBackend};
 use rect_oracle_sg::CompletionBackendKind;
 use serde::{Deserialize, Serialize};
 
@@ -1044,6 +1046,10 @@ pub struct BicliqueConstructionBenchmarkRow {
     pub presorted_microseconds: Option<u128>,
     pub reference_metrics: Option<BicliqueConstructionMetrics>,
     pub presorted_metrics: Option<BicliqueConstructionMetrics>,
+    pub dinic_flow_microseconds: Option<u128>,
+    pub push_relabel_flow_microseconds: Option<u128>,
+    pub dinic_flow_value: Option<u64>,
+    pub push_relabel_flow_value: Option<u64>,
     pub status: String,
     pub message: Option<String>,
 }
@@ -1066,7 +1072,7 @@ impl BicliqueConstructionBenchmarkReport {
     #[must_use]
     pub fn to_csv(&self) -> String {
         let mut csv = String::from(
-            "instance_name,family,parameters,component_id,horizontal_chords,vertical_chords,block_count,total_vertex_occurrences,reference_microseconds,presorted_microseconds,reference_initial_sorts,reference_recursive_sorts,presorted_initial_sorts,presorted_recursive_sorts,presorted_stable_partition_visits,presorted_scratch_buffer_acquisitions,presorted_scratch_growth_count,presorted_scratch_point_capacity,presorted_recursive_nodes,presorted_emitted_vertex_occurrences,status,message\n",
+            "instance_name,family,parameters,component_id,horizontal_chords,vertical_chords,block_count,total_vertex_occurrences,reference_microseconds,presorted_microseconds,dinic_flow_microseconds,push_relabel_flow_microseconds,dinic_flow_value,push_relabel_flow_value,reference_initial_sorts,reference_recursive_sorts,presorted_initial_sorts,presorted_recursive_sorts,presorted_stable_partition_visits,presorted_scratch_buffer_acquisitions,presorted_scratch_growth_count,presorted_scratch_point_capacity,presorted_recursive_nodes,presorted_emitted_vertex_occurrences,status,message\n",
         );
         for row in &self.rows {
             let reference = row.reference_metrics.as_ref();
@@ -1082,6 +1088,10 @@ impl BicliqueConstructionBenchmarkReport {
                 optional_number(row.total_vertex_occurrences),
                 optional_number(row.reference_microseconds),
                 optional_number(row.presorted_microseconds),
+                optional_number(row.dinic_flow_microseconds),
+                optional_number(row.push_relabel_flow_microseconds),
+                optional_number(row.dinic_flow_value),
+                optional_number(row.push_relabel_flow_value),
                 reference.map_or_else(String::new, |value| value.initial_sort_count.to_string()),
                 reference.map_or_else(String::new, |value| value.recursive_sort_count.to_string()),
                 presorted.map_or_else(String::new, |value| value.initial_sort_count.to_string()),
@@ -1402,6 +1412,10 @@ pub fn benchmark_biclique_construction(
                     presorted_microseconds: None,
                     reference_metrics: None,
                     presorted_metrics: None,
+                    dinic_flow_microseconds: None,
+                    push_relabel_flow_microseconds: None,
+                    dinic_flow_value: None,
+                    push_relabel_flow_value: None,
                     status: "solver-error".to_owned(),
                     message: Some(error.to_string()),
                 });
@@ -1462,6 +1476,10 @@ fn benchmark_biclique_component<C>(
         presorted_microseconds: None,
         reference_metrics: None,
         presorted_metrics: None,
+        dinic_flow_microseconds: None,
+        push_relabel_flow_microseconds: None,
+        dinic_flow_value: None,
+        push_relabel_flow_value: None,
         status: "solver-error".to_owned(),
         message: None,
     };
@@ -1509,7 +1527,42 @@ fn benchmark_biclique_component<C>(
         && presorted.metrics.emitted_vertex_occurrences
             == presorted.partition.total_vertex_occurrences();
     if reference.partition == presorted.partition && counters_valid {
-        "verified".clone_into(&mut row.status);
+        let dinic_started = Instant::now();
+        let dinic = match solve_biclique_flow(
+            geometry.horizontal_chords.len(),
+            geometry.vertical_chords.len(),
+            &presorted.partition,
+            &DinicBackend,
+        ) {
+            Ok(flow) => flow,
+            Err(error) => {
+                row.message = Some(error.to_string());
+                return row;
+            }
+        };
+        row.dinic_flow_microseconds = Some(dinic_started.elapsed().as_micros());
+        let push_relabel_started = Instant::now();
+        let push_relabel = match solve_biclique_flow(
+            geometry.horizontal_chords.len(),
+            geometry.vertical_chords.len(),
+            &presorted.partition,
+            &PushRelabelBackend,
+        ) {
+            Ok(flow) => flow,
+            Err(error) => {
+                row.message = Some(error.to_string());
+                return row;
+            }
+        };
+        row.push_relabel_flow_microseconds = Some(push_relabel_started.elapsed().as_micros());
+        row.dinic_flow_value = Some(dinic.flow.value);
+        row.push_relabel_flow_value = Some(push_relabel.flow.value);
+        if dinic.flow.value != push_relabel.flow.value {
+            "counterexample".clone_into(&mut row.status);
+            row.message = Some("Dinic and push-relabel flow values differ".to_owned());
+        } else {
+            "verified".clone_into(&mut row.status);
+        }
     } else {
         "counterexample".clone_into(&mut row.status);
         row.message = Some(if reference.partition == presorted.partition {

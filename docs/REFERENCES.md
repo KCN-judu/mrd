@@ -54,7 +54,7 @@
    Flow in a Network with Power Estimation," *Doklady Akademii Nauk SSSR* 194,
    1970.
 
-   `rect-graph::dinic` is the implemented practical exact maximum-flow backend.
+   `rect-graph::dinic` provides a practical exact maximum-flow backend.
    It uses safe Rust, integral capacities, and returns residual cut reachability.
 
 ## Theoretical algorithm cited only for asymptotic complexity
@@ -64,5 +64,5 @@
 
    This implementation does **not** implement that algorithm. It appears only
    in the supplied paper's asymptotic analysis. `MaxFlowBackend` keeps geometry
-   independent of the current `DinicBackend` so another exact backend can be
-   added later without changing reductions or certificates.
+   independent of practical exact backends (`DinicBackend` and
+   `PushRelabelBackend`) without changing reductions or certificates.

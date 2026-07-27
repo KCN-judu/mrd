@@ -219,9 +219,9 @@ biclique vertex occurrences.
 | Maximum bipartite matching | `rect-graph::hopcroft_karp` | `hopcroft_karp` | `O(E sqrt(q))` | same classical bound for explicit graph | matching/flow equality in FullyAudited | C0 and compressed Dinic | excluded from CompactOnly |
 | Konig minimum vertex cover | `rect-graph::hopcroft_karp` | `minimum_vertex_cover` | `O(E+q)` after matching | linear alternating reachability | every edge covered and size equals matching | residual-flow cover | bipartite graphs only |
 | Cardinal--Yuditsky Theorem 8 partition | `rect-dominance::biclique` | `comparability_theorem_8`, `verify_structure`, `verify_exact_partition` | recursive sorting plus `O(sigma)` structure checking; FullyAudited adds `O(E+sigma)` edge audit | general `O(q log^d q)` bound specializes to `sigma = O(q log^4 q)` for `d = 4` | completeness, uniqueness, fabricated-edge, recursion, and coordinate audits | explicit edge set in FullyAudited | practical recursive sorting retained |
-| C0 flow reduction | `rect-dominance::biclique` | `BicliquePartition::from_explicit_edges` | `O(E)` construction, then Dinic | one biclique per edge baseline | C0 flow equals matching | Hopcroft--Karp | no compression |
-| Compressed flow reduction | `rect-dominance::compressed_flow` | `solve_biclique_flow` | `O(q+sigma)` network construction, then Dinic | compact graph plus asymptotically fast exact flow | dense and full differential suites compare FullyAudited and CompactOnly | C0 and Hopcroft--Karp in FullyAudited | Dinic backend, not almost-linear flow |
-| Integral max flow and residual min cut | `rect-graph::dinic` | `MaxFlowBackend::max_flow_min_cut` via `DinicBackend` | generic Dinic `O(V^2 A)` bound | almost-linear exact backend cited by paper | flow value, cut capacity, no internal large-capacity cut | Hopcroft--Karp cover | integral capacities only |
+| C0 flow reduction | `rect-dominance::biclique` | `BicliquePartition::from_explicit_edges` | `O(E)` construction, then a selected exact backend | one biclique per edge baseline | C0 flow equals matching | Hopcroft--Karp | no compression |
+| Compressed flow reduction | `rect-dominance::compressed_flow` | `solve_biclique_flow` | `O(q+sigma)` network construction, then a selected exact backend | compact graph plus asymptotically fast exact flow | dense and full differential suites compare FullyAudited and CompactOnly | C0 and Hopcroft--Karp in FullyAudited | practical backend, not almost-linear flow |
+| Integral max flow and residual min cut | `rect-graph::dinic` | `MaxFlowBackend::max_flow_min_cut` via `DinicBackend` or `PushRelabelBackend` | generic Dinic or highest-label push-relabel with global relabel and gap heuristics | almost-linear exact backend cited by paper | flow value, cut capacity, no internal large-capacity cut | mutually differential practical backends and Hopcroft--Karp cover | integral capacities only; no almost-linear claim |
 | Geometric completion, SG Section 10 | `rect-oracle-sg` | `complete_with_prepared_backend`, `DenseCutGrid` | indexed component-local frontier with dense cuts by default; ordered reference retained | linear completion after chord choice in the source construction | exact selected/added cut and canonical-rectangle differential populations | `ReferenceRescanCompletion` | ordinary grid regions only |
 | Rectangle recovery | `rect-oracle-sg` | `DenseGridRecovery` | dense visited mask, reusable integer queue, prefix-sum rectangularity proof | verification/output layer | exact rectangle equality against `ReferenceHashBfsRecovery` | hash BFS | component-local area storage |
 | Final dissection validation | `rect-core::validation` | `validate_dissection_prepared` | reuses prepared occupancy; linear in local area plus rectangle area | verification layer, not paper runtime | ordinary and prepared validators agree | independently produced outputs use same exact cell contract | integer-grid rectangles only |
@@ -244,9 +244,9 @@ extrema validation for each block, not Cartesian-product expansion.
 The exact horizontal-then-vertical completion policy, unit-cut semantics, and
 backend differential contract are specified in `docs/GEOMETRIC_COMPLETION.md`.
 
-Dinic is the practical implemented flow backend. The almost-linear exact
-max-flow result is cited only for the paper's asymptotic theorem and is not
-implemented here.
+Dinic and highest-label push-relabel are practical implemented exact flow
+backends. The almost-linear exact max-flow result is cited only for the paper's
+asymptotic theorem and is not implemented here.
 
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to

@@ -1,0 +1,312 @@
+{
+  "metadata": {
+    "git_commit": "1636b75fb85d56dc5ab3098cbc9f0d58a8b967cd",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "rect-cli benchmark --suite biclique-construction --sizes 4,8,16,32,64,128,256 --output results/p5-flow-backends.csv",
+    "seed": null,
+    "timestamp": 1785166217,
+    "input_count": 7,
+    "component_count": 7,
+    "input_model": "finite-colored-unit-grid-biclique-construction",
+    "unsupported_input_features": [
+      "ornaments",
+      "isolated-formal-boundary-points",
+      "line-segment-holes",
+      "point-holes",
+      "degenerate-formal-holes",
+      "general-polygon-input"
+    ]
+  },
+  "verified_count": 7,
+  "solver_error_count": 0,
+  "counterexample_count": 0,
+  "rows": [
+    {
+      "instance_name": "dense-conflict-4x4",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 4,
+        "min_vertical": 4
+      },
+      "component_id": 1,
+      "horizontal_chords": 8,
+      "vertical_chords": 8,
+      "block_count": 17,
+      "total_vertex_occurrences": 40,
+      "reference_microseconds": 42,
+      "presorted_microseconds": 59,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 62,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 187,
+        "emitted_vertex_occurrences": 40
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 2520,
+        "scratch_buffer_acquisitions": 186,
+        "scratch_growth_count": 28,
+        "scratch_point_capacity": 288,
+        "recursive_node_count": 187,
+        "emitted_vertex_occurrences": 40
+      },
+      "dinic_flow_microseconds": 18,
+      "push_relabel_flow_microseconds": 42,
+      "dinic_flow_value": 8,
+      "push_relabel_flow_value": 8,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-8x8",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 8,
+        "min_vertical": 8
+      },
+      "component_id": 1,
+      "horizontal_chords": 16,
+      "vertical_chords": 16,
+      "block_count": 24,
+      "total_vertex_occurrences": 84,
+      "reference_microseconds": 63,
+      "presorted_microseconds": 113,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 98,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 295,
+        "emitted_vertex_occurrences": 84
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 6000,
+        "scratch_buffer_acquisitions": 294,
+        "scratch_growth_count": 44,
+        "scratch_point_capacity": 608,
+        "recursive_node_count": 295,
+        "emitted_vertex_occurrences": 84
+      },
+      "dinic_flow_microseconds": 34,
+      "push_relabel_flow_microseconds": 114,
+      "dinic_flow_value": 16,
+      "push_relabel_flow_value": 16,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-16x16",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 16,
+        "min_vertical": 16
+      },
+      "component_id": 1,
+      "horizontal_chords": 32,
+      "vertical_chords": 32,
+      "block_count": 51,
+      "total_vertex_occurrences": 189,
+      "reference_microseconds": 136,
+      "presorted_microseconds": 264,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 197,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 592,
+        "emitted_vertex_occurrences": 189
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 14484,
+        "scratch_buffer_acquisitions": 591,
+        "scratch_growth_count": 52,
+        "scratch_point_capacity": 1200,
+        "recursive_node_count": 592,
+        "emitted_vertex_occurrences": 189
+      },
+      "dinic_flow_microseconds": 52,
+      "push_relabel_flow_microseconds": 406,
+      "dinic_flow_value": 32,
+      "push_relabel_flow_value": 32,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-32x32",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 32,
+        "min_vertical": 32
+      },
+      "component_id": 1,
+      "horizontal_chords": 64,
+      "vertical_chords": 64,
+      "block_count": 87,
+      "total_vertex_occurrences": 386,
+      "reference_microseconds": 262,
+      "presorted_microseconds": 456,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 362,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 1087,
+        "emitted_vertex_occurrences": 386
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 33060,
+        "scratch_buffer_acquisitions": 1086,
+        "scratch_growth_count": 60,
+        "scratch_point_capacity": 2384,
+        "recursive_node_count": 1087,
+        "emitted_vertex_occurrences": 386
+      },
+      "dinic_flow_microseconds": 84,
+      "push_relabel_flow_microseconds": 1193,
+      "dinic_flow_value": 64,
+      "push_relabel_flow_value": 64,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-64x64",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 64,
+        "min_vertical": 64
+      },
+      "component_id": 1,
+      "horizontal_chords": 128,
+      "vertical_chords": 128,
+      "block_count": 164,
+      "total_vertex_occurrences": 795,
+      "reference_microseconds": 509,
+      "presorted_microseconds": 776,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 706,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 2119,
+        "emitted_vertex_occurrences": 795
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 74424,
+        "scratch_buffer_acquisitions": 2118,
+        "scratch_growth_count": 72,
+        "scratch_point_capacity": 4800,
+        "recursive_node_count": 2119,
+        "emitted_vertex_occurrences": 795
+      },
+      "dinic_flow_microseconds": 126,
+      "push_relabel_flow_microseconds": 4005,
+      "dinic_flow_value": 128,
+      "push_relabel_flow_value": 128,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-128x128",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 128,
+        "min_vertical": 128
+      },
+      "component_id": 1,
+      "horizontal_chords": 256,
+      "vertical_chords": 256,
+      "block_count": 308,
+      "total_vertex_occurrences": 1619,
+      "reference_microseconds": 933,
+      "presorted_microseconds": 1340,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 1336,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 4009,
+        "emitted_vertex_occurrences": 1619
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 164136,
+        "scratch_buffer_acquisitions": 4008,
+        "scratch_growth_count": 80,
+        "scratch_point_capacity": 9584,
+        "recursive_node_count": 4009,
+        "emitted_vertex_occurrences": 1619
+      },
+      "dinic_flow_microseconds": 233,
+      "push_relabel_flow_microseconds": 13200,
+      "dinic_flow_value": 256,
+      "push_relabel_flow_value": 256,
+      "status": "verified",
+      "message": null
+    },
+    {
+      "instance_name": "dense-conflict-256x256",
+      "family": "dense-conflict",
+      "parameters": {
+        "min_horizontal": 256,
+        "min_vertical": 256
+      },
+      "component_id": 1,
+      "horizontal_chords": 512,
+      "vertical_chords": 512,
+      "block_count": 578,
+      "total_vertex_occurrences": 3280,
+      "reference_microseconds": 1600,
+      "presorted_microseconds": 2517,
+      "reference_metrics": {
+        "initial_sort_count": 0,
+        "recursive_sort_count": 2568,
+        "stable_partition_visits": 0,
+        "scratch_buffer_acquisitions": 0,
+        "scratch_growth_count": 0,
+        "scratch_point_capacity": 0,
+        "recursive_node_count": 7705,
+        "emitted_vertex_occurrences": 3280
+      },
+      "presorted_metrics": {
+        "initial_sort_count": 4,
+        "recursive_sort_count": 0,
+        "stable_partition_visits": 358308,
+        "scratch_buffer_acquisitions": 7704,
+        "scratch_growth_count": 96,
+        "scratch_point_capacity": 19296,
+        "recursive_node_count": 7705,
+        "emitted_vertex_occurrences": 3280
+      },
+      "dinic_flow_microseconds": 413,
+      "push_relabel_flow_microseconds": 54215,
+      "dinic_flow_value": 512,
+      "push_relabel_flow_value": 512,
+      "status": "verified",
+      "message": null
+    }
+  ]
+}

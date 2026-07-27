@@ -71,8 +71,9 @@
   committed boundary-native scaling population and remains opt-in. No universal
   dense/sparse crossover is claimed. The complete size-256 reference campaign
   exceeded the practical release time budget.
-- Dinic is the only max-flow backend. The deterministic almost-linear theoretical
-  flow algorithm cited by the paper is intentionally not implemented.
+- Dinic and highest-label push-relabel are practical exact max-flow backends.
+  The deterministic almost-linear theoretical flow algorithm cited by the paper
+  is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The
   verification harness defaults to a 40-cell cutoff.
 - JSON colors are compared as exact `serde_json::Value` values. SVG output is a
