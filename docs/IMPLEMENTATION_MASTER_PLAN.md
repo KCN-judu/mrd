@@ -379,13 +379,14 @@ commit, push, and reread transition.
 
 ### P8.1 - Checked stable min-ratio state contract
 
-**State:** in_progress. Map Definitions 4.2--4.5 of the primary source to
-exact Rust state: signed incidence, positive lengths, gradients, valid-pair
-bounds, hidden-stable witnesses, and append-only `Update`/`Query`/`Detect`
-operation logs. Reject rather than repair invalid certificates. This is only a
-checked representation and static invariant layer; it makes no dynamic or
-amortized claim. Acceptance requires conservation, positivity, valid-pair,
-factor-two stability, and deterministic replay tests.
+**State:** committed. **Implementation SHA:** pending closeout. Definitions
+4.2--4.5 are now mapped to exact Rust state: signed incidence, positive
+lengths, gradients, valid-pair bounds, checked witness stability, and replayable
+`Update`/`Query`/`Detect` logs. The six focused invariants have zero
+disagreements; full evidence is in
+`docs/phase-reports/P08-1-stable-min-ratio-contract.md`. This remains only a
+checked representation and static invariant layer, with no dynamic or
+amortized claim.
 
 ### P8.2 - Dynamic rooted-forest primitive
 

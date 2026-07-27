@@ -2,6 +2,7 @@ pub mod bitset;
 pub mod dinic;
 pub mod hopcroft_karp;
 pub mod min_cost;
+pub mod min_ratio_cycle;
 
 pub use bitset::BitSet;
 pub use dinic::{
@@ -14,4 +15,8 @@ pub use hopcroft_karp::{
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, IterativeRefinementResult, IterativeRefinementStep,
     MinCostCirculationError, MinCostSolution, MinRatioCycle,
+};
+pub use min_ratio_cycle::{
+    ExactRatio, MinRatioEdgeId, StableEdge, StableMinRatioError, StableMinRatioLedger,
+    StableOperation, StableUpdate, StableWitness,
 };

@@ -21,7 +21,7 @@ to apply compact min-ratio-cycle updates.
 | Source | Required contract | Intended Rust module | Required evidence |
 | --- | --- | --- | --- |
 | Lemma 4.1 (KP15) | Deterministically round a feasible fractional integral-capacity min-cost flow in `O(m log m)` without increasing cost | `rect-graph::min_cost::rounding` | exact feasible/cost-preserving differential against a rational oracle |
-| Definitions 4.2--4.5 | Exact incidence matrix, signed circulations, positive lengths, gradients, hidden stable witness, `Update`/`Query`/`Detect` semantics | `rect-graph::min_ratio_cycle` | conservation, positivity, valid-pair, and stable-update invariant tests |
+| Definitions 4.2--4.5 | Exact incidence matrix, signed circulations, positive lengths, gradients, hidden stable witness, `Update`/`Query`/`Detect` semantics | `rect-graph::min_ratio_cycle` | P8.1 checked contract ledger: conservation, positivity, valid-pair, factor-two stability, and replay invariant tests; no dynamic cycle query claim |
 | Theorem 4.6 (CKLPPS22) | IPM reduction, additive-half fractional target, quasipolynomial capacity/cost domain, total update/detect accounting | `rect-graph::interior_point` | checked bounds, exact rational arithmetic, potential decrease, and recovery tests |
 | Lemma 5.4 | Dynamic low-stretch rooted forest with decremental forest edges, vertex splits, stretch upper bounds, recourse | `rect-graph::dynamic_lsf` | source-shaped operation trace and stretch/recourse counters |
 | Lemma 5.5 | Deterministic multiplicative-weights collection of low-stretch forests | `rect-graph::lsf_mwu` | per-edge average-stretch and deterministic ordering tests |

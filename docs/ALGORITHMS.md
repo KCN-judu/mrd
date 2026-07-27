@@ -266,6 +266,14 @@ hidden-stability witness, fractional rounding, or dynamic min-ratio-cycle data
 structure. Those requirements remain gated by
 `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`.
 
+`rect-graph::min_ratio_cycle::StableMinRatioLedger` is the P8.1 checked
+contract layer for Definitions 4.2--4.5. It uses signed incidence vectors,
+exact rational accumulated-flow coordinates, positive integer lengths,
+auditor-supplied valid-pair witnesses, and replayable `Update`/`Query`/`Detect`
+logs. It rejects invalid circulation, witness, approximation, and factor-two
+stability claims. It deliberately does not discover a cycle, conceal a witness,
+support graph topology changes, or claim dynamic or amortized performance.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.
