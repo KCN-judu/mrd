@@ -2440,7 +2440,9 @@ impl IndexedPolygonCompletion {
             completion_coordinate_axis_counts(prepared, &horizontal_cuts, &vertical_cuts);
         metrics.coordinate_compression_x_count = x_count;
         metrics.coordinate_compression_y_count = y_count;
-        metrics.recovery_policy = recovery_backend.name().to_owned();
+        recovery_backend
+            .name()
+            .clone_into(&mut metrics.recovery_policy);
         let final_segment_count = prepared
             .polygon()
             .boundary_complexity()
@@ -2467,7 +2469,9 @@ impl IndexedPolygonCompletion {
             }
             backend => backend,
         };
-        metrics.selected_recovery_backend = selected_recovery_backend.name().to_owned();
+        selected_recovery_backend
+            .name()
+            .clone_into(&mut metrics.selected_recovery_backend);
         let mut dense_arrangement = None;
         let rectangles = match selected_recovery_backend {
             PolygonRecoveryBackend::DenseCoordinateArrangement => {

@@ -427,6 +427,9 @@ Dense bytes are a formula-derived owned-allocation estimate for coordinate vecto
 
 ## v1.3 Output-sensitive sparse geometry evidence
 
+The exhaustive grid-derived populations verify 893 supported 3x3 components and 166,189 supported 4x4 components with zero disagreements.
+The extended and native populations verify 7,546 and 70 components. The negative corpus has 0 category disagreements.
+The CP-SAT rerun solves 27,228 components with 0 disagreements and 0 timeouts.
 The campaign contains 56 verified rows, 0 solver errors, and 0 disagreements.
 Sweep candidate-pair tests and event-validator boundary/resort scans are zero in every row. Memory values are structured estimates, not process RSS.
 

@@ -22,6 +22,17 @@ CPU-bound reference-Oracle work with stable memory and no completed artifact;
 it is explicitly not reported as zero or extrapolated. Machine-readable data
 is in `results/v1.3-output-sensitive-scaling.csv` and the adjacent JSON file.
 
+The new subdivision/validator differential also ran on all 893 supported 3x3
+and 166,189 supported 4x4 grid-derived polygon components, 7,546 extended
+polyomino/hole/adversarial/random/metamorphic components, and 70 native scaling
+fixtures. Every component verified with zero solver error, timeout, or
+disagreement. The 13-case negative corpus preserved exact categories.
+
+The isolated OR-Tools 9.15 rerun covers 6,998 inputs and 27,228 components.
+All components were solved by both Rust and CP-SAT with zero timeout,
+unsupported component, or disagreement. The evidence file is
+`results/v1.3-external-oracle.json`.
+
 ## v0.3 compact execution evidence
 
 The compact-pipeline hardening and grid-run differential implementation is

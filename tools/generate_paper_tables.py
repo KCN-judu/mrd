@@ -723,10 +723,19 @@ def v12_evidence_sections(output_dir: Path) -> list[str]:
 
 
 def v13_evidence_sections(output_dir: Path) -> list[str]:
-    path = output_dir / "v1.3-output-sensitive-scaling.json"
-    if not path.exists():
+    paths = {
+        "3x3": output_dir / "v1.3-polygon-differential-3x3.json",
+        "4x4": output_dir / "v1.3-polygon-differential-4x4.json",
+        "extended": output_dir / "v1.3-polygon-backend-differential.json",
+        "native": output_dir / "v1.3-polygon-native-fixtures.json",
+        "negative": output_dir / "v1.3-polygon-negative.json",
+        "external": output_dir / "v1.3-external-oracle.json",
+        "scaling": output_dir / "v1.3-output-sensitive-scaling.json",
+    }
+    if not all(path.exists() for path in paths.values()):
         return []
-    report = read_json(path)
+    reports = {name: read_json(path) for name, path in paths.items()}
+    report = reports["scaling"]
     largest_size = max(row["size"] for row in report["rows"])
     rows = [row for row in report["rows"] if row["size"] == largest_size]
     fields = [
@@ -754,6 +763,9 @@ def v13_evidence_sections(output_dir: Path) -> list[str]:
     ]
     return [
         "## v1.3 Output-sensitive sparse geometry evidence", "",
+        f"The exhaustive grid-derived populations verify {reports['3x3']['verified_components']:,} supported 3x3 components and {reports['4x4']['verified_components']:,} supported 4x4 components with zero disagreements.",
+        f"The extended and native populations verify {reports['extended']['verified_components']:,} and {reports['native']['verified_components']:,} components. The negative corpus has {reports['negative']['disagreements']} category disagreements.",
+        f"The CP-SAT rerun solves {reports['external']['cp_sat_solved_component_count']:,} components with {reports['external']['disagreement_component_count']} disagreements and {reports['external']['cp_sat_timeout_component_count']} timeouts.",
         f"The campaign contains {report['verified_rows']} verified rows, {report['solver_errors']} solver errors, and {report['disagreements']} disagreements.",
         "Sweep candidate-pair tests and event-validator boundary/resort scans are zero in every row. Memory values are structured estimates, not process RSS.",
         "", f"### Largest completed crossover rows at size {largest_size}", "",
@@ -934,6 +946,16 @@ def main() -> None:
         "v1.2-polygon-scaling.json",
         "v1.3-output-sensitive-scaling.csv",
         "v1.3-output-sensitive-scaling.json",
+        "v1.3-polygon-differential-3x3.json",
+        "v1.3-polygon-differential-3x3.counterexamples.json",
+        "v1.3-polygon-differential-4x4.json",
+        "v1.3-polygon-differential-4x4.counterexamples.json",
+        "v1.3-polygon-backend-differential.json",
+        "v1.3-polygon-backend-differential.counterexamples.json",
+        "v1.3-polygon-native-fixtures.json",
+        "v1.3-polygon-native-fixtures.counterexamples.json",
+        "v1.3-polygon-negative.json",
+        "v1.3-external-oracle.json",
         "v1.2-external-oracle.json",
     ]:
         candidate = args.output_dir / artifact

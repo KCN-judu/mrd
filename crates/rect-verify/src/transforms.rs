@@ -310,7 +310,7 @@ mod tests {
         ];
         for transform in transforms {
             let transformed = TransformedComponent::new(&original, transform).unwrap();
-            let results = [
+            let results = vec![
                 rect_oracle_exact_cover::solve(&transformed.component).unwrap(),
                 rect_oracle_sg::solve(&transformed.component).unwrap(),
                 rect_dominance::solve(&transformed.component, DominanceMode::ExplicitEdges)

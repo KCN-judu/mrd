@@ -218,7 +218,10 @@ fn normalize_collinear_segments(
         let mut previous: Option<(Segment, SegmentProvenance)> = None;
         for &(segment, provenance) in line.iter() {
             if let Some((prior, prior_provenance)) = previous {
-                if segment == prior && provenance == prior_provenance {
+                // Coincident boundary/cut records are the same embedded edge;
+                // polygon-interior classification remains sourced from the
+                // prepared boundary index. Partial overlaps are ambiguous.
+                if segment == prior {
                     continue;
                 }
                 if segment.low() < prior.high() {
@@ -919,16 +922,16 @@ impl SparseSlabValidator {
     ) -> Result<SparseSlabMetrics, PolygonValidationError> {
         match backend {
             SparseValidatorBackend::ReferenceSlabRescan => {
-                self.validate_reference(polygon, rectangles)
+                Self::validate_reference(polygon, rectangles)
             }
             SparseValidatorBackend::EventSegmentTree => {
-                self.validate_event_tree(polygon, rectangles)
+                Self::validate_event_tree(polygon, rectangles)
             }
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn validate_reference(
-        &self,
         polygon: &RectilinearPolygon,
         rectangles: &[CoordinateRect],
     ) -> Result<SparseSlabMetrics, PolygonValidationError> {
@@ -1040,8 +1043,8 @@ impl SparseSlabValidator {
         Ok(metrics)
     }
 
+    #[allow(clippy::too_many_lines)]
     fn validate_event_tree(
-        &self,
         polygon: &RectilinearPolygon,
         rectangles: &[CoordinateRect],
     ) -> Result<SparseSlabMetrics, PolygonValidationError> {
