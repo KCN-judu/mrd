@@ -239,6 +239,27 @@ structural complexity counters. Require exact edge partition, matching, cut,
 cover, and rectangle equality with the current implementation. Suggested
 release: `v1.6.0-presorted-biclique-construction`.
 
+### P4 subphases
+
+1. **P4.1 - Dual backends and structural counters.** Preserve the recursive
+   re-sorting construction as a permanent reference backend. Add a presorted
+   backend that performs one initial sort per coordinate, maintains every
+   coordinate order through stable filtering, reuses recursion scratch arenas,
+   and records initial sorts, recursive sorts, stable-partition visits,
+   scratch growth, recursive nodes, and emitted vertex occurrences.
+2. **P4.2 - Production integration and exact differential.** Switch every
+   general 4D grid, ordinary-polygon, and formal-polygon call path to the
+   presorted backend. Require canonical block equality where construction order
+   is specified and, in all cases, exact edge partition, matching value,
+   minimum-cover certificate, selected chords, optimum count, and canonical
+   rectangle equality with the reference backend. Keep path-tree construction
+   independent and unchanged.
+3. **P4.3 - Scaling evidence and phase audit.** Run exhaustive, random,
+   polyomino, polygon, formal-hole, adversarial, and dense-conflict
+   differentials. Archive structural counters and before/after construction
+   timings, prove production recursive sort count is zero, complete the
+   mandatory audit, report, closeout commit, push, and remote-SHA verification.
+
 ### Mandatory transition after this phase
 
 After the phase has passed its full audit, been committed, and been pushed:
