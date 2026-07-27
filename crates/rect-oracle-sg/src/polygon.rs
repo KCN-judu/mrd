@@ -640,6 +640,32 @@ fn completion_coordinate_universe(
     coordinates
 }
 
+fn completion_coordinate_axis_counts(
+    prepared: &PreparedPolygonContext,
+    horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
+    vertical_cuts: &BTreeSet<VerticalCutSegment>,
+) -> (usize, usize) {
+    let mut xs = prepared
+        .polygon()
+        .loops()
+        .flat_map(|boundary_loop| boundary_loop.vertices.iter().map(|point| point.x))
+        .collect::<BTreeSet<_>>();
+    let mut ys = prepared
+        .polygon()
+        .loops()
+        .flat_map(|boundary_loop| boundary_loop.vertices.iter().map(|point| point.y))
+        .collect::<BTreeSet<_>>();
+    for cut in horizontal_cuts {
+        xs.extend([cut.left, cut.right]);
+        ys.insert(cut.y);
+    }
+    for cut in vertical_cuts {
+        xs.insert(cut.x);
+        ys.extend([cut.bottom, cut.top]);
+    }
+    (xs.len(), ys.len())
+}
+
 impl GeneralPolygonPairwiseEnumerator {
     /// Enumerates every Definition 7 effective chord for an ordinary polygon.
     ///
@@ -2367,6 +2393,10 @@ impl IndexedPolygonCompletion {
             .vertical_segments()
             .into_iter()
             .collect::<BTreeSet<_>>();
+        let (x_count, y_count) =
+            completion_coordinate_axis_counts(prepared, &horizontal_cuts, &vertical_cuts);
+        metrics.coordinate_compression_x_count = x_count;
+        metrics.coordinate_compression_y_count = y_count;
         let mut dense_arrangement = None;
         let rectangles = match recovery_backend {
             PolygonRecoveryBackend::DenseCoordinateArrangement => {
