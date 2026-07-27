@@ -16,8 +16,8 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, PolygonValidationError, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, VerticalCutSegment, classify_clean_polygon,
-    validate_polygon_dissection,
+    SoltanGorpinevichSweepEnumerator, SparseValidatorBackend, SubdivisionBuilderBackend,
+    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -539,11 +539,23 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
         let reference_category = dissection_error_category(&reference);
         let indexed_category = dissection_error_category(&indexed);
         let sparse = rect_oracle_sg::SparseSlabValidator
-            .validate(&rectangle_polygon, &rectangles)
+            .validate_with_backend(
+                &rectangle_polygon,
+                &rectangles,
+                SparseValidatorBackend::EventSegmentTree,
+            )
             .expect_err("fixture must be invalid");
         let sparse_category = dissection_error_category(&sparse);
-        let deterministic_match =
-            reference_category == indexed_category && reference_category == sparse_category;
+        let sparse_reference = rect_oracle_sg::SparseSlabValidator
+            .validate_with_backend(
+                &rectangle_polygon,
+                &rectangles,
+                SparseValidatorBackend::ReferenceSlabRescan,
+            )
+            .expect_err("fixture must be invalid");
+        let deterministic_match = reference_category == indexed_category
+            && reference_category == sparse_category
+            && sparse_category == dissection_error_category(&sparse_reference);
         disagreements += usize::from(!deterministic_match);
         records.push(PolygonNegativeRecord {
             name: name.to_owned(),
@@ -1180,6 +1192,8 @@ const fn reference_options() -> PolygonSolveOptions {
         cut_index_backend: PolygonCutIndexBackend::ReferenceLineMaps,
         recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
         dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
+        subdivision_builder_backend: SubdivisionBuilderBackend::ReferenceRangeScan,
+        sparse_validator_backend: SparseValidatorBackend::ReferenceSlabRescan,
         arrangement_backend: PolygonArrangementBackend::Reference,
         representation: ConflictRepresentationBackend::Auto,
     }
@@ -1195,6 +1209,8 @@ const fn indexed_options() -> PolygonSolveOptions {
         cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+        subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
+        sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::Auto,
     }

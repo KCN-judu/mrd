@@ -4,6 +4,30 @@ use serde::{Deserialize, Serialize};
 
 use crate::{CoordinateRect, GridRect};
 
+/// Portable allocation accounting for owned algorithmic data structures.
+///
+/// This is an implementation-level estimate, not process peak RSS. Ordered
+/// collection node headers and allocator bookkeeping are platform dependent,
+/// so the policy reports container estimates separately and marks allocator
+/// overhead as unmeasured.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MemoryEstimate {
+    pub retained_payload_bytes: usize,
+    pub retained_collection_capacity_bytes: usize,
+    pub retained_container_estimate: usize,
+    pub peak_temporary_payload_bytes: usize,
+    pub unmeasured_allocator_overhead: bool,
+}
+
+impl MemoryEstimate {
+    #[must_use]
+    pub const fn retained_total_estimate(self) -> usize {
+        self.retained_payload_bytes
+            .saturating_add(self.retained_collection_capacity_bytes)
+            .saturating_add(self.retained_container_estimate)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ExactRatio {
     pub numerator: u128,
@@ -85,6 +109,12 @@ pub struct Diagnostics {
     pub polygon_geometry_backend: Option<String>,
     #[serde(default)]
     pub polygon_arrangement_backend: Option<String>,
+    #[serde(default)]
+    pub polygon_selected_recovery_backend: Option<String>,
+    #[serde(default)]
+    pub dense_recovery_retained_byte_estimate: Option<usize>,
+    #[serde(default)]
+    pub sparse_recovery_retained_upper_estimate: Option<usize>,
     #[serde(default)]
     pub polygon_cut_index_backend: Option<String>,
     #[serde(default)]
@@ -188,7 +218,15 @@ pub struct Diagnostics {
     #[serde(default)]
     pub cut_index_interval_scans: Option<usize>,
     #[serde(default)]
+    pub cut_index_logical_tree_node_count: Option<usize>,
+    #[serde(default)]
+    pub cut_index_materialized_tree_node_count: Option<usize>,
+    #[serde(default)]
+    pub cut_index_ordered_set_entry_count: Option<usize>,
+    #[serde(default)]
     pub cut_index_owned_bytes: Option<usize>,
+    #[serde(default)]
+    pub cut_index_memory_estimate: Option<MemoryEstimate>,
     #[serde(default)]
     pub sparse_subdivision_vertex_count: Option<usize>,
     #[serde(default)]
@@ -200,7 +238,59 @@ pub struct Diagnostics {
     #[serde(default)]
     pub sparse_subdivision_owned_bytes: Option<usize>,
     #[serde(default)]
+    pub sparse_subdivision_memory_estimate: Option<MemoryEstimate>,
+    #[serde(default)]
+    pub subdivision_builder_backend: Option<String>,
+    #[serde(default)]
+    pub subdivision_input_segment_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_horizontal_segment_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_vertical_segment_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_sweep_event_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_active_set_insertions: Option<usize>,
+    #[serde(default)]
+    pub subdivision_active_set_removals: Option<usize>,
+    #[serde(default)]
+    pub subdivision_range_queries: Option<usize>,
+    #[serde(default)]
+    pub subdivision_candidate_pair_tests: Option<usize>,
+    #[serde(default)]
+    pub subdivision_reported_intersections: Option<usize>,
+    #[serde(default)]
+    pub subdivision_t_junction_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_endpoint_contact_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_atomic_segment_count: Option<usize>,
+    #[serde(default)]
+    pub subdivision_materialized_split_coordinates: Option<usize>,
+    #[serde(default)]
     pub sparse_validator_slab_count: Option<usize>,
+    #[serde(default)]
+    pub sparse_validator_backend: Option<String>,
+    #[serde(default)]
+    pub validator_x_event_count: Option<usize>,
+    #[serde(default)]
+    pub validator_y_coordinate_count: Option<usize>,
+    #[serde(default)]
+    pub validator_range_add_count: Option<usize>,
+    #[serde(default)]
+    pub validator_parity_toggle_count: Option<usize>,
+    #[serde(default)]
+    pub validator_segment_tree_node_visits: Option<usize>,
+    #[serde(default)]
+    pub validator_root_checks: Option<usize>,
+    #[serde(default)]
+    pub validator_boundary_edge_scans: Option<usize>,
+    #[serde(default)]
+    pub validator_active_rectangle_resorts: Option<usize>,
+    #[serde(default)]
+    pub validator_owned_bytes: Option<usize>,
+    #[serde(default)]
+    pub validator_memory_estimate: Option<MemoryEstimate>,
     #[serde(default)]
     pub raster_oracle_used: Option<bool>,
     pub cell_count: usize,

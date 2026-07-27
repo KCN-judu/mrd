@@ -19,7 +19,7 @@ use rect_dominance::{
 };
 use rect_oracle_sg::{
     CompletionBackendKind, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
-    PolygonRecoveryBackend,
+    PolygonRecoveryBackend, SparseValidatorBackend, SubdivisionBuilderBackend,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -77,6 +77,10 @@ enum Command {
         polygon_recovery: Option<PolygonRecoveryArg>,
         #[arg(long, value_enum)]
         polygon_dissection_validator: Option<PolygonDissectionValidatorArg>,
+        #[arg(long, value_enum)]
+        subdivision_builder: Option<SubdivisionBuilderArg>,
+        #[arg(long, value_enum)]
+        sparse_validator: Option<SparseValidatorArg>,
     },
     Verify {
         #[arg(long)]
@@ -283,12 +287,25 @@ enum PolygonCutIndexArg {
 enum PolygonRecoveryArg {
     DenseArrangement,
     SparseSubdivision,
+    Auto,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum PolygonDissectionValidatorArg {
     DenseArrangement,
     SparseSlab,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum SubdivisionBuilderArg {
+    ReferenceRangeScan,
+    OrthogonalSweep,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum SparseValidatorArg {
+    ReferenceSlabRescan,
+    EventSegmentTree,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -444,6 +461,8 @@ fn run() -> Result<(), CliError> {
             polygon_cut_index,
             polygon_recovery,
             polygon_dissection_validator,
+            subdivision_builder,
+            sparse_validator,
         } => solve_command(
             solver,
             input_format,
@@ -460,6 +479,8 @@ fn run() -> Result<(), CliError> {
             polygon_cut_index,
             polygon_recovery,
             polygon_dissection_validator,
+            subdivision_builder,
+            sparse_validator,
             &input,
             output.as_deref(),
             svg.as_deref(),
@@ -1153,6 +1174,8 @@ fn solve_command(
     polygon_cut_index: Option<PolygonCutIndexArg>,
     polygon_recovery: Option<PolygonRecoveryArg>,
     polygon_dissection_validator: Option<PolygonDissectionValidatorArg>,
+    subdivision_builder: Option<SubdivisionBuilderArg>,
+    sparse_validator: Option<SparseValidatorArg>,
     input: &Path,
     output: Option<&Path>,
     svg: Option<&Path>,
@@ -1167,6 +1190,8 @@ fn solve_command(
                 || polygon_cut_index.is_some()
                 || polygon_recovery.is_some()
                 || polygon_dissection_validator.is_some()
+                || subdivision_builder.is_some()
+                || sparse_validator.is_some()
             {
                 return Err(CliError::Input(
                     "polygon backend options require boundary-native polygon input".to_owned(),
@@ -1273,6 +1298,14 @@ fn solve_command(
                                 })
                         },
                         polygon_dissection_validator_kind,
+                    ),
+                    subdivision_builder_backend: subdivision_builder.map_or(
+                        SubdivisionBuilderBackend::OrthogonalSweep,
+                        subdivision_builder_kind,
+                    ),
+                    sparse_validator_backend: sparse_validator.map_or(
+                        SparseValidatorBackend::EventSegmentTree,
+                        sparse_validator_kind,
                     ),
                     arrangement_backend: polygon_arrangement
                         .map_or(PolygonArrangementBackend::Indexed, polygon_arrangement_kind),
@@ -1444,6 +1477,7 @@ const fn polygon_recovery_kind(backend: PolygonRecoveryArg) -> PolygonRecoveryBa
     match backend {
         PolygonRecoveryArg::DenseArrangement => PolygonRecoveryBackend::DenseCoordinateArrangement,
         PolygonRecoveryArg::SparseSubdivision => PolygonRecoveryBackend::SparseSubdivision,
+        PolygonRecoveryArg::Auto => PolygonRecoveryBackend::Auto,
     }
 }
 
@@ -1455,6 +1489,20 @@ const fn polygon_dissection_validator_kind(
             PolygonDissectionValidatorBackend::DenseArrangement
         }
         PolygonDissectionValidatorArg::SparseSlab => PolygonDissectionValidatorBackend::SparseSlab,
+    }
+}
+
+const fn subdivision_builder_kind(backend: SubdivisionBuilderArg) -> SubdivisionBuilderBackend {
+    match backend {
+        SubdivisionBuilderArg::ReferenceRangeScan => SubdivisionBuilderBackend::ReferenceRangeScan,
+        SubdivisionBuilderArg::OrthogonalSweep => SubdivisionBuilderBackend::OrthogonalSweep,
+    }
+}
+
+const fn sparse_validator_kind(backend: SparseValidatorArg) -> SparseValidatorBackend {
+    match backend {
+        SparseValidatorArg::ReferenceSlabRescan => SparseValidatorBackend::ReferenceSlabRescan,
+        SparseValidatorArg::EventSegmentTree => SparseValidatorBackend::EventSegmentTree,
     }
 }
 
@@ -1853,6 +1901,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -1899,6 +1949,8 @@ mod tests {
             Some(RepresentationArg::PathTree),
             Some(RegionDualArg::BoundaryLaminar),
             Some(PathTreeOrientationArg::HorizontalTree),
+            None,
+            None,
             None,
             None,
             None,
@@ -1960,6 +2012,8 @@ mod tests {
             None,
             None,
             None,
+            None,
+            None,
             input.as_path(),
             Some(output.as_path()),
             Some(svg.as_path()),
@@ -2012,6 +2066,8 @@ mod tests {
             Some(PolygonChordsArg::SgSweep),
             Some(PolygonCompletionArg::IndexedFrontier),
             Some(PolygonArrangementArg::Indexed),
+            None,
+            None,
             None,
             None,
             None,

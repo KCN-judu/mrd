@@ -17,8 +17,9 @@ use rect_oracle_sg::{
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
     PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonCutIndexBackend,
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, SparseSlabValidator, SweepCertificate,
-    classify_clean_polygon, validate_polygon_dissection,
+    SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision, SparseSlabValidator,
+    SparseValidatorBackend, SubdivisionBuilderBackend, SweepCertificate, classify_clean_polygon,
+    validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -213,6 +214,8 @@ pub fn verify_polygon(
         cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+        subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
+        sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::GeneralDominance4D,
     };
@@ -346,6 +349,36 @@ pub fn verify_polygon(
                 backend: "indexed-arrangement",
                 message: error.to_string(),
             })?;
+    let reference_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+        &indexed_prepared,
+        &horizontal_cuts,
+        &vertical_cuts,
+        SubdivisionBuilderBackend::ReferenceRangeScan,
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "reference-range-scan-subdivision",
+        message: error.to_string(),
+    })?;
+    let sweep_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+        &indexed_prepared,
+        &horizontal_cuts,
+        &vertical_cuts,
+        SubdivisionBuilderBackend::OrthogonalSweep,
+    )
+    .map_err(|error| PolygonVerificationError::Backend {
+        backend: "orthogonal-sweep-subdivision",
+        message: error.to_string(),
+    })?;
+    let reference_sparse_validation = SparseSlabValidator.validate_with_backend(
+        indexed_prepared.polygon(),
+        &indexed_completion.rectangles,
+        SparseValidatorBackend::ReferenceSlabRescan,
+    );
+    let event_sparse_validation = SparseSlabValidator.validate_with_backend(
+        indexed_prepared.polygon(),
+        &indexed_completion.rectangles,
+        SparseValidatorBackend::EventSegmentTree,
+    );
     let validator_results = PolygonValidatorEvidence {
         reference_accepts_reference: validate_polygon_dissection(
             indexed_prepared.polygon(),
@@ -408,6 +441,33 @@ pub fn verify_polygon(
         || reference_completion.rectangles != indexed_completion.rectangles
     {
         disagreements.push("reference and indexed completion differ".to_owned());
+    }
+    if reference_subdivision.split_junctions != sweep_subdivision.split_junctions
+        || reference_subdivision.atomic_segments != sweep_subdivision.atomic_segments
+        || reference_subdivision.vertices != sweep_subdivision.vertices
+        || reference_subdivision.half_edges != sweep_subdivision.half_edges
+        || reference_subdivision.faces != sweep_subdivision.faces
+        || reference_subdivision
+            .recover_rectangles(indexed_prepared.polygon())
+            .map_err(|error| error.to_string())
+            != sweep_subdivision
+                .recover_rectangles(indexed_prepared.polygon())
+                .map_err(|error| error.to_string())
+    {
+        disagreements.push("reference and sweep subdivisions differ".to_owned());
+    }
+    if sweep_subdivision.metrics.candidate_pair_tests != 0 {
+        disagreements.push("orthogonal sweep reported candidate-pair traversal".to_owned());
+    }
+    if reference_sparse_validation.as_ref().map(|_| ())
+        != event_sparse_validation.as_ref().map(|_| ())
+    {
+        disagreements.push("reference and event sparse validators differ".to_owned());
+    }
+    if event_sparse_validation.as_ref().is_ok_and(|metrics| {
+        metrics.boundary_edge_scans != 0 || metrics.active_rectangle_resorts != 0
+    }) {
+        disagreements.push("event validator reported forbidden slab rescans".to_owned());
     }
     for (name, completion) in [
         ("line-map-dense", &line_map_dense_completion),

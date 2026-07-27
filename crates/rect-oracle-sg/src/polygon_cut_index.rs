@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
-use rect_core::Point;
+use rect_core::{MemoryEstimate, Point};
 use serde::{Deserialize, Serialize};
 
 use crate::polygon::{
@@ -52,6 +52,7 @@ pub struct CutIndexMetrics {
     pub materialized_tree_node_count: usize,
     pub ordered_set_entry_count: usize,
     pub owned_bytes: usize,
+    pub memory_estimate: MemoryEstimate,
 }
 
 #[derive(Clone, Debug)]
@@ -425,15 +426,19 @@ impl DynamicAxisStabbingIndex {
         ids.into_iter().collect()
     }
 
-    fn owned_bytes_estimate(&self) -> usize {
-        self.coordinates.capacity() * std::mem::size_of::<i64>()
-            + self.nodes.len()
-                * (std::mem::size_of::<usize>() + std::mem::size_of::<BTreeSet<(i64, usize)>>())
-            + self
-                .nodes
-                .values()
-                .map(|entries| entries.len() * std::mem::size_of::<(i64, usize)>())
-                .sum::<usize>()
+    fn memory_estimate(&self) -> MemoryEstimate {
+        let entry_count = self.entry_count();
+        MemoryEstimate {
+            retained_payload_bytes: self.coordinates.len() * std::mem::size_of::<i64>()
+                + entry_count * std::mem::size_of::<(i64, usize)>(),
+            retained_collection_capacity_bytes: (self.coordinates.capacity()
+                - self.coordinates.len())
+                * std::mem::size_of::<i64>(),
+            retained_container_estimate: self.nodes.len()
+                * (std::mem::size_of::<usize>() + std::mem::size_of::<BTreeSet<(i64, usize)>>()),
+            peak_temporary_payload_bytes: 0,
+            unmeasured_allocator_overhead: true,
+        }
     }
 
     fn materialized_node_count(&self) -> usize {
@@ -648,13 +653,38 @@ impl DynamicStabbingCutIndex {
     }
 
     fn refresh_owned_bytes(&mut self) {
-        self.metrics.owned_bytes = self.universe.len() * std::mem::size_of::<i64>()
-            + self.horizontal.owned_bytes_estimate()
-            + self.vertical.owned_bytes_estimate()
-            + self.vertical_stabbing.owned_bytes_estimate()
-            + self.horizontal_stabbing.owned_bytes_estimate()
-            + (self.vertical_segments.len() * std::mem::size_of::<VerticalCutSegment>())
-            + (self.horizontal_segments.len() * std::mem::size_of::<HorizontalCutSegment>());
+        let vertical_tree = self.vertical_stabbing.memory_estimate();
+        let horizontal_tree = self.horizontal_stabbing.memory_estimate();
+        self.metrics.memory_estimate = MemoryEstimate {
+            retained_payload_bytes: self.universe.len() * std::mem::size_of::<i64>()
+                + self.horizontal.owned_bytes_estimate()
+                + self.vertical.owned_bytes_estimate()
+                + vertical_tree.retained_payload_bytes
+                + horizontal_tree.retained_payload_bytes
+                + self.vertical_segments.len() * std::mem::size_of::<VerticalCutSegment>()
+                + self.horizontal_segments.len() * std::mem::size_of::<HorizontalCutSegment>(),
+            retained_collection_capacity_bytes: vertical_tree
+                .retained_collection_capacity_bytes
+                .saturating_add(horizontal_tree.retained_collection_capacity_bytes)
+                .saturating_add(
+                    (self.vertical_segments.capacity() - self.vertical_segments.len())
+                        * std::mem::size_of::<VerticalCutSegment>(),
+                )
+                .saturating_add(
+                    (self.horizontal_segments.capacity() - self.horizontal_segments.len())
+                        * std::mem::size_of::<HorizontalCutSegment>(),
+                ),
+            retained_container_estimate: vertical_tree
+                .retained_container_estimate
+                .saturating_add(horizontal_tree.retained_container_estimate)
+                .saturating_add(
+                    (self.horizontal.lines.len() + self.vertical.lines.len())
+                        * std::mem::size_of::<BTreeSet<(i64, i64)>>(),
+                ),
+            peak_temporary_payload_bytes: 0,
+            unmeasured_allocator_overhead: true,
+        };
+        self.metrics.owned_bytes = self.metrics.memory_estimate.retained_total_estimate();
         self.metrics.logical_tree_node_count = self
             .vertical_stabbing
             .logical_node_count()

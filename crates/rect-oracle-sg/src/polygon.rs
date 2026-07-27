@@ -18,7 +18,8 @@ use crate::polygon_arrangement::PreparedCoordinateArrangement;
 use crate::polygon_cut_index::{CompletionCutIndex, CutIndexMetrics, PolygonCutIndexBackend};
 use crate::polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
-    SparseSlabValidator,
+    SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics, SparseValidatorBackend,
+    SubdivisionBuilderBackend,
 };
 use crate::{
     ChordRef, CleanHoleFreeCertificate, CleanRejectionReason, EffectiveChordEndpointIndex,
@@ -216,6 +217,12 @@ pub struct PolygonCompletionMetrics {
     pub sparse_subdivision_junctions: usize,
     pub sparse_subdivision_owned_bytes: usize,
     pub sparse_validator_slab_count: usize,
+    pub sparse_subdivision: SparseSubdivisionMetrics,
+    pub sparse_validator: SparseSlabMetrics,
+    pub recovery_policy: String,
+    pub selected_recovery_backend: String,
+    pub dense_recovery_retained_byte_estimate: usize,
+    pub sparse_recovery_retained_upper_estimate: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -2325,6 +2332,42 @@ impl IndexedPolygonCompletion {
         recovery_backend: PolygonRecoveryBackend,
         validator_backend: PolygonDissectionValidatorBackend,
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
+        self.complete_prepared_with_geometry_backends(
+            prepared,
+            horizontal_chords,
+            vertical_chords,
+            selected_horizontal,
+            selected_vertical,
+            cut_index_backend,
+            recovery_backend,
+            validator_backend,
+            SubdivisionBuilderBackend::OrthogonalSweep,
+            SparseValidatorBackend::EventSegmentTree,
+        )
+    }
+
+    /// Completes selected chords with explicit sparse subdivision and sparse
+    /// validator implementations in addition to the preserved high-level
+    /// backend selectors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolygonSgError`] for selection, coordinate-closure,
+    /// completion, recovery, or validation failure.
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    pub fn complete_prepared_with_geometry_backends(
+        &self,
+        prepared: &PreparedPolygonContext,
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        selected_horizontal: &[bool],
+        selected_vertical: &[bool],
+        cut_index_backend: PolygonCutIndexBackend,
+        recovery_backend: PolygonRecoveryBackend,
+        validator_backend: PolygonDissectionValidatorBackend,
+        subdivision_builder_backend: SubdivisionBuilderBackend,
+        sparse_validator_backend: SparseValidatorBackend,
+    ) -> Result<PolygonCompletionResult, PolygonSgError> {
         let started = Instant::now();
         if horizontal_chords.len() != selected_horizontal.len()
             || vertical_chords.len() != selected_vertical.len()
@@ -2397,8 +2440,36 @@ impl IndexedPolygonCompletion {
             completion_coordinate_axis_counts(prepared, &horizontal_cuts, &vertical_cuts);
         metrics.coordinate_compression_x_count = x_count;
         metrics.coordinate_compression_y_count = y_count;
+        metrics.recovery_policy = recovery_backend.name().to_owned();
+        let final_segment_count = prepared
+            .polygon()
+            .boundary_complexity()
+            .saturating_add(horizontal_cuts.len())
+            .saturating_add(vertical_cuts.len());
+        metrics.dense_recovery_retained_byte_estimate = x_count
+            .saturating_sub(1)
+            .saturating_mul(y_count.saturating_sub(1))
+            .saturating_mul(4);
+        metrics.sparse_recovery_retained_upper_estimate = final_segment_count.saturating_mul(
+            2 * std::mem::size_of::<crate::polygon_sparse::SubdivisionVertex>()
+                + 4 * std::mem::size_of::<crate::polygon_sparse::SubdivisionHalfEdge>()
+                + 2 * std::mem::size_of::<crate::polygon_sparse::SubdivisionAtomicSegment>(),
+        );
+        let selected_recovery_backend = match recovery_backend {
+            PolygonRecoveryBackend::Auto => {
+                if metrics.dense_recovery_retained_byte_estimate
+                    <= metrics.sparse_recovery_retained_upper_estimate
+                {
+                    PolygonRecoveryBackend::DenseCoordinateArrangement
+                } else {
+                    PolygonRecoveryBackend::SparseSubdivision
+                }
+            }
+            backend => backend,
+        };
+        metrics.selected_recovery_backend = selected_recovery_backend.name().to_owned();
         let mut dense_arrangement = None;
-        let rectangles = match recovery_backend {
+        let rectangles = match selected_recovery_backend {
             PolygonRecoveryBackend::DenseCoordinateArrangement => {
                 let mut arrangement =
                     PreparedCoordinateArrangement::new(prepared, &horizontal_cuts, &vertical_cuts)?;
@@ -2418,15 +2489,21 @@ impl IndexedPolygonCompletion {
                 rectangles
             }
             PolygonRecoveryBackend::SparseSubdivision => {
-                let subdivision =
-                    SparseOrthogonalSubdivision::new(prepared, &horizontal_cuts, &vertical_cuts)?;
+                let subdivision = SparseOrthogonalSubdivision::new_with_backend(
+                    prepared,
+                    &horizontal_cuts,
+                    &vertical_cuts,
+                    subdivision_builder_backend,
+                )?;
                 metrics.sparse_subdivision_vertices = subdivision.metrics.vertex_count;
                 metrics.sparse_subdivision_half_edges = subdivision.metrics.half_edge_count;
                 metrics.sparse_subdivision_faces = subdivision.metrics.face_count;
                 metrics.sparse_subdivision_junctions = subdivision.metrics.junction_count;
                 metrics.sparse_subdivision_owned_bytes = subdivision.metrics.owned_bytes;
+                metrics.sparse_subdivision = subdivision.metrics.clone();
                 subdivision.recover_rectangles(prepared.polygon())?
             }
+            PolygonRecoveryBackend::Auto => unreachable!("auto recovery is resolved above"),
         };
         let recovered_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
@@ -2448,8 +2525,13 @@ impl IndexedPolygonCompletion {
                 metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
             }
             PolygonDissectionValidatorBackend::SparseSlab => {
-                let slab = SparseSlabValidator.validate(prepared.polygon(), &rectangles)?;
+                let slab = SparseSlabValidator.validate_with_backend(
+                    prepared.polygon(),
+                    &rectangles,
+                    sparse_validator_backend,
+                )?;
                 metrics.sparse_validator_slab_count = slab.slab_count;
+                metrics.sparse_validator = slab;
             }
         }
         metrics.final_validation_microseconds = recovered_at.elapsed().as_micros();

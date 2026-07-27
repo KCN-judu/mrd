@@ -30,6 +30,7 @@ pub use polygon_index::{
     PreparedPolygonContext, PreparedPolygonError,
 };
 pub use result::{
-    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, PolygonDissectionResult,
+    Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, MemoryEstimate,
+    PolygonDissectionResult,
 };
 pub use validation::{ValidationError, validate_dissection, validate_dissection_prepared};

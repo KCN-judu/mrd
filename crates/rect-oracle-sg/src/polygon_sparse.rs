@@ -6,7 +6,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use rect_core::{CoordinateRect, DoubledPoint, Point, PreparedPolygonContext, RectilinearPolygon};
+use rect_core::{
+    CoordinateRect, DoubledPoint, MemoryEstimate, Point, PreparedPolygonContext, RectilinearPolygon,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::polygon::{
@@ -22,6 +24,8 @@ pub enum PolygonRecoveryBackend {
     /// Sparse half-edge subdivision and face walk.
     #[default]
     SparseSubdivision,
+    /// Selects one backend from cheap coordinate and segment estimates.
+    Auto,
 }
 
 impl PolygonRecoveryBackend {
@@ -30,9 +34,13 @@ impl PolygonRecoveryBackend {
         match self {
             Self::DenseCoordinateArrangement => "dense-arrangement",
             Self::SparseSubdivision => "sparse-subdivision",
+            Self::Auto => "auto",
         }
     }
 }
+
+/// Public policy name used by v1.3 crossover evidence.
+pub type PolygonRecoveryPolicy = PolygonRecoveryBackend;
 
 /// Exact polygon-dissection validation implementation.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -152,6 +160,7 @@ pub struct SparseSubdivisionMetrics {
     pub face_count: usize,
     pub junction_count: usize,
     pub owned_bytes: usize,
+    pub memory_estimate: MemoryEstimate,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -169,6 +178,7 @@ pub struct SparseSlabMetrics {
     pub polygon_interval_events: usize,
     pub rectangle_interval_events: usize,
     pub owned_bytes: usize,
+    pub memory_estimate: MemoryEstimate,
 }
 
 /// Canonical positive-length atomic segment emitted by a subdivision builder.
@@ -691,12 +701,48 @@ impl SparseOrthogonalSubdivision {
         metrics.half_edge_count = half_edges.len();
         metrics.face_count = faces.len();
         metrics.junction_count = junction_count;
-        metrics.owned_bytes = vertices.len() * std::mem::size_of::<SubdivisionVertex>()
-            + half_edges.len() * std::mem::size_of::<SubdivisionHalfEdge>()
-            + faces
-                .iter()
-                .map(|face| face.boundary.len() * std::mem::size_of::<SubdivisionHalfEdgeId>())
-                .sum::<usize>();
+        let split_junctions = split_junctions.into_iter().collect::<Vec<_>>();
+        let face_boundary_payload = faces
+            .iter()
+            .map(|face| face.boundary.len() * std::mem::size_of::<SubdivisionHalfEdgeId>())
+            .sum::<usize>();
+        let face_boundary_capacity = faces
+            .iter()
+            .map(|face| {
+                (face.boundary.capacity() - face.boundary.len())
+                    * std::mem::size_of::<SubdivisionHalfEdgeId>()
+            })
+            .sum::<usize>();
+        metrics.memory_estimate = MemoryEstimate {
+            retained_payload_bytes: vertices.len() * std::mem::size_of::<SubdivisionVertex>()
+                + half_edges.len() * std::mem::size_of::<SubdivisionHalfEdge>()
+                + faces.len() * std::mem::size_of::<SubdivisionFace>()
+                + face_boundary_payload
+                + split_junctions.len() * std::mem::size_of::<Point>()
+                + atomic_segments.len() * std::mem::size_of::<SubdivisionAtomicSegment>(),
+            retained_collection_capacity_bytes: (vertices.capacity() - vertices.len())
+                * std::mem::size_of::<SubdivisionVertex>()
+                + (half_edges.capacity() - half_edges.len())
+                    * std::mem::size_of::<SubdivisionHalfEdge>()
+                + (faces.capacity() - faces.len()) * std::mem::size_of::<SubdivisionFace>()
+                + face_boundary_capacity
+                + (split_junctions.capacity() - split_junctions.len())
+                    * std::mem::size_of::<Point>()
+                + (atomic_segments.capacity() - atomic_segments.len())
+                    * std::mem::size_of::<SubdivisionAtomicSegment>(),
+            retained_container_estimate: faces.len()
+                * std::mem::size_of::<Vec<SubdivisionHalfEdgeId>>(),
+            peak_temporary_payload_bytes: metrics.materialized_split_coordinates
+                * std::mem::size_of::<i64>()
+                + vertex_ids.len() * std::mem::size_of::<(Point, SubdivisionVertexId)>()
+                + outgoing.len()
+                    * std::mem::size_of::<(
+                        SubdivisionVertexId,
+                        BTreeMap<Direction, SubdivisionHalfEdgeId>,
+                    )>(),
+            unmeasured_allocator_overhead: true,
+        };
+        metrics.owned_bytes = metrics.memory_estimate.retained_total_estimate();
         let metrics = SparseSubdivisionMetrics {
             vertex_count: vertices.len(),
             half_edge_count: half_edges.len(),
@@ -708,7 +754,7 @@ impl SparseOrthogonalSubdivision {
             vertices,
             half_edges,
             faces,
-            split_junctions: split_junctions.into_iter().collect(),
+            split_junctions,
             atomic_segments,
             metrics,
         })
@@ -932,6 +978,18 @@ impl SparseSlabValidator {
                 + horizontal_boundary.len() * std::mem::size_of::<(Point, Point)>(),
             ..SparseSlabMetrics::default()
         };
+        metrics.memory_estimate = MemoryEstimate {
+            retained_payload_bytes: x_coordinates.len() * std::mem::size_of::<i64>()
+                + horizontal_boundary.len() * std::mem::size_of::<(Point, Point)>(),
+            retained_collection_capacity_bytes: (x_coordinates.capacity() - x_coordinates.len())
+                * std::mem::size_of::<i64>()
+                + (horizontal_boundary.capacity() - horizontal_boundary.len())
+                    * std::mem::size_of::<(Point, Point)>(),
+            retained_container_estimate: events.len() * std::mem::size_of::<Vec<(bool, usize)>>(),
+            peak_temporary_payload_bytes: 0,
+            unmeasured_allocator_overhead: true,
+        };
+        metrics.owned_bytes = metrics.memory_estimate.retained_total_estimate();
         for pair in x_coordinates.windows(2) {
             let x = pair[0];
             if let Some(changes) = events.get(&x) {
@@ -1057,6 +1115,18 @@ impl SparseSlabValidator {
                 + tree.owned_bytes_estimate(),
             ..SparseSlabMetrics::default()
         };
+        metrics.memory_estimate = MemoryEstimate {
+            retained_payload_bytes: y_coordinates.len() * std::mem::size_of::<i64>()
+                + tree.nodes.len() * std::mem::size_of::<ValidationNode>(),
+            retained_collection_capacity_bytes: (y_coordinates.capacity() - y_coordinates.len())
+                * std::mem::size_of::<i64>()
+                + (tree.nodes.capacity() - tree.nodes.len())
+                    * std::mem::size_of::<ValidationNode>(),
+            retained_container_estimate: events.len() * std::mem::size_of::<Vec<SlabEvent>>(),
+            peak_temporary_payload_bytes: x_coordinates.capacity() * std::mem::size_of::<i64>(),
+            unmeasured_allocator_overhead: true,
+        };
+        metrics.owned_bytes = metrics.memory_estimate.retained_total_estimate();
         for pair in x_coordinates.windows(2) {
             let x = pair[0];
             let Some(changes) = events.get_mut(&x) else {
@@ -1486,7 +1556,10 @@ mod tests {
     use crate::polygon::{HorizontalCutSegment, VerticalCutSegment};
     use crate::polygon_arrangement::PreparedCoordinateArrangement;
 
-    use super::{SparseOrthogonalSubdivision, SparseSlabValidator, SubdivisionBuilderBackend};
+    use super::{
+        SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
+        SubdivisionBuilderBackend,
+    };
 
     #[test]
     fn sparse_subdivision_recovers_single_rectangle_without_dense_cells() {
@@ -1511,6 +1584,79 @@ mod tests {
         SparseSlabValidator
             .validate(&polygon, &[CoordinateRect::new(0, 0, 4, 3).unwrap()])
             .unwrap();
+    }
+
+    #[test]
+    fn event_validator_matches_reference_and_performs_no_slab_rescans() {
+        let polygon = RectilinearPolygon::new(
+            OrthogonalLoop::new(vec![
+                Point::new(0, 0),
+                Point::new(4, 0),
+                Point::new(4, 4),
+                Point::new(0, 4),
+            ]),
+            vec![],
+        )
+        .unwrap();
+        let valid = [
+            CoordinateRect::new(0, 0, 2, 4).unwrap(),
+            CoordinateRect::new(2, 0, 4, 4).unwrap(),
+        ];
+        let reference = SparseSlabValidator
+            .validate_with_backend(
+                &polygon,
+                &valid,
+                SparseValidatorBackend::ReferenceSlabRescan,
+            )
+            .unwrap();
+        let event = SparseSlabValidator
+            .validate_with_backend(&polygon, &valid, SparseValidatorBackend::EventSegmentTree)
+            .unwrap();
+        assert!(reference.boundary_edge_scans > 0);
+        assert!(reference.active_rectangle_resorts > 0);
+        assert_eq!(event.boundary_edge_scans, 0);
+        assert_eq!(event.active_rectangle_resorts, 0);
+        assert!(event.segment_tree_node_visits > 0);
+        assert!(event.root_checks > 0);
+
+        let invalid = [
+            vec![CoordinateRect {
+                x0: 0,
+                y0: 0,
+                x1: 0,
+                y1: 4,
+            }],
+            vec![CoordinateRect::new(0, 0, 3, 4).unwrap()],
+            vec![
+                CoordinateRect::new(0, 0, 3, 4).unwrap(),
+                CoordinateRect::new(2, 0, 3, 4).unwrap(),
+            ],
+            vec![
+                CoordinateRect::new(0, 0, 3, 4).unwrap(),
+                CoordinateRect::new(3, 0, 5, 2).unwrap(),
+            ],
+        ];
+        for rectangles in invalid {
+            let reference = SparseSlabValidator
+                .validate_with_backend(
+                    &polygon,
+                    &rectangles,
+                    SparseValidatorBackend::ReferenceSlabRescan,
+                )
+                .unwrap_err();
+            let event = SparseSlabValidator
+                .validate_with_backend(
+                    &polygon,
+                    &rectangles,
+                    SparseValidatorBackend::EventSegmentTree,
+                )
+                .unwrap_err();
+            assert_eq!(
+                std::mem::discriminant(&reference),
+                std::mem::discriminant(&event),
+                "reference={reference:?}, event={event:?}"
+            );
+        }
     }
 
     #[test]

@@ -31,8 +31,9 @@ use rect_oracle_sg::{
     IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, PolygonSgError, PreparedCoordinateArrangement,
     ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, audit_sweep_provenance,
-    classify_clean_polygon, complete_with_prepared_backend, validate_polygon_dissection_count,
+    SoltanGorpinevichSweepEnumerator, SparseValidatorBackend, SubdivisionBuilderBackend,
+    analyze_prepared_geometry, audit_sweep_provenance, classify_clean_polygon,
+    complete_with_prepared_backend, validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -165,6 +166,8 @@ pub struct PolygonSolveOptions {
     pub cut_index_backend: PolygonCutIndexBackend,
     pub recovery_backend: PolygonRecoveryBackend,
     pub dissection_validator_backend: PolygonDissectionValidatorBackend,
+    pub subdivision_builder_backend: SubdivisionBuilderBackend,
+    pub sparse_validator_backend: SparseValidatorBackend,
     /// Legacy dense/reference arrangement selector retained for old callers.
     pub arrangement_backend: PolygonArrangementBackend,
     pub representation: ConflictRepresentationBackend,
@@ -181,6 +184,8 @@ impl Default for PolygonSolveOptions {
             cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
             recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
             dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+            subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
+            sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
             arrangement_backend: PolygonArrangementBackend::Indexed,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
         }
@@ -412,7 +417,7 @@ pub fn solve_polygon_with_options(
                 &selected_horizontal,
                 &selected_vertical,
             )?;
-            let indexed = IndexedPolygonCompletion.complete_prepared_with_backends(
+            let indexed = IndexedPolygonCompletion.complete_prepared_with_geometry_backends(
                 &prepared,
                 &families.horizontal,
                 &families.vertical,
@@ -421,8 +426,10 @@ pub fn solve_polygon_with_options(
                 options.cut_index_backend,
                 options.recovery_backend,
                 options.dissection_validator_backend,
+                options.subdivision_builder_backend,
+                options.sparse_validator_backend,
             )?;
-            let line_map = IndexedPolygonCompletion.complete_prepared_with_backends(
+            let line_map = IndexedPolygonCompletion.complete_prepared_with_geometry_backends(
                 &prepared,
                 &families.horizontal,
                 &families.vertical,
@@ -431,6 +438,8 @@ pub fn solve_polygon_with_options(
                 PolygonCutIndexBackend::ReferenceLineMaps,
                 options.recovery_backend,
                 options.dissection_validator_backend,
+                SubdivisionBuilderBackend::ReferenceRangeScan,
+                SparseValidatorBackend::ReferenceSlabRescan,
             )?;
             if reference.selected_horizontal_cuts != indexed.selected_horizontal_cuts
                 || reference.selected_vertical_cuts != indexed.selected_vertical_cuts
@@ -460,7 +469,7 @@ pub fn solve_polygon_with_options(
                     &selected_vertical,
                 )?,
             PolygonCompletionBackend::IndexedFrontier => IndexedPolygonCompletion
-                .complete_prepared_with_backends(
+                .complete_prepared_with_geometry_backends(
                     &prepared,
                     &families.horizontal,
                     &families.vertical,
@@ -469,6 +478,8 @@ pub fn solve_polygon_with_options(
                     options.cut_index_backend,
                     options.recovery_backend,
                     options.dissection_validator_backend,
+                    options.subdivision_builder_backend,
+                    options.sparse_validator_backend,
                 )?,
         },
     };
@@ -504,7 +515,7 @@ pub fn solve_polygon_with_options(
     let completed_at = Instant::now();
     let dense_arrangement_used = options.verification_mode == VerificationMode::FullyAudited
         || options.completion_backend == PolygonCompletionBackend::CoordinateReference
-        || options.recovery_backend == PolygonRecoveryBackend::DenseCoordinateArrangement
+        || completion.metrics.selected_recovery_backend == "dense-arrangement"
         || options.dissection_validator_backend
             == PolygonDissectionValidatorBackend::DenseArrangement;
     Ok(PolygonDissectionResult {
@@ -523,6 +534,15 @@ pub fn solve_polygon_with_options(
             atomic_cell_count: Some(completion.metrics.atomic_cell_count),
             polygon_completion_backend: Some(options.completion_backend.name().to_owned()),
             polygon_arrangement_backend: Some(options.recovery_backend.name().to_owned()),
+            polygon_selected_recovery_backend: Some(
+                completion.metrics.selected_recovery_backend.clone(),
+            ),
+            dense_recovery_retained_byte_estimate: Some(
+                completion.metrics.dense_recovery_retained_byte_estimate,
+            ),
+            sparse_recovery_retained_upper_estimate: Some(
+                completion.metrics.sparse_recovery_retained_upper_estimate,
+            ),
             polygon_validator_backend: Some(options.dissection_validator_backend.name().to_owned()),
             polygon_cut_index_backend: Some(options.cut_index_backend.name().to_owned()),
             polygon_prepare_build_count: Some(prepared.metrics().polygon_prepare_build_count),
@@ -643,7 +663,17 @@ pub fn solve_polygon_with_options(
                 completion.metrics.cut_index.coordinate_line_scans,
             ),
             cut_index_interval_scans: Some(completion.metrics.cut_index.interval_scans),
+            cut_index_logical_tree_node_count: Some(
+                completion.metrics.cut_index.logical_tree_node_count,
+            ),
+            cut_index_materialized_tree_node_count: Some(
+                completion.metrics.cut_index.materialized_tree_node_count,
+            ),
+            cut_index_ordered_set_entry_count: Some(
+                completion.metrics.cut_index.ordered_set_entry_count,
+            ),
             cut_index_owned_bytes: Some(completion.metrics.cut_index.owned_bytes),
+            cut_index_memory_estimate: Some(completion.metrics.cut_index.memory_estimate),
             sparse_subdivision_vertex_count: Some(completion.metrics.sparse_subdivision_vertices),
             sparse_subdivision_half_edge_count: Some(
                 completion.metrics.sparse_subdivision_half_edges,
@@ -653,7 +683,87 @@ pub fn solve_polygon_with_options(
                 completion.metrics.sparse_subdivision_junctions,
             ),
             sparse_subdivision_owned_bytes: Some(completion.metrics.sparse_subdivision_owned_bytes),
+            sparse_subdivision_memory_estimate: Some(
+                completion.metrics.sparse_subdivision.memory_estimate,
+            ),
+            subdivision_builder_backend: Some(
+                completion
+                    .metrics
+                    .sparse_subdivision
+                    .builder_backend
+                    .clone(),
+            ),
+            subdivision_input_segment_count: Some(
+                completion.metrics.sparse_subdivision.input_segment_count,
+            ),
+            subdivision_horizontal_segment_count: Some(
+                completion
+                    .metrics
+                    .sparse_subdivision
+                    .horizontal_segment_count,
+            ),
+            subdivision_vertical_segment_count: Some(
+                completion.metrics.sparse_subdivision.vertical_segment_count,
+            ),
+            subdivision_sweep_event_count: Some(
+                completion.metrics.sparse_subdivision.sweep_event_count,
+            ),
+            subdivision_active_set_insertions: Some(
+                completion.metrics.sparse_subdivision.active_set_insertions,
+            ),
+            subdivision_active_set_removals: Some(
+                completion.metrics.sparse_subdivision.active_set_removals,
+            ),
+            subdivision_range_queries: Some(completion.metrics.sparse_subdivision.range_queries),
+            subdivision_candidate_pair_tests: Some(
+                completion.metrics.sparse_subdivision.candidate_pair_tests,
+            ),
+            subdivision_reported_intersections: Some(
+                completion.metrics.sparse_subdivision.reported_intersections,
+            ),
+            subdivision_t_junction_count: Some(
+                completion.metrics.sparse_subdivision.t_junction_count,
+            ),
+            subdivision_endpoint_contact_count: Some(
+                completion.metrics.sparse_subdivision.endpoint_contact_count,
+            ),
+            subdivision_atomic_segment_count: Some(
+                completion.metrics.sparse_subdivision.atomic_segment_count,
+            ),
+            subdivision_materialized_split_coordinates: Some(
+                completion
+                    .metrics
+                    .sparse_subdivision
+                    .materialized_split_coordinates,
+            ),
             sparse_validator_slab_count: Some(completion.metrics.sparse_validator_slab_count),
+            sparse_validator_backend: Some(
+                completion
+                    .metrics
+                    .sparse_validator
+                    .validator_backend
+                    .clone(),
+            ),
+            validator_x_event_count: Some(completion.metrics.sparse_validator.x_event_count),
+            validator_y_coordinate_count: Some(
+                completion.metrics.sparse_validator.y_coordinate_count,
+            ),
+            validator_range_add_count: Some(completion.metrics.sparse_validator.range_add_count),
+            validator_parity_toggle_count: Some(
+                completion.metrics.sparse_validator.parity_toggle_count,
+            ),
+            validator_segment_tree_node_visits: Some(
+                completion.metrics.sparse_validator.segment_tree_node_visits,
+            ),
+            validator_root_checks: Some(completion.metrics.sparse_validator.root_checks),
+            validator_boundary_edge_scans: Some(
+                completion.metrics.sparse_validator.boundary_edge_scans,
+            ),
+            validator_active_rectangle_resorts: Some(
+                completion.metrics.sparse_validator.active_rectangle_resorts,
+            ),
+            validator_owned_bytes: Some(completion.metrics.sparse_validator.owned_bytes),
+            validator_memory_estimate: Some(completion.metrics.sparse_validator.memory_estimate),
             raster_oracle_used: Some(false),
             boundary_complexity: boundary.boundary_complexity(),
             outer_loop_count: boundary.outer_loop_count(),

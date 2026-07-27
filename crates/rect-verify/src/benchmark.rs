@@ -1039,7 +1039,7 @@ impl BenchmarkReport {
         let mut csv = String::new();
         writeln!(
             csv,
-            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_index_build_count,boundary_index_build_microseconds,boundary_index_entries,boundary_index_owned_bytes,linear_boundary_vertex_lookup_count,gap_interval_membership_tests,gap_event_push_count,gap_event_pop_count,boundary_gap_label_backend,clean_endpoint_pair_comparisons,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,initial_horizontal_unit_cut_count,initial_vertical_unit_cut_count,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,horizontal_simple_chord_count,vertical_simple_chord_count,completion_candidate_queries,completion_full_grid_scans,completion_candidate_revalidations,completion_stale_candidates,completion_ray_extension_unit_steps,rectangle_recovery_component_visits,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized"
+            "git_commit,rustc_version,command,seed,timestamp,input_count,component_count,input_model,unsupported_input_features,instance_name,family,parameters,component_id,status,message,exact_cover_compared,cell_count,boundary_complexity,hole_count,reflex_vertex_count,horizontal_chord_count,vertical_chord_count,total_chord_count,effective_chord_enumerator,effective_chord_enumeration_microseconds,prepared_component_build_count,prepared_component_build_microseconds,boundary_index_build_count,boundary_index_build_microseconds,boundary_index_entries,boundary_index_owned_bytes,linear_boundary_vertex_lookup_count,gap_interval_membership_tests,gap_event_push_count,gap_event_pop_count,boundary_gap_label_backend,clean_endpoint_pair_comparisons,boundary_extraction_microseconds,reflex_grouping_microseconds,occupancy_bytes,horizontal_interior_run_count,vertical_interior_run_count,candidate_reflex_pair_count,emitted_chord_count,explicit_conflict_edge_count,edge_density_numerator,edge_density_denominator,biclique_count,biclique_total_vertex_occurrences,biclique_size_per_chord_numerator,biclique_size_per_chord_denominator,biclique_size_per_edge_numerator,biclique_size_per_edge_denominator,c0_network_vertex_count,c0_network_arc_count,compressed_network_vertex_count,compressed_network_arc_count,maximum_matching_size,minimum_vertex_cover_size,output_rectangle_count,completion_backend,conflict_representation,path_tree_orientation,path_tree_orientation_policy,dual_region_count,dual_tree_vertex_count,path_count,path_edge_incidence_count,total_path_length_metric,dual_tree_max_depth,dual_tree_max_branching_degree,heavy_chain_count,heavy_chain_interval_count,tree_edge_occurrences,theoretical_path_occurrence_bound,theoretical_tree_edge_occurrence_bound,canonical_segment_node_count,path_tree_sigma,four_d_sigma,selected_chord_cut_materialization_microseconds,horizontal_simple_chord_completion_microseconds,vertical_simple_chord_completion_microseconds,rectangle_recovery_microseconds,final_output_validation_microseconds,initial_horizontal_unit_cut_count,initial_vertical_unit_cut_count,completion_added_horizontal_unit_cuts,completion_added_vertical_unit_cuts,horizontal_simple_chord_count,vertical_simple_chord_count,completion_candidate_queries,completion_full_grid_scans,completion_candidate_revalidations,completion_stale_candidates,completion_ray_extension_unit_steps,rectangle_recovery_component_visits,rectangle_recovery_queue_pushes,rectangle_recovery_region_count,rectangle_recovery_allocations,c0_phase_microseconds,compressed_phase_microseconds,compact_only_phase_microseconds,peak_memory_bytes,owned_allocation_estimates,region_dual_backend,region_dual_construction_microseconds,dual_tree_edge_count,dual_allocated_bytes,dual_unit_cut_count,dual_area_cell_visits,dual_interval_count,dual_maximum_nesting_depth,hld_interval_count,explicit_path_records_materialized,subdivision_builder_backend,subdivision_input_segment_count,subdivision_sweep_event_count,subdivision_candidate_pair_tests,subdivision_reported_intersections,subdivision_atomic_segment_count,validator_backend,validator_x_event_count,validator_y_coordinate_count,validator_range_add_count,validator_parity_toggle_count,validator_segment_tree_node_visits,validator_root_checks,validator_boundary_edge_scans,validator_active_rectangle_resorts,cut_index_logical_tree_node_count,cut_index_materialized_tree_node_count,cut_index_ordered_set_entry_count,polygon_selected_recovery_backend,dense_recovery_retained_byte_estimate,sparse_recovery_retained_upper_estimate"
         )?;
         for row in &self.rows {
             let density = ratio_columns(row.diagnostics.conflict_edge_density);
@@ -1211,6 +1211,36 @@ impl BenchmarkReport {
                 optional_number(row.diagnostics.dual_maximum_nesting_depth),
                 optional_number(row.diagnostics.hld_interval_count),
                 optional_number(row.diagnostics.explicit_path_records_materialized),
+                row.diagnostics
+                    .subdivision_builder_backend
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(row.diagnostics.subdivision_input_segment_count),
+                optional_number(row.diagnostics.subdivision_sweep_event_count),
+                optional_number(row.diagnostics.subdivision_candidate_pair_tests),
+                optional_number(row.diagnostics.subdivision_reported_intersections),
+                optional_number(row.diagnostics.subdivision_atomic_segment_count),
+                row.diagnostics
+                    .sparse_validator_backend
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(row.diagnostics.validator_x_event_count),
+                optional_number(row.diagnostics.validator_y_coordinate_count),
+                optional_number(row.diagnostics.validator_range_add_count),
+                optional_number(row.diagnostics.validator_parity_toggle_count),
+                optional_number(row.diagnostics.validator_segment_tree_node_visits),
+                optional_number(row.diagnostics.validator_root_checks),
+                optional_number(row.diagnostics.validator_boundary_edge_scans),
+                optional_number(row.diagnostics.validator_active_rectangle_resorts),
+                optional_number(row.diagnostics.cut_index_logical_tree_node_count),
+                optional_number(row.diagnostics.cut_index_materialized_tree_node_count),
+                optional_number(row.diagnostics.cut_index_ordered_set_entry_count),
+                row.diagnostics
+                    .polygon_selected_recovery_backend
+                    .clone()
+                    .unwrap_or_default(),
+                optional_number(row.diagnostics.dense_recovery_retained_byte_estimate),
+                optional_number(row.diagnostics.sparse_recovery_retained_upper_estimate),
             ];
             writeln!(
                 csv,
