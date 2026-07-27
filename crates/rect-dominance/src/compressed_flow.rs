@@ -1,4 +1,7 @@
-use rect_graph::{FlowError, FlowNetwork, FlowNodeId, FlowResult, MaxFlowBackend, VertexCover};
+use rect_graph::{
+    BipartiteGraph, DinicBackend, FlowError, FlowNetwork, FlowNodeId, FlowResult, MaxFlowBackend,
+    PushRelabelBackend, VertexCover, hopcroft_karp,
+};
 use thiserror::Error;
 
 use crate::biclique::BicliquePartition;
@@ -11,6 +14,59 @@ pub struct CompressedFlowSolution {
     pub network_arc_count: usize,
     pub internal_capacity: u64,
     pub internal_cut_arc_count: usize,
+}
+
+/// Exact agreement evidence for the explicit graph and both permanent flow
+/// reference backends over a verified biclique partition.
+#[derive(Clone, Debug)]
+pub struct CompressedFlowParity {
+    pub matching_size: usize,
+    pub dinic: CompressedFlowSolution,
+    pub push_relabel: CompressedFlowSolution,
+}
+
+/// Verifies compressed-flow recovery against independent exact references.
+///
+/// # Errors
+///
+/// Returns an error when the partition is not exact, either backend fails, or
+/// a matching/flow/cover cardinality disagrees.
+pub fn audit_biclique_flow_parity(
+    graph: &BipartiteGraph,
+    partition: &BicliquePartition,
+) -> Result<CompressedFlowParity, CompressedFlowError> {
+    partition
+        .verify_exact_partition(graph)
+        .map_err(|_| CompressedFlowError::InvalidPartition)?;
+    let matching_size = hopcroft_karp(graph).size;
+    let dinic = solve_biclique_flow(
+        graph.left_size(),
+        graph.right_size(),
+        partition,
+        &DinicBackend,
+    )?;
+    let push_relabel = solve_biclique_flow(
+        graph.left_size(),
+        graph.right_size(),
+        partition,
+        &PushRelabelBackend,
+    )?;
+    let dinic_value =
+        usize::try_from(dinic.flow.value).map_err(|_| CompressedFlowError::FlowValueConversion)?;
+    let push_value = usize::try_from(push_relabel.flow.value)
+        .map_err(|_| CompressedFlowError::FlowValueConversion)?;
+    if dinic_value != matching_size
+        || push_value != matching_size
+        || dinic.vertex_cover.size != matching_size
+        || push_relabel.vertex_cover.size != matching_size
+    {
+        return Err(CompressedFlowError::ParityMismatch);
+    }
+    Ok(CompressedFlowParity {
+        matching_size,
+        dinic,
+        push_relabel,
+    })
 }
 
 /// Runs an exact flow on the biclique-compressed network and recovers a cover.
@@ -177,6 +233,10 @@ pub enum CompressedFlowError {
     FlowValueConversion,
     #[error("minimum cut value {cut} differs from recovered cover size {cover}")]
     CutCoverSizeMismatch { cut: usize, cover: usize },
+    #[error("biclique partition does not exactly represent the explicit graph")]
+    InvalidPartition,
+    #[error("explicit matching and compressed flow reference backends disagree")]
+    ParityMismatch,
 }
 
 #[cfg(test)]
@@ -185,7 +245,7 @@ mod tests {
 
     use crate::biclique::BicliquePartition;
 
-    use super::solve_biclique_flow;
+    use super::{audit_biclique_flow_parity, solve_biclique_flow};
 
     #[test]
     fn c0_flow_equals_explicit_matching() {
@@ -221,5 +281,20 @@ mod tests {
         assert_eq!(push_relabel.flow.value, dinic.flow.value);
         assert_eq!(push_relabel.vertex_cover.size, dinic.vertex_cover.size);
         assert_eq!(push_relabel.internal_cut_arc_count, 0);
+    }
+
+    #[test]
+    fn parity_audit_agrees_for_every_two_by_two_explicit_graph() {
+        for mask in 0_u8..16 {
+            let mut graph = BipartiteGraph::new(2, 2);
+            for (index, (left, right)) in [(0, 0), (0, 1), (1, 0), (1, 1)].iter().enumerate() {
+                if mask & (1 << index) != 0 {
+                    graph.add_edge(*left, *right).unwrap();
+                }
+            }
+            let partition = BicliquePartition::from_explicit_edges(&graph);
+            let parity = audit_biclique_flow_parity(&graph, &partition).unwrap();
+            assert_eq!(parity.matching_size, hopcroft_karp(&graph).size);
+        }
     }
 }
