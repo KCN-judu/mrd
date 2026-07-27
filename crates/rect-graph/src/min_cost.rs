@@ -23,6 +23,43 @@ pub struct CirculationNetwork {
 }
 
 impl CirculationNetwork {
+    /// Validates exact feasibility, objective value, and residual optimality.
+    pub fn verify_solution(
+        &self,
+        solution: &MinCostSolution,
+    ) -> Result<(), MinCostCirculationError> {
+        if solution.arc_flows.len() != self.arcs.len() {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        let mut balance = vec![0_i128; self.node_count];
+        let mut cost = 0_i128;
+        for (arc, flow) in self.arcs.iter().zip(&solution.arc_flows) {
+            if *flow < 0 || *flow > arc.capacity {
+                return Err(MinCostCirculationError::InvalidSolution);
+            }
+            balance[arc.from] = balance[arc.from]
+                .checked_sub(*flow)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            balance[arc.to] = balance[arc.to]
+                .checked_add(*flow)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            cost = cost
+                .checked_add(
+                    arc.cost
+                        .checked_mul(*flow)
+                        .ok_or(MinCostCirculationError::Overflow)?,
+                )
+                .ok_or(MinCostCirculationError::Overflow)?;
+        }
+        if balance != self.demands
+            || cost != solution.cost
+            || negative_cycle(self, &solution.arc_flows)?.is_some()
+        {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn new(node_count: usize) -> Self {
         Self {
@@ -205,6 +242,10 @@ pub enum MinCostCirculationError {
     Overflow,
     #[error("gradient/length dimensions differ or a length is not positive")]
     InvalidRatioInput,
+    #[error(
+        "flow vector is infeasible, has an incorrect cost, or admits a negative residual cycle"
+    )]
+    InvalidSolution,
 }
 
 fn enumerate_cycles(
@@ -410,6 +451,7 @@ mod tests {
         assert_eq!(solution.arc_flows[first.0], 3);
         assert_eq!(solution.arc_flows[second.0], 3);
         assert_eq!(solution.cost, 6);
+        network.verify_solution(&solution).unwrap();
     }
 
     #[test]
