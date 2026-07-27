@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.5
+- Current phase: P8.6
 - Current phase state: in_progress
 - Last completed phase: P7
-- Last pushed SHA: 749536cf0ccc0d160d02a1029681ffc85beca8f7
-- Plan last updated: 2026-07-28T02:30:00Z
+- Last pushed SHA: 200bcc84b21581a4065fdda6a261a3de291563d9
+- Plan last updated: 2026-07-28T03:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -417,7 +417,7 @@ production construction claim is made.
 
 ### P8.5 - Compact cycle tree chain and hidden-stability query
 
-**State:** committed. The P8.5 baseline now decodes compact signed cycles with
+**State:** complete. The P8.5 baseline now decodes compact signed cycles with
 P7 exact conservation validation, replays deterministic shift/rebuild traces,
 and composes P8.1 `Update`/`Query`/`Detect` replay. Full evidence is in
 `docs/phase-reports/P08-5-compact-cycle-chain.md`; it makes no Theorem 5.1
@@ -425,7 +425,7 @@ query, dynamic data-structure, or amortized-bound claim.
 
 ### P8.6 - Dynamic minimum-ratio integration audit
 
-**State:** planned. Integrate the P8.5 structure only behind its checked
+**State:** in_progress. Integrate the P8.5 structure only behind its checked
 stable-state contract. Require deterministic replay, static-Oracle comparison,
 explicit unsupported-operation rejection, and full amortized-work evidence.
 This closes P8 only as a dynamic component; P9 remains responsible for any
