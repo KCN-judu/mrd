@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.1
+- Current phase: P8.2
 - Current phase state: in_progress
 - Last completed phase: P7
-- Last pushed SHA: 237d55b2da573d7a73f93276ff31d49375d384a2
-- Plan last updated: 2026-07-28T00:30:00Z
+- Last pushed SHA: 37088c98abab24f070ed7609f0e434c111291e16
+- Plan last updated: 2026-07-28T01:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -379,7 +379,7 @@ commit, push, and reread transition.
 
 ### P8.1 - Checked stable min-ratio state contract
 
-**State:** committed. **Implementation SHA:** pending closeout. Definitions
+**State:** complete. **Implementation SHA:** `37088c9`. Definitions
 4.2--4.5 are now mapped to exact Rust state: signed incidence, positive
 lengths, gradients, valid-pair bounds, checked witness stability, and replayable
 `Update`/`Query`/`Detect` logs. The six focused invariants have zero
@@ -390,7 +390,7 @@ amortized claim.
 
 ### P8.2 - Dynamic rooted-forest primitive
 
-**State:** planned. Implement only the operations and counters mapped by
+**State:** in_progress. Implement only the operations and counters mapped by
 Lemma 5.4 of the primary source and the Sleator--Tarjan dynamic-tree source:
 decremental forest-edge removal, permitted vertex splits, rooted path update
 and query, exact stretch certificates, and recourse accounting. Preserve a
