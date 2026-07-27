@@ -390,13 +390,12 @@ amortized claim.
 
 ### P8.2 - Dynamic rooted-forest primitive
 
-**State:** in_progress. Implement only the operations and counters mapped by
-Lemma 5.4 of the primary source and the Sleator--Tarjan dynamic-tree source:
-decremental forest-edge removal, permitted vertex splits, rooted path update
-and query, exact stretch certificates, and recourse accounting. Preserve a
-static forest Oracle. Acceptance requires a source-shaped trace differential
-and verified update preconditions; no bound is claimed until all of Lemma 5.4's
-assumptions are checked.
+**State:** committed. A deterministic exact baseline now enforces decremental
+forest-edge removal, permitted vertex splits, rooted path update/query, static
+Definition 5.3 stretch certificates, and recourse counters. The static BFS
+recomputation remains the forest Oracle. Full evidence is in
+`docs/phase-reports/P08-2-rooted-forest-primitive.md`; no Lemma 5.4 runtime
+or construction claim is made.
 
 ### P8.3 - Scope-limited decremental spanner certificates
 

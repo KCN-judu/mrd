@@ -3,6 +3,7 @@ pub mod dinic;
 pub mod hopcroft_karp;
 pub mod min_cost;
 pub mod min_ratio_cycle;
+pub mod rooted_forest;
 
 pub use bitset::BitSet;
 pub use dinic::{
@@ -19,4 +20,7 @@ pub use min_cost::{
 pub use min_ratio_cycle::{
     ExactRatio, MinRatioEdgeId, StableEdge, StableMinRatioError, StableMinRatioLedger,
     StableOperation, StableUpdate, StableWitness,
+};
+pub use rooted_forest::{
+    DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };

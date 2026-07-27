@@ -53,6 +53,22 @@ impl ExactRatio {
         self.denominator
     }
 
+    /// Compares two ratios with checked cross multiplication.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the exact comparison overflows.
+    pub fn at_least(self, other: Self) -> Result<bool, StableMinRatioError> {
+        Ok(self
+            .numerator
+            .checked_mul(other.denominator)
+            .ok_or(StableMinRatioError::Overflow)?
+            >= other
+                .numerator
+                .checked_mul(self.denominator)
+                .ok_or(StableMinRatioError::Overflow)?)
+    }
+
     fn add(self, other: Self) -> Result<Self, StableMinRatioError> {
         Self::new(
             self.numerator

@@ -274,6 +274,15 @@ logs. It rejects invalid circulation, witness, approximation, and factor-two
 stability claims. It deliberately does not discover a cycle, conceal a witness,
 support graph topology changes, or claim dynamic or amortized performance.
 
+`rect-graph::rooted_forest::DynamicRootedForest` is the P8.2 deterministic
+baseline for the rooted-forest portion of Definitions 5.2--5.3. It permits
+only graph-edge deletion and explicitly listed incident-edge vertex splits;
+the selected forest edge set only decreases. Root-path updates/queries use
+exact integers, and stretch certificates are checked by static BFS
+recomputation of Definition 5.3 from the current snapshot. Its recourse
+counters are evidence, not a proof or claim of Lemma 5.4's construction or
+runtime.
+
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.
