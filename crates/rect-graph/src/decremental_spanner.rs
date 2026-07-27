@@ -45,6 +45,31 @@ pub struct DecrementalSpanner {
 }
 
 impl DecrementalSpanner {
+    /// Constructs a deterministic greedy unweighted spanner certificate.
+    ///
+    /// Edges are considered in identifier order. An edge is retained exactly
+    /// when the already retained subgraph has no path with at most
+    /// `maximum_hops` edges between its endpoints. This is a static/rebuild
+    /// Oracle, not the dynamic expander-based construction of Theorem 8.2.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid graph, a zero hop bound, or an invalid
+    /// internally produced certificate.
+    pub fn build_greedy(
+        node_count: usize,
+        edges: Vec<SpannerEdge>,
+        maximum_hops: usize,
+    ) -> Result<Self, SpannerError> {
+        if maximum_hops == 0 {
+            return Err(SpannerError::InvalidHopBound);
+        }
+        validate_simple(node_count, &edges)?;
+        let active = vec![true; edges.len()];
+        let certificate = greedy_certificate(node_count, &edges, &active, maximum_hops)?;
+        Self::new(node_count, edges, certificate)
+    }
+
     /// Initializes a simple undirected graph and validates its certificate.
     ///
     /// # Errors
@@ -90,6 +115,22 @@ impl DecrementalSpanner {
         self.metrics.deletion_count +=
             u64::try_from(deleted.len()).map_err(|_| SpannerError::Overflow)?;
         self.certificate = certificate;
+        self.install_certificate()
+    }
+
+    /// Rebuilds a deterministic greedy certificate for the current active
+    /// graph. This has no theorem-level recourse or runtime guarantee.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a zero hop bound, an invalid graph, or exact
+    /// counter overflow.
+    pub fn rebuild_greedy(&mut self, maximum_hops: usize) -> Result<(), SpannerError> {
+        if maximum_hops == 0 {
+            return Err(SpannerError::InvalidHopBound);
+        }
+        self.certificate =
+            greedy_certificate(self.node_count, &self.edges, &self.active, maximum_hops)?;
         self.install_certificate()
     }
 
@@ -230,8 +271,98 @@ pub enum SpannerError {
     InvalidSplit,
     #[error("spanner or embedding certificate is invalid")]
     InvalidCertificate,
+    #[error("greedy spanner hop bound must be positive")]
+    InvalidHopBound,
     #[error("exact counter arithmetic overflowed")]
     Overflow,
+}
+
+fn greedy_certificate(
+    node_count: usize,
+    edges: &[SpannerEdge],
+    active: &[bool],
+    maximum_hops: usize,
+) -> Result<SpannerCertificate, SpannerError> {
+    if active.len() != edges.len() {
+        return Err(SpannerError::InvalidGraph);
+    }
+    validate_simple(node_count, edges)?;
+    let mut spanner_edges = BTreeSet::new();
+    let mut paths = vec![Vec::new(); edges.len()];
+    for (index, edge) in edges.iter().enumerate() {
+        if !active[index] {
+            continue;
+        }
+        let id = SpannerEdgeId(index);
+        let path = bounded_spanner_path(
+            node_count,
+            edge.first.0,
+            edge.second.0,
+            edges,
+            &spanner_edges,
+            maximum_hops,
+        )?;
+        if let Some(path) = path {
+            paths[index] = path;
+        } else {
+            spanner_edges.insert(id);
+            paths[index] = vec![id];
+        }
+    }
+    let reembedded_edges = (0..edges.len())
+        .filter(|index| active[*index] && !spanner_edges.contains(&SpannerEdgeId(*index)))
+        .map(SpannerEdgeId)
+        .collect();
+    Ok(SpannerCertificate {
+        spanner_edges,
+        embedding_paths: paths,
+        reembedded_edges,
+    })
+}
+
+fn bounded_spanner_path(
+    node_count: usize,
+    start: usize,
+    target: usize,
+    edges: &[SpannerEdge],
+    spanner: &BTreeSet<SpannerEdgeId>,
+    maximum_hops: usize,
+) -> Result<Option<Vec<SpannerEdgeId>>, SpannerError> {
+    let mut adjacency = vec![Vec::<(usize, SpannerEdgeId)>::new(); node_count];
+    for id in spanner {
+        let edge = edges.get(id.0).ok_or(SpannerError::InvalidCertificate)?;
+        adjacency[edge.first.0].push((edge.second.0, *id));
+        adjacency[edge.second.0].push((edge.first.0, *id));
+    }
+    let mut predecessor = vec![None; node_count];
+    let mut depth = vec![0_usize; node_count];
+    let mut queue = VecDeque::from([start]);
+    predecessor[start] = Some((start, SpannerEdgeId(usize::MAX)));
+    while let Some(node) = queue.pop_front() {
+        if node == target {
+            let mut path = Vec::new();
+            let mut current = target;
+            while current != start {
+                let (previous, edge) =
+                    predecessor[current].ok_or(SpannerError::InvalidCertificate)?;
+                path.push(edge);
+                current = previous;
+            }
+            path.reverse();
+            return Ok(Some(path));
+        }
+        if depth[node] == maximum_hops {
+            continue;
+        }
+        for (next, edge) in &adjacency[node] {
+            if predecessor[*next].is_none() {
+                predecessor[*next] = Some((node, *edge));
+                depth[*next] = depth[node].checked_add(1).ok_or(SpannerError::Overflow)?;
+                queue.push_back(*next);
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn validate_simple(node_count: usize, edges: &[SpannerEdge]) -> Result<(), SpannerError> {
@@ -360,6 +491,46 @@ mod tests {
         state.verify_embedding().unwrap();
         assert_eq!(state.metrics().maximum_path_length, 2);
         assert!(state.metrics().maximum_vertex_congestion >= 2);
+    }
+
+    #[test]
+    fn greedily_constructs_and_rebuilds_a_checked_certificate() {
+        let edges = vec![
+            SpannerEdge {
+                first: FlowNodeId(0),
+                second: FlowNodeId(1),
+            },
+            SpannerEdge {
+                first: FlowNodeId(1),
+                second: FlowNodeId(2),
+            },
+            SpannerEdge {
+                first: FlowNodeId(0),
+                second: FlowNodeId(2),
+            },
+        ];
+        let mut state = DecrementalSpanner::build_greedy(3, edges, 2).unwrap();
+        state.verify_embedding().unwrap();
+        assert_eq!(state.metrics().reembedded_edge_count, 1);
+        state
+            .delete_edges(
+                &[SpannerEdgeId(2)],
+                certificate(
+                    vec![vec![SpannerEdgeId(0)], vec![SpannerEdgeId(1)], vec![]],
+                    &[0, 1],
+                ),
+            )
+            .unwrap();
+        state.rebuild_greedy(2).unwrap();
+        state.verify_embedding().unwrap();
+    }
+
+    #[test]
+    fn rejects_zero_greedy_hop_bound() {
+        assert_eq!(
+            DecrementalSpanner::build_greedy(0, Vec::new(), 0),
+            Err(SpannerError::InvalidHopBound)
+        );
     }
 
     #[test]
