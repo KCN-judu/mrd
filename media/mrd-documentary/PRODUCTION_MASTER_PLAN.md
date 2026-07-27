@@ -7,13 +7,14 @@ This file is the persistent source of truth for the documentary production.
 - Algorithm repository SHA: `093961fc6dbd39d853a18bb793160ac290ed0baf`
 - Algorithm release represented: `v1.3.0-output-sensitive-sparse-geometry`
 - Video-project branch: `codex/mrd-documentary`
-- Current production phase: `V0 - Audit and treatment`
-- Current phase state: `rendered`
+- Current production phase: `V1 - Storyboard and animatic`
+- Current phase state: `in_progress`
 - Target master duration: 4 minutes 48 seconds, subject to narration timing
 - Master format: 3840x2160, 30 fps, stereo 48 kHz
 - Review format: 1920x1080 H.264
-- Current pushed SHA: not yet pushed
-- Existing unrelated worktree changes: `crates/rect-core/src/formal_polygon.rs` and `tmp/`; preserve and exclude from video commits
+- Last completed phase pushed SHA: `4faf416f5fe5d009813d444e07084e6cbe213ea4`
+- Remote verification: `origin/codex/mrd-documentary` equalled local branch at the V0 transition
+- Existing unrelated worktree content: `tmp/`; preserve and exclude from video commits
 
 ## Global narrative treatment
 
@@ -86,10 +87,10 @@ formal-boundary and almost-linear-flow frontier remains visible at the end.
 
 ## Narration status
 
-- English narrative concept: planned
-- Chinese narrative concept: planned
-- English full script: not started
-- Chinese full script: not started
+- English narrative concept: approved by V0 treatment
+- Chinese narrative concept: approved by V0 treatment
+- English provisional script: first V1 pass drafted
+- Chinese provisional script: first V1 pass drafted
 - Guide narration: not recorded
 - Timed JSON: not generated
 - SRT/VTT: not generated
@@ -120,7 +121,7 @@ and `audio/beat-map.json`.
 - Theorem 8 biclique partition and compressed Dinic path: verified from source docs.
 - v1.3 release population claims: verified from committed release evidence.
 - Supplied current Version 4.1 paper: referenced by repository docs but no local file located; review required before quoting it directly.
-- Current Rust worktree build: blocked by pre-existing uncommitted serialization derives in `formal_polygon.rs`; video work must not alter that code.
+- Rust workspace compile gate: `cargo test --workspace --no-run` passes on the V1 parent state.
 
 ## Render status
 
@@ -138,13 +139,12 @@ and `audio/beat-map.json`.
 
 ## Commits
 
-No documentary commits yet.
+- `4faf416f5fe5d009813d444e07084e6cbe213ea4` - V0 production plan, fact check, Remotion baseline, and audited mood test
 
 ## Blockers
 
 - Final licensed music and final narration voices are not selected.
 - The current Version 4.1 paper mentioned in repository documentation is not present as a local file.
-- Pre-existing uncommitted Rust edits currently prevent a fresh workspace build; an existing v1.3 release binary remains available for read-only fixture inspection.
 
 ## Final deliverables
 
@@ -161,7 +161,7 @@ No documentary commits yet.
 
 ## Phase V0 - Audit and treatment
 
-State: `rendered`
+State: `complete`
 
 Deliverables: repository and source audit, fact-check register, audience brief,
 treatment, structure, storyboard, beat sheet, package decision, project skeleton,
@@ -181,7 +181,7 @@ After this phase has been reviewed, committed, and pushed:
 
 ## Phase V1 - Storyboard and animatic
 
-State: `planned`
+State: `in_progress`
 
 Deliverables: complete written storyboard, shot list, time-coded animatic,
 provisional bilingual narration, blocking visuals, guide audio, and
