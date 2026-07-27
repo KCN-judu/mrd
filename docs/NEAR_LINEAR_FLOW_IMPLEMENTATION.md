@@ -8,9 +8,13 @@ contracts to intended code; it does not claim that those components exist.
 
 Retrieved predecessor sources: Chen et al., "Maximum Flow and Minimum-Cost
 Flow in Almost-Linear Time," arXiv:2203.00671v2, 2022; and Kang--Payor,
-"Flow Rounding," arXiv:1507.08139v1, 2015. The required CS21 decremental
-shortest-path construction is identified by full bibliographic citation in the
-primary source but has not yet been retrieved.
+"Flow Rounding," arXiv:1507.08139v1, 2015; and Chuzhoy--Saranurak,
+"Deterministic Algorithms for Decremental Shortest Paths via Layered Core
+Decomposition," arXiv:2009.08479v1, 2020 (SODA 2021).
+Dynamic-tree operations are pinned to Sleator--Tarjan, "A Data Structure for
+Dynamic Trees," STOC 1981, DOI 10.1145/800076.802464. KP15 uses this family
+for cycle cancellation; Section 6.2 of the primary source uses link-cut trees
+to apply compact min-ratio-cycle updates.
 
 ## Theorem-to-module map
 
@@ -44,10 +48,12 @@ must be represented as checked certificates, not comments.
 ## P6 blocker
 
 arXiv:2309.16629 explicitly delegates essential constructive details to
-CKLPPS22, KP15, CS21, and dynamic-tree machinery. CKLPPS22 and KP15 are now
-version-pinned, but CS21 remains outstanding. Implementing the decremental
-spanner from the overview would invent theorem behavior, which the master-plan
-rules prohibit.
+CKLPPS22, KP15, CS21, and dynamic-tree machinery. The three arXiv sources are
+version-pinned. CS21 is limited to decremental simple undirected graphs, so the
+spanner layer must not claim a directed or arbitrary-update implementation.
+The source map is complete for P6. P7 must implement only the superlinear exact
+circulation and rounding Oracle first; P8 must split the dynamic structures
+into source-backed subphases before claiming their amortized guarantees.
 
 ## Next action
 

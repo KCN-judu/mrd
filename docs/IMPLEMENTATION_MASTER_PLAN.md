@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P6
-- Current phase state: in_progress
-- Last completed phase: P5
+- Current phase state: complete
+- Last completed phase: P6
 - Last pushed SHA: 66b6336e4af980bad8a93a7e416b62d5c539ed97
-- Plan last updated: 2026-07-27T16:02:00Z
+- Plan last updated: 2026-07-27T16:20:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -320,18 +320,18 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P6 - Source-backed almost-linear flow specification
 
-**State:** in_progress. Read the FOCS 2023 / arXiv `2309.16629` source and required
+**State:** complete. Read the FOCS 2023 / arXiv `2309.16629` source and required
 predecessors. Create `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`, mapping every
 theorem, data structure, assumption, precision rule, and recovery step to an
 intended Rust module. Do not claim implementation from an interface skeleton.
 Mark blocked, rather than inventing a component, if authoritative source is
 unavailable.
 
-**Dependency gap under investigation:** The primary source was retrieved and mapped in
-`docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`. It delegates required constructive
-components to CKLPPS22, KP15, CS21, and dynamic-tree predecessors that are not
-available in this repository. No almost-linear module may be invented from the
-primary paper overview. Retrieve/version-pin those sources before P6 can close.
+**Acceptance:** complete. `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md` pins the
+primary source and CKLPPS22, KP15, CS21, and ST83 predecessors; maps every
+required theorem/data structure/assumption/recovery step to intended Rust
+modules; and records exact arithmetic, hidden-stability, undirected-spanner,
+and no-fallback constraints. No advanced implementation is claimed.
 
 ### Mandatory transition after this phase
 
@@ -484,4 +484,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P3 | complete | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | 3b8347a | 3b8347a | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |
 | P4 | complete | 3b8347a | 85c1083, bfa5a94, 4cf8250, 9238066, f5c387e | 746989f | 746989f | `docs/phase-reports/P04-presorted-biclique-construction.md` | `results/p4-adversarial.csv`; `results/p4-biclique-construction.csv`; `results/p4-biclique-construction.json`; `results/p4-dense-conflict.csv`; `results/p4-exhaustive-4x4.json`; `results/p4-formal-fixtures.json`; `results/p4-polygon-differential.json`; `results/p4-polygon-differential.counterexamples.json`; `results/p4-polyomino.csv`; `results/p4-random-8x8-seed42.json` | 2026-07-27T12:47:26Z | 2026-07-27T13:38:15Z | none |
 | P5 | complete | 746989f | 1636b75, 986026d, 90acf15 | 66b6336 | 66b6336 | `docs/phase-reports/P05-exact-flow-backends.md` | `results/p5-flow-backends.csv`; `results/p5-flow-backends.json` | 2026-07-27T13:43:00Z | 2026-07-27T15:36:49Z | none |
-| P6 | in_progress | 66b6336 | pending | pending | pending | pending | pending | 2026-07-27T15:48:00Z | pending | none |
+| P6 | complete | 66b6336 | 5934890 | pending | pending | `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md` | source mapping only | 2026-07-27T15:48:00Z | 2026-07-27T16:20:00Z | none |
