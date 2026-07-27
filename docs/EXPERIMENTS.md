@@ -2,6 +2,26 @@
 
 Evidence date: 2026-07-25 (Asia/Tokyo).
 
+## v1.3 output-sensitive sparse geometry evidence
+
+The v1.3 scaling report contains 56 verified boundary-native rows at sizes
+16, 32, 64, and 128. All rows have exact dense/reference-sparse/sweep/Auto
+rectangle equality. The orthogonal sweep records zero candidate-pair tests;
+the event validator records zero full-boundary scans and zero active-rectangle
+resorts. No counterexample or minimized fixture was produced.
+
+Sparse retained memory first beats dense estimates at family-dependent sizes
+32 through 128 for ten families; four do not cross through 128. Sparse
+recovery time first wins at 128 for six families and does not cross for eight.
+Auto selected the measured faster backend on all 56 rows; maximum recorded
+phase-time regret from run-to-run noise is 88 microseconds and maximum retained
+memory regret is 1,696 bytes. Auto remains opt-in.
+
+The combined size-256 run was stopped after more than nine minutes of
+CPU-bound reference-Oracle work with stable memory and no completed artifact;
+it is explicitly not reported as zero or extrapolated. Machine-readable data
+is in `results/v1.3-output-sensitive-scaling.csv` and the adjacent JSON file.
+
 ## v0.3 compact execution evidence
 
 The compact-pipeline hardening and grid-run differential implementation is

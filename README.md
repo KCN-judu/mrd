@@ -24,6 +24,14 @@ All correctness-critical geometry uses integers. Grid rectangles are half-open;
 polygon rectangles use native `i64` coordinates; geometric chords are closed.
 Every solver returns explicit rectangles and runs its exact native validator.
 
+The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
+orthogonal intersection sweep, an event-driven exact slab validator, and a
+physically sparse dynamic stabbing tree. The v1.2 range-scan subdivision and
+slab-rescan validator remain explicit differential Oracles. CLI overrides are
+`--subdivision-builder reference-range-scan|orthogonal-sweep` and
+`--sparse-validator reference-slab-rescan|event-segment-tree`; polygon recovery
+also accepts the opt-in `--polygon-recovery auto` crossover policy.
+
 The grid model is a finite colored array of unit cells split by color and
 four-connectivity. The polygon model is one ordinary nondegenerate outer loop
 with zero or more ordinary two-dimensional holes and no boundary contact.

@@ -20,7 +20,9 @@ non-overlapping collinear intervals.  Membership and nearest collinear endpoint
 queries use one predecessor or successor operation, not an interval scan.
 
 Perpendicular segments are decomposed into canonical nodes of an insert-only
-segment tree over the opposite-axis coordinate universe.  Each node stores an
+logical segment tree over the opposite-axis coordinate universe. Only nodes
+containing at least one entry are physically materialized in a deterministic
+`BTreeMap`; logically empty nodes allocate no `BTreeSet`. Each populated node stores an
 ordered `(fixed_coordinate, segment_id)` set.  A point-stabbing query visits a
 root-to-leaf path; nearest predecessor/successor queries take the best result
 over that path.  Orthogonal intersection reporting performs key-range reports
@@ -30,7 +32,8 @@ For `M` universe coordinates and `k` reported intersections, the documented
 targets are `O(log^2 M)` insertion and nearest blocker lookup, and
 `O(log^2 M + k)` reporting.  The implementation is insert-only because
 completion never removes a cut.  Diagnostics expose canonical-node insertions,
-tree visits, ordered-set queries, reports, and owned-byte estimates.  Production
+tree visits, materialized/logical node counts, ordered-set entries, reports,
+and structured memory estimates. Production
 dynamic runs require both `cut_index_coordinate_line_scans == 0` and
 `cut_index_interval_scans == 0`.
 

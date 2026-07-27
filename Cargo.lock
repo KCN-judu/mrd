@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "rect-cli"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "clap",
  "rect-core",
@@ -224,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "rect-core"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "rect-dominance"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "rect-core",
  "rect-graph",
@@ -245,7 +245,7 @@ dependencies = [
 
 [[package]]
 name = "rect-graph"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "serde",
  "thiserror",
@@ -253,7 +253,7 @@ dependencies = [
 
 [[package]]
 name = "rect-oracle-exact-cover"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "rect-core",
  "rect-graph",
@@ -263,7 +263,7 @@ dependencies = [
 
 [[package]]
 name = "rect-oracle-sg"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "rect-core",
  "rect-graph",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "rect-verify"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "rect-core",
  "rect-dominance",

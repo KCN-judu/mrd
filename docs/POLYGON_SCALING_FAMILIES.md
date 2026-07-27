@@ -52,3 +52,18 @@ cross-products, completion-heavy cuts, clean path-tree sparse output, and
 ordinary-hole 4D-fallback sparse output. Every feasible row compares
 line-map/dynamic and dense/sparse final geometry exactly; tables are generated
 from committed evidence rather than copied into this document.
+
+## v1.3 output-sensitive extensions
+
+Six additional boundary-native rows at each size exercise
+range-dense/intersection-sparse subdivision, intersection-dense output,
+validator-active-heavy rectangles, validator-boundary-heavy loops,
+large-logical/small-materialized stabbing trees, and dense/sparse crossover.
+Each row runs dense, reference sparse, output-sensitive sparse, and Auto
+geometry configurations. The schema records `S`, `J`, candidate tests,
+validator scans/resorts, materialized/logical tree nodes, phase timings,
+structured memory estimates, equality, Auto selection, and regret.
+
+The release population uses sizes 16, 32, 64, and 128. A combined size-256
+reference-Oracle attempt exceeded the documented practical time budget and is
+not represented as a completed measurement.

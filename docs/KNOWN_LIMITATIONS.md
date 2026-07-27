@@ -27,6 +27,9 @@
   certificate invariants remain checked in both modes.
 - Portable process peak-memory measurement is not implemented. A null
   `peak_memory_bytes` diagnostic means unmeasured, not zero.
+  v1.3 reports retained payload, excess collection capacity, container
+  estimates, and peak temporary payload separately; allocator/node overhead
+  remains explicitly unmeasured, so these fields are not process RSS.
 
 - Compact biclique validation is an `O(sigma)` coordinate-extrema proof. It
   intentionally does not expand every `A_k x B_k`; fully audited mode retains
@@ -56,12 +59,17 @@
   box can therefore use `O(A)` memory even when their cell count is much less
   than `A`.
 - CompactOnly polygon completion now uses a static-coordinate dynamic stabbing
-  index, sparse half-edge recovery, and slab validation, so it does not
+  index with only populated tree nodes materialized, output-sensitive sparse
+  half-edge recovery, and event-tree slab validation, so it does not
   materialize an `O(|X||Y|)` arrangement. The dense coordinate arrangement is
   intentionally retained for FullyAudited and differential oracle paths.
   Sparse construction is specialized to ordinary nondegenerate rectilinear
   loops; it does not extend support to ornaments, point/segment holes, or other
   formal degeneracies.
+- The optional polygon recovery `auto` policy is evidence-backed only for the
+  committed boundary-native scaling population and remains opt-in. No universal
+  dense/sparse crossover is claimed. The complete size-256 reference campaign
+  exceeded the practical release time budget.
 - Dinic is the only max-flow backend. The deterministic almost-linear theoretical
   flow algorithm cited by the paper is intentionally not implemented.
 - The exact-cover oracle is exponential and intended for small components. The

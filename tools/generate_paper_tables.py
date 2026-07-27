@@ -720,6 +720,47 @@ def v12_evidence_sections(output_dir: Path) -> list[str]:
         "Dense bytes are a formula-derived owned-allocation estimate for coordinate vectors, occupancy/barriers, and the i64 coverage difference array. Sparse and cut-index bytes are exact owned-vector/index estimates, never process peak RSS.",
         "",
     ]
+
+
+def v13_evidence_sections(output_dir: Path) -> list[str]:
+    path = output_dir / "v1.3-output-sensitive-scaling.json"
+    if not path.exists():
+        return []
+    report = read_json(path)
+    largest_size = max(row["size"] for row in report["rows"])
+    rows = [row for row in report["rows"] if row["size"] == largest_size]
+    fields = [
+        "family", "S", "J", "reference candidates", "sweep candidates",
+        "dense recovery us", "sweep recovery us", "reference scans",
+        "event scans", "materialized nodes", "logical nodes", "Auto", "equal",
+    ]
+    table_rows = [
+        {
+            "family": row["family_name"],
+            "S": row["subdivision_input_segment_count"],
+            "J": row["subdivision_reported_intersections"],
+            "reference candidates": row["reference_subdivision_candidate_pair_tests"],
+            "sweep candidates": row["sweep_subdivision_candidate_pair_tests"],
+            "dense recovery us": row["dense_recovery_microseconds"],
+            "sweep recovery us": row["sweep_subdivision_recovery_microseconds"],
+            "reference scans": row["reference_validator_boundary_edge_scans"],
+            "event scans": row["event_validator_boundary_edge_scans"],
+            "materialized nodes": row["sparse_materialized_tree_nodes"],
+            "logical nodes": row["sparse_logical_tree_nodes"],
+            "Auto": row["auto_selected_backend"],
+            "equal": row["geometry_backends_equal"],
+        }
+        for row in rows
+    ]
+    return [
+        "## v1.3 Output-sensitive sparse geometry evidence", "",
+        f"The campaign contains {report['verified_rows']} verified rows, {report['solver_errors']} solver errors, and {report['disagreements']} disagreements.",
+        "Sweep candidate-pair tests and event-validator boundary/resort scans are zero in every row. Memory values are structured estimates, not process RSS.",
+        "", f"### Largest completed crossover rows at size {largest_size}", "",
+        markdown_table(fields, table_rows), "",
+    ]
+
+
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -815,6 +856,7 @@ def main() -> None:
         *v10_evidence_sections(args.output_dir),
         *v11_evidence_sections(args.output_dir),
         *v12_evidence_sections(args.output_dir),
+        *v13_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -890,6 +932,8 @@ def main() -> None:
         "v1.2-polygon-native-fixtures.counterexamples.json",
         "v1.2-polygon-scaling.csv",
         "v1.2-polygon-scaling.json",
+        "v1.3-output-sensitive-scaling.csv",
+        "v1.3-output-sensitive-scaling.json",
         "v1.2-external-oracle.json",
     ]:
         candidate = args.output_dir / artifact

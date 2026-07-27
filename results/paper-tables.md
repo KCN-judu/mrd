@@ -424,3 +424,27 @@ The Cartesian-explosion scaling campaign contains 40 verified rows, 0 solver err
 | huge-coordinate | 34 | 34 | 1156 | 164 | 424 | 96 | 49 | 13125 | 31072 | 5552 | 162 | 168 | 21 | True |
 
 Dense bytes are a formula-derived owned-allocation estimate for coordinate vectors, occupancy/barriers, and the i64 coverage difference array. Sparse and cut-index bytes are exact owned-vector/index estimates, never process peak RSS.
+
+## v1.3 Output-sensitive sparse geometry evidence
+
+The campaign contains 56 verified rows, 0 solver errors, and 0 disagreements.
+Sweep candidate-pair tests and event-validator boundary/resort scans are zero in every row. Memory values are structured estimates, not process RSS.
+
+### Largest completed crossover rows at size 128
+
+| family | S | J | reference candidates | sweep candidates | dense recovery us | sweep recovery us | reference scans | event scans | materialized nodes | logical nodes | Auto | equal |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| staircase-sparse | 772 | 1028 | 17540 | 0 | 390 | 676 | 66306 | 0 | 333 | 2584 | dense-arrangement | True |
+| many-coordinates-few-faces | 1540 | 2052 | 67844 | 0 | 1412 | 1355 | 263682 | 0 | 668 | 5144 | sparse-subdivision | True |
+| hole-coordinate-cross-product | 774 | 1032 | 1544 | 0 | 52 | 469 | 66306 | 0 | 175 | 2072 | dense-arrangement | True |
+| completion-heavy | 2820 | 3588 | 137732 | 0 | 2303 | 2289 | 526338 | 0 | 514 | 4112 | sparse-subdivision | True |
+| sparse-path-tree | 2820 | 3588 | 137732 | 0 | 2347 | 2300 | 526338 | 0 | 514 | 4112 | sparse-subdivision | True |
+| 4d-fallback-sparse | 901 | 1286 | 34310 | 0 | 275 | 771 | 66306 | 0 | 405 | 2688 | dense-arrangement | True |
+| aligned-reflex-heavy | 2566 | 3080 | 202248 | 0 | 599 | 1731 | 265734 | 0 | 208 | 2080 | dense-arrangement | True |
+| huge-coordinate | 180 | 228 | 932 | 0 | 29 | 141 | 2178 | 0 | 34 | 272 | dense-arrangement | True |
+| range-dense-intersection-sparse | 2566 | 3080 | 202248 | 0 | 579 | 1703 | 265734 | 0 | 208 | 2080 | dense-arrangement | True |
+| intersection-dense | 2820 | 3588 | 137732 | 0 | 2370 | 2349 | 526338 | 0 | 514 | 4112 | sparse-subdivision | True |
+| validator-active-heavy | 774 | 1032 | 1544 | 0 | 53 | 466 | 66306 | 0 | 175 | 2072 | dense-arrangement | True |
+| validator-boundary-heavy | 2308 | 3076 | 150916 | 0 | 3511 | 2051 | 592130 | 0 | 966 | 7704 | sparse-subdivision | True |
+| sparse-tree-node-heavy | 1797 | 2566 | 134150 | 0 | 879 | 1559 | 263682 | 0 | 838 | 5344 | dense-arrangement | True |
+| dense-sparse-crossover | 1540 | 2052 | 67844 | 0 | 1400 | 1399 | 263682 | 0 | 668 | 5144 | sparse-subdivision | True |

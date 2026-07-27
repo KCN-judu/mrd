@@ -60,7 +60,7 @@ jobs:
           target/release/rect-cli benchmark --suite polygon-negative --output artifacts/polygon-negative.json 2>&1 | tee artifacts/logs/polygon-negative.log
           target/release/rect-cli benchmark --suite polygon-native-fixtures --sizes 1,2,4,8,16 --output artifacts/polygon-native-fixtures.json 2>&1 | tee artifacts/logs/polygon-native-fixtures.log
           target/release/rect-cli benchmark --suite polygon-backend-differential --max-cells 10 --random-cases 1000 --sizes 1,2,4,8 --output artifacts/polygon-backend-differential.json 2>&1 | tee artifacts/logs/polygon-backend-differential.log
-          target/release/rect-cli benchmark --suite polygon-scaling --sizes 1,2,4,8,16 --output artifacts/polygon-scaling.csv 2>&1 | tee artifacts/logs/polygon-scaling.log
+          target/release/rect-cli benchmark --suite polygon-scaling --sizes 16,32,64,128 --output artifacts/v1.3-output-sensitive-scaling.csv 2>&1 | tee artifacts/logs/v1.3-output-sensitive-scaling.log
           python3 tools/check_release_consistency.py 2>&1 | tee artifacts/logs/release-consistency.log
       - name: Run bounded external CP-SAT population
         shell: bash

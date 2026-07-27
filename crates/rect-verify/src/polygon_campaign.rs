@@ -16,8 +16,9 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, PolygonValidationError, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, SparseValidatorBackend, SubdivisionBuilderBackend,
-    VerticalCutSegment, classify_clean_polygon, validate_polygon_dissection,
+    SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision, SparseSlabValidator,
+    SparseValidatorBackend, SubdivisionBuilderBackend, VerticalCutSegment, classify_clean_polygon,
+    validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1182,6 +1183,81 @@ fn compare_polygon_backends(
         solve_pair(polygon).map_err(|error| (error, None, None, None))?;
     let sweep = solve_polygon_with_options(polygon, sweep_options())
         .map_err(|error| (format!("sweep solve failed: {error}"), None, None, None))?;
+    let horizontal_cuts =
+        certificate_segments::<HorizontalCutSegment>(&sweep, "selected_horizontal_cuts")
+            .and_then(|mut selected| {
+                selected.extend(certificate_segments::<HorizontalCutSegment>(
+                    &sweep,
+                    "added_horizontal_cuts",
+                )?);
+                Ok(selected.into_iter().collect::<BTreeSet<_>>())
+            })
+            .map_err(|error| (error, None, None, None))?;
+    let vertical_cuts =
+        certificate_segments::<VerticalCutSegment>(&sweep, "selected_vertical_cuts")
+            .and_then(|mut selected| {
+                selected.extend(certificate_segments::<VerticalCutSegment>(
+                    &sweep,
+                    "added_vertical_cuts",
+                )?);
+                Ok(selected.into_iter().collect::<BTreeSet<_>>())
+            })
+            .map_err(|error| (error, None, None, None))?;
+    let reference_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+        &indexed_prepared,
+        &horizontal_cuts,
+        &vertical_cuts,
+        SubdivisionBuilderBackend::ReferenceRangeScan,
+    )
+    .map_err(|error| (error.to_string(), None, None, None))?;
+    let sweep_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+        &indexed_prepared,
+        &horizontal_cuts,
+        &vertical_cuts,
+        SubdivisionBuilderBackend::OrthogonalSweep,
+    )
+    .map_err(|error| (error.to_string(), None, None, None))?;
+    if reference_subdivision.split_junctions != sweep_subdivision.split_junctions
+        || reference_subdivision.atomic_segments != sweep_subdivision.atomic_segments
+        || reference_subdivision.half_edges != sweep_subdivision.half_edges
+        || reference_subdivision.faces != sweep_subdivision.faces
+        || reference_subdivision
+            .recover_rectangles(indexed_prepared.polygon())
+            .map_err(|error| error.to_string())
+            != sweep_subdivision
+                .recover_rectangles(indexed_prepared.polygon())
+                .map_err(|error| error.to_string())
+        || sweep_subdivision.metrics.candidate_pair_tests != 0
+    {
+        return Err((
+            "reference and output-sensitive subdivisions differ".to_owned(),
+            Some(reference),
+            Some(indexed),
+            Some(sweep),
+        ));
+    }
+    let reference_validation = SparseSlabValidator.validate_with_backend(
+        indexed_prepared.polygon(),
+        &sweep.rectangles,
+        SparseValidatorBackend::ReferenceSlabRescan,
+    );
+    let event_validation = SparseSlabValidator.validate_with_backend(
+        indexed_prepared.polygon(),
+        &sweep.rectangles,
+        SparseValidatorBackend::EventSegmentTree,
+    );
+    if reference_validation.as_ref().map(|_| ()) != event_validation.as_ref().map(|_| ())
+        || event_validation.as_ref().is_ok_and(|metrics| {
+            metrics.boundary_edge_scans != 0 || metrics.active_rectangle_resorts != 0
+        })
+    {
+        return Err((
+            "reference and event sparse validators differ".to_owned(),
+            Some(reference),
+            Some(indexed),
+            Some(sweep),
+        ));
+    }
     let comparison_fields = [
         "horizontal_chords",
         "vertical_chords",
