@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P7
-- Current phase state: committed
-- Last completed phase: P6
-- Last pushed SHA: ece512f90b7b4fbe37a5f091d7dbdb6e2ad1e2eb
-- Plan last updated: 2026-07-28T00:00:00Z
+- Current phase: P8.1
+- Current phase state: in_progress
+- Last completed phase: P7
+- Last pushed SHA: 237d55b2da573d7a73f93276ff31d49375d384a2
+- Plan last updated: 2026-07-28T00:30:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -347,7 +347,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P7 - Exact min-cost circulation and iterative-refinement core
 
-**State:** committed. **Start SHA:** `9f12445`. **Implementation SHAs:**
+**State:** complete. **Start SHA:** `9f12445`. **Implementation SHAs:**
 `3184ad5`, `4e8326c`, `21fbbd9`. Generic circulation now has exact signed
 `i128` capacities, costs, demands, residual operations, static and signed
 residual minimum-ratio-cycle Oracles, iterative refinement traces, and exact
@@ -371,10 +371,61 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P8 - Deterministic dynamic minimum-ratio-cycle structures
 
-**State:** planned. Before coding, split P8 into source-backed numbered
-subphases here. Implement required dynamic low-stretch trees, vertex and edge
-sparsification, dynamic spanner, embeddings, and amortized update accounting.
-Each subphase gets its own audit, commits, push, and reread transition.
+**State:** in_progress. **Start SHA:** `237d55b`. P8 is deliberately split
+before implementation. No subphase may claim the primary source's amortized
+bound unless its own checked operation domain, source-shaped accounting, and
+acceptance evidence are present. Each subphase receives an audit, report,
+commit, push, and reread transition.
+
+### P8.1 - Checked stable min-ratio state contract
+
+**State:** in_progress. Map Definitions 4.2--4.5 of the primary source to
+exact Rust state: signed incidence, positive lengths, gradients, valid-pair
+bounds, hidden-stable witnesses, and append-only `Update`/`Query`/`Detect`
+operation logs. Reject rather than repair invalid certificates. This is only a
+checked representation and static invariant layer; it makes no dynamic or
+amortized claim. Acceptance requires conservation, positivity, valid-pair,
+factor-two stability, and deterministic replay tests.
+
+### P8.2 - Dynamic rooted-forest primitive
+
+**State:** planned. Implement only the operations and counters mapped by
+Lemma 5.4 of the primary source and the Sleator--Tarjan dynamic-tree source:
+decremental forest-edge removal, permitted vertex splits, rooted path update
+and query, exact stretch certificates, and recourse accounting. Preserve a
+static forest Oracle. Acceptance requires a source-shaped trace differential
+and verified update preconditions; no bound is claimed until all of Lemma 5.4's
+assumptions are checked.
+
+### P8.3 - Scope-limited decremental spanner certificates
+
+**State:** planned. Implement the simple undirected deletion/vertex-split
+domain required by Theorem 8.2 and its CS21 predecessor. Record embedding
+paths, congestion, deletion/split validity, and recourse. Directed graphs,
+insertions, arbitrary updates, and a generic spanner claim are prohibited.
+
+### P8.4 - Deterministic low-stretch forest collection
+
+**State:** planned. Implement the deterministic multiplicative-weights forest
+collection of Lemma 5.5 over the P8.2 and P8.3 checked primitives. Require
+deterministic ordering, per-edge average-stretch certificates, and operation
+accounting; retain explicit small-instance forest enumeration as an Oracle.
+
+### P8.5 - Compact cycle tree chain and hidden-stability query
+
+**State:** planned. Implement Definitions 5.6--5.8 and Theorem 5.1's
+d-level tree chain, shifted single branch, compact cycle encoding, and
+`Update`/`Query`/`Detect` mechanics using P8.1--P8.4. Acceptance requires
+decoded-cycle conservation, agreement with P7's static Oracle on small cases,
+shift/rebuild trace checks, and exact recourse counters.
+
+### P8.6 - Dynamic minimum-ratio integration audit
+
+**State:** planned. Integrate the P8.5 structure only behind its checked
+stable-state contract. Require deterministic replay, static-Oracle comparison,
+explicit unsupported-operation rejection, and full amortized-work evidence.
+This closes P8 only as a dynamic component; P9 remains responsible for any
+end-to-end min-cost-flow integration and almost-linear gate.
 
 ### Mandatory transition after this phase
 
