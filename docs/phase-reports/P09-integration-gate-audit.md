@@ -16,7 +16,7 @@ the source gate in the master plan.
 | Theorem 4.6 bounded-domain/IPM accounting | bounded integral inputs, strict rational slacks, observed surrogate-potential decrease, and exact coordinate-update totals are checked; the cited source version labels the relevant IPM result Theorem 4.3 and its log Taylor fact Lemma 4.6 | partial |
 | Theorem 5.1 approximate dynamic query | P9 now exactly enumerates signed simple cycles over the current checked ledger and records query/candidate work; it is a superlinear Oracle, not the theorem's dynamic approximate structure | partial |
 | Source-grade low-stretch/spanner construction | P9 adds a deterministic greedy unweighted spanner constructor/rebuilder with explicit embedding paths; forest and expander-based theorem guarantees remain absent | partial |
-| Exact recovery and MRD compressed-flow parity | P9 has an exact parity audit over partition validation, Hopcroft--Karp, compressed Dinic, and compressed Push--Relabel; no selected `AlmostLinear` backend exists | partial |
+| Exact recovery and MRD compressed-flow parity | P9 has an exact parity audit over partition validation, Hopcroft--Karp, compressed Dinic, and compressed Push--Relabel. The audit exposed and closed a trapped-preflow termination regression while preserving highest-label, global-relabel, and gap behavior; no selected `AlmostLinear` backend exists | partial |
 | No fallback | satisfied only because no P9 backend exists | not sufficient |
 
 ## Next implementation order

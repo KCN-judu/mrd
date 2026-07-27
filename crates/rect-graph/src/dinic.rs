@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -196,13 +196,8 @@ impl PushRelabelBackend {
             add_residual_arc(&mut residual, arc.from.0, arc.to.0, arc.capacity);
         }
 
-        let mut height = vec![0_usize; node_count];
-        height[source.0] = node_count;
         let mut excess = vec![0_u128; node_count];
-        let mut current = vec![0_usize; node_count];
         let mut metrics = PushRelabelMetrics::default();
-        let mut active = VecDeque::new();
-        let mut queued = vec![false; node_count];
         for edge_index in 0..residual[source.0].len() {
             let amount = residual[source.0][edge_index].capacity;
             if amount == 0 {
@@ -211,20 +206,52 @@ impl PushRelabelBackend {
             push(&mut residual, &mut excess, source.0, edge_index, amount);
             metrics.push_count += 1;
         }
-        enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
-        while let Some(node) = active.pop_front() {
-            queued[node] = false;
+
+        let mut height = global_relabel(&residual, source.0, sink.0);
+        let mut height_count = count_heights(&height);
+        let mut current = vec![0_usize; node_count];
+        let mut active = BTreeSet::new();
+        metrics.global_relabel_count = 1;
+        enqueue_all_active(&mut active, &excess, &height, source.0, sink.0);
+
+        let mut work_since_global = 0_usize;
+        let global_interval = node_count.saturating_mul(2).max(1);
+        while let Some(&(key_height, node)) = active.iter().next_back() {
+            active.remove(&(key_height, node));
+            if excess[node] == 0 || height[node] != key_height {
+                continue;
+            }
             while excess[node] != 0 {
                 if current[node] == residual[node].len() {
+                    let old_height = height[node];
                     let next_height = residual[node]
                         .iter()
                         .filter(|edge| edge.capacity > 0)
                         .map(|edge| height[edge.to].saturating_add(1))
                         .min()
                         .ok_or(FlowError::ValueOverflow)?;
+                    height_count[old_height] -= 1;
+                    if next_height >= height_count.len() {
+                        height_count.resize(next_height + 1, 0);
+                    }
                     height[node] = next_height;
+                    height_count[next_height] += 1;
                     current[node] = 0;
                     metrics.relabel_count += 1;
+                    work_since_global += 1;
+                    if old_height < node_count && height_count[old_height] == 0 {
+                        apply_gap(
+                            old_height,
+                            source.0,
+                            sink.0,
+                            &mut height,
+                            &mut height_count,
+                            &mut current,
+                        );
+                        active.clear();
+                        enqueue_all_active(&mut active, &excess, &height, source.0, sink.0);
+                        metrics.gap_count += 1;
+                    }
                     continue;
                 }
                 let edge_index = current[node];
@@ -235,12 +262,20 @@ impl PushRelabelBackend {
                         .min(u64::try_from(excess[node]).unwrap_or(u64::MAX));
                     push(&mut residual, &mut excess, node, edge_index, amount);
                     metrics.push_count += 1;
-                    enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
+                    enqueue_active_node(&mut active, &excess, &height, edge.to, source.0, sink.0);
                 } else {
                     current[node] += 1;
                 }
             }
-            enqueue_fifo(&mut active, &mut queued, &excess, source.0, sink.0);
+            if work_since_global >= global_interval {
+                height = global_relabel(&residual, source.0, sink.0);
+                height_count = count_heights(&height);
+                current.fill(0);
+                active.clear();
+                enqueue_all_active(&mut active, &excess, &height, source.0, sink.0);
+                metrics.global_relabel_count += 1;
+                work_since_global = 0;
+            }
         }
         let value = u64::try_from(excess[sink.0]).map_err(|_| FlowError::ValueOverflow)?;
         Ok((
@@ -316,17 +351,72 @@ fn push(
     excess[edge.to] += u128::from(amount);
 }
 
-fn enqueue_fifo(
-    active: &mut VecDeque<usize>,
-    queued: &mut [bool],
+fn global_relabel(graph: &[Vec<ResidualEdge>], source: usize, sink: usize) -> Vec<usize> {
+    let unreachable = graph.len().saturating_add(1);
+    let mut height = vec![unreachable; graph.len()];
+    height[sink] = 0;
+    let mut queue = VecDeque::from([sink]);
+    while let Some(node) = queue.pop_front() {
+        for edge in &graph[node] {
+            let predecessor = edge.to;
+            if height[predecessor] == unreachable && graph[predecessor][edge.reverse].capacity > 0 {
+                height[predecessor] = height[node] + 1;
+                queue.push_back(predecessor);
+            }
+        }
+    }
+    height[source] = graph.len();
+    height
+}
+
+fn count_heights(height: &[usize]) -> Vec<usize> {
+    let mut counts = vec![0; height.len().saturating_mul(2).saturating_add(2)];
+    for &value in height {
+        counts[value] += 1;
+    }
+    counts
+}
+
+fn enqueue_all_active(
+    active: &mut BTreeSet<(usize, usize)>,
     excess: &[u128],
+    height: &[usize],
     source: usize,
     sink: usize,
 ) {
     for node in 0..excess.len() {
-        if node != source && node != sink && excess[node] > 0 && !queued[node] {
-            queued[node] = true;
-            active.push_back(node);
+        enqueue_active_node(active, excess, height, node, source, sink);
+    }
+}
+
+fn enqueue_active_node(
+    active: &mut BTreeSet<(usize, usize)>,
+    excess: &[u128],
+    height: &[usize],
+    node: usize,
+    source: usize,
+    sink: usize,
+) {
+    if node != source && node != sink && excess[node] > 0 {
+        active.insert((height[node], node));
+    }
+}
+
+fn apply_gap(
+    gap: usize,
+    source: usize,
+    sink: usize,
+    height: &mut [usize],
+    height_count: &mut [usize],
+    current: &mut [usize],
+) {
+    let unreachable = height.len().saturating_add(1);
+    for node in 0..height.len() {
+        if node != source && node != sink && height[node] > gap && height[node] < height.len() {
+            height_count[height[node]] -= 1;
+            height[node] = unreachable;
+            height_count[unreachable] += 1;
+            current[node] = 0;
         }
     }
 }
@@ -483,6 +573,23 @@ mod tests {
             assert!(!push_relabel.source_side[3]);
             assert!(metrics.global_relabel_count >= 1);
         }
+    }
+
+    #[test]
+    fn push_relabel_returns_trapped_excess_through_multiple_vertices() {
+        let mut network = FlowNetwork::new(6);
+        for (from, to, capacity) in [(0, 1, 1), (1, 2, 1), (2, 3, 1), (0, 4, 1), (4, 5, 1)] {
+            network
+                .add_arc(FlowNodeId(from), FlowNodeId(to), capacity)
+                .unwrap();
+        }
+
+        let (result, metrics) = PushRelabelBackend
+            .max_flow_min_cut_with_metrics(&network, FlowNodeId(0), FlowNodeId(5))
+            .unwrap();
+        assert_eq!(result.value, 1);
+        assert_eq!(cut_capacity(&network, &result.source_side), result.value);
+        assert!(metrics.global_relabel_count >= 1);
     }
 
     fn cut_capacity(network: &FlowNetwork, source_side: &[bool]) -> u64 {
