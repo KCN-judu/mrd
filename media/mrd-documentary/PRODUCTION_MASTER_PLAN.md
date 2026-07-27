@@ -7,13 +7,13 @@ This file is the persistent source of truth for the documentary production.
 - Algorithm repository SHA: `093961fc6dbd39d853a18bb793160ac290ed0baf`
 - Algorithm release represented: `v1.3.0-output-sensitive-sparse-geometry`
 - Video-project branch: `codex/mrd-documentary`
-- Current production phase: `V1 - Storyboard and animatic`
-- Current phase state: `rendered`
+- Current production phase: `V2 - Mathematical scene prototypes`
+- Current phase state: `in_progress`
 - Target master duration: 4 minutes 48 seconds, subject to narration timing
 - Master format: 3840x2160, 30 fps, stereo 48 kHz
 - Review format: 1920x1080 H.264
-- Last completed phase pushed SHA: `4faf416f5fe5d009813d444e07084e6cbe213ea4`
-- Remote verification: `origin/codex/mrd-documentary` equalled local branch at the V0 transition
+- Last completed phase pushed SHA: `ac0666c3a7e2872b338aa78e03b1d98673a1d8d8`
+- Remote verification: `origin/codex/mrd-documentary` equalled local branch at the V1 implementation push
 - Existing unrelated worktree content: `tmp/`; preserve and exclude from video commits
 
 ## Global narrative treatment
@@ -149,6 +149,8 @@ and `audio/beat-map.json`.
 ## Commits
 
 - `4faf416f5fe5d009813d444e07084e6cbe213ea4` - V0 production plan, fact check, Remotion baseline, and audited mood test
+- `804b0a17c24be5a436218b79eb153888b0f780c5` - V1 transition and provisional bilingual narration
+- `ac0666c3a7e2872b338aa78e03b1d98673a1d8d8` - V1 exact data, bilingual guide assets, blocking animatic, and audited render
 
 ## Blockers
 
@@ -190,18 +192,19 @@ After this phase has been reviewed, committed, and pushed:
 
 ## Phase V1 - Storyboard and animatic
 
-State: `rendered`
+State: `complete`
 
 Deliverables: complete written storyboard, shot list, time-coded animatic,
 provisional bilingual narration, blocking visuals, guide audio, and
 `MRDAnimatic1080.mp4`. Review narrative clarity, mathematical sequence,
 duration, pacing, and non-specialist comprehension.
 
-Implementation and review result: complete pending commit/push closeout. The
+Implementation and review result: complete. The
 authoritative timeline is `script/animatic-scenes.json`; English and Chinese
 guide tracks and caption sidecars are generated; the exact fixture chain and
 path-tree witness are recorded in `data/animatic-math.json`; the 1080p master
-and sample passed the V1 QA record in `qa.md`.
+and sample passed the V1 QA record in `qa.md`. Commit `ac0666c` was pushed and
+verified against `origin/codex/mrd-documentary`.
 
 ### Mandatory transition after this phase
 
@@ -217,7 +220,7 @@ After this phase has been reviewed, committed, and pushed:
 
 ## Phase V2 - Mathematical scene prototypes
 
-State: `planned`
+State: `in_progress`
 
 Deliverables: polished, isolated, data-audited prototypes for effective chords,
 conflict transformation, four-coordinate dominance, biclique compression,
