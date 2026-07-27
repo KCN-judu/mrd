@@ -81,6 +81,35 @@ maintaining duplicate tables. The later v0.3 files named above retain their
 own producing commits; `results/release-index.json` separates those release
 populations explicitly.
 
+## v1.2 sparse polygon subdivision evidence
+
+The v1.2 release evidence uses the `dynamic-stabbing` cut index,
+`sparse-subdivision` face walk, and `sparse-slab` dissection validator in the
+CompactOnly polygon path. The complete grid-derived polygon populations report
+893 supported `3x3` components and 166,189 supported `4x4` components, all
+verified with zero solver errors and zero dense/sparse disagreements. The
+extended polygon corpus verifies 7,426 components, and the native Cartesian
+scaling corpus verifies 40 rows.
+
+The isolated OR-Tools 9.15 CP-SAT rerun covers 6,998 inputs and 27,228
+components. All 27,228 Rust/CP-SAT comparisons completed with zero timeouts,
+unsupported components, or disagreements; its evidence is
+`results/v1.2-external-oracle.json`.
+
+The negative report compares dense and sparse validator categories for every
+stored invalid rectangle output and has zero category disagreements.
+CompactOnly execution traces set all five dense-materialization flags false:
+atomic cells, occupied array, horizontal barriers, vertical barriers, and
+coverage difference. FullyAudited retains the dense arrangement as an
+independent oracle.
+
+`results/v1.2-polygon-scaling.csv` records final `|X|`, `|Y|`, their product,
+sparse graph vertices/half-edges/junctions/faces, dense formula estimates,
+sparse and cut-index owned estimates, phase timings, and exact equality flags.
+The table is generated from committed JSON/CSV evidence; it does not treat
+unmeasured process RSS as zero. The v1.1 evidence and provenance remain
+unchanged.
+
 ## Quality gates
 
 ```bash

@@ -173,6 +173,15 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
       "0a3d512636a30cc8a9ee725898b0bfbc403609f0",
       "5a112c6095acb48c125e6b96e5064181d206334a"
     ]
+  },
+  {
+    "version": "1.2.0",
+    "tag": "v1.2.0-sparse-polygon-subdivision",
+    "peeled_commit": "PENDING",
+    "evidence": "dynamic orthogonal cut stabbing, sparse half-edge subdivision, exact face-walk rectangle recovery, sparse slab validation, and complete dense/sparse differential evidence",
+    "result_commits": [
+      "bad5f19e8b2bd9c6392d1f198ed8994815f0c2d8"
+    ]
   }
 ]
 ```
@@ -209,7 +218,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
 | effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons | three-backend exact family differential | ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported |
-| polygon completion | horizontal then vertical simple chords | incremental IndexedPolygonCompletion with shared prepared arrangement | exact cut and rectangle differential | no full classical O(n log n) completion claim |
+| polygon completion | horizontal then vertical simple chords | incremental completion with dynamic stabbing, sparse face walk, and slab validation | exact cut and rectangle differential | no full classical O(n log n) completion claim |
 | polygon structural validation | ordinary rectilinear domain | OrthogonalSweepValidator with quadratic Oracle | accepted and negative-category differential | deterministic integer event ordering |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
@@ -387,3 +396,31 @@ Every differential comparison includes complete chord families, endpoint metadat
 | C | 68 | 16 | 64 | 1024 | 30 | 1024/30 | 2016 | 1024 | 264 | 264 | 30 | True |
 
 Sweep rows report zero aligned-pair iterations, all-pair iterations, Definition 7 fallback checks, full-boundary scans, and duplicate output records. Owned allocation values are Rust-owned estimates, not peak RSS.
+
+## v1.2 Sparse polygon subdivision evidence
+
+| population | supported | verified | disagreements |
+| --- | --- | --- | --- |
+| grid-derived-3 | 893 | 893 | 0 |
+| grid-derived-4 | 166189 | 166189 | 0 |
+| extended-polygon-backends | 7426 | 7426 | 0 |
+| polygon-native-fixtures-a-through-h | 40 | 40 | 0 |
+
+The negative campaign contains 13 dense/sparse category comparisons with 0 disagreements.
+The bounded CP-SAT rerun compares 27,228 components with 0 disagreements and 0 timeouts.
+The Cartesian-explosion scaling campaign contains 40 verified rows, 0 solver errors, and 0 disagreements.
+
+### Largest sparse scaling rows at size 16
+
+| family | \|X\| | \|Y\| | \|X\|\|Y\| | vertices | half-edges | junctions | faces | dense bytes | sparse bytes | cut-index bytes | completion us | recovery us | validation us | equal |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| staircase-sparse | 34 | 18 | 612 | 100 | 264 | 64 | 33 | 7045 | 19296 | 3480 | 99 | 92 | 13 | True |
+| many-coordinates-few-faces | 66 | 34 | 2244 | 196 | 520 | 128 | 65 | 25285 | 37984 | 7096 | 230 | 197 | 30 | True |
+| hole-coordinate-cross-product | 34 | 4 | 136 | 72 | 212 | 68 | 19 | 1725 | 15296 | 2968 | 38 | 70 | 10 | True |
+| completion-heavy | 66 | 66 | 4356 | 324 | 840 | 192 | 97 | 48709 | 61536 | 11888 | 342 | 331 | 49 | True |
+| sparse-path-tree | 66 | 66 | 4356 | 324 | 840 | 192 | 97 | 48709 | 61536 | 11888 | 341 | 321 | 49 | True |
+| 4d-fallback-sparse | 34 | 19 | 646 | 102 | 302 | 98 | 34 | 7425 | 21776 | 4920 | 110 | 115 | 18 | True |
+| aligned-reflex-heavy | 36 | 36 | 1296 | 264 | 660 | 132 | 67 | 14689 | 48576 | 8944 | 171 | 251 | 20 | True |
+| huge-coordinate | 34 | 34 | 1156 | 164 | 424 | 96 | 49 | 13125 | 31072 | 5552 | 162 | 168 | 21 | True |
+
+Dense bytes are a formula-derived owned-allocation estimate for coordinate vectors, occupancy/barriers, and the i64 coverage difference array. Sparse and cut-index bytes are exact owned-vector/index estimates, never process peak RSS.

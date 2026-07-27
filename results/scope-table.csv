@@ -4,7 +4,7 @@ ordinary holes,supported,supported for grid-cell regions and boundary-native pol
 degenerate holes,formal model,unsupported,scope rejection,"point, segment, and arbitrary formal holes excluded"
 endpoint contacts,closed-chord conflicts,integer parity embedding,yes,pairwise geometry iff strict dominance
 effective chord enumeration,O(n log n),GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons,three-backend exact family differential,ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported
-polygon completion,horizontal then vertical simple chords,incremental IndexedPolygonCompletion with shared prepared arrangement,exact cut and rectangle differential,no full classical O(n log n) completion claim
+polygon completion,horizontal then vertical simple chords,"incremental completion with dynamic stabbing, sparse face walk, and slab validation",exact cut and rectangle differential,no full classical O(n log n) completion claim
 polygon structural validation,ordinary rectilinear domain,OrthogonalSweepValidator with quadratic Oracle,accepted and negative-category differential,deterministic integer event ordering
 compact biclique partition,O(q log^4 q) for d=4,constructive Theorem 8 recursion,yes,edge multiplicity audited exactly once
 practical Dinic backend,replaceable exact flow,implemented,yes,integral flow and residual cut

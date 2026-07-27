@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "current_workspace_version": "1.1.0",
+  "current_workspace_version": "1.2.0",
   "defaults": {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -15,12 +15,14 @@
     "compact_polygon_validator": "orthogonal-sweep",
     "compact_polygon_chords": "sg-sweep",
     "compact_polygon_completion": "indexed-frontier",
-    "compact_polygon_arrangement": "indexed"
+    "compact_polygon_arrangement": "sparse-subdivision",
+    "compact_polygon_cut_index": "dynamic-stabbing",
+    "compact_polygon_dissection_validator": "sparse-slab"
   },
   "current_release": {
-    "version": "1.1.0",
-    "tag": "v1.1.0-soltan-gorpinevich-sweep",
-    "peeled_commit": "5a112c6095acb48c125e6b96e5064181d206334a",
+    "version": "1.2.0",
+    "tag": "v1.2.0-sparse-polygon-subdivision",
+    "peeled_commit": "PENDING",
     "defaults": {
       "compact_chord_enumerator": "grid-interior-runs",
       "compact_completion_backend": "indexed-frontier",
@@ -35,7 +37,9 @@
       "compact_polygon_validator": "orthogonal-sweep",
       "compact_polygon_chords": "sg-sweep",
       "compact_polygon_completion": "indexed-frontier",
-      "compact_polygon_arrangement": "indexed"
+      "compact_polygon_arrangement": "sparse-subdivision",
+      "compact_polygon_cut_index": "dynamic-stabbing",
+      "compact_polygon_dissection_validator": "sparse-slab"
     }
   },
   "releases": [
@@ -184,6 +188,15 @@
         "f7dc7c3",
         "0a3d512636a30cc8a9ee725898b0bfbc403609f0",
         "5a112c6095acb48c125e6b96e5064181d206334a"
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "tag": "v1.2.0-sparse-polygon-subdivision",
+      "peeled_commit": "PENDING",
+      "evidence": "dynamic orthogonal cut stabbing, sparse half-edge subdivision, exact face-walk rectangle recovery, sparse slab validation, and complete dense/sparse differential evidence",
+      "result_commits": [
+        "bad5f19e8b2bd9c6392d1f198ed8994815f0c2d8"
       ]
     }
   ]

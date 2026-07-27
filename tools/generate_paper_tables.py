@@ -162,7 +162,7 @@ def scope_rows() -> list[dict[str, str]]:
         {"feature": "degenerate holes", "theoretical paper": "formal model", "current Rust artifact": "unsupported", "tested": "scope rejection", "notes": "point, segment, and arbitrary formal holes excluded"},
         {"feature": "endpoint contacts", "theoretical paper": "closed-chord conflicts", "current Rust artifact": "integer parity embedding", "tested": "yes", "notes": "pairwise geometry iff strict dominance"},
         {"feature": "effective chord enumeration", "theoretical paper": "O(n log n)", "current Rust artifact": "GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons", "tested": "three-backend exact family differential", "notes": "ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported"},
-        {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "incremental IndexedPolygonCompletion with shared prepared arrangement", "tested": "exact cut and rectangle differential", "notes": "no full classical O(n log n) completion claim"},
+        {"feature": "polygon completion", "theoretical paper": "horizontal then vertical simple chords", "current Rust artifact": "incremental completion with dynamic stabbing, sparse face walk, and slab validation", "tested": "exact cut and rectangle differential", "notes": "no full classical O(n log n) completion claim"},
         {"feature": "polygon structural validation", "theoretical paper": "ordinary rectilinear domain", "current Rust artifact": "OrthogonalSweepValidator with quadratic Oracle", "tested": "accepted and negative-category differential", "notes": "deterministic integer event ordering"},
         {"feature": "compact biclique partition", "theoretical paper": "O(q log^4 q) for d=4", "current Rust artifact": "constructive Theorem 8 recursion", "tested": "yes", "notes": "edge multiplicity audited exactly once"},
         {"feature": "practical Dinic backend", "theoretical paper": "replaceable exact flow", "current Rust artifact": "implemented", "tested": "yes", "notes": "integral flow and residual cut"},
@@ -617,19 +617,9 @@ def v11_evidence_sections(output_dir: Path) -> list[str]:
         if row["size"] == largest_size and row["family"] in ("B", "C")
     ]
     candidate_fields = [
-        "family",
-        "n",
-        "holes",
-        "r",
-        "C",
-        "q",
-        "C/max(1,q)",
-        "reference pairs",
-        "indexed pairs",
-        "sweep events",
-        "sweep status ops",
-        "sweep outputs",
-        "three-backend equal",
+        "family", "n", "holes", "r", "C", "q", "C/max(1,q)",
+        "reference pairs", "indexed pairs", "sweep events", "sweep status ops",
+        "sweep outputs", "three-backend equal",
     ]
     candidate_table_rows = [
         {
@@ -639,10 +629,7 @@ def v11_evidence_sections(output_dir: Path) -> list[str]:
             "r": row["reflex_count"],
             "C": row["aligned_candidate_count"],
             "q": row["chord_count"],
-            "C/max(1,q)": (
-                f"{row['candidate_output_ratio_numerator']}/"
-                f"{row['candidate_output_ratio_denominator']}"
-            ),
+            "C/max(1,q)": f"{row['candidate_output_ratio_numerator']}/{row['candidate_output_ratio_denominator']}",
             "reference pairs": row["reference_pair_iterations"],
             "indexed pairs": row["indexed_pair_iterations"],
             "sweep events": row["sweep_event_count"],
@@ -654,22 +641,85 @@ def v11_evidence_sections(output_dir: Path) -> list[str]:
     ]
     negative = reports["negative"]
     return [
-        "## v1.1 Soltan--Gorpinevich sweep evidence",
-        "",
-        markdown_table(population_fields, population_rows),
-        "",
+        "## v1.1 Soltan--Gorpinevich sweep evidence", "",
+        markdown_table(population_fields, population_rows), "",
         f"The negative campaign contains {len(negative['records'])} cases with {negative['disagreements']} category disagreements.",
         "Every differential comparison includes complete chord families, endpoint metadata, clean certificates, flow/cut evidence, and canonical rectangles.",
-        "",
-        f"### Candidate-gap rows at size {largest_size}",
-        "",
-        markdown_table(candidate_fields, candidate_table_rows),
-        "",
+        "", f"### Candidate-gap rows at size {largest_size}", "",
+        markdown_table(candidate_fields, candidate_table_rows), "",
         "Sweep rows report zero aligned-pair iterations, all-pair iterations, Definition 7 fallback checks, full-boundary scans, and duplicate output records. Owned allocation values are Rust-owned estimates, not peak RSS.",
         "",
     ]
 
 
+def v12_evidence_sections(output_dir: Path) -> list[str]:
+    paths = {
+        "3x3": output_dir / "v1.2-polygon-differential-3x3.json",
+        "4x4": output_dir / "v1.2-polygon-differential-4x4.json",
+        "extended": output_dir / "v1.2-polygon-backend-differential.json",
+        "negative": output_dir / "v1.2-polygon-negative.json",
+        "native": output_dir / "v1.2-polygon-native-fixtures.json",
+        "scaling": output_dir / "v1.2-polygon-scaling.json",
+        "external": output_dir / "v1.2-external-oracle.json",
+    }
+    if not all(path.exists() for path in paths.values()):
+        return []
+    reports = {name: read_json(path) for name, path in paths.items()}
+    population_fields = ["population", "supported", "verified", "disagreements"]
+    population_rows = [
+        {
+            "population": reports[name]["population"],
+            "supported": reports[name]["supported_components"],
+            "verified": reports[name]["verified_components"],
+            "disagreements": reports[name]["disagreements"],
+        }
+        for name in ("3x3", "4x4", "extended", "native")
+    ]
+    scaling = reports["scaling"]
+    largest_size = max(row["size"] for row in scaling["rows"])
+    scaling_rows = [row for row in scaling["rows"] if row["size"] == largest_size]
+    scaling_fields = [
+        "family", "|X|", "|Y|", "|X||Y|", "vertices", "half-edges",
+        "junctions", "faces", "dense bytes", "sparse bytes", "cut-index bytes",
+        "completion us", "recovery us", "validation us", "equal",
+    ]
+    scaling_table_rows = [
+        {
+            "family": row["family_name"],
+            "|X|": row["coordinate_x_count"],
+            "|Y|": row["coordinate_y_count"],
+            "|X||Y|": row["coordinate_cartesian_product"],
+            "vertices": row["sparse_subdivision_vertices"],
+            "half-edges": row["sparse_subdivision_half_edges"],
+            "junctions": row["sparse_subdivision_junctions"],
+            "faces": row["sparse_subdivision_interior_faces"],
+            "dense bytes": row["dense_owned_bytes_estimate"],
+            "sparse bytes": row["sparse_owned_bytes_estimate"],
+            "cut-index bytes": row["cut_index_owned_bytes_estimate"],
+            "completion us": row["completion_microseconds"],
+            "recovery us": row["recovery_microseconds"],
+            "validation us": row["validation_microseconds"],
+            "equal": row["three_backend_equal"],
+        }
+        for row in scaling_rows
+    ]
+    negative = reports["negative"]
+    return [
+        "## v1.2 Sparse polygon subdivision evidence",
+        "",
+        markdown_table(population_fields, population_rows),
+        "",
+        f"The negative campaign contains {len(negative['records'])} dense/sparse category comparisons with {negative['disagreements']} disagreements.",
+        f"The bounded CP-SAT rerun compares {reports['external']['rust_comparison_component_count']:,} components with {reports['external']['disagreement_component_count']} disagreements and {reports['external']['cp_sat_timeout_component_count']} timeouts.",
+        f"The Cartesian-explosion scaling campaign contains {scaling['verified_rows']} verified rows, {scaling['solver_errors']} solver errors, and {scaling['disagreements']} disagreements.",
+        "",
+        f"### Largest sparse scaling rows at size {largest_size}",
+        "",
+        markdown_table(scaling_fields, scaling_table_rows),
+        "",
+        "Dense bytes are a formula-derived owned-allocation estimate for coordinate vectors, occupancy/barriers, and the i64 coverage difference array. Sparse and cut-index bytes are exact owned-vector/index estimates, never process peak RSS.",
+        "",
+    ]
 def main() -> None:
     args = parse_args()
     exhaustive = read_json(args.exhaustive)
@@ -764,6 +814,7 @@ def main() -> None:
         *v09_evidence_sections(args.output_dir),
         *v10_evidence_sections(args.output_dir),
         *v11_evidence_sections(args.output_dir),
+        *v12_evidence_sections(args.output_dir),
     ]
     (args.output_dir / "paper-tables.md").write_text("\n".join(markdown))
 
@@ -828,6 +879,18 @@ def main() -> None:
         "v1.1-polygon-native-fixtures.counterexamples.json",
         "v1.1-polygon-scaling.csv",
         "v1.1-polygon-scaling.json",
+        "v1.2-polygon-differential-3x3.json",
+        "v1.2-polygon-differential-3x3.counterexamples.json",
+        "v1.2-polygon-differential-4x4.json",
+        "v1.2-polygon-differential-4x4.counterexamples.json",
+        "v1.2-polygon-backend-differential.json",
+        "v1.2-polygon-backend-differential.counterexamples.json",
+        "v1.2-polygon-negative.json",
+        "v1.2-polygon-native-fixtures.json",
+        "v1.2-polygon-native-fixtures.counterexamples.json",
+        "v1.2-polygon-scaling.csv",
+        "v1.2-polygon-scaling.json",
+        "v1.2-external-oracle.json",
     ]:
         candidate = args.output_dir / artifact
         if candidate.exists():

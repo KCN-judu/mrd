@@ -11,8 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "1.1.0"
-TAG = "v1.1.0-soltan-gorpinevich-sweep"
+VERSION = "1.2.0"
+TAG = "v1.2.0-sparse-polygon-subdivision"
 EXPECTED_DEFAULTS = {
     "compact_chord_enumerator": "grid-interior-runs",
     "compact_completion_backend": "indexed-frontier",
@@ -27,7 +27,9 @@ EXPECTED_DEFAULTS = {
     "compact_polygon_validator": "orthogonal-sweep",
     "compact_polygon_chords": "sg-sweep",
     "compact_polygon_completion": "indexed-frontier",
-    "compact_polygon_arrangement": "indexed",
+    "compact_polygon_arrangement": "sparse-subdivision",
+    "compact_polygon_cut_index": "dynamic-stabbing",
+    "compact_polygon_dissection_validator": "sparse-slab",
 }
 HISTORICAL_V08_DEFAULTS = {
     **EXPECTED_DEFAULTS,
@@ -67,6 +69,16 @@ REQUIRED_V11_ARTIFACTS = (
     "results/v1.1-polygon-native-fixtures.json",
     "results/v1.1-polygon-scaling.csv",
     "results/v1.1-polygon-scaling.json",
+)
+REQUIRED_V12_ARTIFACTS = (
+    "results/v1.2-external-oracle.json",
+    "results/v1.2-polygon-differential-3x3.json",
+    "results/v1.2-polygon-differential-4x4.json",
+    "results/v1.2-polygon-backend-differential.json",
+    "results/v1.2-polygon-negative.json",
+    "results/v1.2-polygon-native-fixtures.json",
+    "results/v1.2-polygon-scaling.csv",
+    "results/v1.2-polygon-scaling.json",
 )
 
 
@@ -139,6 +151,9 @@ def assert_implementation_defaults() -> None:
         "validation_backend: PolygonValidationBackend::OrthogonalSweep",
         "chord_backend: PolygonChordBackend::SoltanGorpinevichSweep",
         "completion_backend: PolygonCompletionBackend::IndexedFrontier",
+        "cut_index_backend: PolygonCutIndexBackend::DynamicStabbing",
+        "recovery_backend: PolygonRecoveryBackend::SparseSubdivision",
+        "dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab",
         "arrangement_backend: PolygonArrangementBackend::Indexed",
     ):
         if expected not in defaults.group(0):
@@ -227,6 +242,8 @@ def main() -> None:
         fail("generated evidence does not contain a v1.0 section")
     if "v1.1" not in paper_tables or "v1.1" not in experiments:
         fail("generated evidence does not contain a v1.1 section")
+    if "v1.2" not in paper_tables or "v1.2" not in experiments:
+        fail("generated evidence does not contain a v1.2 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
@@ -248,6 +265,11 @@ def main() -> None:
             fail(f"missing generated v1.1 evidence: {relative}")
         if relative not in generated_tables:
             fail(f"manifest omits generated v1.1 evidence: {relative}")
+    for relative in REQUIRED_V12_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated v1.2 evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated v1.2 evidence: {relative}")
     v09_report = json.loads(
         (ROOT / "results/v0.9-polygon-differential.json").read_text()
     )

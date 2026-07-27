@@ -6,14 +6,14 @@ complexity claim from a synthetic graph.
 
 | Family | Purpose | Construction |
 | --- | --- | --- |
-| A | boundary-heavy | variable-depth top notches with many boundary edges and few aligned chords |
-| B | aligned-reflex-heavy | four-sided equal-depth notch family maximizing equal-coordinate candidate pairs |
-| C | hole-heavy | separated ordinary rectangular holes, with staggered variants |
+| A | staircase-sparse | variable-depth top notches with linear output and linearly many distinct coordinates |
+| B | many-coordinates-few-faces | doubled variable-notch family with a large coordinate product relative to final faces |
+| C | hole-coordinate-cross-product | separated ordinary rectangular holes with staggered coordinate families |
 | D | completion-heavy | four-sided varying-depth notches producing many selected/intersecting cuts |
-| E | arrangement-heavy | doubled variable-notch family with many distinct x/y coordinates |
-| F | huge-coordinate | fixed combinatorics scaled to `10^12` coordinates where `i64` is safe |
-| G | clean path-tree | hole-free four-sided mixed-depth notch family, exercised through `Auto` |
-| H | non-clean fallback | ordinary-hole family forcing exact 4D fallback |
+| E | sparse-path-tree | hole-free four-sided mixed-depth notch family, exercised through `Auto` |
+| F | 4D-fallback-sparse | ordinary-hole family forcing exact 4D fallback |
+| G | aligned-reflex-heavy | four-sided equal-depth notch family maximizing equal-coordinate candidate pairs |
+| H | huge-coordinate | fixed combinatorics scaled to `10^12` coordinates where `i64` is safe |
 
 For each row the generator records boundary complexity, holes, reflex count,
 aligned candidate count `C`, chord count, selected/added cuts, phase timings,
