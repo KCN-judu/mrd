@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P8.3
+- Current phase: P8.4
 - Current phase state: in_progress
 - Last completed phase: P7
-- Last pushed SHA: bc09a0f5889e6b7fb6175b880fd87767416e2ee9
-- Plan last updated: 2026-07-28T01:30:00Z
+- Last pushed SHA: a70e783d03cdbbcbd0f0b82346d5dab5467956a0
+- Plan last updated: 2026-07-28T02:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -399,7 +399,7 @@ or construction claim is made.
 
 ### P8.3 - Scope-limited decremental spanner certificates
 
-**State:** committed. The P8.3 certificate layer enforces the simple
+**State:** complete. The P8.3 certificate layer enforces the simple
 undirected deletion/vertex-split domain, explicit embedding paths, congestion,
 deletion/split validity, and recourse accounting. It rejects directed,
 insertion, arbitrary-update, and generic-spanner semantics. Full evidence is
@@ -408,7 +408,7 @@ in `docs/phase-reports/P08-3-decremental-spanner-certificates.md`; no Theorem
 
 ### P8.4 - Deterministic low-stretch forest collection
 
-**State:** planned. Implement the deterministic multiplicative-weights forest
+**State:** in_progress. Implement the deterministic multiplicative-weights forest
 collection of Lemma 5.5 over the P8.2 and P8.3 checked primitives. Require
 deterministic ordering, per-edge average-stretch certificates, and operation
 accounting; retain explicit small-instance forest enumeration as an Oracle.
