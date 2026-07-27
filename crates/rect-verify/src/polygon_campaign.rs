@@ -639,6 +639,16 @@ pub fn polygon_scaling_campaign(
                         .polygon_aligned_reflex_candidate_pairs
                         .unwrap_or(0);
                     let chord_count = reference.diagnostics.total_chord_count;
+                    let coordinate_counts = (
+                        indexed
+                            .diagnostics
+                            .coordinate_compression_x_count
+                            .unwrap_or(0),
+                        indexed
+                            .diagnostics
+                            .coordinate_compression_y_count
+                            .unwrap_or(0),
+                    );
                     rows.push(PolygonScalingRow {
                         family,
                         family_name,
@@ -666,24 +676,11 @@ pub fn polygon_scaling_campaign(
                             &reference,
                             "added_vertical_cuts",
                         ),
-                        coordinate_x_count: indexed
-                            .diagnostics
-                            .coordinate_compression_x_count
-                            .unwrap_or(0),
-                        coordinate_y_count: indexed
-                            .diagnostics
-                            .coordinate_compression_y_count
-                            .unwrap_or(0),
-                        coordinate_cartesian_product: indexed
-                            .diagnostics
-                            .coordinate_compression_x_count
-                            .unwrap_or(0)
-                            .saturating_mul(
-                                indexed
-                                    .diagnostics
-                                    .coordinate_compression_y_count
-                                    .unwrap_or(0),
-                            ),
+                        coordinate_x_count: coordinate_counts.0,
+                        coordinate_y_count: coordinate_counts.1,
+                        coordinate_cartesian_product: coordinate_counts
+                            .0
+                            .saturating_mul(coordinate_counts.1),
                         sparse_subdivision_vertices: indexed
                             .diagnostics
                             .sparse_subdivision_vertex_count
@@ -699,12 +696,10 @@ pub fn polygon_scaling_campaign(
                         sparse_subdivision_interior_faces: indexed
                             .diagnostics
                             .output_rectangle_count,
-                        dense_owned_bytes_estimate: reference
-                            .diagnostics
-                            .owned_allocation_estimates
-                            .get("polygon_arrangement")
-                            .copied()
-                            .unwrap_or(0),
+                        dense_owned_bytes_estimate: dense_arrangement_owned_bytes_estimate(
+                            coordinate_counts.0,
+                            coordinate_counts.1,
+                        ),
                         sparse_owned_bytes_estimate: indexed
                             .diagnostics
                             .sparse_subdivision_owned_bytes
@@ -1820,6 +1815,24 @@ fn empty_scaling_row() -> PolygonScalingRow {
         status: String::new(),
         message: None,
     }
+}
+
+fn dense_arrangement_owned_bytes_estimate(x_count: usize, y_count: usize) -> usize {
+    let width = x_count.saturating_sub(1);
+    let height = y_count.saturating_sub(1);
+    let coordinates = x_count
+        .saturating_add(y_count)
+        .saturating_mul(std::mem::size_of::<i64>());
+    let occupancy_and_barriers = width
+        .saturating_mul(height)
+        .saturating_add(y_count.saturating_mul(width))
+        .saturating_add(x_count.saturating_mul(height));
+    let coverage_difference = x_count
+        .saturating_mul(y_count)
+        .saturating_mul(std::mem::size_of::<i64>());
+    coordinates
+        .saturating_add(occupancy_and_barriers)
+        .saturating_add(coverage_difference)
 }
 
 fn optional_usize(value: Option<usize>) -> String {
