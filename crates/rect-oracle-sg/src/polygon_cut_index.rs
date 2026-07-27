@@ -48,6 +48,9 @@ pub struct CutIndexMetrics {
     pub reported_intersections: usize,
     pub coordinate_line_scans: usize,
     pub interval_scans: usize,
+    pub logical_tree_node_count: usize,
+    pub materialized_tree_node_count: usize,
+    pub ordered_set_entry_count: usize,
     pub owned_bytes: usize,
 }
 
@@ -276,7 +279,7 @@ impl CollinearIntervalIndex {
 #[derive(Clone, Debug)]
 struct DynamicAxisStabbingIndex {
     coordinates: Vec<i64>,
-    nodes: Vec<BTreeSet<(i64, usize)>>,
+    nodes: BTreeMap<usize, BTreeSet<(i64, usize)>>,
 }
 
 impl DynamicAxisStabbingIndex {
@@ -285,7 +288,7 @@ impl DynamicAxisStabbingIndex {
             return Err(PolygonSgError::CoordinateOverflow);
         }
         Ok(Self {
-            nodes: vec![BTreeSet::new(); coordinates.len().saturating_mul(4)],
+            nodes: BTreeMap::new(),
             coordinates,
         })
     }
@@ -332,7 +335,7 @@ impl DynamicAxisStabbingIndex {
         metrics: &mut CutIndexMetrics,
     ) {
         if low <= start && end <= high {
-            self.nodes[node].insert((key, id));
+            self.nodes.entry(node).or_default().insert((key, id));
             metrics.canonical_node_insertions += 1;
             return;
         }
@@ -379,14 +382,15 @@ impl DynamicAxisStabbingIndex {
         self.path_nodes(coordinate, metrics)?
             .into_iter()
             .filter_map(|node| {
+                let entries = self.nodes.get(&node)?;
                 metrics.ordered_set_queries += 1;
                 if increasing {
-                    self.nodes[node]
+                    entries
                         .range((Excluded((key, usize::MAX)), Unbounded))
                         .next()
                         .map(|&(candidate, _)| candidate)
                 } else {
-                    self.nodes[node]
+                    entries
                         .range((Unbounded, Excluded((key, 0))))
                         .next_back()
                         .map(|&(candidate, _)| candidate)
@@ -408,9 +412,12 @@ impl DynamicAxisStabbingIndex {
         metrics.stabbing_queries += 1;
         let mut ids = BTreeSet::new();
         for node in path {
+            let Some(entries) = self.nodes.get(&node) else {
+                continue;
+            };
             metrics.ordered_set_queries += 1;
             ids.extend(
-                self.nodes[node]
+                entries
                     .range((Included((low, 0)), Included((high, usize::MAX))))
                     .map(|&(_, id)| id),
             );
@@ -419,12 +426,26 @@ impl DynamicAxisStabbingIndex {
     }
 
     fn owned_bytes_estimate(&self) -> usize {
-        self.coordinates.len() * std::mem::size_of::<i64>()
+        self.coordinates.capacity() * std::mem::size_of::<i64>()
+            + self.nodes.len()
+                * (std::mem::size_of::<usize>() + std::mem::size_of::<BTreeSet<(i64, usize)>>())
             + self
                 .nodes
-                .iter()
+                .values()
                 .map(|entries| entries.len() * std::mem::size_of::<(i64, usize)>())
                 .sum::<usize>()
+    }
+
+    fn materialized_node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    fn entry_count(&self) -> usize {
+        self.nodes.values().map(BTreeSet::len).sum()
+    }
+
+    fn logical_node_count(&self) -> usize {
+        self.coordinates.len().saturating_mul(4)
     }
 }
 
@@ -634,6 +655,18 @@ impl DynamicStabbingCutIndex {
             + self.horizontal_stabbing.owned_bytes_estimate()
             + (self.vertical_segments.len() * std::mem::size_of::<VerticalCutSegment>())
             + (self.horizontal_segments.len() * std::mem::size_of::<HorizontalCutSegment>());
+        self.metrics.logical_tree_node_count = self
+            .vertical_stabbing
+            .logical_node_count()
+            .saturating_add(self.horizontal_stabbing.logical_node_count());
+        self.metrics.materialized_tree_node_count = self
+            .vertical_stabbing
+            .materialized_node_count()
+            .saturating_add(self.horizontal_stabbing.materialized_node_count());
+        self.metrics.ordered_set_entry_count = self
+            .vertical_stabbing
+            .entry_count()
+            .saturating_add(self.horizontal_stabbing.entry_count());
     }
 
     fn metrics(&self) -> CutIndexMetrics {
@@ -678,6 +711,12 @@ mod tests {
         let metrics = index.metrics();
         assert_eq!(metrics.coordinate_line_scans, 0);
         assert_eq!(metrics.interval_scans, 0);
+        assert!(metrics.materialized_tree_node_count > 0);
+        assert!(metrics.logical_tree_node_count > metrics.materialized_tree_node_count);
+        assert_eq!(
+            metrics.ordered_set_entry_count,
+            metrics.canonical_node_insertions
+        );
     }
 
     #[test]
