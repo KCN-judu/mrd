@@ -313,6 +313,7 @@ enum SparseValidatorArg {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
+    BicliqueConstruction,
     CleanCensus,
     CleanBoundaryDifferential,
     CleanCompleteBipartite,
@@ -953,6 +954,24 @@ fn benchmark_command(
     }
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
+        BenchmarkSuiteArg::BicliqueConstruction => {
+            let report = rect_verify::benchmark::benchmark_biclique_construction(context, sizes);
+            write_text(output, &report.to_csv())?;
+            write_json(&report, Some(&output.with_extension("json")))?;
+            let manifest_path = output
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("manifest.json");
+            update_manifest(&manifest_path, report.metadata.clone())?;
+            return if report.verified() {
+                Ok(())
+            } else {
+                Err(CliError::Verification(format!(
+                    "biclique construction recorded {} counterexamples and {} solver errors",
+                    report.counterexample_count, report.solver_error_count
+                )))
+            };
+        }
         BenchmarkSuiteArg::CleanCompleteBipartite => {
             rect_verify::benchmark::benchmark_clean_complete_bipartite(context, sizes)
         }

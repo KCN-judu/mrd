@@ -5,6 +5,8 @@ use std::time::Instant;
 use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
+    biclique::{BicliqueConstructionMetrics, BicliquePartition},
+    embedding::DominanceEmbedding,
     solve_with_representation_and_region_dual,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
@@ -1028,6 +1030,93 @@ pub struct BenchmarkReport {
     pub rows: Vec<BenchmarkRow>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BicliqueConstructionBenchmarkRow {
+    pub instance_name: String,
+    pub family: String,
+    pub parameters: BTreeMap<String, usize>,
+    pub component_id: usize,
+    pub horizontal_chords: usize,
+    pub vertical_chords: usize,
+    pub block_count: Option<usize>,
+    pub total_vertex_occurrences: Option<usize>,
+    pub reference_microseconds: Option<u128>,
+    pub presorted_microseconds: Option<u128>,
+    pub reference_metrics: Option<BicliqueConstructionMetrics>,
+    pub presorted_metrics: Option<BicliqueConstructionMetrics>,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BicliqueConstructionBenchmarkReport {
+    pub metadata: BenchmarkMetadata,
+    pub verified_count: usize,
+    pub solver_error_count: usize,
+    pub counterexample_count: usize,
+    pub rows: Vec<BicliqueConstructionBenchmarkRow>,
+}
+
+impl BicliqueConstructionBenchmarkReport {
+    #[must_use]
+    pub fn verified(&self) -> bool {
+        self.solver_error_count == 0 && self.counterexample_count == 0
+    }
+
+    #[must_use]
+    pub fn to_csv(&self) -> String {
+        let mut csv = String::from(
+            "instance_name,family,parameters,component_id,horizontal_chords,vertical_chords,block_count,total_vertex_occurrences,reference_microseconds,presorted_microseconds,reference_initial_sorts,reference_recursive_sorts,presorted_initial_sorts,presorted_recursive_sorts,presorted_stable_partition_visits,presorted_scratch_buffer_acquisitions,presorted_scratch_growth_count,presorted_scratch_point_capacity,presorted_recursive_nodes,presorted_emitted_vertex_occurrences,status,message\n",
+        );
+        for row in &self.rows {
+            let reference = row.reference_metrics.as_ref();
+            let presorted = row.presorted_metrics.as_ref();
+            let fields = [
+                row.instance_name.clone(),
+                row.family.clone(),
+                serde_json::to_string(&row.parameters).unwrap_or_default(),
+                row.component_id.to_string(),
+                row.horizontal_chords.to_string(),
+                row.vertical_chords.to_string(),
+                optional_number(row.block_count),
+                optional_number(row.total_vertex_occurrences),
+                optional_number(row.reference_microseconds),
+                optional_number(row.presorted_microseconds),
+                reference.map_or_else(String::new, |value| value.initial_sort_count.to_string()),
+                reference.map_or_else(String::new, |value| value.recursive_sort_count.to_string()),
+                presorted.map_or_else(String::new, |value| value.initial_sort_count.to_string()),
+                presorted.map_or_else(String::new, |value| value.recursive_sort_count.to_string()),
+                presorted.map_or_else(String::new, |value| {
+                    value.stable_partition_visits.to_string()
+                }),
+                presorted.map_or_else(String::new, |value| {
+                    value.scratch_buffer_acquisitions.to_string()
+                }),
+                presorted.map_or_else(String::new, |value| value.scratch_growth_count.to_string()),
+                presorted.map_or_else(String::new, |value| {
+                    value.scratch_point_capacity.to_string()
+                }),
+                presorted.map_or_else(String::new, |value| value.recursive_node_count.to_string()),
+                presorted.map_or_else(String::new, |value| {
+                    value.emitted_vertex_occurrences.to_string()
+                }),
+                row.status.clone(),
+                row.message.clone().unwrap_or_default(),
+            ];
+            let _ = writeln!(
+                csv,
+                "{}",
+                fields
+                    .iter()
+                    .map(|field| escape_csv(field))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
+        csv
+    }
+}
+
 impl BenchmarkReport {
     /// Serializes the report to a stable, machine-readable CSV schema.
     ///
@@ -1279,6 +1368,153 @@ pub fn benchmark_adversarial(context: BenchmarkContext) -> BenchmarkReport {
         .chain([dense_conflict_grid(4, 5), dense_conflict_grid(8, 8)])
         .collect::<Vec<_>>();
     benchmark_instances(context, &instances, 40)
+}
+
+#[must_use]
+pub fn benchmark_biclique_construction(
+    context: BenchmarkContext,
+    sizes: &[usize],
+) -> BicliqueConstructionBenchmarkReport {
+    let instances = sizes
+        .iter()
+        .map(|&size| dense_conflict_grid(size, size))
+        .collect::<Vec<_>>();
+    let input_count = instances.len();
+    let mut rows = Vec::new();
+    for instance in instances {
+        let components = match instance.foreground_components() {
+            Ok(components) => components,
+            Err(error) => {
+                rows.push(BicliqueConstructionBenchmarkRow {
+                    instance_name: instance.name,
+                    family: instance.family,
+                    parameters: instance.parameters,
+                    component_id: 0,
+                    horizontal_chords: 0,
+                    vertical_chords: 0,
+                    block_count: None,
+                    total_vertex_occurrences: None,
+                    reference_microseconds: None,
+                    presorted_microseconds: None,
+                    reference_metrics: None,
+                    presorted_metrics: None,
+                    status: "solver-error".to_owned(),
+                    message: Some(error.to_string()),
+                });
+                continue;
+            }
+        };
+        for component in components {
+            let row = benchmark_biclique_component(
+                &instance.name,
+                &instance.family,
+                &instance.parameters,
+                &component,
+            );
+            rows.push(row);
+        }
+    }
+    BicliqueConstructionBenchmarkReport {
+        metadata: BenchmarkMetadata {
+            git_commit: context.git_commit,
+            rustc_version: context.rustc_version,
+            command: context.command,
+            seed: context.seed,
+            timestamp: context.timestamp,
+            input_count,
+            component_count: rows.len(),
+            input_model: "finite-colored-unit-grid-biclique-construction".to_owned(),
+            unsupported_input_features: unsupported_input_features(),
+        },
+        verified_count: rows.iter().filter(|row| row.status == "verified").count(),
+        solver_error_count: rows
+            .iter()
+            .filter(|row| row.status == "solver-error")
+            .count(),
+        counterexample_count: rows
+            .iter()
+            .filter(|row| row.status == "counterexample")
+            .count(),
+        rows,
+    }
+}
+
+fn benchmark_biclique_component<C>(
+    instance_name: &str,
+    family: &str,
+    parameters: &BTreeMap<String, usize>,
+    component: &GridComponent<C>,
+) -> BicliqueConstructionBenchmarkRow {
+    let mut row = BicliqueConstructionBenchmarkRow {
+        instance_name: instance_name.to_owned(),
+        family: family.to_owned(),
+        parameters: parameters.clone(),
+        component_id: component.id.0,
+        horizontal_chords: 0,
+        vertical_chords: 0,
+        block_count: None,
+        total_vertex_occurrences: None,
+        reference_microseconds: None,
+        presorted_microseconds: None,
+        reference_metrics: None,
+        presorted_metrics: None,
+        status: "solver-error".to_owned(),
+        message: None,
+    };
+    let geometry = match rect_oracle_sg::analyze_geometry(component) {
+        Ok(geometry) => geometry,
+        Err(error) => {
+            row.message = Some(error.to_string());
+            return row;
+        }
+    };
+    row.horizontal_chords = geometry.horizontal_chords.len();
+    row.vertical_chords = geometry.vertical_chords.len();
+    let embedding =
+        match DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords) {
+            Ok(embedding) => embedding,
+            Err(error) => {
+                row.message = Some(error.to_string());
+                return row;
+            }
+        };
+    let reference_started = Instant::now();
+    let reference = match BicliquePartition::comparability_theorem_8_reference(&embedding) {
+        Ok(construction) => construction,
+        Err(error) => {
+            row.message = Some(error.to_string());
+            return row;
+        }
+    };
+    row.reference_microseconds = Some(reference_started.elapsed().as_micros());
+    let presorted_started = Instant::now();
+    let presorted = match BicliquePartition::comparability_theorem_8_presorted(&embedding) {
+        Ok(construction) => construction,
+        Err(error) => {
+            row.message = Some(error.to_string());
+            return row;
+        }
+    };
+    row.presorted_microseconds = Some(presorted_started.elapsed().as_micros());
+    row.block_count = Some(presorted.partition.bicliques.len());
+    row.total_vertex_occurrences = Some(presorted.partition.total_vertex_occurrences());
+    row.reference_metrics = Some(reference.metrics.clone());
+    row.presorted_metrics = Some(presorted.metrics.clone());
+    let counters_valid = presorted.metrics.initial_sort_count == 4
+        && presorted.metrics.recursive_sort_count == 0
+        && presorted.metrics.emitted_vertex_occurrences
+            == presorted.partition.total_vertex_occurrences();
+    if reference.partition == presorted.partition && counters_valid {
+        "verified".clone_into(&mut row.status);
+    } else {
+        "counterexample".clone_into(&mut row.status);
+        row.message = Some(if reference.partition == presorted.partition {
+            "presorted structural counters violate the production contract".to_owned()
+        } else {
+            "reference and presorted partitions differ".to_owned()
+        });
+    }
+    row
 }
 
 #[must_use]
