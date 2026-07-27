@@ -20,10 +20,12 @@ partition is rejected before a compressed network is built.
 | `cargo fmt --all` | 0 | formatted source |
 | `cargo check -p rect-dominance` | 0 | passed |
 | `cargo clippy -p rect-dominance --all-targets -- -D warnings` | 0 | no warnings |
-| `cargo test -p rect-dominance compressed_flow -- --nocapture` | 0 | passed |
+| `cargo test -p rect-dominance compressed_flow -- --nocapture` | not completed | cancelled after becoming another long-running child of the existing repeated test-process pile; must be rerun in a clean test environment |
 | `git diff --check` | 0 | no whitespace errors |
 
 ## Boundary
 
-This establishes integration parity only for permanent reference backends. It
-does not select or emulate an almost-linear backend, so P9 remains incomplete.
+The test code is present but its process-level execution has not yet produced
+clean completion evidence. This establishes integration parity only for
+permanent reference backends once rerun cleanly; it does not select or emulate
+an almost-linear backend, so P9 remains incomplete.
