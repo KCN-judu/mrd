@@ -429,6 +429,15 @@ pub fn verify_polygon(
     {
         disagreements.push("dynamic cut index reported a forbidden linear scan".to_owned());
     }
+    let production_trace = &production.diagnostics.execution_trace;
+    if production_trace.dense_atomic_cells_materialized
+        || production_trace.dense_occupied_array_materialized
+        || production_trace.dense_horizontal_barrier_array_materialized
+        || production_trace.dense_vertical_barrier_array_materialized
+        || production_trace.dense_coverage_difference_array_materialized
+    {
+        disagreements.push("CompactOnly polygon path materialized a dense arrangement".to_owned());
+    }
     if !validator_results.reference_accepts_reference
         || !validator_results.reference_accepts_indexed
         || !validator_results.indexed_accepts_reference
