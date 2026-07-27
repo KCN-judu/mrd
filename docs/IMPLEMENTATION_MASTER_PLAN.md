@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P2
-- Current phase state: in_progress
+- Current phase state: committed
 - Last completed phase: P1
 - Last pushed SHA: fe1be927a99d1734afb72bd9cc46ee394112da48
-- Plan last updated: 2026-07-27T10:07:31Z
+- Plan last updated: 2026-07-27T10:37:14Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -139,7 +139,8 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P2 - Formal boundary representation
 
-**State:** in_progress. **Start SHA:** `fe1be92`. Implement ornaments, point holes, segment holes, isolated
+**State:** committed. **Start SHA:** `fe1be92`. **Implementation SHAs:**
+`95abbcf`, `b8c2d15`. Implement ornaments, point holes, segment holes, isolated
 formal-boundary points, formal incidence, canonical normalization, exact
 serialization, and structured validation. Preserve the ordinary polygon model
 as an Oracle. Suggested release: `v1.4.0-formal-boundary-model`.
@@ -388,4 +389,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
 | P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
-| P2 | in_progress | fe1be92 | pending | pending | pending | pending | pending | 2026-07-27T10:07:31Z | none | none |
+| P2 | committed | fe1be92 | 95abbcf, b8c2d15 | pending | pending | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | pending | none |
