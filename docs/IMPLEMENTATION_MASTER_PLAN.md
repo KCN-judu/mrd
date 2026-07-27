@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P0
-- Current phase state: committed
-- Last completed phase: none
-- Last pushed SHA: none
-- Plan last updated: 2026-07-27T09:35:54Z
+- Current phase state: complete
+- Last completed phase: P0
+- Last pushed SHA: ae763cacdb95e71130977c6cbaa621502b9ceafc
+- Plan last updated: 2026-07-27T09:40:49Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -95,7 +95,7 @@ requires a release campaign cannot be pushed after unit tests alone.
 
 ## P0 - Persistent plan and baseline
 
-**State:** committed. **Start SHA:** `72ce32a`. **Goal:** persist this plan,
+**State:** complete. **Start SHA:** `72ce32a`. **Goal:** persist this plan,
 verify branch policy, run the complete baseline quality gate, commit, push,
 verify the remote SHA, and stop. Do not implement code in P0.
 
@@ -371,4 +371,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 | phase | state | start SHA | implementation SHAs | closeout SHA | remote SHA | audit report | result files | started at | completed at | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| P0 | committed | 72ce32a | none | pending | pending | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | pending | none |
+| P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
