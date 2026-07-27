@@ -7,11 +7,13 @@
    Computational Geometry* 9, 57--79, 1993.
    DOI: 10.1007/BF02189307.
 
+   `rect-core::formal_polygon` implements the ornament, formal-boundary,
+   vertex, and elementary-segment contracts in Definitions 1, 3, and 4.
    `rect-oracle-sg` uses Definition 7's four effective-chord conditions, the
    admissible-family reduction, the rectangle-count formula, and Section 10's
    horizontal-then-vertical completion. The current input adapter implements
-   ordinary nondegenerate grid-cell polygons, not ornaments or degenerate
-   formal holes.
+   ordinary nondegenerate grid-cell polygons. Formal-hole chord enumeration
+   and completion remain a later phase.
 
 2. David Eppstein, "Graph-Theoretic Solutions to Computational Geometry
    Problems," arXiv:0908.3916, 2009.

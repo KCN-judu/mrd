@@ -35,9 +35,12 @@ also accepts the opt-in `--polygon-recovery auto` crossover policy.
 The grid model is a finite colored array of unit cells split by color and
 four-connectivity. The polygon model is one ordinary nondegenerate outer loop
 with zero or more ordinary two-dimensional holes and no boundary contact.
-Ornaments, isolated formal-boundary points, point/segment holes, degenerate
-formal holes, and disconnected outer components remain unsupported. See
-`docs/POLYGON_INPUT_MODEL.md` and `docs/KNOWN_LIMITATIONS.md`.
+Formal-boundary ornaments, isolated points, and point/segment formal holes now
+have a source-mapped canonical representation and incidence validator. Their
+effective-chord, completion, and solving pipeline remains unavailable until
+the formal-hole geometry phase. Disconnected outer components remain
+unsupported. See `docs/FORMAL_BOUNDARY_MODEL.md` and
+`docs/KNOWN_LIMITATIONS.md`.
 
 ## Quick start
 
@@ -76,6 +79,11 @@ cargo run --release -p rect-cli -- search-path-tree-witness \
 cargo run --release -p rect-cli -- verify \
   --input test-data/example.json \
   --all-solvers
+
+cargo run --release -p rect-cli -- verify \
+  --input-format formal-polygon \
+  --input test-data/polygons/formal-boundary.json \
+  --output /tmp/formal-boundary-incidence.json
 
 cargo run --release -p rect-cli -- exhaustive --width 3 --height 3
 

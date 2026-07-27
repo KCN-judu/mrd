@@ -1,5 +1,6 @@
 pub mod boundary;
 pub mod context;
+pub mod formal_polygon;
 pub mod formats;
 pub mod geometry;
 pub mod grid;
@@ -13,6 +14,12 @@ pub use boundary::{
     BoundaryVertexId, ReflexVertex,
 };
 pub use context::{PreparedComponentContext, PreparedContextError};
+pub use formal_polygon::{
+    ElementarySegment, ElementarySegmentId, FormalBoundaryComponent, FormalBoundaryComponentId,
+    FormalBoundaryComponentKind, FormalBoundaryDimension, FormalBoundaryIncidence,
+    FormalBoundarySource, FormalPolygonError, FormalRectilinearPolygon, FormalVertex,
+    FormalVertexId, Ornament, OrnamentSegment,
+};
 pub use formats::{FormatError, SvgOverlay, render_dissection_svg, render_polygon_dissection_svg};
 pub use geometry::{
     BicliqueId, ChordId, Coord, CoordinateRect, DoubledPoint, GeometryError, GridRect,

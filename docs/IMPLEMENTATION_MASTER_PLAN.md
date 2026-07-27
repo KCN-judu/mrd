@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P1
-- Current phase state: committed
-- Last completed phase: P0
-- Last pushed SHA: deee489dda9967f3a5558f5ab9c0f9640ce7a70f
-- Plan last updated: 2026-07-27T10:05:32Z
+- Current phase: P2
+- Current phase state: in_progress
+- Last completed phase: P1
+- Last pushed SHA: fe1be927a99d1734afb72bd9cc46ee394112da48
+- Plan last updated: 2026-07-27T10:07:31Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -119,7 +119,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P1 - v1.3 baseline freeze and full audit
 
-**State:** committed. **Start SHA:** `deee489`. Regenerate and archive complete v1.3 correctness,
+**State:** complete. **Start SHA:** `deee489`. Regenerate and archive complete v1.3 correctness,
 external-oracle, sparse geometry, release-provenance, fallback, ignored-test,
 and benchmark baseline. Require no unexplained disagreement or stale
 provenance; commit the baseline used by later phases. Suggested release:
@@ -139,10 +139,25 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P2 - Formal boundary representation
 
-**State:** planned. Implement ornaments, point holes, segment holes, isolated
+**State:** in_progress. **Start SHA:** `fe1be92`. Implement ornaments, point holes, segment holes, isolated
 formal-boundary points, formal incidence, canonical normalization, exact
 serialization, and structured validation. Preserve the ordinary polygon model
 as an Oracle. Suggested release: `v1.4.0-formal-boundary-model`.
+
+### P2 subphases
+
+1. **P2.1 - Source contract and formal model.** Map Soltan--Gorpinevich
+   Definitions 1, 3, and 4 (pp. 58--60) to explicit Rust types, invariants, and
+   structured errors. Preserve `RectilinearPolygon` unchanged as the ordinary
+   topological-region Oracle.
+2. **P2.2 - Canonical normalization and incidence.** Normalize isolated points
+   and ornament segments deterministically; validate exact containment and
+   intersection rules; derive formal vertices, elementary segments, incidence,
+   and connected formal-boundary components with stable IDs.
+3. **P2.3 - Serialization, integration, and audit.** Add the tagged JSON model,
+   round-trip/canonical/metamorphic/negative fixtures, public documentation,
+   complete differential agreement on empty ornaments, and the full phase
+   audit. P3 solver behavior must remain explicitly unsupported until P3.
 
 ### Mandatory transition after this phase
 
@@ -372,4 +387,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | phase | state | start SHA | implementation SHAs | closeout SHA | remote SHA | audit report | result files | started at | completed at | blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
-| P1 | committed | deee489 | pending | pending | pending | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | pending | none |
+| P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
+| P2 | in_progress | fe1be92 | pending | pending | pending | pending | pending | 2026-07-27T10:07:31Z | none | none |

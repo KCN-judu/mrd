@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{
-    ColorGrid, DissectionResult, GridComponent, OrthogonalLoop, Point, PolygonDissectionResult,
+    ColorGrid, DissectionResult, FormalBoundaryIncidence, FormalRectilinearPolygon, GridComponent,
+    Ornament, OrnamentSegment, OrthogonalLoop, Point, PolygonDissectionResult,
     PolygonGeometryBackend, PolygonValidationBackend, RectilinearPolygon, SvgOverlay,
     render_dissection_svg, render_polygon_dissection_svg,
 };
@@ -31,7 +32,7 @@ use thiserror::Error;
     name = "rect-cli",
     version,
     about = "Exact rectangular-dissection verification for grids and ordinary polygons",
-    long_about = "Exact rectangular-dissection verification for finite colored unit-cell grids and boundary-native ordinary rectilinear polygons.\n\nPolygon input supports one nondegenerate outer loop and ordinary two-dimensional holes with integer coordinates and disjoint boundaries. Ornaments, isolated formal-boundary points, point or segment holes, arbitrary degenerate formal holes, and disconnected outer components remain outside the supported model."
+    long_about = "Exact rectangular-dissection verification for finite colored unit-cell grids and boundary-native rectilinear polygons.\n\nOrdinary polygon solving supports one nondegenerate outer loop and ordinary two-dimensional holes. Formal-boundary JSON additionally supports source-validated ornaments, isolated points, and point/segment formal holes for canonical inspection; solver integration begins in phase P3."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -211,6 +212,7 @@ enum InputFormatArg {
     Auto,
     Grid,
     Polygon,
+    FormalPolygon,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -357,6 +359,32 @@ struct JsonPolygon {
     outer: Vec<[i64; 2]>,
     #[serde(default)]
     holes: Vec<Vec<[i64; 2]>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct JsonFormalOrnament {
+    #[serde(default)]
+    isolated_points: Vec<[i64; 2]>,
+    #[serde(default)]
+    segments: Vec<[[i64; 2]; 2]>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct JsonFormalPolygon {
+    #[serde(rename = "type")]
+    kind: String,
+    outer: Vec<[i64; 2]>,
+    #[serde(default)]
+    holes: Vec<Vec<[i64; 2]>>,
+    #[serde(default)]
+    ornament: JsonFormalOrnament,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct FormalBoundaryValidationOutput {
+    input_model: &'static str,
+    polygon: FormalRectilinearPolygon,
+    incidence: FormalBoundaryIncidence,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -516,6 +544,19 @@ fn run() -> Result<(), CliError> {
                         report.disagreements.join("; ")
                     )))
                 }
+            }
+            LoadedInput::FormalPolygon(polygon) => {
+                let incidence = polygon
+                    .incidence()
+                    .map_err(|error| CliError::Verification(error.to_string()))?;
+                write_json(
+                    &FormalBoundaryValidationOutput {
+                        input_model: "formal-rectilinear-polygon",
+                        polygon,
+                        incidence,
+                    },
+                    output.as_deref(),
+                )
             }
         },
         Command::Exhaustive {
@@ -1328,6 +1369,7 @@ fn solve_command(
                 output,
             )
         }
+        LoadedInput::FormalPolygon(_) => Err(CliError::FormalBoundarySolverUnavailable),
     }
 }
 
@@ -1542,60 +1584,88 @@ const fn path_tree_orientation_kind(
 enum LoadedInput {
     Grid(ColorGrid<Value>),
     Polygon(RectilinearPolygon),
+    FormalPolygon(FormalRectilinearPolygon),
 }
 
 fn load_input(path: &Path, format: InputFormatArg) -> Result<LoadedInput, CliError> {
     let bytes = fs::read(path)?;
     let value: Value = serde_json::from_slice(&bytes)?;
-    let is_polygon = value
-        .get("type")
-        .and_then(Value::as_str)
-        .is_some_and(|kind| kind == "rectilinear-polygon");
-    match (format, is_polygon) {
-        (InputFormatArg::Grid | InputFormatArg::Auto, false) => {
+    let detected_format = match value.get("type").and_then(Value::as_str) {
+        None => InputFormatArg::Grid,
+        Some("rectilinear-polygon") => InputFormatArg::Polygon,
+        Some("formal-rectilinear-polygon") => InputFormatArg::FormalPolygon,
+        Some(kind) => return Err(CliError::Input(format!("unsupported input type {kind}"))),
+    };
+    if format != InputFormatArg::Auto && format != detected_format {
+        return Err(CliError::Input(format!(
+            "input detected as {detected_format:?}, but --input-format requires {format:?}"
+        )));
+    }
+    match detected_format {
+        InputFormatArg::Grid => {
             let input: JsonGrid = serde_json::from_value(value)?;
             ColorGrid::new(input.width, input.height, input.cells)
                 .map(LoadedInput::Grid)
                 .map_err(|error| CliError::Input(error.to_string()))
         }
-        (InputFormatArg::Polygon | InputFormatArg::Auto, true) => {
+        InputFormatArg::Polygon => {
             let input: JsonPolygon = serde_json::from_value(value)?;
-            if input.kind != "rectilinear-polygon" {
-                return Err(CliError::Input(format!(
-                    "unsupported polygon input type {}",
-                    input.kind
-                )));
-            }
-            let outer = OrthogonalLoop::new(
-                input
-                    .outer
-                    .into_iter()
-                    .map(|[x, y]| Point::new(x, y))
-                    .collect(),
-            );
-            let holes = input
-                .holes
-                .into_iter()
-                .map(|vertices| {
-                    OrthogonalLoop::new(
-                        vertices
-                            .into_iter()
-                            .map(|[x, y]| Point::new(x, y))
-                            .collect(),
-                    )
-                })
-                .collect();
-            RectilinearPolygon::new(outer, holes)
+            debug_assert_eq!(input.kind, "rectilinear-polygon");
+            polygon_from_coordinates(input.outer, input.holes)
                 .map(LoadedInput::Polygon)
                 .map_err(|error| CliError::Input(error.to_string()))
         }
-        (InputFormatArg::Grid, true) => Err(CliError::Input(
-            "polygon JSON received with --input-format grid".to_owned(),
-        )),
-        (InputFormatArg::Polygon, false) => Err(CliError::Input(
-            "grid JSON received with --input-format polygon".to_owned(),
-        )),
+        InputFormatArg::FormalPolygon => {
+            let input: JsonFormalPolygon = serde_json::from_value(value)?;
+            debug_assert_eq!(input.kind, "formal-rectilinear-polygon");
+            let region = polygon_from_coordinates(input.outer, input.holes)
+                .map_err(|error| CliError::Input(error.to_string()))?;
+            let isolated_points = input
+                .ornament
+                .isolated_points
+                .into_iter()
+                .map(|[x, y]| Point::new(x, y))
+                .collect();
+            let segments = input
+                .ornament
+                .segments
+                .into_iter()
+                .map(|[[x0, y0], [x1, y1]]| OrnamentSegment {
+                    start: Point::new(x0, y0),
+                    end: Point::new(x1, y1),
+                })
+                .collect();
+            FormalRectilinearPolygon::new(
+                region,
+                Ornament {
+                    isolated_points,
+                    segments,
+                },
+            )
+            .map(LoadedInput::FormalPolygon)
+            .map_err(|error| CliError::Input(error.to_string()))
+        }
+        InputFormatArg::Auto => unreachable!("auto input format is resolved before parsing"),
     }
+}
+
+fn polygon_from_coordinates(
+    outer: Vec<[i64; 2]>,
+    holes: Vec<Vec<[i64; 2]>>,
+) -> Result<RectilinearPolygon, rect_core::PolygonError> {
+    let outer = OrthogonalLoop::new(outer.into_iter().map(|[x, y]| Point::new(x, y)).collect());
+    let holes = holes
+        .into_iter()
+        .map(|vertices| {
+            OrthogonalLoop::new(
+                vertices
+                    .into_iter()
+                    .map(|[x, y]| Point::new(x, y))
+                    .collect(),
+            )
+        })
+        .collect();
+    RectilinearPolygon::new(outer, holes)
 }
 
 fn write_json(value: &impl Serialize, path: Option<&Path>) -> Result<(), CliError> {
@@ -1851,6 +1921,10 @@ enum CliError {
     Solver(String),
     #[error("solver {solver:?} is unavailable for boundary-native polygon input")]
     UnsupportedSolverForPolygon { solver: SolverArg },
+    #[error(
+        "formal-boundary solving is not available until phase P3; use verify for canonical representation and incidence"
+    )]
+    FormalBoundarySolverUnavailable,
     #[error("verification failed: {0}")]
     Verification(String),
     #[error("invalid certificate: {0}")]
@@ -2039,6 +2113,40 @@ mod tests {
     }
 
     #[test]
+    fn formal_polygon_json_auto_detection_builds_canonical_incidence() {
+        let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        let path = workspace
+            .join("test-data")
+            .join("polygons")
+            .join("formal-boundary.json");
+        let LoadedInput::FormalPolygon(polygon) = load_input(&path, InputFormatArg::Auto).unwrap()
+        else {
+            panic!("formal fixture did not parse as a formal polygon");
+        };
+        let incidence = polygon.incidence().unwrap();
+        assert_eq!(incidence.formal_holes().count(), 4);
+        assert_eq!(
+            polygon.ornament().isolated_points,
+            [rect_core::Point::new(6, 6)]
+        );
+        assert!(
+            polygon
+                .ornament()
+                .segments
+                .iter()
+                .all(|segment| segment.start < segment.end)
+        );
+        let serialized = serde_json::to_string(&polygon).unwrap();
+        let round_trip: rect_core::FormalRectilinearPolygon =
+            serde_json::from_str(&serialized).unwrap();
+        assert_eq!(round_trip, polygon);
+    }
+
+    #[test]
     fn polygon_sg_sweep_compact_svg_keeps_pairwise_work_disabled() {
         let root = std::env::temp_dir().join(format!(
             "mrd-polygon-sg-sweep-svg-regression-{}",
@@ -2126,6 +2234,20 @@ mod tests {
             else {
                 panic!("fixture {name} did not parse as a polygon");
             };
+            let formal = rect_core::FormalRectilinearPolygon::new(
+                polygon.clone(),
+                rect_core::Ornament::default(),
+            )
+            .unwrap();
+            assert_eq!(formal.region(), &polygon);
+            assert_eq!(
+                formal.incidence().unwrap().formal_holes().count(),
+                polygon.holes.len()
+            );
+            assert_eq!(
+                formal.incidence().unwrap().elementary_segments.len(),
+                polygon.boundary_complexity()
+            );
             let result = rect_dominance::solve_polygon(&polygon)
                 .unwrap_or_else(|error| panic!("fixture {name} failed: {error}"));
             assert_eq!(

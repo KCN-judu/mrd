@@ -1,11 +1,12 @@
 # Known limitations
 
-- The geometry adapters accept finite unit-cell grids and one boundary-native
+- The geometry adapters solve finite unit-cell grids and one boundary-native
   ordinary integer-coordinate rectilinear polygon with ordinary nondegenerate
   two-dimensional holes. Soltan--Gorpinevich ornaments, line-segment holes,
-  point holes, isolated formal-boundary points, arbitrary degenerate formal
-  holes, boundary self-contact, and multiple disconnected outer components are
-  rejected and are not claimed as supported.
+  point holes, and isolated formal-boundary points now have a canonical,
+  source-mapped representation and incidence validator, but are not yet
+  accepted by chord enumeration, completion, or dissection solvers. Boundary
+  self-contact and multiple disconnected outer components remain rejected.
 - General polygon production uses the source-mapped `sg-sweep` event/status
   construction and incremental indexed completion. The sweep's `O(n log n + q)`
   claim is limited to the accepted ordinary-loop model; it does not implement
