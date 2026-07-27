@@ -1,0 +1,10 @@
+{
+  "type": "formal-rectilinear-polygon",
+  "fixture": "segment-hole",
+  "outer": [[0, 0], [12, 0], [12, 12], [0, 12]],
+  "holes": [],
+  "ornament": {
+    "isolated_points": [],
+    "segments": [[[3, 6], [9, 6]]]
+  }
+}

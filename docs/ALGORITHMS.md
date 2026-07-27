@@ -146,6 +146,25 @@ containment, holes, interior disjointness, exact union, total area, and the
 declared rectangle count. No production polygon stage rasterizes by coordinate
 magnitude or materializes the coordinate Cartesian product.
 
+## Solver E: formal-boundary polygons
+
+`rect-core::formal_polygon` implements Soltan--Gorpinevich Definitions 1, 3,
+4, and 7 on an ordinary connected region plus a normalized ornament. Section
+10 Step 1(a)--(d) is implemented by
+`FormalRectilinearPolygon::effective_chords_source`; the pairwise Definition 7
+enumerator remains an independent permanent Oracle. Section 10 Step 2 uses an
+exact common-denominator symbolic perturbation and proves that every original
+orthogonal intersection is preserved.
+
+`rect-dominance::complete_formal_polygon` compares explicit Hopcroft--Karp and
+compact biclique-flow minimum covers, selects their maximum independent chord
+family, and evaluates Theorem 2 as `m + c - h - e`. Completion inserts the
+selected chords, treats ornament elementary segments as barriers, applies the
+source horizontal-then-vertical Step 4 policy, and requires dense and sparse
+canonical rectangle recovery to agree. Validation covers the ordinary region
+exactly and additionally requires every formal vertex and elementary segment
+to be realized on rectangle sides.
+
 ## Acceptance matrix
 
 | Requirement | Evidence | Acceptance |
@@ -162,6 +181,11 @@ magnitude or materializes the coordinate Cartesian product.
 | General polygon chords satisfy Definition 7 | three-backend chord-family differential and source-invariant tests | complete horizontal/vertical families, endpoints, and deterministic IDs match |
 | Polygon completion is coordinate native | cut and rectangle differential | selected/added cut unions and rectangles equal the grid Oracle |
 | Polygon rectangles form an exact dissection | coordinate-compressed validator | no outside coverage, holes, overlap, or uncovered interior |
+| Formal Step 1 matches Definition 7 | source construction versus pairwise Oracle | chord identities and provenance match on every formal fixture and exhaustive point lattice |
+| Formal Step 2 preserves conflict semantics | exact transformed-intersection audit | original and transformed closed intersections are identical |
+| Formal maximum admissible family is exact | explicit matching versus compact biclique flow | covers, selected chords, and effective number agree |
+| Formal completion realizes Definition 2 | dense/sparse recovery and formal-boundary coverage audit | every formal vertex/segment is on rectangle sides and the count equals `m + c - h - e` |
+| Empty ornament preserves ordinary semantics | formal fixture differential campaign | optimum counts and canonical rectangles equal the fully audited ordinary solver |
 
 ## Paper-to-code traceability
 
@@ -174,7 +198,10 @@ biclique vertex occurrences.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Colored component extraction | `rect-core::grid` | `ColorGrid::four_connected_components` | `O(N)` flood fill | Input-adapter step, not the paper bottleneck | corner contact splits | Python oracle connectivity | finite grids only |
 | Prepared ordinary polygon input | `rect-core::polygon_index` | `PreparedPolygonContext::new_with_validator` | one normalization/validation/boundary/index build with owned metadata | input-model step | exact build-count and backend differential | v0.9 standalone APIs | no ornaments or degenerate holes |
-| Formal boundary representation | `rect-core::formal_polygon` | `FormalRectilinearPolygon::new`, `incidence` | deterministic sort plus exact pairwise structural validation and output-sized incidence | Soltan--Gorpinevich Definitions 1, 3, and 4, pp. 58--60 | round-trip, normalization, incidence, formal-domain, negative, and CLI fixture tests | empty-ornament ordinary polygon | P3 chord/completion integration not yet implemented |
+| Formal boundary representation | `rect-core::formal_polygon` | `FormalRectilinearPolygon::new`, `incidence` | deterministic sort plus exact pairwise structural validation and output-sized incidence | Soltan--Gorpinevich Definitions 1, 3, and 4, pp. 58--60 | round-trip, normalization, incidence, formal-domain, negative, and CLI fixture tests | empty-ornament ordinary polygon | one connected ordinary interior component |
+| Formal effective chords | `rect-core::formal_polygon` | `effective_chords_source`, `effective_chords_pairwise` | axis-line events and source merge/delete fixed point; pairwise Oracle retained | Definition 7 and Section 10 Step 1(a)--(d), pp. 62, 76--77 | Fig. 3, source invariants, exhaustive isolated-point lattice, ordinary parity | exact pairwise Definition 7 enumerator | no full paper runtime claim beyond recorded counters |
+| Formal admissible-family reduction | `rect-dominance::formal` | `analyze_formal_admissible_family` | 4D biclique construction plus exact Dinic; explicit conflict graph and Hopcroft--Karp audited | Section 10 Step 2, pp. 77--78, and Theorem 2 | transformed-intersection, matching, cover, and selected-family equality | explicit closed-intersection graph | exact Dinic backend; almost-linear flow is a later phase |
+| Formal completion and validation | `rect-dominance::formal`, `rect-oracle-sg::polygon` | `complete_formal_polygon`, `CoordinateCompressedCompletion::complete_formal` | deterministic candidate passes, indexed ray stops, dense/sparse recovery and dual sparse validation | Section 10 Steps 3--4, pp. 76, 78; Definition 2, p. 58 | five permanent fixtures, 511 point lattices, formal campaign, ordinary parity | ordinary completion, dense recovery, reference slab validator | no claimed classical linear completion bound |
 | Exact indexed polygon queries | `rect-core::polygon_index` | `OrthogonalEdgeIndex` | segment-tree stabbing and sorted line groups; output-sensitive reporting | predicate layer | point/segment/ray query differential | linear polygon predicates | integer coordinates only |
 | Polygon structural validation | `rect-core::polygon_index` | `OrthogonalSweepValidator` | deterministic orthogonal sweep with exact integer events | input-model step | accepted polygon and broad negative-category differential | `ReferenceQuadraticValidator` | ordinary polygon model only |
 | Reference polygon effective chords | `rect-oracle-sg::polygon` | `GeneralPolygonPairwiseEnumerator::enumerate_prepared_with_metrics` | `O(r^2 n)` direct Definition 7 audit | independent Oracle, not production | exact 3x3/4x4 and extended chord-family differential | grid-native enumerator | ordinary polygon model only |

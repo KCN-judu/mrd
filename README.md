@@ -35,11 +35,12 @@ also accepts the opt-in `--polygon-recovery auto` crossover policy.
 The grid model is a finite colored array of unit cells split by color and
 four-connectivity. The polygon model is one ordinary nondegenerate outer loop
 with zero or more ordinary two-dimensional holes and no boundary contact.
-Formal-boundary ornaments, isolated points, and point/segment formal holes now
-have a source-mapped canonical representation and incidence validator. Their
-effective-chord, completion, and solving pipeline remains unavailable until
-the formal-hole geometry phase. Disconnected outer components remain
-unsupported. See `docs/FORMAL_BOUNDARY_MODEL.md` and
+Formal-boundary ornaments, isolated points, and point/segment formal holes use
+a source-mapped canonical representation, exact effective-chord construction,
+compact matching, formal completion, and Definition 2 validation. The formal
+pipeline is available through `solve` with either dominance solver mode.
+Disconnected outer components remain unsupported. See
+`docs/FORMAL_BOUNDARY_MODEL.md` and
 `docs/KNOWN_LIMITATIONS.md`.
 
 ## Quick start
@@ -84,6 +85,17 @@ cargo run --release -p rect-cli -- verify \
   --input-format formal-polygon \
   --input test-data/polygons/formal-boundary.json \
   --output /tmp/formal-boundary-incidence.json
+
+cargo run --release -p rect-cli -- solve \
+  --solver dominance-compact-only \
+  --input-format formal-polygon \
+  --input test-data/polygons/formal/source-figure-three.json \
+  --output /tmp/formal-source-figure-three.json \
+  --svg /tmp/formal-source-figure-three.svg
+
+cargo run --release -p rect-cli -- benchmark \
+  --suite formal-fixtures \
+  --output results/formal-fixtures.json
 
 cargo run --release -p rect-cli -- exhaustive --width 3 --height 3
 

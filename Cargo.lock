@@ -213,6 +213,7 @@ dependencies = [
  "clap",
  "rect-core",
  "rect-dominance",
+ "rect-graph",
  "rect-oracle-exact-cover",
  "rect-oracle-sg",
  "rect-verify",

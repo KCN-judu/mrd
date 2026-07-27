@@ -253,3 +253,22 @@ shared-endpoint regression, a segment hole, empty-ornament equality with the
 ordinary completion Oracle, and all 511 nonempty subsets of a 3-by-3 isolated
 point lattice. Every output rectangle count equals the independently computed
 Theorem 2 value `m + c - h - e`.
+
+## CLI and reproducible differential campaign
+
+`rect-cli solve --input-format formal-polygon` invokes
+`rect_dominance::complete_formal_polygon` directly for the fully audited and
+compact-only dominance solver names. Formal geometry has a source-fixed backend
+pipeline, so grid and ordinary-polygon backend override flags are rejected
+rather than silently ignored. The JSON result records `m`, `c`, `h`, `e`, the
+effective chords, Step 2 transformation, explicit and compact covers, selected
+chords, completion cuts, canonical rectangles, and sparse metrics.
+
+Permanent fixtures under `test-data/polygons/formal` cover an isolated point
+hole, an interior segment hole, a segment hole attached to the outer boundary,
+collinear chords sharing an isolated endpoint, and the paper's Fig. 3 example.
+`rect-cli benchmark --suite formal-fixtures` runs all five plus empty-ornament
+ordinary/formal parity on a rectangle, an L-shaped polygon, and a polygon with
+an ordinary hole. A successful report requires identical explicit and compact
+certificates, exact Theorem 2 counts, Definition 2-valid rectangles, and exact
+ordinary/formal canonical rectangle equality.

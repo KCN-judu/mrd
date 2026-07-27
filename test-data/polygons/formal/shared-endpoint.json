@@ -1,0 +1,10 @@
+{
+  "type": "formal-rectilinear-polygon",
+  "fixture": "shared-endpoint",
+  "outer": [[0, 0], [12, 0], [12, 12], [0, 12]],
+  "holes": [],
+  "ornament": {
+    "isolated_points": [[2, 6], [6, 6], [10, 6]],
+    "segments": []
+  }
+}

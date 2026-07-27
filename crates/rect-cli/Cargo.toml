@@ -8,6 +8,7 @@ license.workspace = true
 clap.workspace = true
 rect-core = { path = "../rect-core" }
 rect-dominance = { path = "../rect-dominance" }
+rect-graph = { path = "../rect-graph" }
 rect-oracle-exact-cover = { path = "../rect-oracle-exact-cover" }
 rect-oracle-sg = { path = "../rect-oracle-sg" }
 rect-verify = { path = "../rect-verify" }

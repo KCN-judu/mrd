@@ -15,7 +15,7 @@ use rect_core::{
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
     PolygonArrangementBackend, PolygonChordBackend, PolygonCompletionBackend, PolygonSolveOptions,
-    RegionDualBackend, VerificationMode, solve_polygon_with_options,
+    RegionDualBackend, VerificationMode, complete_formal_polygon, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_oracle_sg::{
@@ -337,6 +337,7 @@ enum BenchmarkSuiteArg {
     PolygonNegative,
     PolygonNativeFixtures,
     PolygonScaling,
+    FormalFixtures,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -385,6 +386,26 @@ struct FormalBoundaryValidationOutput {
     input_model: &'static str,
     polygon: FormalRectilinearPolygon,
     incidence: FormalBoundaryIncidence,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct FormalSolveOutput {
+    solver: String,
+    input_model: &'static str,
+    polygon: FormalRectilinearPolygon,
+    local_nonconvexity_measure: usize,
+    interior_component_count: usize,
+    formal_hole_count: usize,
+    effective_number: usize,
+    optimum_rectangle_count: usize,
+    effective_chords: rect_core::FormalEffectiveChordFamilies,
+    step_two_transformation: rect_dominance::FormalStep2Transformation,
+    explicit_matching: rect_graph::Matching,
+    explicit_vertex_cover: rect_graph::VertexCover,
+    compact_vertex_cover: rect_graph::VertexCover,
+    selected_horizontal: Vec<bool>,
+    selected_vertical: Vec<bool>,
+    completion: rect_oracle_sg::PolygonCompletionResult,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -860,6 +881,22 @@ fn benchmark_command(
             )))
         };
     }
+    if suite == BenchmarkSuiteArg::FormalFixtures {
+        let report = rect_verify::formal_campaign::formal_fixture_campaign(context);
+        write_json(&report, Some(output))?;
+        update_manifest(
+            &output.with_file_name("manifest.json"),
+            report.metadata.clone(),
+        )?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "formal fixture failures: {} disagreements, {} solver errors",
+                report.disagreements, report.solver_errors
+            )))
+        };
+    }
     if suite == BenchmarkSuiteArg::CleanCensus {
         let census = rect_verify::benchmark::clean_census_4x4(context);
         write_text(output, &census.to_csv())?;
@@ -1044,7 +1081,8 @@ fn benchmark_command(
         | BenchmarkSuiteArg::PolygonBackendDifferential
         | BenchmarkSuiteArg::PolygonNegative
         | BenchmarkSuiteArg::PolygonNativeFixtures
-        | BenchmarkSuiteArg::PolygonScaling => unreachable!(),
+        | BenchmarkSuiteArg::PolygonScaling
+        | BenchmarkSuiteArg::FormalFixtures => unreachable!(),
     };
     let csv = report
         .to_csv()
@@ -1369,7 +1407,71 @@ fn solve_command(
                 output,
             )
         }
-        LoadedInput::FormalPolygon(_) => Err(CliError::FormalBoundarySolverUnavailable),
+        LoadedInput::FormalPolygon(polygon) => {
+            if !matches!(
+                solver,
+                SolverArg::DominanceCompressed | SolverArg::DominanceCompactOnly
+            ) {
+                return Err(CliError::UnsupportedSolverForFormalPolygon { solver });
+            }
+            if chord_enumerator.is_some()
+                || completion_backend.is_some()
+                || representation.is_some()
+                || region_dual.is_some()
+                || path_tree_orientation.is_some()
+                || polygon_geometry.is_some()
+                || polygon_validator.is_some()
+                || polygon_chords.is_some()
+                || polygon_completion.is_some()
+                || polygon_arrangement.is_some()
+                || polygon_cut_index.is_some()
+                || polygon_recovery.is_some()
+                || polygon_dissection_validator.is_some()
+                || subdivision_builder.is_some()
+                || sparse_validator.is_some()
+            {
+                return Err(CliError::Input(
+                    "formal polygon solving uses the source-fixed formal chord, matching, completion, recovery, and validation pipeline"
+                        .to_owned(),
+                ));
+            }
+            let analysis = complete_formal_polygon(&polygon)
+                .map_err(|error| CliError::Solver(error.to_string()))?;
+            if let Some(svg_path) = svg {
+                let rendered = PolygonDissectionResult {
+                    optimum_rectangle_count: analysis.admissible.optimum_rectangle_count,
+                    rectangles: analysis.completion.rectangles.clone(),
+                    diagnostics: rect_core::Diagnostics::default(),
+                    certificate: None,
+                };
+                write_text(
+                    svg_path,
+                    &render_polygon_dissection_svg(polygon.region(), &rendered)?,
+                )?;
+            }
+            let admissible = analysis.admissible;
+            write_json(
+                &FormalSolveOutput {
+                    solver: format!("{solver:?}"),
+                    input_model: "formal-rectilinear-polygon",
+                    polygon,
+                    local_nonconvexity_measure: admissible.local_nonconvexity_measure,
+                    interior_component_count: admissible.interior_component_count,
+                    formal_hole_count: admissible.formal_hole_count,
+                    effective_number: admissible.effective_number,
+                    optimum_rectangle_count: admissible.optimum_rectangle_count,
+                    effective_chords: admissible.families,
+                    step_two_transformation: admissible.transformation,
+                    explicit_matching: admissible.explicit_matching,
+                    explicit_vertex_cover: admissible.explicit_vertex_cover,
+                    compact_vertex_cover: admissible.compact_vertex_cover,
+                    selected_horizontal: admissible.selected_horizontal,
+                    selected_vertical: admissible.selected_vertical,
+                    completion: analysis.completion,
+                },
+                output,
+            )
+        }
     }
 }
 
@@ -1921,10 +2023,8 @@ enum CliError {
     Solver(String),
     #[error("solver {solver:?} is unavailable for boundary-native polygon input")]
     UnsupportedSolverForPolygon { solver: SolverArg },
-    #[error(
-        "formal-boundary solving is not available until phase P3; use verify for canonical representation and incidence"
-    )]
-    FormalBoundarySolverUnavailable,
+    #[error("solver {solver:?} is unavailable for formal polygon input")]
+    UnsupportedSolverForFormalPolygon { solver: SolverArg },
     #[error("verification failed: {0}")]
     Verification(String),
     #[error("invalid certificate: {0}")]
@@ -2144,6 +2244,71 @@ mod tests {
         let round_trip: rect_core::FormalRectilinearPolygon =
             serde_json::from_str(&serialized).unwrap();
         assert_eq!(round_trip, polygon);
+    }
+
+    #[test]
+    fn formal_fixtures_solve_through_the_production_cli() {
+        let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap();
+        let fixture_dir = workspace.join("test-data").join("polygons").join("formal");
+        let root =
+            std::env::temp_dir().join(format!("mrd-formal-cli-regression-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        for name in [
+            "point-hole",
+            "segment-hole",
+            "attached-hole",
+            "shared-endpoint",
+            "source-figure-three",
+        ] {
+            let output = root.join(format!("{name}.json"));
+            let svg = root.join(format!("{name}.svg"));
+            solve_command(
+                SolverArg::DominanceCompactOnly,
+                InputFormatArg::Auto,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                &fixture_dir.join(format!("{name}.json")),
+                Some(&output),
+                Some(&svg),
+            )
+            .unwrap_or_else(|error| panic!("formal fixture {name} failed: {error}"));
+            let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+            assert_eq!(value["input_model"], "formal-rectilinear-polygon");
+            let m = value["local_nonconvexity_measure"].as_u64().unwrap();
+            let c = value["interior_component_count"].as_u64().unwrap();
+            let h = value["formal_hole_count"].as_u64().unwrap();
+            let e = value["effective_number"].as_u64().unwrap();
+            let optimum = value["optimum_rectangle_count"].as_u64().unwrap();
+            assert_eq!(optimum, m + c - h - e, "fixture {name}");
+            assert_eq!(
+                value["completion"]["rectangles"].as_array().unwrap().len() as u64,
+                optimum,
+                "fixture {name}"
+            );
+            assert_eq!(
+                value["explicit_vertex_cover"], value["compact_vertex_cover"],
+                "fixture {name}"
+            );
+            assert!(!fs::read(&svg).unwrap().is_empty());
+        }
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
