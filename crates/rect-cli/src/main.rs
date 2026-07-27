@@ -1877,7 +1877,10 @@ fn benchmark_context() -> Result<rect_verify::benchmark::BenchmarkContext, CliEr
             .map_err(|error| CliError::Output(error.to_string()))?
             .trim()
             .to_owned(),
-        command: std::env::args().collect::<Vec<_>>().join(" "),
+        command: std::iter::once("rect-cli".to_owned())
+            .chain(std::env::args().skip(1))
+            .collect::<Vec<_>>()
+            .join(" "),
         seed: None,
         timestamp,
     })
