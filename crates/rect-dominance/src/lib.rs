@@ -311,7 +311,15 @@ pub fn solve_polygon_with_options(
         EffectiveChordEndpointIndex::new(boundary_index, &families.horizontal, &families.vertical)?;
     let geometry_at = Instant::now();
     let embedding = DominanceEmbedding::new(&families.horizontal, &families.vertical)?;
-    let four_d_partition = BicliquePartition::comparability_theorem_8(&embedding)?;
+    let four_d_construction = match options.verification_mode {
+        VerificationMode::FullyAudited => {
+            BicliquePartition::comparability_theorem_8_audited(&embedding)?
+        }
+        VerificationMode::CompactOnly => {
+            BicliquePartition::comparability_theorem_8_presorted(&embedding)?
+        }
+    };
+    let four_d_partition = four_d_construction.partition;
     four_d_partition.verify_dominance_blocks(&embedding)?;
     let four_d_flow = solve_biclique_flow(
         embedding.horizontal.len(),
@@ -1226,7 +1234,9 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
 
     let partition = match mode {
         DominanceMode::ExplicitEdges => BicliquePartition::from_explicit_edges(&dominance_graph),
-        DominanceMode::Compact => BicliquePartition::comparability_theorem_8(&embedding)?,
+        DominanceMode::Compact => {
+            BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition
+        }
     };
     partition.verify_exact_partition(&dominance_graph)?;
     let biclique_certificate = partition.certificate(&dominance_graph);
@@ -1461,7 +1471,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     let embedding =
         DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
     let embedding_at = Instant::now();
-    let partition = BicliquePartition::comparability_theorem_8(&embedding)?;
+    let partition = BicliquePartition::comparability_theorem_8_presorted(&embedding)?.partition;
     partition.verify_dominance_blocks(&embedding)?;
     let bicliques_at = Instant::now();
     let flow_solution = solve_biclique_flow(
@@ -1877,7 +1887,7 @@ fn solve_path_tree_with_geometry<C>(
             DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
         embedding
             .assert_pairwise_equivalence(&geometry.horizontal_chords, &geometry.vertical_chords)?;
-        let four_d = BicliquePartition::comparability_theorem_8(&embedding)?;
+        let four_d = BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition;
         four_d.verify_exact_partition(&graph)?;
         four_d_sigma = Some(four_d.total_vertex_occurrences());
         audited_matching_size = Some(hopcroft_karp(&graph).size);

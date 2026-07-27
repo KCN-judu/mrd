@@ -114,8 +114,9 @@ fn collect_biclique_audits(fixture: &GridFixture) -> Result<Value, MinimizeError
             let graph = embedding
                 .explicit_graph()
                 .map_err(|error| error.to_string())?;
-            let partition = BicliquePartition::comparability_theorem_8(&embedding)
-                .map_err(|error| error.to_string())?;
+            let partition = BicliquePartition::comparability_theorem_8_audited(&embedding)
+                .map_err(|error| error.to_string())?
+                .partition;
             Ok::<Value, String>(json!(partition.audit(&graph, 256)))
         })()
         .unwrap_or_else(|error| json!({"error": error}));

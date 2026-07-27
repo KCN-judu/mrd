@@ -200,7 +200,8 @@ fn solve_conflict_oracles(
         &explicit_partition,
         &DinicBackend,
     )?;
-    let compact_partition = BicliquePartition::comparability_theorem_8(&embedding)?;
+    let compact_partition =
+        BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition;
     compact_partition.verify_exact_partition(&graph)?;
     compact_partition.verify_dominance_blocks(&embedding)?;
     let compact_flow = solve_biclique_flow(

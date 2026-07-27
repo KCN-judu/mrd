@@ -105,11 +105,64 @@ impl BicliquePartition {
     /// Returns [`BicliqueError`] when a cross-side coordinate equality or a
     /// non-decreasing recursive subproblem violates the source construction.
     pub fn comparability_theorem_8(embedding: &DominanceEmbedding) -> Result<Self, BicliqueError> {
-        Ok(Self::comparability_theorem_8_with_backend(
+        Ok(Self::comparability_theorem_8_presorted(embedding)?.partition)
+    }
+
+    /// Constructs the historical recursive-sort Theorem 8 partition.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] when the source construction assumptions fail.
+    pub fn comparability_theorem_8_reference(
+        embedding: &DominanceEmbedding,
+    ) -> Result<BicliqueConstruction, BicliqueError> {
+        Self::comparability_theorem_8_with_backend(
             embedding,
             BicliqueConstructionBackend::RecursiveSortReference,
-        )?
-        .partition)
+        )
+    }
+
+    /// Constructs the presorted production Theorem 8 partition.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] when the source construction assumptions fail.
+    pub fn comparability_theorem_8_presorted(
+        embedding: &DominanceEmbedding,
+    ) -> Result<BicliqueConstruction, BicliqueError> {
+        Self::comparability_theorem_8_with_backend(
+            embedding,
+            BicliqueConstructionBackend::Presorted,
+        )
+    }
+
+    /// Constructs both backends and requires exact canonical equality.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BicliqueError`] for source-assumption failures, a backend
+    /// partition disagreement, or invalid production structural counters.
+    pub fn comparability_theorem_8_audited(
+        embedding: &DominanceEmbedding,
+    ) -> Result<BicliqueConstruction, BicliqueError> {
+        let reference = Self::comparability_theorem_8_reference(embedding)?;
+        let production = Self::comparability_theorem_8_presorted(embedding)?;
+        if production.partition != reference.partition {
+            return Err(BicliqueError::BackendPartitionMismatch);
+        }
+        if production.metrics.initial_sort_count != 4
+            || production.metrics.recursive_sort_count != 0
+            || production.metrics.emitted_vertex_occurrences
+                != production.partition.total_vertex_occurrences()
+        {
+            return Err(BicliqueError::InvalidPresortedMetrics {
+                initial_sort_count: production.metrics.initial_sort_count,
+                recursive_sort_count: production.metrics.recursive_sort_count,
+                emitted_vertex_occurrences: production.metrics.emitted_vertex_occurrences,
+                partition_vertex_occurrences: production.partition.total_vertex_occurrences(),
+            });
+        }
+        Ok(production)
     }
 
     /// Constructs the Theorem 8 partition with an explicitly selected backend.
@@ -718,6 +771,17 @@ fn split_sides(points: &[SidePoint]) -> (Vec<usize>, Vec<usize>) {
 
 #[derive(Debug, Error)]
 pub enum BicliqueError {
+    #[error("reference and presorted Theorem 8 partitions differ")]
+    BackendPartitionMismatch,
+    #[error(
+        "invalid presorted counters: initial sorts={initial_sort_count}, recursive sorts={recursive_sort_count}, emitted occurrences={emitted_vertex_occurrences}, partition occurrences={partition_vertex_occurrences}"
+    )]
+    InvalidPresortedMetrics {
+        initial_sort_count: usize,
+        recursive_sort_count: usize,
+        emitted_vertex_occurrences: usize,
+        partition_vertex_occurrences: usize,
+    },
     #[error("biclique ID {id:?} is repeated")]
     DuplicateBicliqueId { id: BicliqueId },
     #[error("biclique {id:?} has an empty side")]
@@ -821,11 +885,15 @@ mod tests {
                 BicliqueConstructionBackend::Presorted,
             )
             .unwrap();
+            let audited = BicliquePartition::comparability_theorem_8_audited(&embedding).unwrap();
+            let default = BicliquePartition::comparability_theorem_8(&embedding).unwrap();
 
             assert_eq!(
                 presorted.partition, reference.partition,
                 "partition mismatch for seed {seed}"
             );
+            assert_eq!(audited, presorted);
+            assert_eq!(default, presorted.partition);
             assert_eq!(presorted.metrics.initial_sort_count, 4);
             assert_eq!(presorted.metrics.recursive_sort_count, 0);
             assert_eq!(
