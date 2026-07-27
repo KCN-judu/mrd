@@ -57,9 +57,16 @@
    `rect-graph::dinic` provides a practical exact maximum-flow backend.
    It uses safe Rust, integral capacities, and returns residual cut reachability.
 
+7. Andrew V. Goldberg and Robert E. Tarjan, "A New Approach to the
+   Maximum-Flow Problem," *Journal of the ACM* 35(4), 1988.
+
+   `rect-graph::dinic::PushRelabelBackend` implements the integral
+   highest-label preflow-push family with global relabeling and gap heuristic
+   counters. It is a practical exact backend, not an almost-linear claim.
+
 ## Theoretical algorithm cited only for asymptotic complexity
 
-7. Jan van den Brand et al., "A Deterministic Almost-Linear Time Algorithm for
+8. Jan van den Brand et al., "A Deterministic Almost-Linear Time Algorithm for
    Minimum-Cost Flow," arXiv:2309.16629 / FOCS 2023.
 
    This implementation does **not** implement that algorithm. It appears only

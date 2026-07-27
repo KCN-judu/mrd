@@ -29,7 +29,7 @@ use rect_core::{
     PreparedComponentContext, PreparedGridComponent, PreparedPolygonContext, PreparedPolygonError,
     RectilinearPolygon, ValidationError, validate_dissection, validate_dissection_prepared,
 };
-use rect_graph::{DinicBackend, hopcroft_karp};
+use rect_graph::{DinicBackend, FlowBackendKind, MaxFlowBackend, hopcroft_karp};
 use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
@@ -1192,11 +1192,27 @@ pub fn solve<C>(
     component: &GridComponent<C>,
     mode: DominanceMode,
 ) -> Result<DissectionResult, DominanceError> {
-    solve_fully_audited_with(
+    solve_with_flow_backend(component, mode, FlowBackendKind::Dinic)
+}
+
+/// Solves through the fully audited paper embedding with a selected exact
+/// integral max-flow backend.
+///
+/// # Errors
+///
+/// Returns [`DominanceError`] when any geometric equivalence, biclique,
+/// matching/flow, cover, completion, or output invariant fails.
+pub fn solve_with_flow_backend<C>(
+    component: &GridComponent<C>,
+    mode: DominanceMode,
+    backend: FlowBackendKind,
+) -> Result<DissectionResult, DominanceError> {
+    solve_fully_audited_with_backend(
         component,
         mode,
         &ReferencePairwiseEnumerator,
         CompletionBackendKind::ReferenceRescan,
+        &backend,
     )
 }
 
@@ -1206,6 +1222,23 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
     mode: DominanceMode,
     enumerator: &E,
     completion_backend: CompletionBackendKind,
+) -> Result<DissectionResult, DominanceError> {
+    solve_fully_audited_with_backend(
+        component,
+        mode,
+        enumerator,
+        completion_backend,
+        &DinicBackend,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn solve_fully_audited_with_backend<C, E: EffectiveChordEnumerator, B: MaxFlowBackend>(
+    component: &GridComponent<C>,
+    mode: DominanceMode,
+    enumerator: &E,
+    completion_backend: CompletionBackendKind,
+    backend: &B,
 ) -> Result<DissectionResult, DominanceError> {
     let started = Instant::now();
     let sg_analysis = rect_oracle_sg::analyze_with(component, enumerator)?;
@@ -1245,7 +1278,7 @@ fn solve_fully_audited_with<C, E: EffectiveChordEnumerator>(
         embedding.horizontal.len(),
         embedding.vertical.len(),
         &partition,
-        &DinicBackend,
+        backend,
     )?;
     let flow_value = usize::try_from(flow_solution.flow.value)
         .map_err(|_| DominanceError::FlowValueConversion)?;
@@ -2365,8 +2398,9 @@ mod polygon_tests {
     };
 
     use super::{
-        ChordEnumerator, CompletionBackendKind, ConflictRepresentationBackend, VerificationMode,
-        solve_polygon, solve_polygon_with_representation,
+        ChordEnumerator, CompletionBackendKind, ConflictRepresentationBackend, DominanceMode,
+        FlowBackendKind, VerificationMode, solve_polygon, solve_polygon_with_representation,
+        solve_with_flow_backend,
         solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
     };
 
@@ -2460,6 +2494,30 @@ mod polygon_tests {
     #[test]
     fn grid_polygon_end_to_end_matches_on_all_supported_3x3_components() {
         assert_eq!(verify_grid_polygon_masks(3, 3), 893);
+    }
+
+    #[test]
+    fn selected_flow_backends_agree_on_a_grid_dissection() {
+        let grid = ColorGrid::new(
+            3,
+            3,
+            vec![true, true, false, true, true, true, false, true, true],
+        )
+        .unwrap();
+        let component = grid.four_connected_components().remove(0);
+        let dinic =
+            solve_with_flow_backend(&component, DominanceMode::Compact, FlowBackendKind::Dinic)
+                .unwrap();
+        let push_relabel = solve_with_flow_backend(
+            &component,
+            DominanceMode::Compact,
+            FlowBackendKind::PushRelabel,
+        )
+        .unwrap();
+        assert_eq!(
+            push_relabel.optimum_rectangle_count,
+            dinic.optimum_rectangle_count
+        );
     }
 
     #[test]
