@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P3
-- Current phase state: committed
-- Last completed phase: P2
-- Last pushed SHA: 659d7fbbe0ae513058a5a1f41f2cd3d3a39e7118
-- Plan last updated: 2026-07-27T12:41:01Z
+- Current phase: P4
+- Current phase state: in_progress
+- Last completed phase: P3
+- Last pushed SHA: 3b8347aa1b288a19ec9e07a8474fc591f2281598
+- Plan last updated: 2026-07-27T12:47:26Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -23,9 +23,9 @@ event-driven validation, ranked 4D parity embedding, Cardinal--Yuditsky
 Theorem 8 biclique partition, compressed Dinic flow, and grid path-tree
 specializations. The permanent reference backends remain part of the contract.
 
-Known gaps, established by code and `docs/KNOWN_LIMITATIONS.md`, are formal
-boundary ornaments/points/segment holes/point holes and merge-delete cases;
-recursive re-sorting in biclique construction; only Dinic for flow; no
+Known remaining gaps, established by current code and
+`docs/KNOWN_LIMITATIONS.md`, are recursive re-sorting in biclique
+construction; only Dinic for flow; no
 source-backed deterministic almost-linear exact flow; no direct grid parity
 embedding; and unprofiled constant factors. No phase may upgrade a claim until
 its implementation, assumptions, counters, and evidence establish it.
@@ -174,7 +174,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P3 - Formal-hole SG sweep and completion
 
-**State:** committed. **Start SHA:** `521f82d`. Implement the original Soltan--Gorpinevich formal-boundary
+**State:** complete. **Start SHA:** `521f82d`. Implement the original Soltan--Gorpinevich formal-boundary
 event model, merge/delete cases, effective chords, completion, sparse
 subdivision, and validation for newly supported degeneracies. Require exact
 ordinary-input agreement, source-mapped invariants, and dedicated formal-hole
@@ -187,8 +187,8 @@ subphases. The full audit is recorded in
 `results/p3-formal-fixtures.json` and
 `results/p3-polygon-differential.json` with its empty counterexample file.
 There were no correctness disagreements or unresolved P3 limitations within
-the accepted one-component formal input model. Closeout SHA is pending this
-documentation commit and remote verification.
+the accepted one-component formal input model. Closeout and verified remote
+SHA are `3b8347aa1b288a19ec9e07a8474fc591f2281598`.
 
 ### P3 subphases
 
@@ -233,7 +233,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P4 - Presorted compact biclique construction
 
-**State:** planned. Remove recursive re-sorting from Cardinal--Yuditsky using
+**State:** in_progress. **Start SHA:** `3b8347a`. Remove recursive re-sorting from Cardinal--Yuditsky using
 presorted coordinate orders, stable partitioning, reusable scratch arenas, and
 structural complexity counters. Require exact edge partition, matching, cut,
 cover, and rectangle equality with the current implementation. Suggested
@@ -429,4 +429,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P0 | complete | 72ce32a | none | ae763ca | ae763ca | `docs/phase-reports/P00-persistent-plan-and-baseline.md` | plan and P0 report | 2026-07-27T09:17:42Z | 2026-07-27T09:40:49Z | none |
 | P1 | complete | deee489 | fe1be92 | fe1be92 | fe1be92 | `docs/phase-reports/P01-v1.3-baseline-freeze.md` | `results/p1-baseline/`; P1 checker | 2026-07-27T09:46:57Z | 2026-07-27T10:07:31Z | none |
 | P2 | complete | fe1be92 | 95abbcf, b8c2d15 | 521f82d | 521f82d | `docs/phase-reports/P02-formal-boundary-model.md` | formal fixture, source model, focused and Oracle-differential tests | 2026-07-27T10:07:31Z | 2026-07-27T10:39:44Z | none |
-| P3 | committed | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | pending | pending | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |
+| P3 | complete | 521f82d | 093961f, fd1bbc6, 3d94851, 996ad44, 659d7fb, 6cd0845 | 3b8347a | 3b8347a | `docs/phase-reports/P03-formal-hole-geometry.md` | `results/p3-formal-fixtures.json`; `results/p3-polygon-differential.json`; zero counterexamples | 2026-07-27T10:39:44Z | 2026-07-27T12:41:01Z | none |
+| P4 | in_progress | 3b8347a | pending | pending | pending | pending | pending | 2026-07-27T12:47:26Z | pending | none |
