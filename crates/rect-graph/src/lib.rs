@@ -31,8 +31,9 @@ pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
 };
 pub use interior_point::{
-    CertifiedIpmError, CertifiedIpmSnapshot, InteriorPointError, InteriorPointMetrics,
-    IpmApproximationCertificate, RationalInteriorPointState,
+    CertifiedIpmError, CertifiedIpmSnapshot, CertifiedIpmUpdate, InteriorPointError,
+    InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics,
+    RationalInteriorPointState,
 };
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{

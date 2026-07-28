@@ -13,19 +13,155 @@ use thiserror::Error;
 use crate::{
     CertifiedFixedPoint, CirculationArcId, CirculationNetwork, CostedFlowRoundingResult,
     DyadicInterval, ExactRatio, FixedPointConfig, FixedPointError, FixedPointMetrics,
-    FractionalCirculation, MinCostCirculationError,
+    FractionalCirculation, MinCostCirculationError, MinRatioEdgeId,
 };
 
 /// Certified Equation (9) and Definition 4.2 quantities at one feasible flow.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertifiedIpmSnapshot {
     fixed_point_config: FixedPointConfig,
+    flow: FractionalCirculation,
+    optimal_cost: ExactRatio,
+    maximum_abs_input: i128,
     alpha: DyadicInterval,
     objective_gap: DyadicInterval,
     potential: DyadicInterval,
     lengths: Vec<DyadicInterval>,
     gradients: Vec<DyadicInterval>,
     arithmetic_metrics: FixedPointMetrics,
+    update_metrics: IpmUpdateMetrics,
+}
+
+/// Counters required to audit the deterministic IPM interaction contract.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct IpmUpdateMetrics {
+    pub iterations: u64,
+    pub changed_coordinates: u64,
+    pub detect_calls: u64,
+    pub detected_edges: u64,
+}
+
+/// A certified Lemma 4.4 transition and its successor state.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertifiedIpmUpdate {
+    pub next_snapshot: CertifiedIpmSnapshot,
+    pub eta: ExactRatio,
+    pub approximation: IpmApproximationCertificate,
+}
+
+/// Certified per-edge accounting for the dynamic `Detect` operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IpmDetectLedger {
+    fixed_point_config: FixedPointConfig,
+    accumulated_changes: Vec<DyadicInterval>,
+    metrics: IpmUpdateMetrics,
+}
+
+impl IpmDetectLedger {
+    /// Creates an empty ledger with the same precision as a certified snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the snapshot's fixed-point configuration cannot be
+    /// constructed or its bounded word model rejects the zero interval.
+    pub fn new(snapshot: &CertifiedIpmSnapshot) -> Result<Self, CertifiedIpmError> {
+        let mut arithmetic = CertifiedFixedPoint::new(snapshot.fixed_point_config)?;
+        let zero = arithmetic.enclose_ratio(0, 1)?;
+        Ok(Self {
+            fixed_point_config: snapshot.fixed_point_config,
+            accumulated_changes: vec![zero; snapshot.lengths.len()],
+            metrics: IpmUpdateMetrics::default(),
+        })
+    }
+
+    #[must_use]
+    pub fn accumulated_changes(&self) -> &[DyadicInterval] {
+        &self.accumulated_changes
+    }
+
+    #[must_use]
+    pub const fn metrics(&self) -> IpmUpdateMetrics {
+        self.metrics
+    }
+
+    /// Records one update using the lengths certified at its source snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a precision mismatch, dimension mismatch,
+    /// nonpositive step, exact overflow, or a fixed-point word-bound failure.
+    pub fn record_update(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        eta: ExactRatio,
+        direction: &[ExactRatio],
+    ) -> Result<(), CertifiedIpmError> {
+        if snapshot.fixed_point_config != self.fixed_point_config {
+            return Err(CertifiedIpmError::ArithmeticConfigMismatch);
+        }
+        if direction.len() != self.accumulated_changes.len()
+            || snapshot.lengths.len() != self.accumulated_changes.len()
+        {
+            return Err(CertifiedIpmError::DimensionMismatch);
+        }
+        if !eta.is_positive() {
+            return Err(CertifiedIpmError::InvalidUpdateDirection);
+        }
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        for ((accumulated, length), delta) in self
+            .accumulated_changes
+            .iter_mut()
+            .zip(&snapshot.lengths)
+            .zip(direction)
+        {
+            let magnitude = eta
+                .checked_mul(delta.abs().map_err(map_exact)?)
+                .map_err(map_exact)?;
+            let change = enclose_exact(&mut arithmetic, magnitude)?;
+            let weighted = arithmetic.multiply_intervals(length, &change)?;
+            *accumulated = arithmetic.add_intervals(accumulated, &weighted)?;
+        }
+        Ok(())
+    }
+
+    /// Reports exactly the edges whose accumulated interval lower bound is at
+    /// least `epsilon`, and resets those edge accumulators to zero.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `epsilon` is not positive or the configured
+    /// fixed-point arithmetic cannot certify the threshold.
+    pub fn detect(
+        &mut self,
+        epsilon: ExactRatio,
+    ) -> Result<Vec<MinRatioEdgeId>, CertifiedIpmError> {
+        if !epsilon.is_positive() {
+            return Err(CertifiedIpmError::InvalidDetectThreshold);
+        }
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        let threshold = enclose_exact(&mut arithmetic, epsilon)?;
+        let zero = arithmetic.enclose_ratio(0, 1)?;
+        let mut detected = Vec::new();
+        for (index, accumulated) in self.accumulated_changes.iter_mut().enumerate() {
+            if accumulated.lower_scaled() >= threshold.upper_scaled() {
+                detected.push(MinRatioEdgeId(index));
+                *accumulated = zero.clone();
+            }
+        }
+        self.metrics.detect_calls = self
+            .metrics
+            .detect_calls
+            .checked_add(1)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        self.metrics.detected_edges = self
+            .metrics
+            .detected_edges
+            .checked_add(
+                u64::try_from(detected.len()).map_err(|_| CertifiedIpmError::ExactOverflow)?,
+            )
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        Ok(detected)
+    }
 }
 
 /// Proof that supplied approximate lengths and gradients meet Theorem 4.3.
@@ -143,18 +279,42 @@ impl CertifiedIpmSnapshot {
 
         Ok(Self {
             fixed_point_config,
+            flow: flow.clone(),
+            optimal_cost,
+            maximum_abs_input,
             alpha,
             objective_gap: gap_interval,
             potential,
             lengths,
             gradients,
             arithmetic_metrics: arithmetic.metrics(),
+            update_metrics: IpmUpdateMetrics::default(),
         })
     }
 
     #[must_use]
     pub const fn fixed_point_config(&self) -> FixedPointConfig {
         self.fixed_point_config
+    }
+
+    #[must_use]
+    pub const fn flow(&self) -> &FractionalCirculation {
+        &self.flow
+    }
+
+    #[must_use]
+    pub const fn optimal_cost(&self) -> ExactRatio {
+        self.optimal_cost
+    }
+
+    #[must_use]
+    pub const fn maximum_abs_input(&self) -> i128 {
+        self.maximum_abs_input
+    }
+
+    #[must_use]
+    pub const fn update_metrics(&self) -> IpmUpdateMetrics {
+        self.update_metrics
     }
 
     #[must_use]
@@ -258,6 +418,139 @@ impl CertifiedIpmSnapshot {
             scaled_gradient_checks: checks,
         })
     }
+
+    /// Applies one certified CKLPPS22 Lemma 4.4 update.
+    ///
+    /// The direction is checked as a circulation, the ratio condition is
+    /// checked exactly, and the successor potential is independently
+    /// re-enclosed with the same bounded fixed-point configuration. No flow
+    /// backend or cycle Oracle is consulted by this transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the direction is malformed, approximations fail
+    /// their source bounds, the ratio quality is not certified, the candidate
+    /// leaves the strict interior, or the potential drop cannot be certified.
+    #[allow(clippy::too_many_lines)]
+    pub fn apply_lemma_44_update(
+        &self,
+        network: &CirculationNetwork,
+        approximate_gradients: &[ExactRatio],
+        approximate_lengths: &[ExactRatio],
+        kappa: ExactRatio,
+        direction: &[ExactRatio],
+    ) -> Result<CertifiedIpmUpdate, CertifiedIpmError> {
+        network.verify_input_domain(self.maximum_abs_input)?;
+        network.verify_fractional_circulation(direction)?;
+        if direction.len() != self.flow.arc_flows.len() {
+            return Err(CertifiedIpmError::DimensionMismatch);
+        }
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        let approximation = self.certify_approximations(
+            approximate_gradients,
+            approximate_lengths,
+            kappa,
+            &mut arithmetic,
+        )?;
+        let zero = exact_ratio(0)?;
+        let mut dot = zero;
+        let mut norm = zero;
+        for ((gradient, length), delta) in approximate_gradients
+            .iter()
+            .zip(approximate_lengths)
+            .zip(direction)
+        {
+            dot = dot
+                .checked_add(gradient.checked_mul(*delta).map_err(map_exact)?)
+                .map_err(map_exact)?;
+            let magnitude = delta.abs().map_err(map_exact)?;
+            norm = norm
+                .checked_add(length.checked_mul(magnitude).map_err(map_exact)?)
+                .map_err(map_exact)?;
+        }
+        if !dot.is_negative() {
+            return Err(CertifiedIpmError::InvalidUpdateDirection);
+        }
+        let kappa_norm = kappa.checked_mul(norm).map_err(map_exact)?;
+        let quality = dot.checked_add(kappa_norm).map_err(map_exact)?;
+        if quality != zero && quality.at_least(zero).map_err(map_exact)? {
+            return Err(CertifiedIpmError::RatioQualityNotCertified);
+        }
+        let kappa_squared = kappa.checked_mul(kappa).map_err(map_exact)?;
+        let denominator = dot
+            .abs()
+            .map_err(map_exact)?
+            .checked_mul_integer(50)
+            .map_err(map_exact)?;
+        let eta = ExactRatio::new(
+            kappa_squared
+                .numerator()
+                .checked_mul(denominator.denominator())
+                .ok_or(CertifiedIpmError::ExactOverflow)?,
+            kappa_squared
+                .denominator()
+                .checked_mul(denominator.numerator())
+                .ok_or(CertifiedIpmError::ExactOverflow)?,
+        )
+        .map_err(map_exact)?;
+        if !eta.is_positive() {
+            return Err(CertifiedIpmError::InvalidUpdateDirection);
+        }
+        let arc_flows = self
+            .flow
+            .arc_flows
+            .iter()
+            .zip(direction)
+            .map(|(flow, delta)| {
+                flow.checked_add(eta.checked_mul(*delta).map_err(map_exact)?)
+                    .map_err(map_exact)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let candidate = FractionalCirculation {
+            cost: network.fractional_cost(&arc_flows)?,
+            arc_flows,
+        };
+        network.verify_fractional_solution(&candidate)?;
+        let mut next = Self::evaluate(
+            network,
+            &candidate,
+            self.optimal_cost,
+            self.maximum_abs_input,
+            self.fixed_point_config,
+        )?;
+        let mut decrease_arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        let decrease = decrease_arithmetic.subtract_intervals(&self.potential, &next.potential)?;
+        let required = decrease_arithmetic.enclose_ratio(
+            kappa_squared.numerator(),
+            kappa_squared
+                .denominator()
+                .checked_mul(500)
+                .ok_or(CertifiedIpmError::ExactOverflow)?,
+        )?;
+        if decrease.lower_scaled() < required.upper_scaled() {
+            return Err(CertifiedIpmError::PotentialDecreaseNotCertified);
+        }
+        let changed = u64::try_from(direction.iter().filter(|delta| !delta.is_zero()).count())
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?;
+        next.update_metrics = IpmUpdateMetrics {
+            iterations: self
+                .update_metrics
+                .iterations
+                .checked_add(1)
+                .ok_or(CertifiedIpmError::ExactOverflow)?,
+            changed_coordinates: self
+                .update_metrics
+                .changed_coordinates
+                .checked_add(changed)
+                .ok_or(CertifiedIpmError::ExactOverflow)?,
+            ..self.update_metrics
+        };
+        Ok(CertifiedIpmUpdate {
+            next_snapshot: next,
+            eta,
+            approximation,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
@@ -282,6 +575,14 @@ pub enum CertifiedIpmError {
     UncertifiedApproximation,
     #[error("the approximation auditor uses a different fixed-point configuration")]
     ArithmeticConfigMismatch,
+    #[error("the approximate ratio direction has no strictly negative dot product")]
+    InvalidUpdateDirection,
+    #[error("the approximate ratio direction does not certify the required quality")]
+    RatioQualityNotCertified,
+    #[error("the successor potential drop is below kappa^2/500")]
+    PotentialDecreaseNotCertified,
+    #[error("the Detect threshold must be strictly positive")]
+    InvalidDetectThreshold,
 }
 
 fn exact_ratio(value: i128) -> Result<ExactRatio, CertifiedIpmError> {
@@ -293,6 +594,10 @@ fn enclose_exact(
     value: ExactRatio,
 ) -> Result<DyadicInterval, CertifiedIpmError> {
     Ok(arithmetic.enclose_ratio(value.numerator(), value.denominator())?)
+}
+
+fn map_exact(_: crate::StableMinRatioError) -> CertifiedIpmError {
+    CertifiedIpmError::ExactOverflow
 }
 
 /// Auditable totals for rational potential-reduction updates.
@@ -504,7 +809,8 @@ fn rational_potential(
 #[cfg(test)]
 mod tests {
     use super::{
-        CertifiedIpmError, CertifiedIpmSnapshot, InteriorPointError, RationalInteriorPointState,
+        CertifiedIpmError, CertifiedIpmSnapshot, InteriorPointError, IpmDetectLedger,
+        RationalInteriorPointState,
     };
     use crate::{
         CertifiedFixedPoint, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
@@ -800,5 +1106,103 @@ mod tests {
                 )
                 .unwrap()
         );
+    }
+
+    #[test]
+    fn applies_certified_lemma_44_update_without_flow_oracle() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+            cost: ExactRatio::new(1, 1).unwrap(),
+        };
+        let arithmetic = certified_arithmetic();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &flow,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+        let update = snapshot
+            .apply_lemma_44_update(
+                &network,
+                &[
+                    ExactRatio::new(40, 1).unwrap(),
+                    ExactRatio::new(0, 1).unwrap(),
+                ],
+                &[
+                    ExactRatio::new(2, 1).unwrap(),
+                    ExactRatio::new(2, 1).unwrap(),
+                ],
+                ExactRatio::new(1, 2).unwrap(),
+                &[
+                    ExactRatio::new(-1, 1).unwrap(),
+                    ExactRatio::new(-1, 1).unwrap(),
+                ],
+            )
+            .unwrap();
+        assert_eq!(update.eta, ExactRatio::new(1, 8_000).unwrap());
+        assert_eq!(update.next_snapshot.update_metrics().iterations, 1);
+        assert_eq!(update.next_snapshot.update_metrics().changed_coordinates, 2);
+        assert!(
+            update
+                .next_snapshot
+                .objective_gap()
+                .contains_ratio(7_999, 8_000)
+                .unwrap()
+        );
+        network
+            .verify_fractional_solution(update.next_snapshot.flow())
+            .unwrap();
+    }
+
+    #[test]
+    fn detect_ledger_requires_certified_lower_bound_and_resets_edges() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+            cost: ExactRatio::new(1, 1).unwrap(),
+        };
+        let arithmetic = certified_arithmetic();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &flow,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+        let mut ledger = IpmDetectLedger::new(&snapshot).unwrap();
+        ledger
+            .record_update(
+                &snapshot,
+                ExactRatio::new(1, 8_000).unwrap(),
+                &[
+                    ExactRatio::new(-1, 1).unwrap(),
+                    ExactRatio::new(-1, 1).unwrap(),
+                ],
+            )
+            .unwrap();
+        assert!(
+            ledger
+                .detect(ExactRatio::new(1, 1_000).unwrap())
+                .unwrap()
+                .is_empty()
+        );
+        let detected = ledger.detect(ExactRatio::new(1, 10_000).unwrap()).unwrap();
+        assert_eq!(detected.len(), 2);
+        assert!(
+            ledger
+                .accumulated_changes()
+                .iter()
+                .all(|value| value.contains_ratio(0, 1).unwrap())
+        );
+        assert_eq!(ledger.metrics().detect_calls, 2);
+        assert_eq!(ledger.metrics().detected_edges, 2);
     }
 }

@@ -53,6 +53,53 @@ impl ExactRatio {
         self.denominator
     }
 
+    #[must_use]
+    pub const fn is_zero(self) -> bool {
+        self.numerator == 0
+    }
+
+    #[must_use]
+    pub const fn is_positive(self) -> bool {
+        self.numerator > 0
+    }
+
+    #[must_use]
+    pub const fn is_negative(self) -> bool {
+        self.numerator < 0
+    }
+
+    /// Returns the exact absolute value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the numerator is `i128::MIN`.
+    pub fn abs(self) -> Result<Self, StableMinRatioError> {
+        if self.numerator < 0 {
+            Self::new(
+                self.numerator
+                    .checked_neg()
+                    .ok_or(StableMinRatioError::Overflow)?,
+                self.denominator,
+            )
+        } else {
+            Ok(self)
+        }
+    }
+
+    /// Negates an exact ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the numerator is `i128::MIN`.
+    pub fn checked_neg(self) -> Result<Self, StableMinRatioError> {
+        Self::new(
+            self.numerator
+                .checked_neg()
+                .ok_or(StableMinRatioError::Overflow)?,
+            self.denominator,
+        )
+    }
+
     /// Compares two ratios with checked cross multiplication.
     ///
     /// # Errors
