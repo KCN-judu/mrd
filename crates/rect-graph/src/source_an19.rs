@@ -767,6 +767,7 @@ pub struct AugmentedAn19Graph {
 #[derive(Clone, Debug)]
 pub struct AugmentedAn19Edge {
     active: bool,
+    halved: bool,
     first: FlowNodeId,
     second: FlowNodeId,
     length: ExactRatio,
@@ -802,6 +803,7 @@ impl AugmentedAn19Graph {
             original_endpoints.push((edge.first, edge.second));
             edges.push(AugmentedAn19Edge {
                 active: true,
+                halved: false,
                 first: edge.first,
                 second: edge.second,
                 length: edge.length,
@@ -843,6 +845,7 @@ impl AugmentedAn19Graph {
         let edge = self.edges.len();
         self.edges.push(AugmentedAn19Edge {
             active: true,
+            halved: false,
             first: attached_to,
             second: vertex,
             length,
@@ -893,6 +896,7 @@ impl AugmentedAn19Graph {
         let from_edge = self.edges.len();
         self.edges.push(AugmentedAn19Edge {
             active: true,
+            halved: edge.halved,
             first: from,
             second: vertex,
             length: offset,
@@ -901,6 +905,7 @@ impl AugmentedAn19Graph {
         let toward_edge = self.edges.len();
         self.edges.push(AugmentedAn19Edge {
             active: true,
+            halved: edge.halved,
             first: vertex,
             second: toward,
             length: remainder,
@@ -963,6 +968,19 @@ impl AugmentedAn19Graph {
         {
             return Err(An19PetalError::InvalidAugmentedGraph);
         }
+        if selected_augmented_edges.len() + 1 != self.node_count {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        let mut augmented_connectivity = DisjointSet::new(self.node_count);
+        for index in selected_augmented_edges {
+            let edge = &self.edges[*index];
+            if !augmented_connectivity.union(edge.first.0, edge.second.0) {
+                return Err(An19PetalError::InvalidAugmentedGraph);
+            }
+        }
+        if !all_connected(&mut augmented_connectivity, self.node_count) {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
         let original_edge_count = self.original_endpoints.len();
         let mut active_segments = vec![0_usize; original_edge_count];
         let mut selected_segments = vec![0_usize; original_edge_count];
@@ -1020,6 +1038,815 @@ impl AugmentedProjection {
     pub fn dense_to_augmented(&self) -> &[usize] {
         &self.dense_to_augmented
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct An19HierarchyMetrics {
+    pub recursion_calls: u64,
+    pub base_cases: u64,
+    pub petals: u64,
+    pub portal_splits: u64,
+    pub virtual_leaves: u64,
+    pub highway_edges_halved: u64,
+    pub shortest_path_runs: u64,
+    pub edge_relaxations: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19RadiusEdge {
+    pub first: FlowNodeId,
+    pub second: FlowNodeId,
+    pub length: ExactRatio,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19RadiusCertificate {
+    pub cluster_size: usize,
+    pub center: FlowNodeId,
+    pub target: FlowNodeId,
+    pub radius: ExactRatio,
+    pub base_threshold: ExactRatio,
+    pub base_case: bool,
+    pub distances: Vec<(FlowNodeId, ExactRatio)>,
+    pub edges: Vec<An19RadiusEdge>,
+}
+
+impl An19RadiusCertificate {
+    /// Independently checks the recorded exact shortest-path radius witness.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for incomplete vertices, a violated edge triangle
+    /// inequality, a missing tight predecessor, an incorrect maximum radius,
+    /// or an inconsistent base-case decision.
+    pub fn verify(&self) -> Result<(), An19PetalError> {
+        if self.cluster_size == 0
+            || self.cluster_size != self.distances.len()
+            || !self
+                .distances
+                .iter()
+                .any(|(vertex, distance)| *vertex == self.center && distance.is_zero())
+            || !self
+                .distances
+                .iter()
+                .any(|(vertex, _)| *vertex == self.target)
+        {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        let distance_map = self.distances.iter().copied().collect::<BTreeMap<_, _>>();
+        if distance_map.len() != self.cluster_size {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        let mut maximum = ratio(0, 1)?;
+        for distance in distance_map.values() {
+            if distance.is_negative() {
+                return Err(An19PetalError::InvalidRadiusCertificate);
+            }
+            if ratio_less(maximum, *distance)? {
+                maximum = *distance;
+            }
+        }
+        if maximum != self.radius {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        for edge in &self.edges {
+            let first = *distance_map
+                .get(&edge.first)
+                .ok_or(An19PetalError::InvalidRadiusCertificate)?;
+            let second = *distance_map
+                .get(&edge.second)
+                .ok_or(An19PetalError::InvalidRadiusCertificate)?;
+            if !edge.length.is_positive()
+                || ratio_less(
+                    first
+                        .checked_add(edge.length)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                    second,
+                )?
+                || ratio_less(
+                    second
+                        .checked_add(edge.length)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                    first,
+                )?
+            {
+                return Err(An19PetalError::InvalidRadiusCertificate);
+            }
+        }
+        for (vertex, distance) in &self.distances {
+            if *vertex == self.center {
+                continue;
+            }
+            let has_tight_predecessor = self.edges.iter().any(|edge| {
+                let neighbor = if edge.first == *vertex {
+                    Some(edge.second)
+                } else if edge.second == *vertex {
+                    Some(edge.first)
+                } else {
+                    None
+                };
+                neighbor.is_some_and(|neighbor| {
+                    distance_map
+                        .get(&neighbor)
+                        .is_some_and(|neighbor_distance| {
+                            neighbor_distance
+                                .checked_add(edge.length)
+                                .is_ok_and(|candidate| candidate == *distance)
+                        })
+                })
+            });
+            if !has_tight_predecessor {
+                return Err(An19PetalError::InvalidRadiusCertificate);
+            }
+        }
+        let expected_base = self.cluster_size <= 2
+            || self
+                .base_threshold
+                .at_least(self.radius)
+                .map_err(|_| An19PetalError::Overflow)?;
+        if expected_base != self.base_case {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        Ok(())
+    }
+}
+
+/// Exact unit-length source-semantics implementation of AN19 Figures 4--6.
+///
+/// This constructor deliberately uses the repeated-shortest-path Figure 6
+/// baseline. Its output and counters do not establish the fast region-growing
+/// runtime claimed by AN19.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19HierarchicalLsst {
+    pub tree_edges: BTreeSet<SourceEdgeId>,
+    pub weighted_stretch: ExactRatio,
+    pub total_weight: ExactRatio,
+    pub radius_certificates: Vec<An19RadiusCertificate>,
+    pub metrics: An19HierarchyMetrics,
+}
+
+impl An19HierarchicalLsst {
+    /// Runs the exact hierarchical petal decomposition from `root`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a nonunit or disconnected source graph, an invalid
+    /// root, a failed Figure 5 partition, repeated highway halving, an invalid
+    /// recovered tree, or exact arithmetic overflow.
+    pub fn construct(graph: &SourceDynamicGraph, root: FlowNodeId) -> Result<Self, An19PetalError> {
+        if root.0 >= graph.node_count() {
+            return Err(An19PetalError::InvalidDomain);
+        }
+        let one = ratio(1, 1)?;
+        for index in 0..graph.edge_count() {
+            if graph
+                .edge(SourceEdgeId(index))
+                .is_some_and(|edge| edge.length != one)
+            {
+                return Err(An19PetalError::NonunitLength);
+            }
+        }
+        let mut workspace = AugmentedAn19Graph::from_source(graph)?;
+        let cluster = (0..graph.node_count())
+            .map(FlowNodeId)
+            .collect::<BTreeSet<_>>();
+        let mut metrics = An19HierarchyMetrics::default();
+        let mut radius_certificates = Vec::new();
+        let selected = hierarchical_petal_decomposition(
+            &mut workspace,
+            cluster,
+            root,
+            root,
+            graph.node_count(),
+            &mut radius_certificates,
+            &mut metrics,
+        )?;
+        let tree_edges = workspace.recover_original_tree(&selected)?;
+        let (weighted_stretch, total_weight) = audit_original_tree_stretch(graph, &tree_edges)?;
+        let result = Self {
+            tree_edges,
+            weighted_stretch,
+            total_weight,
+            radius_certificates,
+            metrics,
+        };
+        result.verify(graph)?;
+        Ok(result)
+    }
+
+    /// Recomputes the original-tree and every stored radius certificate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the recovered original edge set is not a tree,
+    /// its exact weighted stretch differs, or a recursive radius witness is
+    /// invalid.
+    pub fn verify(&self, graph: &SourceDynamicGraph) -> Result<(), An19PetalError> {
+        let (weighted_stretch, total_weight) =
+            audit_original_tree_stretch(graph, &self.tree_edges)?;
+        if weighted_stretch != self.weighted_stretch
+            || total_weight != self.total_weight
+            || self.radius_certificates.is_empty()
+            || u64::try_from(self.radius_certificates.len())
+                .map_err(|_| An19PetalError::Overflow)?
+                != self.metrics.recursion_calls
+        {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        for certificate in &self.radius_certificates {
+            certificate.verify()?;
+        }
+        Ok(())
+    }
+}
+
+struct An19HierarchyPiece {
+    cluster: BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    connection_edge: usize,
+}
+
+fn hierarchical_petal_decomposition(
+    workspace: &mut AugmentedAn19Graph,
+    cluster: BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    original_node_count: usize,
+    radius_certificates: &mut Vec<An19RadiusCertificate>,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<BTreeSet<usize>, An19PetalError> {
+    metrics.recursion_calls = metrics
+        .recursion_calls
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    let projection = workspace.project()?;
+    let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
+    let radius = hierarchy_radius(&cluster, &paths)?;
+    let threshold = hierarchy_base_threshold(original_node_count)?;
+    let base_case = cluster.len() <= 2
+        || threshold
+            .at_least(radius)
+            .map_err(|_| An19PetalError::Overflow)?;
+    radius_certificates.push(build_radius_certificate(
+        &projection,
+        &cluster,
+        center,
+        target,
+        radius,
+        threshold,
+        base_case,
+        &paths,
+    )?);
+    if base_case {
+        metrics.base_cases = metrics
+            .base_cases
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        return hierarchy_shortest_path_tree(&projection, &cluster, center, &paths);
+    }
+
+    let (mut stigma, pieces, stigma_target) =
+        petal_decomposition(workspace, cluster, center, target, radius, metrics)?;
+    let mut selected = BTreeSet::new();
+    for piece in pieces {
+        halve_highway(
+            workspace,
+            &piece.cluster,
+            piece.center,
+            piece.target,
+            metrics,
+        )?;
+        let subtree = hierarchical_petal_decomposition(
+            workspace,
+            piece.cluster,
+            piece.center,
+            piece.target,
+            original_node_count,
+            radius_certificates,
+            metrics,
+        )?;
+        selected.extend(subtree);
+        if !selected.insert(piece.connection_edge) {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+    }
+    halve_highway(workspace, &stigma, center, stigma_target, metrics)?;
+    let stigma_tree = hierarchical_petal_decomposition(
+        workspace,
+        std::mem::take(&mut stigma),
+        center,
+        stigma_target,
+        original_node_count,
+        radius_certificates,
+        metrics,
+    )?;
+    selected.extend(stigma_tree);
+    Ok(selected)
+}
+
+fn petal_decomposition(
+    workspace: &mut AugmentedAn19Graph,
+    mut cluster: BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    delta: ExactRatio,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<(BTreeSet<FlowNodeId>, Vec<An19HierarchyPiece>, FlowNodeId), An19PetalError> {
+    let half = ratio(1, 2)?;
+    let r0 = delta
+        .checked_mul(half)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let mut remaining = cluster.clone();
+    let projection = workspace.project()?;
+    let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
+    let target_distance = paths.distances[target.0].ok_or(An19PetalError::Disconnected)?;
+    let first_target = if ratio_less(target_distance, r0)? {
+        let mut extension = r0
+            .checked_sub(target_distance)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let one = ratio(1, 1)?;
+        let mut virtual_target = target;
+        while extension.is_positive() {
+            let segment = if ratio_less(one, extension)? {
+                one
+            } else {
+                extension
+            };
+            let (next, _) = workspace.add_virtual_leaf(virtual_target, segment)?;
+            cluster.insert(next);
+            remaining.insert(next);
+            virtual_target = next;
+            extension = extension
+                .checked_sub(segment)
+                .map_err(|_| An19PetalError::Overflow)?;
+            metrics.virtual_leaves = metrics
+                .virtual_leaves
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+        }
+        virtual_target
+    } else {
+        ensure_vertex_at_distance(
+            workspace,
+            &mut cluster,
+            &mut remaining,
+            center,
+            target,
+            r0,
+            metrics,
+        )?
+    };
+    let first_budget = delta
+        .checked_mul(ratio(1, 4)?)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let first = create_hierarchy_petal(
+        workspace,
+        &mut cluster,
+        &mut remaining,
+        center,
+        first_target,
+        first_budget,
+        metrics,
+    )?;
+    let stigma_target = connection_predecessor(workspace, first.connection_edge, first.center)?;
+    let mut pieces = vec![first];
+    let later_budget = delta
+        .checked_mul(ratio(1, 8)?)
+        .map_err(|_| An19PetalError::Overflow)?;
+    loop {
+        let projection = workspace.project()?;
+        let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
+        let mut outside = None;
+        for vertex in &remaining {
+            let distance = paths.distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+            if ratio_less(r0, distance)? {
+                outside = Some(*vertex);
+                break;
+            }
+        }
+        let Some(outside) = outside else {
+            break;
+        };
+        let next_target = ensure_vertex_at_distance(
+            workspace,
+            &mut cluster,
+            &mut remaining,
+            center,
+            outside,
+            r0,
+            metrics,
+        )?;
+        let piece = create_hierarchy_petal(
+            workspace,
+            &mut cluster,
+            &mut remaining,
+            center,
+            next_target,
+            later_budget,
+            metrics,
+        )?;
+        pieces.push(piece);
+    }
+    if remaining.is_empty() || !remaining.contains(&center) {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    Ok((remaining, pieces, stigma_target))
+}
+
+fn create_hierarchy_petal(
+    workspace: &mut AugmentedAn19Graph,
+    fixed_cluster: &mut BTreeSet<FlowNodeId>,
+    remaining: &mut BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    budget: ExactRatio,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<An19HierarchyPiece, An19PetalError> {
+    let projection = workspace.project()?;
+    let petal = An19WeightedPetal::construct(
+        projection.graph(),
+        fixed_cluster,
+        remaining,
+        center,
+        target,
+        budget,
+    )?;
+    let mut petal_vertices = petal.at_radius.vertices;
+    let (petal_center, connection_edge) = match petal.at_radius.portal {
+        An19PathPoint::Vertex(vertex) => {
+            let position = petal
+                .at_radius
+                .path_from_center
+                .iter()
+                .position(|candidate| *candidate == vertex)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let dense = position
+                .checked_sub(1)
+                .and_then(|index| petal.at_radius.path_edges.get(index))
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let stable = *projection
+                .dense_to_augmented()
+                .get(dense.0)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            (vertex, stable)
+        }
+        An19PathPoint::EdgeInterior {
+            edge,
+            from,
+            offset_from,
+            ..
+        } => {
+            let stable = *projection
+                .dense_to_augmented()
+                .get(edge.0)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let (portal, _, toward_center) = workspace.split_edge(stable, from, offset_from)?;
+            fixed_cluster.insert(portal);
+            petal_vertices.insert(portal);
+            metrics.portal_splits = metrics
+                .portal_splits
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+            (portal, toward_center)
+        }
+    };
+    if !petal_vertices.contains(&target)
+        || petal_vertices.contains(&center)
+        || petal_vertices
+            .iter()
+            .any(|vertex| !fixed_cluster.contains(vertex))
+    {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    for vertex in &petal_vertices {
+        remaining.remove(vertex);
+    }
+    let predecessor = connection_predecessor(workspace, connection_edge, petal_center)?;
+    if !remaining.contains(&predecessor) {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    metrics.petals = metrics
+        .petals
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    Ok(An19HierarchyPiece {
+        cluster: petal_vertices,
+        center: petal_center,
+        target,
+        connection_edge,
+    })
+}
+
+fn ensure_vertex_at_distance(
+    workspace: &mut AugmentedAn19Graph,
+    fixed_cluster: &mut BTreeSet<FlowNodeId>,
+    remaining: &mut BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    distance: ExactRatio,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<FlowNodeId, An19PetalError> {
+    let projection = workspace.project()?;
+    let paths = hierarchy_shortest_paths(projection.graph(), remaining, center, metrics)?;
+    let path = recover_path(center, target, &paths)?;
+    let mut traversed = ratio(0, 1)?;
+    if distance == traversed {
+        return Ok(center);
+    }
+    for (index, dense_edge) in path.edges.iter().enumerate() {
+        let edge = projection
+            .graph()
+            .edge(*dense_edge)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        let next_distance = traversed
+            .checked_add(edge.length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if distance == next_distance {
+            return path
+                .vertices
+                .get(index + 1)
+                .copied()
+                .ok_or(An19PetalError::InvalidAugmentedGraph);
+        }
+        if ratio_less(traversed, distance)? && ratio_less(distance, next_distance)? {
+            let from = path.vertices[index];
+            let offset = distance
+                .checked_sub(traversed)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let stable = *projection
+                .dense_to_augmented()
+                .get(dense_edge.0)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let (vertex, _, _) = workspace.split_edge(stable, from, offset)?;
+            fixed_cluster.insert(vertex);
+            remaining.insert(vertex);
+            metrics.portal_splits = metrics
+                .portal_splits
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+            return Ok(vertex);
+        }
+        traversed = next_distance;
+    }
+    Err(An19PetalError::InvalidRadius)
+}
+
+fn connection_predecessor(
+    workspace: &AugmentedAn19Graph,
+    edge: usize,
+    petal_center: FlowNodeId,
+) -> Result<FlowNodeId, An19PetalError> {
+    let edge = workspace
+        .edges
+        .get(edge)
+        .filter(|candidate| candidate.active)
+        .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+    if edge.first == petal_center {
+        Ok(edge.second)
+    } else if edge.second == petal_center {
+        Ok(edge.first)
+    } else {
+        Err(An19PetalError::InvalidAugmentedGraph)
+    }
+}
+
+fn halve_highway(
+    workspace: &mut AugmentedAn19Graph,
+    cluster: &BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<(), An19PetalError> {
+    let projection = workspace.project()?;
+    let paths = hierarchy_shortest_paths(projection.graph(), cluster, center, metrics)?;
+    let path = recover_path(center, target, &paths)?;
+    for dense in path.edges {
+        let stable = *projection
+            .dense_to_augmented()
+            .get(dense.0)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        let edge = workspace
+            .edges
+            .get_mut(stable)
+            .filter(|edge| edge.active)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        if edge.halved {
+            return Err(An19PetalError::RepeatedHighway);
+        }
+        edge.length = edge
+            .length
+            .checked_mul(ratio(1, 2)?)
+            .map_err(|_| An19PetalError::Overflow)?;
+        edge.halved = true;
+        metrics.highway_edges_halved = metrics
+            .highway_edges_halved
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+    }
+    Ok(())
+}
+
+fn hierarchy_shortest_paths(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<ShortestPaths, An19PetalError> {
+    let mut petal_metrics = An19PetalMetrics::default();
+    let result = shortest_paths(graph, cluster, center, &mut petal_metrics)?;
+    metrics.shortest_path_runs = metrics
+        .shortest_path_runs
+        .checked_add(petal_metrics.shortest_path_runs)
+        .ok_or(An19PetalError::Overflow)?;
+    metrics.edge_relaxations = metrics
+        .edge_relaxations
+        .checked_add(petal_metrics.edge_relaxations)
+        .ok_or(An19PetalError::Overflow)?;
+    Ok(result)
+}
+
+fn hierarchy_radius(
+    cluster: &BTreeSet<FlowNodeId>,
+    paths: &ShortestPaths,
+) -> Result<ExactRatio, An19PetalError> {
+    let mut radius = ratio(0, 1)?;
+    for vertex in cluster {
+        let distance = paths.distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+        if ratio_less(radius, distance)? {
+            radius = distance;
+        }
+    }
+    Ok(radius)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_radius_certificate(
+    projection: &AugmentedProjection,
+    cluster: &BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    radius: ExactRatio,
+    base_threshold: ExactRatio,
+    base_case: bool,
+    paths: &ShortestPaths,
+) -> Result<An19RadiusCertificate, An19PetalError> {
+    let distances = cluster
+        .iter()
+        .map(|vertex| {
+            paths.distances[vertex.0]
+                .map(|distance| (*vertex, distance))
+                .ok_or(An19PetalError::Disconnected)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut edges = Vec::new();
+    for index in 0..projection.graph().edge_count() {
+        let edge = projection
+            .graph()
+            .edge(SourceEdgeId(index))
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        if cluster.contains(&edge.first) && cluster.contains(&edge.second) {
+            edges.push(An19RadiusEdge {
+                first: edge.first,
+                second: edge.second,
+                length: edge.length,
+            });
+        }
+    }
+    let certificate = An19RadiusCertificate {
+        cluster_size: cluster.len(),
+        center,
+        target,
+        radius,
+        base_threshold,
+        base_case,
+        distances,
+        edges,
+    };
+    certificate.verify()?;
+    Ok(certificate)
+}
+
+fn hierarchy_shortest_path_tree(
+    projection: &AugmentedProjection,
+    cluster: &BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    paths: &ShortestPaths,
+) -> Result<BTreeSet<usize>, An19PetalError> {
+    let mut tree = BTreeSet::new();
+    for vertex in cluster {
+        if *vertex == center {
+            continue;
+        }
+        let (_, dense) = paths.predecessors[vertex.0].ok_or(An19PetalError::Disconnected)?;
+        tree.insert(
+            *projection
+                .dense_to_augmented()
+                .get(dense.0)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?,
+        );
+    }
+    if tree.len() + 1 != cluster.len() {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    Ok(tree)
+}
+
+fn hierarchy_base_threshold(node_count: usize) -> Result<ExactRatio, An19PetalError> {
+    let log_n = usize::BITS - node_count.saturating_sub(1).leading_zeros();
+    let log_log_n = ceil_log_log(node_count);
+    let product = usize::try_from(log_n)
+        .ok()
+        .and_then(|value| value.checked_mul(log_log_n))
+        .and_then(|value| value.checked_mul(10))
+        .ok_or(An19PetalError::Overflow)?;
+    ratio(
+        i128::try_from(product).map_err(|_| An19PetalError::Overflow)?,
+        1,
+    )
+}
+
+fn audit_original_tree_stretch(
+    graph: &SourceDynamicGraph,
+    tree: &BTreeSet<SourceEdgeId>,
+) -> Result<(ExactRatio, ExactRatio), An19PetalError> {
+    if tree.len() + 1 != graph.node_count() {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    let mut adjacency = vec![Vec::<(usize, SourceEdgeId)>::new(); graph.node_count()];
+    let mut connectivity = DisjointSet::new(graph.node_count());
+    for edge_id in tree {
+        let edge = graph
+            .edge(*edge_id)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        if !connectivity.union(edge.first.0, edge.second.0) {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        adjacency[edge.first.0].push((edge.second.0, *edge_id));
+        adjacency[edge.second.0].push((edge.first.0, *edge_id));
+    }
+    if !all_connected(&mut connectivity, graph.node_count()) {
+        return Err(An19PetalError::InvalidAugmentedGraph);
+    }
+    let mut weighted_stretch = ratio(0, 1)?;
+    let mut total_weight = ratio(0, 1)?;
+    for index in 0..graph.edge_count() {
+        let edge = graph
+            .edge(SourceEdgeId(index))
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        let distance = original_tree_distance(graph, &adjacency, edge.first, edge.second)?;
+        let stretch = distance
+            .checked_mul(
+                edge.length
+                    .reciprocal()
+                    .map_err(|_| An19PetalError::Overflow)?,
+            )
+            .map_err(|_| An19PetalError::Overflow)?;
+        let source_stretch = stretch
+            .checked_add(ratio(1, 1)?)
+            .map_err(|_| An19PetalError::Overflow)?;
+        weighted_stretch = weighted_stretch
+            .checked_add(
+                edge.weight
+                    .checked_mul(source_stretch)
+                    .map_err(|_| An19PetalError::Overflow)?,
+            )
+            .map_err(|_| An19PetalError::Overflow)?;
+        total_weight = total_weight
+            .checked_add(edge.weight)
+            .map_err(|_| An19PetalError::Overflow)?;
+    }
+    Ok((weighted_stretch, total_weight))
+}
+
+fn original_tree_distance(
+    graph: &SourceDynamicGraph,
+    adjacency: &[Vec<(usize, SourceEdgeId)>],
+    source: FlowNodeId,
+    target: FlowNodeId,
+) -> Result<ExactRatio, An19PetalError> {
+    let mut stack = vec![(source.0, usize::MAX, ratio(0, 1)?)];
+    while let Some((node, parent, distance)) = stack.pop() {
+        if node == target.0 {
+            return Ok(distance);
+        }
+        for (next, edge_id) in &adjacency[node] {
+            if *next == parent {
+                continue;
+            }
+            let edge = graph
+                .edge(*edge_id)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            stack.push((
+                *next,
+                node,
+                distance
+                    .checked_add(edge.length)
+                    .map_err(|_| An19PetalError::Overflow)?,
+            ));
+        }
+    }
+    Err(An19PetalError::InvalidAugmentedGraph)
 }
 
 fn split_provenance(
@@ -2125,6 +2952,8 @@ pub enum An19PetalError {
     InvalidContraction,
     #[error("AN19 augmented hierarchy or original-tree recovery is invalid")]
     InvalidAugmentedGraph,
+    #[error("AN19 recursive radius or tree-stretch certificate is invalid")]
+    InvalidRadiusCertificate,
     #[error("certified AN19 logarithmic comparison needs more bounded precision")]
     InsufficientPrecision,
     #[error("checked AN19 petal arithmetic overflowed")]
@@ -2676,5 +3505,112 @@ mod tests {
                 .recover_original_tree(&BTreeSet::from([0, 1]))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn hierarchical_base_case_matches_the_exact_tree_oracle() {
+        use super::An19HierarchicalLsst;
+        use crate::ExactStaticLsstOracle;
+
+        let graph = path_graph(5);
+        let hierarchy = An19HierarchicalLsst::construct(&graph, FlowNodeId(0)).unwrap();
+        let oracle = ExactStaticLsstOracle::solve(&graph).unwrap();
+        assert_eq!(hierarchy.tree_edges, oracle.tree_edges);
+        assert_eq!(hierarchy.weighted_stretch, oracle.weighted_stretch);
+        assert_eq!(hierarchy.total_weight, oracle.total_weight);
+        assert_eq!(hierarchy.metrics.recursion_calls, 1);
+        assert_eq!(hierarchy.metrics.base_cases, 1);
+        assert_eq!(hierarchy.radius_certificates.len(), 1);
+        assert!(hierarchy.radius_certificates[0].base_case);
+        hierarchy.verify(&graph).unwrap();
+        let mut invalid_radius = hierarchy.radius_certificates[0].clone();
+        invalid_radius.radius = ExactRatio::new(5, 1).unwrap();
+        assert!(invalid_radius.verify().is_err());
+        let mut invalid_stretch = hierarchy.clone();
+        invalid_stretch.weighted_stretch = ExactRatio::new(1, 1).unwrap();
+        assert!(invalid_stretch.verify(&graph).is_err());
+    }
+
+    #[test]
+    fn hierarchical_recursion_without_a_virtual_first_target_recovers_original_edges() {
+        use super::{An19HierarchyMetrics, AugmentedAn19Graph, hierarchical_petal_decomposition};
+
+        let graph = path_graph(500);
+        let mut workspace = AugmentedAn19Graph::from_source(&graph).unwrap();
+        let cluster = (0..500).map(FlowNodeId).collect::<BTreeSet<_>>();
+        let mut certificates = Vec::new();
+        let mut metrics = An19HierarchyMetrics::default();
+        let selected = hierarchical_petal_decomposition(
+            &mut workspace,
+            cluster,
+            FlowNodeId(0),
+            FlowNodeId(499),
+            500,
+            &mut certificates,
+            &mut metrics,
+        )
+        .unwrap();
+        let recovered = workspace.recover_original_tree(&selected).unwrap();
+        assert_eq!(recovered.len(), 499);
+        assert!(metrics.recursion_calls > 1);
+        assert!(metrics.petals > 0);
+        assert!(metrics.portal_splits > 0);
+        assert!(
+            certificates
+                .iter()
+                .any(|certificate| !certificate.base_case)
+        );
+    }
+
+    #[test]
+    fn hierarchical_constructor_suppresses_the_unit_virtual_first_path() {
+        use super::An19HierarchicalLsst;
+
+        let graph = path_graph(500);
+        let hierarchy = An19HierarchicalLsst::construct(&graph, FlowNodeId(0)).unwrap();
+        assert_eq!(
+            hierarchy.tree_edges,
+            (0..499).map(crate::SourceEdgeId).collect()
+        );
+        assert!(hierarchy.metrics.virtual_leaves > 0);
+        assert!(hierarchy.metrics.recursion_calls > 1);
+        assert!(hierarchy.metrics.petals > 0);
+    }
+
+    #[test]
+    fn hierarchical_base_cases_differentiate_against_all_connected_four_node_graphs() {
+        use super::An19HierarchicalLsst;
+        use crate::ExactStaticLsstOracle;
+
+        let endpoints = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let mut checked = 0;
+        for mask in 0_u32..(1_u32 << endpoints.len()) {
+            let edges = endpoints
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| mask & (1_u32 << index) != 0)
+                .map(|(index, (first, second))| SourceWeightedEdge {
+                    first: FlowNodeId(*first),
+                    second: FlowNodeId(*second),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(i128::try_from(index + 1).unwrap(), 1).unwrap(),
+                })
+                .collect::<Vec<_>>();
+            let graph = SourceDynamicGraph::new(4, edges, 16).unwrap();
+            let Ok(oracle) = ExactStaticLsstOracle::solve(&graph) else {
+                continue;
+            };
+            let hierarchy = An19HierarchicalLsst::construct(&graph, FlowNodeId(0)).unwrap();
+            hierarchy.verify(&graph).unwrap();
+            assert_eq!(hierarchy.total_weight, oracle.total_weight);
+            assert!(
+                hierarchy
+                    .weighted_stretch
+                    .at_least(oracle.weighted_stretch)
+                    .unwrap()
+            );
+            checked += 1;
+        }
+        assert_eq!(checked, 38);
     }
 }
