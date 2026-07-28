@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: blocked
 - Last completed phase: P8
-- Last pushed SHA: af46e7423c06b9460d81e11c657abbc8d707ad7b
-- Plan last updated: 2026-07-28T16:15:17Z
+- Last pushed SHA: 86811157e1db3342f80046607d75135414dd143b
+- Plan last updated: 2026-07-28T16:17:18Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -533,7 +533,8 @@ P9.3 is split into the following source-gated subphases:
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
    `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
    `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`, `bc61592`,
-   `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`, `60fdfe4`, `0fc48a1`.** The Appendix B.3
+   `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`, `60fdfe4`, `0fc48a1`,
+   `d17a6cd`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -572,7 +573,7 @@ P9.3 is split into the following source-gated subphases:
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
      `27d5773`, `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`,
      `bc61592`, `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`, `60fdfe4`,
-     `0fc48a1`.** The exact
+     `0fc48a1`, `d17a6cd`.** The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge
