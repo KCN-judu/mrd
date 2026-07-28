@@ -2334,9 +2334,11 @@ fn adversarial_problems(
                 Ok(problem)
             })
             .collect(),
+        An19AdversarialFamily::HighwayHalvingReorder => (0..=1)
+            .map(|projection_generation| path_problem(size, family, projection_generation))
+            .collect(),
         An19AdversarialFamily::RepeatedPortalSplitting
         | An19AdversarialFamily::AllEqualReducedKeys
-        | An19AdversarialFamily::HighwayHalvingReorder
         | An19AdversarialFamily::VirtualRealMixedSegments => {
             Ok(vec![path_problem(size, family, 0)?])
         }
@@ -2352,7 +2354,11 @@ fn path_problem(
     let mut total_length = 0_i128;
     for index in 0..nodes - 1 {
         let length = if family == An19AdversarialFamily::HighwayHalvingReorder {
-            if index % 2 == 0 { 1 } else { 2 }
+            if index % 2 == 0 {
+                if logical_depth == 0 { 4 } else { 2 }
+            } else {
+                3
+            }
         } else {
             1
         };
@@ -2386,8 +2392,12 @@ fn path_problem(
         if family == An19AdversarialFamily::VirtualRealMixedSegments && index % 3 == 1 {
             segment.source_edge_id = None;
         }
-        if family == An19AdversarialFamily::HighwayHalvingReorder && index % 2 == 0 {
+        if family == An19AdversarialFamily::HighwayHalvingReorder
+            && logical_depth > 0
+            && index % 2 == 0
+        {
             segment.highway_halved = true;
+            segment.symbolic_unsplit_rounded_length = ratio(4, 1)?.into();
         }
         segment.projection_generation = logical_depth;
     }
@@ -2515,7 +2525,45 @@ mod tests {
                 .iter()
                 .all(|case| case.charge_analyses.len() == 6)
         );
+        assert!(!campaign.naive_reduced_class_conversion_survived);
         assert!(!campaign.runtime_status.an19_runtime_verified);
+    }
+
+    #[test]
+    fn event_engine_highway_halving_fixture_reorders_reverse_keys() {
+        let snapshots =
+            adversarial_problems(An19AdversarialFamily::HighwayHalvingReorder, 16).unwrap();
+        assert_eq!(snapshots.len(), 2);
+        let reverse_costs = snapshots
+            .iter()
+            .map(|snapshot| {
+                let problem = snapshot.as_problem();
+                let mut metrics = An19PetalMetrics::default();
+                let paths = fast_shortest_paths(
+                    problem.graph,
+                    problem.cluster,
+                    problem.center,
+                    &mut metrics,
+                )
+                .unwrap();
+                let (adjacency, _) =
+                    traced_reduced_adjacency(problem.graph, problem.remaining, &paths.distances)
+                        .unwrap();
+                [0, 1].map(|edge_id| {
+                    adjacency
+                        .iter()
+                        .flatten()
+                        .find(|arc| {
+                            arc.edge == SourceEdgeId(edge_id)
+                                && arc.orientation == An19EventOrientation::SecondToFirst
+                        })
+                        .unwrap()
+                        .reduced_cost
+                })
+            })
+            .collect::<Vec<_>>();
+        assert!(ratio_less(reverse_costs[0][1], reverse_costs[0][0]).unwrap());
+        assert!(ratio_less(reverse_costs[1][0], reverse_costs[1][1]).unwrap());
     }
 
     #[test]
