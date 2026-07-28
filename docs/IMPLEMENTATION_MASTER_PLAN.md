@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 7d96721edcf6b35d4c21e95cbc132db11a3e659f
-- Plan last updated: 2026-07-28T01:48:00Z
+- Last pushed SHA: a84654d5c47b25675ac5afd689af6f4cf7b7e2ba
+- Plan last updated: 2026-07-28T02:12:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -496,13 +496,16 @@ correctness cannot be inferred from an end-to-end test alone:
    source step size, strict-interior successor validation, certified potential
    decrease, iteration/coordinate counters, and lower-bound Detect accounting.
    Evidence is in `docs/phase-reports/P09-lemma-44-updates.md`.
-4. **P9.2.4 state: in_progress. Start SHA: `ab6fb10`.** The Appendix B.1
-   root-vertex augmentation now supports arbitrary demands in the normalized
-   zero-lower-bound model, with an initial-potential bound, additive-half
-   certificate, exact recovery differential, and augmented-optimum mapping.
-   Nonzero-lower-bound shifting and the Lemma 4.11 perturbation-cost
-   probability contract remain open; evidence is in
+4. **P9.2.4 state: complete. Implementation SHAs: `5719917`, `82ac962`,
+   `aabe7fc`.** Exact lower-bound normalization, Appendix B.1 augmentation,
+   initial/additive-half certificates, KP15 rounding, Lemma 4.11 perturbation
+   constants and probability contract, and P7-verified recovery are complete.
+   Evidence is in
    `docs/phase-reports/P09-initial-termination-recovery.md`.
+
+P9.2 is complete. Its fixed-point, quantity, transition, initialization,
+termination, and recovery layers retain explicit source assumptions and make
+no dynamic-runtime claim.
 
 No P9.2 item may use `f64`, the existing rational surrogate, or an unchecked
 transcendental result as evidence for Equation (9). The fixed-point word-size
@@ -511,7 +514,7 @@ precision cannot certify the required inequalities.
 
 ### P9.3 - Source-grade low-stretch and spanner structures
 
-**State:** planned. Replace the P8/P9 static certificate baselines with the
+**State:** in_progress. **Start SHA:** `aabe7fc`. Replace the P8/P9 static certificate baselines with the
 source constructions and accounting required by Lemmas 5.4--5.5, Theorem 8.2,
 and Theorem 1.2. Preserve each exact constructor/verifier as an Oracle. Require
 the precise decremental/vertex-split domain, embeddings, stretch, congestion,
@@ -641,4 +644,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.1 | complete | d1c7a3b | 44d50d4 | 44d50d4 | 44d50d4 | `docs/phase-reports/P09-fixed-point-arithmetic.md` | certified dyadic `log`, `exp`, and negative-power intervals; 191 workspace tests passed | 2026-07-27T23:36:48Z | 2026-07-28T00:05:39Z | Equation (9) integration continues in P9.2.2 |
 | P9.2.2 | complete | 44d50d4 | bba500e | bba500e | bba500e | `docs/phase-reports/P09-certified-ipm-quantities.md` | certified Equation (9), lengths, gradients, and approximation hypotheses; 194 workspace tests passed | 2026-07-28T00:05:39Z | 2026-07-28T00:23:57Z | Lemma 4.4 transitions continue in P9.2.3 |
 | P9.2.3 | complete | bba500e | ab6fb10 | cdc4c0d | cdc4c0d | `docs/phase-reports/P09-lemma-44-updates.md` | certified Lemma 4.4 transition, strict-interior/potential-drop checks, and Detect ledger; full workspace audit passed | 2026-07-28T00:24:00Z | 2026-07-28T01:20:00Z | P9.2.4 initial point, termination, and recovery remain |
-| P9.2.4 | in_progress | ab6fb10 | 5719917, 82ac962 | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | Appendix B.1 arbitrary-demand root augmentation, additive-half certificate, augmented-optimum mapping, and exact recovery differential | 2026-07-28T01:26:00Z | pending | nonzero lower-bound shifting and Lemma 4.11 perturbation interface |
+| P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
+| P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
