@@ -278,6 +278,40 @@ pub struct An19LocalEventBoundCertificate {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum An19PracticalQueueStrategy {
+    StableBinaryMinHeap,
+    LinearMinimumScan,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum An19PracticalQueueProofScope {
+    ReducedEngineFixedSnapshot,
+    An19RuntimeTarget,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct An19PracticalQueueBoundCertificate {
+    pub schema_version: u32,
+    pub strategy: An19PracticalQueueStrategy,
+    pub proof_scope: An19PracticalQueueProofScope,
+    pub queue_insertion_count: u64,
+    pub queue_pop_count: u64,
+    pub edge_count: u64,
+    pub heap_height_bound: u32,
+    pub push_comparison_bound: u64,
+    pub pop_comparison_bound: u64,
+    pub relaxation_label_comparison_bound: u64,
+    pub total_comparison_bound: u64,
+    pub observed_push_comparisons: u64,
+    pub observed_pop_comparisons: u64,
+    pub observed_relaxation_label_comparisons: u64,
+    pub observed_total_comparisons: u64,
+    pub an19_priority_queue_target_proved: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct An19EventRuntimeStatus {
     pub semantics_implemented: bool,
@@ -319,6 +353,7 @@ pub struct An19EventRun {
     pub queue_trace: Vec<An19EventTraceRecord>,
     pub metrics: An19SnapshotMetrics,
     pub local_event_bound: An19LocalEventBoundCertificate,
+    pub practical_queue_bound: Option<An19PracticalQueueBoundCertificate>,
     pub charge_analyses: Vec<An19ChargeAnalysis>,
     pub runtime_status: An19EventRuntimeStatus,
 }
@@ -383,6 +418,9 @@ struct QueueStatistics {
     popped: u64,
     stale: u64,
     comparisons: u64,
+    heap_push_comparisons: u64,
+    heap_pop_comparisons: u64,
+    relaxation_label_comparisons: u64,
     replacements: u64,
     equal_key_ties: u64,
     maximum_size: u64,
@@ -650,8 +688,7 @@ fn traced_reduced_thresholds(
     }
     let (adjacency, distinct_reduced_costs) =
         traced_reduced_adjacency(problem.graph, problem.remaining, &paths.distances)?;
-    let mut queue = seeds;
-    let mut queue_observations = queue
+    let mut queue_observations = seeds
         .iter()
         .cloned()
         .map(|item| QueueObservation {
@@ -662,17 +699,21 @@ fn traced_reduced_thresholds(
         })
         .collect::<Vec<_>>();
     let mut statistics = QueueStatistics {
-        inserted: u64::try_from(queue.len()).map_err(|_| An19PetalError::Overflow)?,
-        maximum_size: u64::try_from(queue.len()).map_err(|_| An19PetalError::Overflow)?,
+        inserted: u64::try_from(seeds.len()).map_err(|_| An19PetalError::Overflow)?,
         ..QueueStatistics::default()
     };
+    let mut queue = Vec::with_capacity(seeds.len());
+    for seed in seeds {
+        trace_heap_push(&mut queue, seed, &mut statistics)?;
+        statistics.maximum_size = statistics
+            .maximum_size
+            .max(u64::try_from(queue.len()).map_err(|_| An19PetalError::Overflow)?);
+    }
     let mut settled = vec![false; node_count];
     let mut witnesses = vec![None; node_count];
     let mut ordered = Vec::new();
     let mut pop_sequence = 0_u64;
-    while !queue.is_empty() {
-        let minimum = trace_queue_minimum(&queue, &mut statistics)?;
-        let item = queue.remove(minimum);
+    while let Some(item) = trace_heap_pop(&mut queue, &mut statistics)? {
         pop_sequence = pop_sequence
             .checked_add(1)
             .ok_or(An19PetalError::Overflow)?;
@@ -720,6 +761,10 @@ fn traced_reduced_thresholds(
                         .comparisons
                         .checked_add(1)
                         .ok_or(An19PetalError::Overflow)?;
+                    statistics.relaxation_label_comparisons = statistics
+                        .relaxation_label_comparisons
+                        .checked_add(1)
+                        .ok_or(An19PetalError::Overflow)?;
                     if candidate == old {
                         statistics.equal_key_ties = statistics
                             .equal_key_ties
@@ -747,7 +792,7 @@ fn traced_reduced_thresholds(
                     insertion_sequence,
                     predecessor: Some(*arc),
                 };
-                queue.push(queued.clone());
+                trace_heap_push(&mut queue, queued.clone(), &mut statistics)?;
                 queue_observations.push(QueueObservation {
                     item: queued,
                     pop_sequence: None,
@@ -918,21 +963,88 @@ fn traced_reduced_adjacency(
     Ok((adjacency, distinct))
 }
 
-fn trace_queue_minimum(
-    queue: &[TraceQueueItem],
+fn trace_heap_push(
+    heap: &mut Vec<TraceQueueItem>,
+    item: TraceQueueItem,
     statistics: &mut QueueStatistics,
-) -> Result<usize, An19PetalError> {
-    let mut minimum = 0;
-    for index in 1..queue.len() {
-        statistics.comparisons = statistics
-            .comparisons
-            .checked_add(1)
-            .ok_or(An19PetalError::Overflow)?;
-        if trace_item_less(&queue[index], &queue[minimum], statistics)? {
-            minimum = index;
+) -> Result<(), An19PetalError> {
+    heap.push(item);
+    let mut index = heap.len() - 1;
+    while index > 0 {
+        let parent = (index - 1) / 2;
+        if !trace_heap_push_item_less(&heap[index], &heap[parent], statistics)? {
+            break;
         }
+        heap.swap(index, parent);
+        index = parent;
     }
-    Ok(minimum)
+    Ok(())
+}
+
+fn trace_heap_pop(
+    heap: &mut Vec<TraceQueueItem>,
+    statistics: &mut QueueStatistics,
+) -> Result<Option<TraceQueueItem>, An19PetalError> {
+    let Some(last) = heap.pop() else {
+        return Ok(None);
+    };
+    if heap.is_empty() {
+        return Ok(Some(last));
+    }
+    let minimum = std::mem::replace(&mut heap[0], last);
+    let mut index = 0_usize;
+    loop {
+        let left = index
+            .checked_mul(2)
+            .and_then(|value| value.checked_add(1))
+            .ok_or(An19PetalError::Overflow)?;
+        if left >= heap.len() {
+            break;
+        }
+        let right = left.checked_add(1).ok_or(An19PetalError::Overflow)?;
+        let mut child = left;
+        if right < heap.len() && trace_heap_pop_item_less(&heap[right], &heap[left], statistics)? {
+            child = right;
+        }
+        if !trace_heap_pop_item_less(&heap[child], &heap[index], statistics)? {
+            break;
+        }
+        heap.swap(index, child);
+        index = child;
+    }
+    Ok(Some(minimum))
+}
+
+fn trace_heap_push_item_less(
+    first: &TraceQueueItem,
+    second: &TraceQueueItem,
+    statistics: &mut QueueStatistics,
+) -> Result<bool, An19PetalError> {
+    statistics.comparisons = statistics
+        .comparisons
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    statistics.heap_push_comparisons = statistics
+        .heap_push_comparisons
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    trace_item_less(first, second, statistics)
+}
+
+fn trace_heap_pop_item_less(
+    first: &TraceQueueItem,
+    second: &TraceQueueItem,
+    statistics: &mut QueueStatistics,
+) -> Result<bool, An19PetalError> {
+    statistics.comparisons = statistics
+        .comparisons
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    statistics.heap_pop_comparisons = statistics
+        .heap_pop_comparisons
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    trace_item_less(first, second, statistics)
 }
 
 fn trace_item_less(
@@ -1137,6 +1249,7 @@ impl An19EventRun {
             return Err(An19PetalError::InvalidEventTrace);
         }
         verify_local_event_bound(self)?;
+        verify_practical_queue_bound(self)?;
         Ok(())
     }
 
@@ -1278,6 +1391,68 @@ fn verify_local_event_bound(run: &An19EventRun) -> Result<(), An19PetalError> {
     Ok(())
 }
 
+fn verify_practical_queue_bound(run: &An19EventRun) -> Result<(), An19PetalError> {
+    let Some(certificate) = run.practical_queue_bound else {
+        return if run.engine == An19EventEngineKind::ExactOracle {
+            Ok(())
+        } else {
+            Err(An19PetalError::InvalidEventTrace)
+        };
+    };
+    if run.engine != An19EventEngineKind::ReducedExact {
+        return Err(An19PetalError::InvalidEventTrace);
+    }
+    let expected_height = if certificate.queue_insertion_count <= 1 {
+        0
+    } else {
+        u64::BITS - (certificate.queue_insertion_count - 1).leading_zeros()
+    };
+    let height = u64::from(expected_height);
+    let expected_push_bound = certificate
+        .queue_insertion_count
+        .checked_mul(height)
+        .ok_or(An19PetalError::Overflow)?;
+    let expected_pop_bound = expected_push_bound
+        .checked_mul(2)
+        .ok_or(An19PetalError::Overflow)?;
+    let expected_label_bound = certificate
+        .edge_count
+        .checked_mul(2)
+        .ok_or(An19PetalError::Overflow)?;
+    let expected_total_bound = expected_push_bound
+        .checked_add(expected_pop_bound)
+        .and_then(|value| value.checked_add(expected_label_bound))
+        .ok_or(An19PetalError::Overflow)?;
+    let observed_total = certificate
+        .observed_push_comparisons
+        .checked_add(certificate.observed_pop_comparisons)
+        .and_then(|value| value.checked_add(certificate.observed_relaxation_label_comparisons))
+        .ok_or(An19PetalError::Overflow)?;
+    if certificate.schema_version != 1
+        || certificate.strategy != An19PracticalQueueStrategy::StableBinaryMinHeap
+        || certificate.proof_scope != An19PracticalQueueProofScope::ReducedEngineFixedSnapshot
+        || certificate.an19_priority_queue_target_proved
+        || certificate.queue_insertion_count != run.local_event_bound.queue_insertion_count
+        || certificate.queue_pop_count != run.local_event_bound.queue_pop_count
+        || certificate.edge_count != run.local_event_bound.edge_count
+        || certificate.heap_height_bound != expected_height
+        || certificate.push_comparison_bound != expected_push_bound
+        || certificate.pop_comparison_bound != expected_pop_bound
+        || certificate.relaxation_label_comparison_bound != expected_label_bound
+        || certificate.total_comparison_bound != expected_total_bound
+        || certificate.observed_push_comparisons > certificate.push_comparison_bound
+        || certificate.observed_pop_comparisons > certificate.pop_comparison_bound
+        || certificate.observed_relaxation_label_comparisons
+            > certificate.relaxation_label_comparison_bound
+        || certificate.observed_total_comparisons != observed_total
+        || certificate.observed_total_comparisons != run.metrics.exact_comparison_count
+        || certificate.observed_total_comparisons > certificate.total_comparison_bound
+    {
+        return Err(An19PetalError::InvalidEventTrace);
+    }
+    Ok(())
+}
+
 type NormalizedEvent = (
     An19EventType,
     An19ExactRatioRecord,
@@ -1327,6 +1502,16 @@ fn build_run(
     let metrics = build_snapshot_metrics(problem, preparation, &semantic_trace, &queue_trace)?;
     let local_event_bound =
         build_local_event_bound(problem, &semantic_trace, &queue_trace, &metrics)?;
+    let practical_queue_bound = match engine {
+        An19EventEngineKind::ReducedExact => Some(build_practical_queue_bound(
+            problem,
+            &preparation.queue_statistics,
+        )?),
+        An19EventEngineKind::ExactOracle => None,
+        An19EventEngineKind::ProvedUnavailable => {
+            return Err(An19PetalError::UnprovedEventEngine);
+        }
+    };
     let charge_analyses = analyze_all_charge_maps(&semantic_trace)?;
     let runtime_status = match engine {
         An19EventEngineKind::ExactOracle => An19EventRuntimeStatus {
@@ -1373,6 +1558,7 @@ fn build_run(
         queue_trace,
         metrics,
         local_event_bound,
+        practical_queue_bound,
         charge_analyses,
         runtime_status,
     };
@@ -1948,6 +2134,51 @@ fn build_local_event_bound(
         )
         .map_err(|_| An19PetalError::Overflow)?,
         priority_queue_comparison_bound_included: false,
+    })
+}
+
+fn build_practical_queue_bound(
+    problem: &An19EventProblem<'_>,
+    statistics: &QueueStatistics,
+) -> Result<An19PracticalQueueBoundCertificate, An19PetalError> {
+    let insertions = statistics.inserted;
+    let heap_height_bound = if insertions <= 1 {
+        0
+    } else {
+        u64::BITS - (insertions - 1).leading_zeros()
+    };
+    let height = u64::from(heap_height_bound);
+    let push_comparison_bound = insertions
+        .checked_mul(height)
+        .ok_or(An19PetalError::Overflow)?;
+    let pop_comparison_bound = push_comparison_bound
+        .checked_mul(2)
+        .ok_or(An19PetalError::Overflow)?;
+    let edge_count =
+        u64::try_from(problem.graph.edge_count()).map_err(|_| An19PetalError::Overflow)?;
+    let relaxation_label_comparison_bound =
+        edge_count.checked_mul(2).ok_or(An19PetalError::Overflow)?;
+    let total_comparison_bound = push_comparison_bound
+        .checked_add(pop_comparison_bound)
+        .and_then(|value| value.checked_add(relaxation_label_comparison_bound))
+        .ok_or(An19PetalError::Overflow)?;
+    Ok(An19PracticalQueueBoundCertificate {
+        schema_version: 1,
+        strategy: An19PracticalQueueStrategy::StableBinaryMinHeap,
+        proof_scope: An19PracticalQueueProofScope::ReducedEngineFixedSnapshot,
+        queue_insertion_count: insertions,
+        queue_pop_count: statistics.popped,
+        edge_count,
+        heap_height_bound,
+        push_comparison_bound,
+        pop_comparison_bound,
+        relaxation_label_comparison_bound,
+        total_comparison_bound,
+        observed_push_comparisons: statistics.heap_push_comparisons,
+        observed_pop_comparisons: statistics.heap_pop_comparisons,
+        observed_relaxation_label_comparisons: statistics.relaxation_label_comparisons,
+        observed_total_comparisons: statistics.comparisons,
+        an19_priority_queue_target_proved: false,
     })
 }
 
@@ -2748,6 +2979,10 @@ mod tests {
                 .priority_queue_comparison_bound_included
         );
         assert!(!reduced.runtime_status.an19_runtime_verified);
+        assert!(oracle.practical_queue_bound.is_none());
+        let practical = reduced.practical_queue_bound.unwrap();
+        assert!(practical.observed_total_comparisons <= practical.total_comparison_bound);
+        assert!(!practical.an19_priority_queue_target_proved);
         oracle.verify_trace().unwrap();
         reduced.verify_trace().unwrap();
         let mut metrics = An19PetalMetrics::default();
@@ -2782,6 +3017,43 @@ mod tests {
     }
 
     #[test]
+    fn event_engine_trace_heap_preserves_exact_stable_order() {
+        let specifications = [(2, 4, 0), (1, 7, 1), (1, 3, 5), (1, 3, 2), (3, 0, 3)];
+        let mut heap = Vec::new();
+        let mut statistics = QueueStatistics::default();
+        for (distance, vertex, insertion_sequence) in specifications {
+            trace_heap_push(
+                &mut heap,
+                TraceQueueItem {
+                    distance: ratio(distance, 1).unwrap(),
+                    vertex: FlowNodeId(vertex),
+                    insertion_sequence,
+                    predecessor: None,
+                },
+                &mut statistics,
+            )
+            .unwrap();
+        }
+        let mut popped = Vec::new();
+        while let Some(item) = trace_heap_pop(&mut heap, &mut statistics).unwrap() {
+            popped.push((
+                item.distance.numerator(),
+                item.vertex.0,
+                item.insertion_sequence,
+            ));
+        }
+        assert_eq!(
+            popped,
+            vec![(1, 3, 2), (1, 3, 5), (1, 7, 1), (2, 4, 0), (3, 0, 3)]
+        );
+        assert!(statistics.equal_key_ties > 0);
+        assert_eq!(
+            statistics.comparisons,
+            statistics.heap_push_comparisons + statistics.heap_pop_comparisons
+        );
+    }
+
+    #[test]
     fn event_engine_bounded_adversarial_campaign_covers_all_families() {
         let campaign = An19AdversarialCampaign::run(
             &An19AdversarialFamily::ALL,
@@ -2791,6 +3063,16 @@ mod tests {
         )
         .unwrap();
         assert!(campaign.cases.iter().all(|case| case.oracle_agreement));
+        assert!(campaign.cases.iter().all(|case| {
+            case.oracle_run.practical_queue_bound.is_none()
+                && case
+                    .reduced_run
+                    .practical_queue_bound
+                    .is_some_and(|certificate| {
+                        certificate.observed_total_comparisons <= certificate.total_comparison_bound
+                            && !certificate.an19_priority_queue_target_proved
+                    })
+        }));
         assert!(An19AdversarialFamily::ALL.iter().all(|family| {
             campaign
                 .cases
@@ -2959,5 +3241,43 @@ mod tests {
             changed.verify_trace(),
             Err(An19PetalError::InvalidEventTrace)
         );
+    }
+
+    #[test]
+    fn event_engine_practical_queue_certificate_mutations_are_rejected() {
+        let owned = path_problem(20, An19AdversarialFamily::RepeatedPortalSplitting, 2).unwrap();
+        let problem = owned.as_problem();
+        let (_, original) = An19ReducedEventEngine::run_differential(&problem).unwrap();
+
+        let mutations: [fn(&mut An19EventRun); 4] = [
+            |run: &mut An19EventRun| {
+                run.practical_queue_bound
+                    .as_mut()
+                    .unwrap()
+                    .total_comparison_bound += 1;
+            },
+            |run: &mut An19EventRun| {
+                run.practical_queue_bound.as_mut().unwrap().strategy =
+                    An19PracticalQueueStrategy::LinearMinimumScan;
+            },
+            |run: &mut An19EventRun| {
+                run.practical_queue_bound.as_mut().unwrap().proof_scope =
+                    An19PracticalQueueProofScope::An19RuntimeTarget;
+            },
+            |run: &mut An19EventRun| {
+                run.practical_queue_bound
+                    .as_mut()
+                    .unwrap()
+                    .an19_priority_queue_target_proved = true;
+            },
+        ];
+        for mutate in mutations {
+            let mut changed = original.clone();
+            mutate(&mut changed);
+            assert_eq!(
+                changed.verify_trace(),
+                Err(An19PetalError::InvalidEventTrace)
+            );
+        }
     }
 }

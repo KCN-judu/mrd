@@ -19,6 +19,7 @@ pub use event_engine::{
     An19EventOrientation, An19EventProblem, An19EventRun, An19EventRuntimeStatus,
     An19EventSegmentMetadata, An19EventState, An19EventTraceRecord, An19EventType,
     An19ExactRatioRecord, An19HierarchyEventMetrics, An19LocalEventBoundCertificate,
+    An19PracticalQueueBoundCertificate, An19PracticalQueueProofScope, An19PracticalQueueStrategy,
     An19ReducedEventEngine, An19SnapshotMetrics, An19StaleReason, An19StoppingCertificate,
     ExactEventOracle, ProvedEventEngine,
 };
