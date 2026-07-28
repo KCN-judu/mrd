@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 21011a3da6e428cfa78c0e4380e710658a924ba2
-- Plan last updated: 2026-07-28T05:52:32Z
+- Last pushed SHA: 494f38050b394b73f5832487864bd614be6b6600
+- Plan last updated: 2026-07-28T06:44:01Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -530,7 +530,7 @@ P9.3 is split into the following source-gated subphases:
    audited in `docs/phase-reports/P09-source-structure-contracts.md`.
 2. **P9.3.2 state: in_progress. Start SHA: `6e96916`; implementation SHAs:
    `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
-   `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`.** The Appendix B.3
+   `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -565,15 +565,20 @@ P9.3 is split into the following source-gated subphases:
      interior portal points, rational Claim 15 region growing, exact highway
      interval halving, short-edge contraction/expansion, and original-edge tree
      recovery are implemented and differentially audited.
-   - **P9.3.2d state: in_progress. Implementation SHAs: `3bb0400`, `839cb5c`.** The exact
+   - **P9.3.2d state: in_progress. Implementation SHAs: `3bb0400`, `839cb5c`,
+     `20b0421`.** The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge
      splits, virtual leaves, dense Figure 6 projections, oriented original-edge
      provenance, and certified suppression back to an acyclic connected
-     original tree. Continue with the full hierarchical constructor,
-     radius/tree/stretch certificates, exact-Oracle differentials, and counters
-     proving `O(m log n log log n)` work without graph expansion or fallback.
+     original tree. Figures 4--5 now compose recursively on the exact unit-length
+     domain, including the source's `O(n)` imaginary first path, portal edges,
+     once-only highway halving, independently checked radius witnesses, original
+     tree/stretch verification, and 38 connected four-node Oracle differentials.
+     Continue with compact arbitrary-rational hierarchy support and counters
+     proving `O(m log n log log n)` work without numeric graph expansion or
+     fallback.
 3. **P9.3.3 state: planned.** Implement Lemma 5.5's deterministic MWU
    collection of exactly `k` LSFs and prove the uniform per-edge average
    stretch bound while retaining the P8 weighted-Kruskal Oracle.
@@ -718,4 +723,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c | pending | 21011a3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | weighted-copy reduction, full ST04 decomposition, branch-free/global-stretch core, all updates/splits, bounded exact static LSST differential Oracle, exact unit/rational AN19 petals and Figure 6 selection, symbolic portals, highway ledger, short-edge contraction/tree recovery, and stable augmented hierarchy workspace | 2026-07-28T02:48:00Z | pending | hierarchical AN19 construction and source runtime counters remain |
+| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421 | pending | 494f380 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | weighted-copy reduction, full ST04 decomposition, branch-free/global-stretch core, all updates/splits, bounded exact static LSST differential Oracle, exact unit/rational AN19 petals and Figure 6 selection, symbolic portals, highway ledger, short-edge contraction/tree recovery, stable augmented hierarchy workspace, and certified unit-length Figures 4--5 composition | 2026-07-28T02:48:00Z | pending | compact rational hierarchy and source runtime counters remain |

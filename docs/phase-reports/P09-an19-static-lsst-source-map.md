@@ -6,11 +6,13 @@ Source recovery, the exact single-petal gate, and the symbolic weighted-portal
 gate are complete. This report
 maps the complete 2012 AN19 manuscript and the 2019 journal citation
 (`10.1137/17M1115575`) to implementation gates. It does not claim that the
-hierarchical constructor, weighted extension, or runtime bound is implemented.
+arbitrary-rational hierarchy, fast region-growing engine, or runtime bound is
+implemented.
 The single-petal implementation commit is `a57e48c`; the symbolic weighted
 portal/contraction commit is `6769ec1`; and the exact weighted Figure 6
 selection commit is `3bb0400`. The stable augmented hierarchy workspace commit
-is `839cb5c`.
+is `839cb5c`; the certified unit-length Figures 4--5 composition commit is
+`20b0421`.
 
 ## Resolved source questions
 
@@ -171,17 +173,42 @@ inactive and partial selections, and independently proves acyclicity and
 connectivity on the original endpoints. This is the representation substrate
 for Figures 4--5, not their completed recursive composition.
 
+`An19HierarchicalLsst` now completes Figures 4--5 on the exact unit-length
+source domain. It constructs the source's imaginary first path with at most
+`O(n)` virtual unit segments, creates later `Delta/2` targets and petal portals
+at exact rational points, recursively halves each highway edge once, joins
+subtrees with the recorded portal edges, and suppresses the augmented tree to
+original edge IDs. Recovery first proves the full augmented tree, including
+virtual and split vertices, is connected and acyclic; it then independently
+proves the suppressed original tree is connected and acyclic.
+
+Every recursive call emits an exact radius witness containing its effective
+cluster edges and center distances. The verifier checks edge triangle
+inequalities, tight predecessors, the maximum radius, and the Figure 4 base
+threshold. A separate original-graph audit recomputes the tree, deterministic
+paper `1 + stretch` convention, weighted total stretch, and total weight.
+Tests cover a 500-vertex nonvirtual recursion, the top-level imaginary path and
+suppression on a 500-vertex unit path, certificate mutation rejection, and all
+38 connected labeled simple graphs on four vertices against
+`ExactStaticLsstOracle`.
+
+This does not complete the weighted hierarchy. Compact arbitrary-rational
+representation of Figure 5's imaginary first path must preserve Figure 6 edge
+counts without subdivision by numeric length. The fast directed event engine
+and source-shaped total-work counters also remain required before the AN19
+runtime may be claimed.
+
 ## Focused evidence
 
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 11 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 15 tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 226 passed, 3 ignored across 13 suites |
+| `cargo test --workspace` | 0 | 230 passed, 3 ignored across 13 suites |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
@@ -191,4 +218,6 @@ nonunit edge, stable choice between equal diamond paths, a fractional radius,
 an interior rational portal, Claim 15 differential equality, short-edge tree
 expansion, atomic highway interval accounting, bidirectional rational
 provenance splitting, dense-to-stable projection, complete-segment recovery,
-and rejection of partial, cyclic, or disconnected original-tree recovery.
+rejection of partial/cyclic/disconnected recovery, unit Figures 4--5 recursion,
+virtual-path suppression, radius/tree/stretch verification, mutation rejection,
+and exact-Oracle comparison on every connected four-node simple graph.
