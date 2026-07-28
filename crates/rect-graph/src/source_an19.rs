@@ -720,7 +720,17 @@ impl An19ShortEdgeContraction {
         if !radius.is_positive() && cluster.len() > 1 {
             return Err(An19PetalError::InvalidContraction);
         }
-        let n = i128::try_from(graph.node_count()).map_err(|_| An19PetalError::Overflow)?;
+        Self::build_with_radius(graph, cluster, center, radius, graph.node_count())
+    }
+
+    fn build_with_radius(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+        radius: ExactRatio,
+        original_node_count: usize,
+    ) -> Result<Self, An19PetalError> {
+        let n = i128::try_from(original_node_count).map_err(|_| An19PetalError::Overflow)?;
         let n_squared = n.checked_mul(n).ok_or(An19PetalError::Overflow)?;
         let contraction_threshold = radius
             .checked_mul(ratio(1, n_squared)?)
@@ -1140,6 +1150,9 @@ impl AugmentedProjection {
 pub struct An19HierarchyMetrics {
     pub recursion_calls: u64,
     pub base_cases: u64,
+    pub contraction_calls: u64,
+    pub contracted_edges: u64,
+    pub quotient_edges: u64,
     pub petals: u64,
     pub portal_splits: u64,
     pub virtual_leaves: u64,
@@ -1158,6 +1171,7 @@ pub struct An19RadiusEdge {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct An19RadiusCertificate {
+    pub original_node_count: usize,
     pub cluster_size: usize,
     pub base_vertex_limit: usize,
     pub center: FlowNodeId,
@@ -1165,6 +1179,9 @@ pub struct An19RadiusCertificate {
     pub radius: ExactRatio,
     pub base_threshold: ExactRatio,
     pub base_case: bool,
+    pub contraction_threshold: Option<ExactRatio>,
+    pub contraction_component_of: Vec<(FlowNodeId, usize)>,
+    pub contracted_edge_count: usize,
     pub distances: Vec<(FlowNodeId, ExactRatio)>,
     pub edges: Vec<An19RadiusEdge>,
 }
@@ -1265,6 +1282,60 @@ impl An19RadiusCertificate {
         if expected_base != self.base_case {
             return Err(An19PetalError::InvalidRadiusCertificate);
         }
+        self.verify_contraction()?;
+        Ok(())
+    }
+
+    fn verify_contraction(&self) -> Result<(), An19PetalError> {
+        let Some(threshold) = self.contraction_threshold else {
+            return if self.contraction_component_of.is_empty() && self.contracted_edge_count == 0 {
+                Ok(())
+            } else {
+                Err(An19PetalError::InvalidRadiusCertificate)
+            };
+        };
+        let n = i128::try_from(self.original_node_count).map_err(|_| An19PetalError::Overflow)?;
+        let n_squared = n.checked_mul(n).ok_or(An19PetalError::Overflow)?;
+        let expected_threshold = self
+            .radius
+            .checked_mul(ratio(1, n_squared)?)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if threshold != expected_threshold
+            || self.contraction_component_of.len() != self.cluster_size
+        {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
+        let node_count = self
+            .distances
+            .iter()
+            .map(|(vertex, _)| vertex.0)
+            .max()
+            .and_then(|value| value.checked_add(1))
+            .ok_or(An19PetalError::InvalidRadiusCertificate)?;
+        let mut connectivity = DisjointSet::new(node_count);
+        let mut contracted_edge_count = 0_usize;
+        for edge in &self.edges {
+            if ratio_less(edge.length, threshold)? {
+                connectivity.union(edge.first.0, edge.second.0);
+                contracted_edge_count = contracted_edge_count
+                    .checked_add(1)
+                    .ok_or(An19PetalError::Overflow)?;
+            }
+        }
+        let mut root_to_component = BTreeMap::new();
+        let mut expected_components = Vec::new();
+        for (vertex, _) in &self.distances {
+            let root = connectivity.find(vertex.0);
+            let next = root_to_component.len();
+            let component = *root_to_component.entry(root).or_insert(next);
+            expected_components.push((*vertex, component));
+        }
+        if contracted_edge_count == 0
+            || contracted_edge_count != self.contracted_edge_count
+            || expected_components != self.contraction_component_of
+        {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
         Ok(())
     }
 }
@@ -1345,6 +1416,25 @@ impl An19HierarchicalLsst {
         for certificate in &self.radius_certificates {
             certificate.verify()?;
         }
+        let contraction_calls = self
+            .radius_certificates
+            .iter()
+            .filter(|certificate| certificate.contraction_threshold.is_some())
+            .count();
+        let contracted_edges = self
+            .radius_certificates
+            .iter()
+            .try_fold(0_usize, |total, certificate| {
+                total.checked_add(certificate.contracted_edge_count)
+            })
+            .ok_or(An19PetalError::Overflow)?;
+        if u64::try_from(contraction_calls).map_err(|_| An19PetalError::Overflow)?
+            != self.metrics.contraction_calls
+            || u64::try_from(contracted_edges).map_err(|_| An19PetalError::Overflow)?
+                != self.metrics.contracted_edges
+        {
+            return Err(An19PetalError::InvalidRadiusCertificate);
+        }
         Ok(())
     }
 }
@@ -1372,18 +1462,17 @@ fn hierarchical_petal_decomposition(
     let projection = workspace.project()?;
     let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
-    let logarithmic_vertex_limit = hierarchy_base_vertex_limit(original_node_count)?;
-    let (threshold, base_vertex_limit) = if workspace.unit_input {
-        (hierarchy_base_threshold(original_node_count)?, 2)
-    } else {
-        (ratio(0, 1)?, logarithmic_vertex_limit)
-    };
+    let threshold = hierarchy_base_threshold(original_node_count)?
+        .checked_mul(minimum_cluster_edge_length(projection.graph(), &cluster)?)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let base_vertex_limit = 2;
     let base_case = cluster.len() <= base_vertex_limit
         || threshold
             .at_least(radius)
             .map_err(|_| An19PetalError::Overflow)?;
     radius_certificates.push(build_radius_certificate(
         &projection,
+        original_node_count,
         &cluster,
         center,
         target,
@@ -1399,6 +1488,32 @@ fn hierarchical_petal_decomposition(
             .checked_add(1)
             .ok_or(An19PetalError::Overflow)?;
         return hierarchy_shortest_path_tree(&projection, &cluster, center, &paths);
+    }
+    if !workspace.unit_input {
+        let contraction = An19ShortEdgeContraction::build_with_radius(
+            projection.graph(),
+            &cluster,
+            center,
+            radius,
+            original_node_count,
+        )?;
+        if !contraction.contracted_edges.is_empty() {
+            attach_contraction_certificate(
+                radius_certificates
+                    .last_mut()
+                    .ok_or(An19PetalError::InvalidRadiusCertificate)?,
+                &contraction,
+            )?;
+            return hierarchy_contracted_tree(
+                &projection,
+                &contraction,
+                center,
+                target,
+                original_node_count,
+                radius_certificates,
+                metrics,
+            );
+        }
     }
 
     let (mut stigma, pieces, stigma_target) =
@@ -1438,6 +1553,146 @@ fn hierarchical_petal_decomposition(
     )?;
     selected.extend(stigma_tree);
     Ok(selected)
+}
+
+fn attach_contraction_certificate(
+    certificate: &mut An19RadiusCertificate,
+    contraction: &An19ShortEdgeContraction,
+) -> Result<(), An19PetalError> {
+    certificate.contraction_threshold = Some(contraction.contraction_threshold);
+    certificate.contraction_component_of = certificate
+        .distances
+        .iter()
+        .map(|(vertex, _)| {
+            contraction
+                .component_of
+                .get(vertex.0)
+                .copied()
+                .flatten()
+                .map(|component| (*vertex, component))
+                .ok_or(An19PetalError::InvalidContraction)
+        })
+        .collect::<Result<_, _>>()?;
+    certificate.contracted_edge_count = contraction.contracted_edges.len();
+    certificate.verify()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn hierarchy_contracted_tree(
+    projection: &AugmentedProjection,
+    contraction: &An19ShortEdgeContraction,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    original_node_count: usize,
+    radius_certificates: &mut Vec<An19RadiusCertificate>,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<BTreeSet<usize>, An19PetalError> {
+    let mut quotient_edges = Vec::new();
+    let mut quotient_to_dense = Vec::new();
+    let mut bound = 1_i128;
+    for dense in &contraction.retained_edges {
+        let edge = projection
+            .graph()
+            .edge(*dense)
+            .ok_or(An19PetalError::InvalidContraction)?;
+        let first = contraction
+            .component_of
+            .get(edge.first.0)
+            .copied()
+            .flatten()
+            .ok_or(An19PetalError::InvalidContraction)?;
+        let second = contraction
+            .component_of
+            .get(edge.second.0)
+            .copied()
+            .flatten()
+            .ok_or(An19PetalError::InvalidContraction)?;
+        bound = bound
+            .max(
+                edge.length
+                    .numerator()
+                    .checked_abs()
+                    .ok_or(An19PetalError::Overflow)?,
+            )
+            .max(edge.length.denominator());
+        quotient_edges.push(SourceWeightedEdge {
+            first: FlowNodeId(first),
+            second: FlowNodeId(second),
+            length: edge.length,
+            weight: edge.weight,
+        });
+        quotient_to_dense.push(*dense);
+    }
+    let quotient_graph =
+        SourceDynamicGraph::new(contraction.components.len(), quotient_edges, bound)
+            .map_err(|_| An19PetalError::InvalidContraction)?;
+    let mut quotient_workspace = AugmentedAn19Graph::from_source(&quotient_graph)?;
+    let quotient_cluster = (0..contraction.components.len())
+        .map(FlowNodeId)
+        .collect::<BTreeSet<_>>();
+    let quotient_center = contracted_vertex(contraction, center)?;
+    let quotient_target = contracted_vertex(contraction, target)?;
+    metrics.contraction_calls = metrics
+        .contraction_calls
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    metrics.contracted_edges = metrics
+        .contracted_edges
+        .checked_add(
+            u64::try_from(contraction.contracted_edges.len())
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .ok_or(An19PetalError::Overflow)?;
+    metrics.quotient_edges = metrics
+        .quotient_edges
+        .checked_add(
+            u64::try_from(contraction.retained_edges.len())
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .ok_or(An19PetalError::Overflow)?;
+    let quotient_selected = hierarchical_petal_decomposition(
+        &mut quotient_workspace,
+        quotient_cluster,
+        quotient_center,
+        quotient_target,
+        original_node_count,
+        radius_certificates,
+        metrics,
+    )?;
+    let quotient_tree = quotient_workspace.recover_original_tree(&quotient_selected)?;
+    let dense_tree = quotient_tree
+        .iter()
+        .map(|edge| {
+            quotient_to_dense
+                .get(edge.0)
+                .copied()
+                .ok_or(An19PetalError::InvalidContraction)
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    contraction
+        .expand_quotient_tree(projection.graph(), &dense_tree)?
+        .iter()
+        .map(|dense| {
+            projection
+                .dense_to_augmented()
+                .get(dense.0)
+                .copied()
+                .ok_or(An19PetalError::InvalidContraction)
+        })
+        .collect()
+}
+
+fn contracted_vertex(
+    contraction: &An19ShortEdgeContraction,
+    vertex: FlowNodeId,
+) -> Result<FlowNodeId, An19PetalError> {
+    contraction
+        .component_of
+        .get(vertex.0)
+        .copied()
+        .flatten()
+        .map(FlowNodeId)
+        .ok_or(An19PetalError::InvalidContraction)
 }
 
 fn petal_decomposition(
@@ -1800,6 +2055,7 @@ fn hierarchy_radius(
 #[allow(clippy::too_many_arguments)]
 fn build_radius_certificate(
     projection: &AugmentedProjection,
+    original_node_count: usize,
     cluster: &BTreeSet<FlowNodeId>,
     center: FlowNodeId,
     target: FlowNodeId,
@@ -1832,6 +2088,7 @@ fn build_radius_certificate(
         }
     }
     let certificate = An19RadiusCertificate {
+        original_node_count,
         cluster_size: cluster.len(),
         base_vertex_limit,
         center,
@@ -1839,6 +2096,9 @@ fn build_radius_certificate(
         radius,
         base_threshold,
         base_case,
+        contraction_threshold: None,
+        contraction_component_of: Vec::new(),
+        contracted_edge_count: 0,
         distances,
         edges,
     };
@@ -1877,6 +2137,28 @@ fn hierarchy_base_threshold(node_count: usize) -> Result<ExactRatio, An19PetalEr
             .map_err(|_| An19PetalError::Overflow)?,
         1,
     )
+}
+
+fn minimum_cluster_edge_length(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+) -> Result<ExactRatio, An19PetalError> {
+    let mut minimum = None;
+    for index in 0..graph.edge_count() {
+        let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+            continue;
+        };
+        if cluster.contains(&edge.first) && cluster.contains(&edge.second) {
+            let replace = match minimum {
+                Some(length) => ratio_less(edge.length, length)?,
+                None => true,
+            };
+            if replace {
+                minimum = Some(edge.length);
+            }
+        }
+    }
+    minimum.map_or_else(|| ratio(1, 1), Ok)
 }
 
 fn hierarchy_base_vertex_limit(node_count: usize) -> Result<usize, An19PetalError> {
@@ -3910,6 +4192,85 @@ mod tests {
             small_hierarchy.metrics.portal_splits,
             large_hierarchy.metrics.portal_splits
         );
+    }
+
+    #[test]
+    fn weighted_hierarchy_contracts_recursively_and_expands_the_quotient_tree() {
+        use super::An19HierarchicalLsst;
+        use crate::ExactStaticLsstOracle;
+
+        let make_graph = |scale: i128| {
+            SourceDynamicGraph::new(
+                4,
+                vec![
+                    SourceWeightedEdge {
+                        first: FlowNodeId(0),
+                        second: FlowNodeId(1),
+                        length: ExactRatio::new(scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(2),
+                        second: FlowNodeId(3),
+                        length: ExactRatio::new(scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(1),
+                        second: FlowNodeId(2),
+                        length: ExactRatio::new(100 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(0),
+                        second: FlowNodeId(3),
+                        length: ExactRatio::new(200 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                ],
+                1_000_000,
+            )
+            .unwrap()
+        };
+        let small = make_graph(1);
+        let large = make_graph(1_000);
+        let small_hierarchy = An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
+        let large_hierarchy = An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
+        let oracle = ExactStaticLsstOracle::solve(&small).unwrap();
+        small_hierarchy.verify(&small).unwrap();
+        large_hierarchy.verify(&large).unwrap();
+        assert_eq!(
+            small_hierarchy.tree_edges,
+            BTreeSet::from([
+                crate::SourceEdgeId(0),
+                crate::SourceEdgeId(1),
+                crate::SourceEdgeId(2)
+            ])
+        );
+        assert_eq!(small_hierarchy.tree_edges, large_hierarchy.tree_edges);
+        assert_eq!(
+            small_hierarchy.weighted_stretch,
+            large_hierarchy.weighted_stretch
+        );
+        assert_eq!(small_hierarchy.metrics, large_hierarchy.metrics);
+        assert_eq!(small_hierarchy.metrics.contraction_calls, 1);
+        assert_eq!(small_hierarchy.metrics.contracted_edges, 2);
+        assert_eq!(small_hierarchy.metrics.quotient_edges, 2);
+        assert_eq!(small_hierarchy.total_weight, oracle.total_weight);
+        assert!(
+            small_hierarchy
+                .weighted_stretch
+                .at_least(oracle.weighted_stretch)
+                .unwrap()
+        );
+        let mut invalid = small_hierarchy.clone();
+        invalid
+            .radius_certificates
+            .iter_mut()
+            .find(|certificate| certificate.contraction_threshold.is_some())
+            .unwrap()
+            .contraction_threshold = Some(ExactRatio::new(1, 1).unwrap());
+        assert!(invalid.verify(&small).is_err());
     }
 
     #[test]
