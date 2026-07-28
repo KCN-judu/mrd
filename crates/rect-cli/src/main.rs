@@ -18,6 +18,7 @@ use rect_dominance::{
     RegionDualBackend, VerificationMode, complete_formal_polygon, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
+use rect_graph::{An19AdversarialCampaign, An19AdversarialFamily};
 use rect_oracle_sg::{
     CompletionBackendKind, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, SparseValidatorBackend, SubdivisionBuilderBackend,
@@ -196,6 +197,22 @@ enum Command {
         #[arg(long)]
         output_dir: PathBuf,
     },
+    An19Events {
+        #[arg(long, value_enum, default_value_t = An19EventEngineArg::ReducedExact)]
+        an19_event_engine: An19EventEngineArg,
+        #[arg(long)]
+        an19_event_trace: Option<PathBuf>,
+        #[arg(long)]
+        an19_charge_analysis: Option<PathBuf>,
+        #[arg(long, value_enum, default_value_t = An19AdversarialFamilyArg::All)]
+        an19_adversarial_family: An19AdversarialFamilyArg,
+        #[arg(long, default_value = "16,32,64")]
+        an19_adversarial_size: String,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        markdown: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -213,6 +230,25 @@ enum InputFormatArg {
     Grid,
     Polygon,
     FormalPolygon,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum An19EventEngineArg {
+    ExactOracle,
+    ReducedExact,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum An19AdversarialFamilyArg {
+    All,
+    ManyReducedCostsFewSourceLengths,
+    RepeatedPortalSplitting,
+    FullDepthPersistence,
+    AllEqualReducedKeys,
+    AllDistinctReducedKeys,
+    AlternatingPartitionContraction,
+    HighwayHalvingReorder,
+    VirtualRealMixedSegments,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -679,7 +715,113 @@ fn run() -> Result<(), CliError> {
             min_canonical_nodes,
             &output_dir,
         ),
+        Command::An19Events {
+            an19_event_engine,
+            an19_event_trace,
+            an19_charge_analysis,
+            an19_adversarial_family,
+            an19_adversarial_size,
+            output,
+            markdown,
+        } => an19_events_command(
+            an19_event_engine,
+            an19_adversarial_family,
+            &an19_adversarial_size,
+            &output,
+            &markdown,
+            an19_event_trace.as_deref(),
+            an19_charge_analysis.as_deref(),
+        ),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn an19_events_command(
+    engine: An19EventEngineArg,
+    family: An19AdversarialFamilyArg,
+    sizes: &str,
+    output: &Path,
+    markdown: &Path,
+    trace_output: Option<&Path>,
+    charge_output: Option<&Path>,
+) -> Result<(), CliError> {
+    let context = benchmark_context()?;
+    let sizes = parse_an19_sizes(sizes)?;
+    let families = family.families();
+    let campaign =
+        An19AdversarialCampaign::run(&families, &sizes, context.git_commit, context.command)
+            .map_err(|error| CliError::Verification(error.to_string()))?;
+    write_json(&campaign, Some(output))?;
+    write_text(markdown, &campaign.to_markdown())?;
+    if let Some(path) = trace_output {
+        let traces = campaign
+            .cases
+            .iter()
+            .map(|case| match engine {
+                An19EventEngineArg::ExactOracle => &case.oracle_run,
+                An19EventEngineArg::ReducedExact => &case.reduced_run,
+            })
+            .collect::<Vec<_>>();
+        write_json(&traces, Some(path))?;
+    }
+    if let Some(path) = charge_output {
+        let analyses = campaign
+            .cases
+            .iter()
+            .map(|case| {
+                (
+                    case.input_family,
+                    case.size_parameter,
+                    case.logical_call_index,
+                    &case.charge_analyses,
+                )
+            })
+            .collect::<Vec<_>>();
+        write_json(&analyses, Some(path))?;
+    }
+    Ok(())
+}
+
+impl An19AdversarialFamilyArg {
+    fn families(self) -> Vec<An19AdversarialFamily> {
+        match self {
+            Self::All => An19AdversarialFamily::ALL.to_vec(),
+            Self::ManyReducedCostsFewSourceLengths => {
+                vec![An19AdversarialFamily::ManyReducedCostsFewSourceLengths]
+            }
+            Self::RepeatedPortalSplitting => {
+                vec![An19AdversarialFamily::RepeatedPortalSplitting]
+            }
+            Self::FullDepthPersistence => vec![An19AdversarialFamily::FullDepthPersistence],
+            Self::AllEqualReducedKeys => vec![An19AdversarialFamily::AllEqualReducedKeys],
+            Self::AllDistinctReducedKeys => vec![An19AdversarialFamily::AllDistinctReducedKeys],
+            Self::AlternatingPartitionContraction => {
+                vec![An19AdversarialFamily::AlternatingPartitionContraction]
+            }
+            Self::HighwayHalvingReorder => vec![An19AdversarialFamily::HighwayHalvingReorder],
+            Self::VirtualRealMixedSegments => {
+                vec![An19AdversarialFamily::VirtualRealMixedSegments]
+            }
+        }
+    }
+}
+
+fn parse_an19_sizes(value: &str) -> Result<Vec<usize>, CliError> {
+    let sizes = value
+        .split(',')
+        .map(str::trim)
+        .map(|item| {
+            item.parse::<usize>().map_err(|_| {
+                CliError::Input(format!("AN19 adversarial size `{item}` is not an integer"))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if sizes.is_empty() || sizes.contains(&0) {
+        return Err(CliError::Input(
+            "AN19 adversarial sizes must be nonempty positive integers".to_owned(),
+        ));
+    }
+    Ok(sizes)
 }
 
 fn exhaustive_command(width: usize, height: usize, output: Option<&Path>) -> Result<(), CliError> {
@@ -2059,14 +2201,63 @@ enum CliError {
 mod tests {
     use std::fs;
 
+    use clap::Parser;
     use serde_json::Value;
 
     use super::{
-        ChordEnumeratorArg, CompletionBackendArg, InputFormatArg, LoadedInput,
-        PathTreeOrientationArg, PolygonArrangementArg, PolygonChordsArg, PolygonCompletionArg,
-        PolygonGeometryArg, PolygonValidatorArg, RegionDualArg, RepresentationArg, SolverArg,
-        load_input, solve_command,
+        An19AdversarialFamilyArg, An19EventEngineArg, ChordEnumeratorArg, Cli, Command,
+        CompletionBackendArg, InputFormatArg, LoadedInput, PathTreeOrientationArg,
+        PolygonArrangementArg, PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg,
+        PolygonValidatorArg, RegionDualArg, RepresentationArg, SolverArg, load_input,
+        solve_command,
     };
+
+    #[test]
+    fn an19_event_cli_exposes_exact_backends_and_rejects_unproved_backend() {
+        let cli = Cli::try_parse_from([
+            "rect-cli",
+            "an19-events",
+            "--an19-event-engine",
+            "exact-oracle",
+            "--an19-adversarial-family",
+            "highway-halving-reorder",
+            "--an19-adversarial-size",
+            "16,32",
+            "--output",
+            "campaign.json",
+            "--markdown",
+            "campaign.md",
+        ])
+        .unwrap();
+        let Command::An19Events {
+            an19_event_engine,
+            an19_adversarial_family,
+            an19_adversarial_size,
+            ..
+        } = cli.command
+        else {
+            panic!("wrong command parsed");
+        };
+        assert_eq!(an19_event_engine, An19EventEngineArg::ExactOracle);
+        assert_eq!(
+            an19_adversarial_family,
+            An19AdversarialFamilyArg::HighwayHalvingReorder
+        );
+        assert_eq!(an19_adversarial_size, "16,32");
+        assert!(
+            Cli::try_parse_from([
+                "rect-cli",
+                "an19-events",
+                "--an19-event-engine",
+                "proved-unavailable",
+                "--output",
+                "campaign.json",
+                "--markdown",
+                "campaign.md",
+            ])
+            .is_err()
+        );
+    }
 
     #[test]
     fn compact_only_svg_keeps_forbidden_execution_trace_false() {
