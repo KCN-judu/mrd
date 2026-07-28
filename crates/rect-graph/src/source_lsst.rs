@@ -34,6 +34,7 @@ pub struct SourceUpdateBatch {
 pub struct SourceGraphMetrics {
     pub update_batches: u64,
     pub encoded_updates: u64,
+    pub encoded_update_size: u64,
     pub edge_insertions: u64,
     pub edge_deletions: u64,
     pub vertex_splits: u64,
@@ -102,6 +103,7 @@ pub struct SourceStructureParameters {
     pub reduction_k: usize,
     pub spanner_l: usize,
     pub update_budget: u64,
+    pub encoding_budget: u64,
     pub vertex_split_budget: u64,
     pub coordinate_log_exponent: u32,
     pub observed_coordinate_bits: u32,
@@ -230,6 +232,21 @@ impl SourceDynamicGraph {
             .metrics
             .encoded_updates
             .checked_add(u64::try_from(batch.updates.len()).map_err(|_| SourceLsstError::Overflow)?)
+            .ok_or(SourceLsstError::Overflow)?;
+        let encoded_size = batch.updates.iter().try_fold(0_u64, |sum, update| {
+            let size = match update {
+                SourceGraphUpdate::Insert(_) | SourceGraphUpdate::Delete(_) => 1,
+                SourceGraphUpdate::SplitVertex { moved_edges, .. } => {
+                    u64::try_from(moved_edges.len().max(1))
+                        .map_err(|_| SourceLsstError::Overflow)?
+                }
+            };
+            sum.checked_add(size).ok_or(SourceLsstError::Overflow)
+        })?;
+        candidate.metrics.encoded_update_size = candidate
+            .metrics
+            .encoded_update_size
+            .checked_add(encoded_size)
             .ok_or(SourceLsstError::Overflow)?;
         *self = candidate;
         Ok(())
@@ -374,6 +391,7 @@ impl SourceDynamicGraph {
         reduction_k: usize,
         spanner_l: usize,
         update_budget: u64,
+        encoding_budget: u64,
         vertex_split_budget: u64,
         coordinate_log_exponent: u32,
     ) -> Result<SourceStructureParameters, SourceLsstError> {
@@ -382,6 +400,7 @@ impl SourceDynamicGraph {
             || spanner_l == 0
             || coordinate_log_exponent == 0
             || self.metrics.encoded_updates > update_budget
+            || self.metrics.encoded_update_size > encoding_budget
             || self.metrics.vertex_splits > vertex_split_budget
         {
             return Err(SourceLsstError::InvalidParameters);
@@ -403,6 +422,7 @@ impl SourceDynamicGraph {
             reduction_k,
             spanner_l,
             update_budget,
+            encoding_budget,
             vertex_split_budget,
             coordinate_log_exponent,
             observed_coordinate_bits,
@@ -416,9 +436,16 @@ impl SourceDynamicGraph {
         moved_edges: &[SourceEdgeId],
         touched: &mut BTreeSet<SourceEdgeId>,
     ) -> Result<(), SourceLsstError> {
-        if vertex.0 >= self.node_count || moved_edges.is_empty() {
+        if vertex.0 >= self.node_count {
             return Err(SourceLsstError::InvalidUpdate);
         }
+        let incident_count = self
+            .edges
+            .iter()
+            .filter(|state| {
+                state.active && (state.edge.first == vertex || state.edge.second == vertex)
+            })
+            .count();
         let split = FlowNodeId(self.node_count);
         for id in moved_edges {
             if !touched.insert(*id) {
@@ -438,6 +465,12 @@ impl SourceDynamicGraph {
             } else {
                 return Err(SourceLsstError::InvalidUpdate);
             }
+        }
+        let remaining = incident_count
+            .checked_sub(moved_edges.len())
+            .ok_or(SourceLsstError::InvalidUpdate)?;
+        if moved_edges.len() > remaining {
+            return Err(SourceLsstError::InvalidUpdate);
         }
         self.node_count = self
             .node_count
@@ -876,6 +909,7 @@ mod tests {
         assert_eq!(graph.edge_count(), 3);
         assert_eq!(graph.metrics().update_batches, 1);
         assert_eq!(graph.metrics().encoded_updates, 2);
+        assert_eq!(graph.metrics().encoded_update_size, 2);
         assert_eq!(graph.metrics().vertex_splits, 1);
         assert_eq!(graph.metrics().edge_insertions, 1);
 
@@ -940,8 +974,33 @@ mod tests {
         assert_eq!(audit.maximum_vertex_congestion, 3);
         assert_eq!(audit.encoded_embedding_length, 4);
         assert_eq!(audit.reembedded_spanner_edges, 1);
-        let parameters = graph.audit_source_parameters(2, 1, 0, 0, 2).unwrap();
+        let parameters = graph.audit_source_parameters(2, 1, 0, 0, 0, 2).unwrap();
         assert_eq!(parameters.observed_coordinate_bits, 4);
         assert_eq!(parameters.allowed_coordinate_bits, 4);
+    }
+
+    #[test]
+    fn split_encoding_requires_the_smaller_side() {
+        let mut graph =
+            SourceDynamicGraph::new(4, vec![edge(0, 1), edge(0, 2), edge(0, 3)], 8).unwrap();
+        assert_eq!(
+            graph.apply_batch(&SourceUpdateBatch {
+                updates: vec![SourceGraphUpdate::SplitVertex {
+                    vertex: FlowNodeId(0),
+                    moved_edges: vec![SourceEdgeId(0), SourceEdgeId(1)],
+                }],
+            }),
+            Err(SourceLsstError::InvalidUpdate)
+        );
+        graph
+            .apply_batch(&SourceUpdateBatch {
+                updates: vec![SourceGraphUpdate::SplitVertex {
+                    vertex: FlowNodeId(0),
+                    moved_edges: vec![SourceEdgeId(0)],
+                }],
+            })
+            .unwrap();
+        assert_eq!(graph.metrics().encoded_updates, 1);
+        assert_eq!(graph.metrics().encoded_update_size, 1);
     }
 }

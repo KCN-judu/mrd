@@ -12,8 +12,11 @@ a low-stretch forest or dynamic spanner and makes no runtime claim.
   denominator coordinate bound.
 - Atomic update batches containing insertions, deletions, and vertex splits,
   with stable edge identifiers and exact batch/operation counters.
+- Separate source `|U|` and `Enc(U)` counters. A split must list the smaller
+  incident side, contributes `max(1, moved_edges)` encoding units, and is
+  rejected atomically when the larger side is supplied.
 - Explicit `k`, `L`, update-budget, split-budget, and
-  `ceil(log2(n+1))^exponent` coordinate-bit gates.
+  encoding-budget plus `ceil(log2(n+1))^exponent` coordinate-bit gates.
 - Rooted spanning-forest validation with one root per component.
 - Definition 5.3 exact stretch recomputation and supplied overestimate checks.
 - The Lemma 5.4 requirement that every post-initialization inserted edge has
@@ -34,6 +37,8 @@ a low-stretch forest or dynamic spanner and makes no runtime claim.
   one.
 - A split-plus-insertion batch updates stable endpoints and counters; a later
   duplicate deletion is rejected atomically without mutating the graph.
+- A degree-three split rejects a two-edge moved side, accepts the one-edge
+  smaller side, and records one operation and one encoding unit.
 - A two-edge path spanner embeds the third triangle edge with path length two,
   maximum vertex congestion three, and encoded embedding length four.
 - A coordinate bound of eight on three vertices passes an explicit
