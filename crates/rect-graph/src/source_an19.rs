@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
 
 use crate::{
-    CertifiedFixedPoint, ExactRatio, FixedPointConfig, FlowNodeId, SourceDynamicGraph, SourceEdgeId,
+    CertifiedFixedPoint, ExactRatio, FixedPointConfig, FlowNodeId, SourceDynamicGraph,
+    SourceEdgeId, SourceWeightedEdge,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -753,6 +754,315 @@ impl An19ShortEdgeContraction {
 struct DisjointSet {
     parent: Vec<usize>,
     rank: Vec<u8>,
+}
+
+#[derive(Clone, Debug)]
+pub struct AugmentedAn19Graph {
+    original_node_count: usize,
+    original_endpoints: Vec<(FlowNodeId, FlowNodeId)>,
+    node_count: usize,
+    edges: Vec<AugmentedAn19Edge>,
+}
+
+#[derive(Clone, Debug)]
+pub struct AugmentedAn19Edge {
+    active: bool,
+    first: FlowNodeId,
+    second: FlowNodeId,
+    length: ExactRatio,
+    provenance: Option<OriginalEdgeInterval>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OriginalEdgeInterval {
+    edge: SourceEdgeId,
+    first_position: ExactRatio,
+    second_position: ExactRatio,
+}
+
+pub struct AugmentedProjection {
+    graph: SourceDynamicGraph,
+    dense_to_augmented: Vec<usize>,
+}
+
+impl AugmentedAn19Graph {
+    /// Copies an exact source graph into a stable-edge hierarchy workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an active source edge cannot be recovered or
+    /// exact provenance coordinates overflow.
+    pub fn from_source(graph: &SourceDynamicGraph) -> Result<Self, An19PetalError> {
+        let mut edges = Vec::new();
+        let mut original_endpoints = Vec::new();
+        for index in 0..graph.edge_count() {
+            let edge = graph
+                .edge(SourceEdgeId(index))
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            original_endpoints.push((edge.first, edge.second));
+            edges.push(AugmentedAn19Edge {
+                active: true,
+                first: edge.first,
+                second: edge.second,
+                length: edge.length,
+                provenance: Some(OriginalEdgeInterval {
+                    edge: SourceEdgeId(index),
+                    first_position: ratio(0, 1)?,
+                    second_position: edge.length,
+                }),
+            });
+        }
+        Ok(Self {
+            original_node_count: graph.node_count(),
+            original_endpoints,
+            node_count: graph.node_count(),
+            edges,
+        })
+    }
+
+    /// Attaches a positive-length provenance-free leaf used for Figure 5's
+    /// imaginary first target.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid attachment, nonpositive length, or
+    /// node-index overflow.
+    pub fn add_virtual_leaf(
+        &mut self,
+        attached_to: FlowNodeId,
+        length: ExactRatio,
+    ) -> Result<(FlowNodeId, usize), An19PetalError> {
+        if attached_to.0 >= self.node_count || !length.is_positive() {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        let vertex = FlowNodeId(self.node_count);
+        self.node_count = self
+            .node_count
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        let edge = self.edges.len();
+        self.edges.push(AugmentedAn19Edge {
+            active: true,
+            first: attached_to,
+            second: vertex,
+            length,
+            provenance: None,
+        });
+        Ok((vertex, edge))
+    }
+
+    /// Splits one active edge at an exact interior offset from either endpoint.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an inactive or nonincident edge, a noninterior
+    /// offset, inconsistent provenance, or exact arithmetic overflow.
+    pub fn split_edge(
+        &mut self,
+        edge_id: usize,
+        from: FlowNodeId,
+        offset: ExactRatio,
+    ) -> Result<(FlowNodeId, usize, usize), An19PetalError> {
+        let edge = self
+            .edges
+            .get(edge_id)
+            .cloned()
+            .filter(|edge| edge.active)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        let toward = if edge.first == from {
+            edge.second
+        } else if edge.second == from {
+            edge.first
+        } else {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        };
+        if !offset.is_positive() || !ratio_less(offset, edge.length)? {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        let remainder = edge
+            .length
+            .checked_sub(offset)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let vertex = FlowNodeId(self.node_count);
+        self.node_count = self
+            .node_count
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        let (from_provenance, toward_provenance) = split_provenance(&edge, from, offset)?;
+        self.edges[edge_id].active = false;
+        let from_edge = self.edges.len();
+        self.edges.push(AugmentedAn19Edge {
+            active: true,
+            first: from,
+            second: vertex,
+            length: offset,
+            provenance: from_provenance,
+        });
+        let toward_edge = self.edges.len();
+        self.edges.push(AugmentedAn19Edge {
+            active: true,
+            first: vertex,
+            second: toward,
+            length: remainder,
+            provenance: toward_provenance,
+        });
+        Ok((vertex, from_edge, toward_edge))
+    }
+
+    /// Builds the dense active graph consumed by exact Figure 6 operations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an active edge violates the source graph domain
+    /// or its rational encoding bound cannot be represented.
+    pub fn project(&self) -> Result<AugmentedProjection, An19PetalError> {
+        let mut dense_to_augmented = Vec::new();
+        let mut edges = Vec::new();
+        let mut bound = 1_i128;
+        for (index, edge) in self.edges.iter().enumerate() {
+            if !edge.active {
+                continue;
+            }
+            bound = bound
+                .max(
+                    edge.length
+                        .numerator()
+                        .checked_abs()
+                        .ok_or(An19PetalError::Overflow)?,
+                )
+                .max(edge.length.denominator());
+            dense_to_augmented.push(index);
+            edges.push(SourceWeightedEdge {
+                first: edge.first,
+                second: edge.second,
+                length: edge.length,
+                weight: ratio(1, 1)?,
+            });
+        }
+        let graph = SourceDynamicGraph::new(self.node_count, edges, bound)
+            .map_err(|_| An19PetalError::InvalidAugmentedGraph)?;
+        Ok(AugmentedProjection {
+            graph,
+            dense_to_augmented,
+        })
+    }
+
+    /// Suppresses complete provenance chains into a certified original tree.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for inactive selections, partial original edges, or a
+    /// recovered original edge set that is cyclic or disconnected.
+    pub fn recover_original_tree(
+        &self,
+        selected_augmented_edges: &BTreeSet<usize>,
+    ) -> Result<BTreeSet<SourceEdgeId>, An19PetalError> {
+        if selected_augmented_edges
+            .iter()
+            .any(|index| self.edges.get(*index).is_none_or(|edge| !edge.active))
+        {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        let original_edge_count = self.original_endpoints.len();
+        let mut active_segments = vec![0_usize; original_edge_count];
+        let mut selected_segments = vec![0_usize; original_edge_count];
+        for (index, edge) in self.edges.iter().enumerate() {
+            if !edge.active {
+                continue;
+            }
+            if let Some(provenance) = &edge.provenance {
+                if provenance.edge.0 >= original_edge_count {
+                    return Err(An19PetalError::InvalidAugmentedGraph);
+                }
+                active_segments[provenance.edge.0] = active_segments[provenance.edge.0]
+                    .checked_add(1)
+                    .ok_or(An19PetalError::Overflow)?;
+                if selected_augmented_edges.contains(&index) {
+                    selected_segments[provenance.edge.0] = selected_segments[provenance.edge.0]
+                        .checked_add(1)
+                        .ok_or(An19PetalError::Overflow)?;
+                }
+            }
+        }
+        let mut result = BTreeSet::new();
+        let mut connectivity = DisjointSet::new(self.original_node_count);
+        for index in 0..original_edge_count {
+            if selected_segments[index] == 0 {
+                continue;
+            }
+            if active_segments[index] != selected_segments[index] {
+                return Err(An19PetalError::InvalidAugmentedGraph);
+            }
+            let (first, second) = self.original_endpoints[index];
+            if !connectivity.union(first.0, second.0) {
+                return Err(An19PetalError::InvalidAugmentedGraph);
+            }
+            result.insert(SourceEdgeId(index));
+        }
+        if result.len() + 1 != self.original_node_count
+            || !all_connected(&mut connectivity, self.original_node_count)
+        {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
+        Ok(result)
+    }
+}
+
+impl AugmentedProjection {
+    /// Returns the dense active source graph.
+    #[must_use]
+    pub const fn graph(&self) -> &SourceDynamicGraph {
+        &self.graph
+    }
+
+    /// Maps every dense edge ID to its stable augmented edge ID.
+    #[must_use]
+    pub fn dense_to_augmented(&self) -> &[usize] {
+        &self.dense_to_augmented
+    }
+}
+
+fn split_provenance(
+    edge: &AugmentedAn19Edge,
+    from: FlowNodeId,
+    offset: ExactRatio,
+) -> Result<(Option<OriginalEdgeInterval>, Option<OriginalEdgeInterval>), An19PetalError> {
+    let Some(provenance) = &edge.provenance else {
+        return Ok((None, None));
+    };
+    let (from_position, toward_position) = if edge.first == from {
+        (provenance.first_position, provenance.second_position)
+    } else {
+        (provenance.second_position, provenance.first_position)
+    };
+    let direction = toward_position
+        .checked_sub(from_position)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let fraction = offset
+        .checked_mul(
+            edge.length
+                .reciprocal()
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .map_err(|_| An19PetalError::Overflow)?;
+    let split_position = from_position
+        .checked_add(
+            direction
+                .checked_mul(fraction)
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .map_err(|_| An19PetalError::Overflow)?;
+    let from_interval = OriginalEdgeInterval {
+        edge: provenance.edge,
+        first_position: from_position,
+        second_position: split_position,
+    };
+    let toward_interval = OriginalEdgeInterval {
+        edge: provenance.edge,
+        first_position: split_position,
+        second_position: toward_position,
+    };
+    Ok((Some(from_interval), Some(toward_interval)))
 }
 
 impl DisjointSet {
@@ -1813,6 +2123,8 @@ pub enum An19PetalError {
     RepeatedHighway,
     #[error("AN19 short-edge contraction or tree expansion is invalid")]
     InvalidContraction,
+    #[error("AN19 augmented hierarchy or original-tree recovery is invalid")]
+    InvalidAugmentedGraph,
     #[error("certified AN19 logarithmic comparison needs more bounded precision")]
     InsufficientPrecision,
     #[error("checked AN19 petal arithmetic overflowed")]
@@ -2236,6 +2548,133 @@ mod tests {
                 toward_center: FlowNodeId(0),
                 offset_from: ExactRatio::new(3, 2).unwrap(),
             }
+        );
+    }
+
+    #[test]
+    fn splits_augmented_provenance_in_both_orientations_and_projects_dense_ids() {
+        use super::{AugmentedAn19Graph, OriginalEdgeInterval};
+
+        let graph = SourceDynamicGraph::new(
+            3,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(3, 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(1),
+                    second: FlowNodeId(2),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            16,
+        )
+        .unwrap();
+        let mut augmented = AugmentedAn19Graph::from_source(&graph).unwrap();
+        let (portal, from_edge, toward_edge) = augmented
+            .split_edge(0, FlowNodeId(1), ExactRatio::new(1, 2).unwrap())
+            .unwrap();
+
+        assert_eq!(portal, FlowNodeId(3));
+        assert_eq!(
+            augmented.edges[from_edge].provenance,
+            Some(OriginalEdgeInterval {
+                edge: crate::SourceEdgeId(0),
+                first_position: ExactRatio::new(3, 2).unwrap(),
+                second_position: ExactRatio::new(1, 1).unwrap(),
+            })
+        );
+        assert_eq!(
+            augmented.edges[toward_edge].provenance,
+            Some(OriginalEdgeInterval {
+                edge: crate::SourceEdgeId(0),
+                first_position: ExactRatio::new(1, 1).unwrap(),
+                second_position: ExactRatio::new(0, 1).unwrap(),
+            })
+        );
+        let projection = augmented.project().unwrap();
+        assert_eq!(projection.graph.node_count(), 4);
+        assert_eq!(
+            projection.dense_to_augmented,
+            vec![1, from_edge, toward_edge]
+        );
+
+        let selected = BTreeSet::from([1, from_edge, toward_edge]);
+        assert_eq!(
+            augmented.recover_original_tree(&selected).unwrap(),
+            BTreeSet::from([crate::SourceEdgeId(0), crate::SourceEdgeId(1)])
+        );
+        assert!(
+            augmented
+                .recover_original_tree(&BTreeSet::from([1, from_edge]))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_cyclic_and_disconnected_augmented_tree_recovery() {
+        use super::AugmentedAn19Graph;
+
+        let triangle = SourceDynamicGraph::new(
+            3,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(1),
+                    second: FlowNodeId(2),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(2),
+                    second: FlowNodeId(0),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            16,
+        )
+        .unwrap();
+        let augmented = AugmentedAn19Graph::from_source(&triangle).unwrap();
+        assert!(
+            augmented
+                .recover_original_tree(&BTreeSet::from([0, 1, 2]))
+                .is_err()
+        );
+
+        let disconnected = SourceDynamicGraph::new(
+            4,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(2),
+                    second: FlowNodeId(3),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            16,
+        )
+        .unwrap();
+        let augmented = AugmentedAn19Graph::from_source(&disconnected).unwrap();
+        assert!(
+            augmented
+                .recover_original_tree(&BTreeSet::from([0, 1]))
+                .is_err()
         );
     }
 }
