@@ -11,6 +11,17 @@ use crate::{
     SourceEdgeId, SourceWeightedEdge,
 };
 
+mod event_engine;
+
+pub use event_engine::{
+    An19AdversarialCampaign, An19AdversarialCaseResult, An19AdversarialFamily, An19ChargeAnalysis,
+    An19ChargeMapKind, An19CountByKey, An19EventContext, An19EventEngine, An19EventEngineKind,
+    An19EventOrientation, An19EventProblem, An19EventRun, An19EventRuntimeStatus,
+    An19EventSegmentMetadata, An19EventState, An19EventTraceRecord, An19EventType,
+    An19ExactRatioRecord, An19HierarchyEventMetrics, An19ReducedEventEngine, An19SnapshotMetrics,
+    An19StaleReason, An19StoppingCertificate, ExactEventOracle, ProvedEventEngine,
+};
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct An19PetalMetrics {
     pub shortest_path_runs: u64,
@@ -6991,6 +7002,12 @@ pub enum An19PetalError {
     InvalidRadiusCertificate,
     #[error("AN19 source-shaped work certificate is invalid")]
     InvalidWorkCertificate,
+    #[error(
+        "AN19 proved event engine is unavailable until its ordering and work bounds are proved"
+    )]
+    UnprovedEventEngine,
+    #[error("AN19 event trace or differential certificate is invalid")]
+    InvalidEventTrace,
     #[error("certified AN19 logarithmic comparison needs more bounded precision")]
     InsufficientPrecision,
     #[error("checked AN19 petal arithmetic overflowed")]
