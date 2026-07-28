@@ -491,12 +491,15 @@ correctness cannot be inferred from an end-to-end test alone:
    intervals; every approximation proves the factor-two length and
    scaled-gradient error hypotheses used by Theorem 4.3. Evidence is in
    `docs/phase-reports/P09-certified-ipm-quantities.md`.
-3. **P9.2.3 state: in_progress. Start SHA: `bba500e`.** Implement and certify
-   Lemma 4.4 updates, including circulation, step size, strict-interior,
-   potential-decrease, iteration, coordinate-update, and Detect accounting.
-4. P9.2.4 implements the source initial-point and additive-half termination
-   boundary, then uses deterministic KP15 rounding and the P7 exact Oracle for
-   recovery differentials.
+3. **P9.2.3 state: complete. Start SHA: `bba500e`; implementation SHA:
+   `ab6fb10`.** Lemma 4.4 updates now enforce circulation, exact ratio quality,
+   source step size, strict-interior successor validation, certified potential
+   decrease, iteration/coordinate counters, and lower-bound Detect accounting.
+   Evidence is in `docs/phase-reports/P09-lemma-44-updates.md`.
+4. **P9.2.4 state: in_progress. Start SHA: `ab6fb10`.** Implement and certify
+   the source initial-point and additive-half termination boundary, then use
+   deterministic KP15 rounding and the P7 exact Oracle for recovery
+   differentials.
 
 No P9.2 item may use `f64`, the existing rational surrogate, or an unchecked
 transcendental result as evidence for Equation (9). The fixed-point word-size
@@ -634,3 +637,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9 | in_progress | 32d7b49 | 0abf2a1, d1cefdd, 48250f5, 959ed00, 4e66be4, ffb371f | pending | ffb371f | `docs/phase-reports/P09-integration-gate-audit.md` | exact P9.1 Oracles; no almost-linear backend | 2026-07-27T17:02:52Z | pending | P9.2--P9.6 source gates remain |
 | P9.2.1 | complete | d1c7a3b | 44d50d4 | 44d50d4 | 44d50d4 | `docs/phase-reports/P09-fixed-point-arithmetic.md` | certified dyadic `log`, `exp`, and negative-power intervals; 191 workspace tests passed | 2026-07-27T23:36:48Z | 2026-07-28T00:05:39Z | Equation (9) integration continues in P9.2.2 |
 | P9.2.2 | complete | 44d50d4 | bba500e | bba500e | bba500e | `docs/phase-reports/P09-certified-ipm-quantities.md` | certified Equation (9), lengths, gradients, and approximation hypotheses; 194 workspace tests passed | 2026-07-28T00:05:39Z | 2026-07-28T00:23:57Z | Lemma 4.4 transitions continue in P9.2.3 |
+| P9.2.3 | complete | bba500e | ab6fb10 | pending | pending | `docs/phase-reports/P09-lemma-44-updates.md` | certified Lemma 4.4 transition, strict-interior/potential-drop checks, and Detect ledger; full workspace audit passed | 2026-07-28T00:24:00Z | 2026-07-28T01:20:00Z | P9.2.4 initial point, termination, and recovery remain |
