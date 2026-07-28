@@ -8,7 +8,7 @@
 - Current phase state: blocked
 - Last completed phase: P8
 - Last pushed SHA: 09ea2bb5355c60d156dafd1cfd1f00e70fcb0751
-- Plan last updated: 2026-07-28T13:18:37Z
+- Plan last updated: 2026-07-28T13:44:39Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -533,7 +533,7 @@ P9.3 is split into the following source-gated subphases:
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
    `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
    `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`, `bc61592`,
-   `14e9abb`, `8d68d59`.** The Appendix B.3
+   `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -571,7 +571,7 @@ P9.3 is split into the following source-gated subphases:
    - **P9.3.2d state: blocked. Implementation SHAs: `3bb0400`, `839cb5c`,
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
      `27d5773`, `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`,
-     `bc61592`, `14e9abb`, `8d68d59`, `5cc49f0`.** The exact
+     `bc61592`, `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`.** The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge
@@ -657,11 +657,29 @@ P9.3 is split into the following source-gated subphases:
      equal labels do not prove that arbitrary Figure 6 candidate distances may
      share a monotone queue, and the 33-occurrence per-source observation still
      exceeds the 9 logarithmic levels.
+     `b050625` separates logical partition scales from same-scale quotient
+     contraction calls. Every radius certificate records its recursion parent,
+     partition depth, contraction status, and top-level source for each stored
+     edge. Verification requires every partition child radius to be at most
+     `3/4` of its parent's exact radius, every quotient contraction to retain
+     the same depth under a parent with a checked contraction, and the complete
+     preorder to reproduce the recursion/contraction counters. It independently
+     rebuilds the per-source scale-occurrence vector from the radius
+     certificates and enforces both `max_source_occurrences <= max_depth + 1`
+     and the Section 6 consequence `max_depth < 6 ceil(log2 n) + 4`. On the
+     500-node nonvirtual path, 46 logical calls have maximum depth 8; 2,256
+     source-scale participations have per-source maximum 9 and require 2,919
+     attribution scans. The alternating rational path has 1,983
+     participations, per-source maximum 7, and 2,016 attribution scans. These
+     counters are scale invariant and mutation checked. They close the
+     per-source logical-scale gate, not the separate materialization gate:
+     source segments are still materialized up to 33 times on the unit path.
      Unblock only with an authoritative corrected construction or a separately
      proved exact event-order data structure meeting the rational-input bound;
      that structure must preserve exact event order while consuming the
-     symbolic labels, and per-edge recursive-scale certificates must bound
-     participation. `An19AmortizationMode`
+     symbolic labels. The implementation must also charge repeated projection
+     materialization and portal-fragment processing to the certified scales
+     before selecting a structural amortization mode. `An19AmortizationMode`
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
@@ -809,4 +827,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | blocked | aabe7fc | pending | pending | 09ea2bb | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | P9.3.2d source event-order interface is unresolved |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59, 5cc49f0 | pending | e9919f3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source and symbolic-label projection audits, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; 500-node projections have 16 materialized classes but only 2 symbolic source classes and 3 symbolic virtual classes; the retained 162-class event counterexample still prevents a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction and per-edge recursion proof remain; symbolic labels alone do not justify source-monotone event ordering |
+| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59, 5cc49f0, b050625 | pending | e9919f3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source/symbolic-label/recursive-scale audits, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; 500-node logical recursion has depth 8 and per-source maximum 9, while projections still materialize a source up to 33 times; 16 materialized classes reduce to 2 symbolic source and 3 virtual classes; the retained 162-class event counterexample still prevents a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction plus structural charging for repeated projection materialization and portal fragments remain; symbolic labels and logical-scale counts alone do not justify source-monotone event ordering |

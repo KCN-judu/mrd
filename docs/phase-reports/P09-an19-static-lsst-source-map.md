@@ -22,6 +22,7 @@ Fixed first-target projection and shortest-path reuse is `bc61592`.
 Mutation-aware unchanged-cluster projection caching is `14e9abb`.
 Incremental cached projection updates across portal splits are `8d68d59`.
 Symbolic source-length labels and their projection audit are `5cc49f0`.
+Recursive source-scale and radius-shrink certificates are `b050625`.
 
 ## Resolved source questions
 
@@ -235,6 +236,34 @@ from the source-length-class count. It does not establish that distinct
 candidate distances in the all-radii Figure 6 event stream can be ordered by
 those labels.
 
+Logical recursion now distinguishes a child partition from a same-scale
+quotient contraction. Each radius certificate stores its preorder parent,
+partition depth, same-scale flag, and the top-level source of every radius
+edge. The final verifier independently rebuilds the full per-source
+scale-occurrence vector from those radius edges. It rejects a missing or
+forward parent, a contraction child at a new depth, a contraction without a
+certified parent contraction, or a partition child whose exact radius exceeds
+three quarters of its parent's radius. It also cross-checks logical calls,
+contractions, maximum depth, source-attribution scans, total and maximum source
+participation, and every per-source count against the hierarchy metrics.
+
+AN19 final Section 6 observes that active source radii span at most `2 n^2`
+and Claims 5--6 shrink each partition radius by at least `3/4`. Since
+`(3/4)^3 < 1/2`, the checked ceiling is `6 ceil(log2 n) + 4` calls. Every
+successful result additionally requires a source to occur at most once per
+logical depth. On the deterministic 500-node nonvirtual unit path, 46 logical
+calls reach depth 8; 2,256 source-scale participations have per-source maximum
+9 and require 2,919 attribution scans. On the 500-node alternating rational
+path, 1,983 participations have per-source maximum 7 and require 2,016 scans;
+uniform scaling preserves all three values. Same-scale quotient contraction,
+parent/depth, source-root, aggregate, and ceiling mutations are rejected.
+
+This closes the logical recursive-scale certificate. It does not yet charge
+all implementation work to those scales: the unit-path source with 9 scale
+participations can still have 33 materialized projection occurrences, and
+portal fragments remain in descendant projections. Consequently
+`AggregateRegressionOnly` remains the amortization mode.
+
 ## Runtime acceptance audit
 
 | Issue | Observed | Source requirement | Current acceptance |
@@ -244,7 +273,7 @@ those labels.
 | omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
 | weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
 | source priority queue | Production shortest paths and fixed-radius Claim 15 runs now use original edge-length classes. Potential reweighting changes every ordinary reduced arc `l+d(x,u)-d(x,v)` back to `l`; ordered highway source labels represent the half-length path and an interior portal exactly. The all-radii Figure 6 event stream still groups by reduced directed cost, and a 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; KMPb Corollary 5.5 states its fast `ConeCut` bound for `k` distinct cone distances. EEST05 Definition 4.4 charges an original edge length only when a path leaves the forward-edge ideal, but AN19 explicitly uses the different excess metric. Final AN19 Section 6, p. 245, repeats the jump from original power-of-two weights to improved Dijkstra on the reduced graph without bounding the reduced cost classes. | **Blocked.** `ece2722` closes the fixed-radius subproblem with 456 directed-distance differentials and a source-class counterexample audit. Neither the public manuscript nor the final journal text proves that AN19's exact event order has `O(log n)` classes; KMPb Lemma 5.6 also moves from distinct graph lengths to its `ConeCut` call without giving the missing conversion. Keep `ReducedLengthMonotone` until an authoritative correction or an independently proved exact rational event-order structure is available. |
-| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections remap every noncontiguous augmented cluster to exactly `0..|X|`. `e4f54af` also keeps top-level source IDs independent of quotient-local recovery provenance through portal splits and nested contractions, and stores only `O(m)` per-source and aggregate projection counters. On the deterministic 500-node unit path, one original length class becomes as many as 16 active projection classes. Before fixed-path reuse, 16,948 projected edge occurrences included 4,332 provenance-free segments and one original edge reached 111 occurrences. `bc61592` and `14e9abb` reduce materialized edge occurrences to 12,274 and workspace scans to 31,498. `8d68d59` then applies 39 exact portal splits in place across 83 cache hits, reducing those figures to 5,974 and 18,290. Its length-class multiset keeps the active maximum at 16 rather than hiding cached segment classes; one source edge still has 33 materialized occurrences versus 9 logarithmic levels. `5cc49f0` independently propagates unsplit source labels through portal splits and quotient recursion: the 16 active classes reduce to 2 symbolic source classes and 3 symbolic virtual classes. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Duplicate and split-triggered full materialization are removed and counted, and symbolic labels prevent portal segments from multiplying source-label classes. Per-source recursion participation is still not structurally bounded, and equal labels do not prove an exact all-radii candidate ordering. Prove both interfaces before selecting `StructuralSourceBound` or `SourceMonotone`. |
+| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections remap every noncontiguous augmented cluster to exactly `0..|X|`. `e4f54af` also keeps top-level source IDs independent of quotient-local recovery provenance through portal splits and nested contractions, and stores only `O(m)` per-source and aggregate projection counters. On the deterministic 500-node unit path, one original length class becomes as many as 16 active projection classes. Before fixed-path reuse, 16,948 projected edge occurrences included 4,332 provenance-free segments and one original edge reached 111 occurrences. `bc61592` and `14e9abb` reduce materialized edge occurrences to 12,274 and workspace scans to 31,498. `8d68d59` then applies 39 exact portal splits in place across 83 cache hits, reducing those figures to 5,974 and 18,290. Its length-class multiset keeps the active maximum at 16 rather than hiding cached segment classes; one source edge still has 33 materialized occurrences. `5cc49f0` independently propagates unsplit source labels through portal splits and quotient recursion: the 16 active classes reduce to 2 symbolic source classes and 3 symbolic virtual classes. `b050625` independently reconstructs 2,256 logical source-scale participations from radius certificates; their per-source maximum is 9 across maximum partition depth 8, and same-scale contractions do not create a false level. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** The logical per-source recursion bound is now structurally certified, and symbolic labels prevent portal segments from multiplying source-label classes. Repeated projection materialization and descendant portal-fragment processing are not yet charged to those scales; equal labels also do not prove an exact all-radii candidate ordering. Prove both remaining interfaces before selecting `StructuralSourceBound` or `SourceMonotone`. |
 
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. The source-edge audit exposes where
@@ -301,8 +330,9 @@ rejection of partial/cyclic/disconnected recovery, unit Figures 4--5 recursion,
 virtual-path suppression, radius/tree/stretch verification, mutation rejection,
 exact-Oracle comparison on every connected four-node simple graph, top-level
 source preservation across portal splits and quotient recursion, and
-source-edge and symbolic-class projection audit mutation rejection. Uniform
-scaling preserves symbolic audit counts while the priority mode remains
+source-edge, symbolic-class, recursive-parent, same-scale-contraction, and
+per-source scale audit mutation rejection. Uniform scaling preserves symbolic
+and source-scale audit counts while the priority mode remains
 `ReducedLengthMonotone` and `source_runtime_verified()` remains false. The
 500-node nonvirtual path additionally demonstrates multiple materialized
 projection length classes,
