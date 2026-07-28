@@ -210,13 +210,32 @@ path with the parametric and repeated-shortest-path Oracles.
 | repeated Figure 5 distances | The implementation formerly recomputed `d_X(x0, .)` for every later petal and located a target using a new path in `Y`. | Figure 5 fixes `d_X` and `P_x0,t(X)` for the entire decomposition; Claim 1 proves the fixed path remains in `Y`. | `720f0cb` rebuilds once after the imaginary first path and reuses fixed `X` distances for later target selection. |
 | omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
 | weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
-| source priority queue | Production shortest paths, directed Claim 15 runs, multi-source membership, and event ordering now use balanced per-length monotone queues; all production binary-heap counters are zero. However, grouping by reduced directed cost can create more than `O(log n)` classes. A 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; AN19 Section 7 delegates fast `ConeCut`/star-decomposition to KMPb. The reduced-cost graph alone does not preserve that hypothesis. | **Open.** Commits `f54c29a` and `c02c7c9` retain the faster queue and the counterexample, but accurately report `ReducedLengthMonotone`. Recover or implement KMPb's original-length-class cone processing before recording `SourceMonotone`. |
+| source priority queue | Production shortest paths and fixed-radius Claim 15 runs now use original edge-length classes. Potential reweighting changes every ordinary reduced arc `l+d(x,u)-d(x,v)` back to `l`; ordered highway source labels represent the half-length path and an interior portal exactly. The all-radii Figure 6 event stream still groups by reduced directed cost, and a 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; KMPb Corollary 5.5 states its fast `ConeCut` bound for `k` distinct cone distances. EEST05 Definition 4.4 charges an original edge length only when a path leaves the forward-edge ideal, but AN19 explicitly uses the different excess metric. | **Blocked.** `ece2722` closes the fixed-radius subproblem with 456 directed-distance differentials and a source-class counterexample audit. No recovered source proves that AN19's exact event order has `O(log n)` classes: KMPb Lemma 5.6 moves from distinct graph lengths to its `ConeCut` call without giving the missing conversion. Keep `ReducedLengthMonotone` until an authoritative correction or an independently proved exact rational event-order structure is available. |
 | recursive amortization | The certificate compares an aggregate counter with a fixed `1024` factor. It does not yet certify per-edge recursion depth, active length-class bounds, or all node-slot initialization work. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Replace the fixed-factor-only check with structural per-level participation and allocation/queue certificates before closing P9.3.2d. |
 
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. It is not accepted as an asymptotic
-proof. P9.3.2d remains `in_progress`, and no AN19 production runtime or full
+proof. P9.3.2d is `blocked`, and no AN19 production runtime or full
 Lemma 5.4 completion is claimed.
+
+## Persisted source blocker
+
+AN19 defines the cone ball around `p` by the excess
+`d(p,v)+d(p,x)-d(v,x)`. Claim 15 realizes this as directed arc costs
+`l(u,v)+d(x,u)-d(x,v)`. EEST05 Definition 4.4 instead gives zero cost to a
+forward arc and charges the full original length to every other traversed
+edge. The latter is a concentric system but is not the former exact metric, so
+substituting EEST cones would change Figure 6 membership and is not accepted.
+
+The 2019 SIAM Journal publication page for DOI `10.1137/17M1115575` confirms
+the final `O(m log n log log n)` theorem but exposes only the abstract without
+subscription access. The complete public manuscript, KMPb, EEST05, OMSW10,
+and ABN08 do not supply the missing exact event-order reduction. The next
+source action is to obtain an authoritative accessible final-text or erratum
+that resolves this interface. The independent implementation alternative is
+a proved exact rational event-order data structure with work counters matching
+the theorem; comparison sorting or an unstated bounded-integer assumption is
+not sufficient.
 
 ## Focused evidence
 
@@ -224,11 +243,11 @@ Lemma 5.4 completion is claimed.
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 27 tests passed, including the reduced-length class counterexample |
+| `cargo test -p rect-graph source_an19` | 0 | 28 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 242 passed and 3 existing release-scale campaigns ignored across 13 suites; 407.53 seconds |
+| `cargo test --workspace` | 0 | 243 passed and 3 existing release-scale campaigns ignored across 13 suites; 406.86 seconds |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.87 seconds |
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 15.62 seconds |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
