@@ -7,7 +7,7 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 0a1686f31f0f564aec25167be26d2a87d0d1d26c
+- Last pushed SHA: b4ff45118ef73e359bfac660477abe1696030c6a
 - Plan last updated: 2026-07-28T05:34:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -529,7 +529,8 @@ P9.3 is split into the following source-gated subphases:
    overestimates, embeddings, encoded recourse, and quasipolynomial bounds are
    audited in `docs/phase-reports/P09-source-structure-contracts.md`.
 2. **P9.3.2 state: in_progress. Start SHA: `6e96916`; implementation SHAs:
-   `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`.** The Appendix B.3
+   `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
+   `2bca89c`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -543,7 +544,9 @@ P9.3 is split into the following source-gated subphases:
    externally delegated AN19 static LSST constructor. The full ST04
    `decompose/sub` algorithm, weighted-copy reduction, exact decomposition
    verifiers, boundary/high-stretch initialization, and all dynamic forest
-   mechanics are implemented.
+   mechanics are implemented. A bounded exponential exact static LSST Oracle
+   now supplies a permanent differential baseline; it is not AN19 and carries
+   no production runtime claim.
 3. **P9.3.3 state: planned.** Implement Lemma 5.5's deterministic MWU
    collection of exactly `k` LSFs and prove the uniform per-edge average
    stretch bound while retaining the P8 weighted-Kruskal Oracle.
@@ -688,4 +691,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038 | pending | pending | `docs/phase-reports/P09-branch-free-forest-core.md` | weighted-copy reduction, full ST04 decomposition, branch-free/global-stretch core, all updates/splits | 2026-07-28T02:48:00Z | pending | AN19 static LSST implementation remains |
+| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c | pending | b4ff451 | `docs/phase-reports/P09-branch-free-forest-core.md` | weighted-copy reduction, full ST04 decomposition, branch-free/global-stretch core, all updates/splits, bounded exact static LSST differential Oracle | 2026-07-28T02:48:00Z | pending | AN19 static LSST implementation remains; exact Oracle is exponential and makes no runtime claim |
