@@ -532,7 +532,7 @@ P9.3 is split into the following source-gated subphases:
    `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
    `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
-   `f54c29a`, `c02c7c9`, `ece2722`.** The Appendix B.3
+   `f54c29a`, `c02c7c9`, `ece2722`, `6901703`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
