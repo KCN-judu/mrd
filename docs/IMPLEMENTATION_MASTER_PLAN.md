@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: a84654d5c47b25675ac5afd689af6f4cf7b7e2ba
-- Plan last updated: 2026-07-28T02:12:00Z
+- Last pushed SHA: 22e83712fccc484e0d56bac2dd3e4349f726c2f3
+- Plan last updated: 2026-07-28T02:24:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -514,12 +514,40 @@ precision cannot certify the required inequalities.
 
 ### P9.3 - Source-grade low-stretch and spanner structures
 
-**State:** in_progress. **Start SHA:** `aabe7fc`. Replace the P8/P9 static certificate baselines with the
-source constructions and accounting required by Lemmas 5.4--5.5, Theorem 8.2,
-and Theorem 1.2. Preserve each exact constructor/verifier as an Oracle. Require
-the precise decremental/vertex-split domain, embeddings, stretch, congestion,
-recourse, rebuild, and bounded-weight assumptions before recording a source
-runtime guarantee.
+**State:** in_progress. **Start SHA:** `aabe7fc`. Replace the P8/P9 static
+certificate baselines with the source constructions and accounting required by
+Lemmas 5.4--5.5, Theorem 8.2, and Theorem 1.2. Preserve each exact
+constructor/verifier as an Oracle. Require the precise decremental/vertex-split
+domain, embeddings, stretch, congestion, recourse, rebuild, and bounded-weight
+assumptions before recording a source runtime guarantee.
+
+P9.3 is split into the following source-gated subphases:
+
+1. **P9.3.1 state: in_progress. Start SHA: `22e8371`.** Persist exact source
+   parameters and checked contracts for positive lengths/weights, `k`, update
+   batches, decremental forest edges, root additions, partitions, stretch
+   overestimates, embeddings, encoded recourse, and quasipolynomial bounds.
+2. **P9.3.2 state: planned.** Implement Lemma 5.4's deterministic dynamic
+   low-stretch forest, including its initial tree/forest construction,
+   edge-disjoint pieces, boundary/volume certificate, deletion/insertion and
+   vertex-split handling, and total component/stretch/work accounting.
+3. **P9.3.3 state: planned.** Implement Lemma 5.5's deterministic MWU
+   collection of exactly `k` LSFs and prove the uniform per-edge average
+   stretch bound while retaining the P8 weighted-Kruskal Oracle.
+4. **P9.3.4 state: planned.** Implement the deterministic static
+   spanner-with-embedding primitive delegated by Theorem 8.1, with exact
+   subgraph, path-length, vertex-congestion, and size certificates.
+5. **P9.3.5 state: planned.** Implement Theorem 8.2's deletion/vertex-split
+   reduction, batch encoding, sparsity, spanner recourse, re-embedding sets,
+   and initialization/update accounting. Retain the greedy-rebuild spanner as
+   an Oracle only.
+6. **P9.3.6 state: planned.** Implement Theorem 1.2/Section 9's fully dynamic
+   low-stretch spanning tree for bounded integral lengths, including contracted
+   forests, embedded spanners, insertions/deletions, worst-case update work,
+   average stretch, and amortized tree recourse.
+7. **P9.3.7 state: planned.** Run source traceability, adversarial update,
+   certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
+   close from static fixtures or asymptotic assertions alone.
 
 ### P9.4 - Source-grade dynamic minimum-ratio cycle
 
@@ -646,3 +674,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.3 | complete | bba500e | ab6fb10 | cdc4c0d | cdc4c0d | `docs/phase-reports/P09-lemma-44-updates.md` | certified Lemma 4.4 transition, strict-interior/potential-drop checks, and Detect ledger; full workspace audit passed | 2026-07-28T00:24:00Z | 2026-07-28T01:20:00Z | P9.2.4 initial point, termination, and recovery remain |
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
+| P9.3.1 | in_progress | 22e8371 | pending | pending | pending | pending | source parameter and checked-contract audit | 2026-07-28T02:24:00Z | pending | none |
