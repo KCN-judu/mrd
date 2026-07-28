@@ -368,6 +368,7 @@ struct QueueStatistics {
 
 struct EnginePreparation {
     path: RecoveredPath,
+    center_distances: Vec<Option<ExactRatio>>,
     thresholds: MembershipThresholds,
     selection: FigureSixSelection,
     witnesses: Vec<Option<ArcWitness>>,
@@ -412,6 +413,7 @@ impl An19EventEngine for ExactEventOracle {
             self.kind(),
             &EnginePreparation {
                 path,
+                center_distances: paths.distances.clone(),
                 thresholds,
                 selection,
                 witnesses: vec![None; problem.graph.node_count()],
@@ -469,6 +471,7 @@ impl An19EventEngine for An19ReducedEventEngine {
             self.kind(),
             &EnginePreparation {
                 path,
+                center_distances: paths.distances,
                 thresholds: traced.thresholds,
                 selection,
                 witnesses: traced.witnesses,
@@ -1446,6 +1449,19 @@ fn build_semantic_trace(
                         ))
                     })
                     .ok_or(An19PetalError::Overflow)?;
+                let from_distance = preparation.center_distances[entry.vertex.0]
+                    .ok_or(An19PetalError::Disconnected)?;
+                let to_distance =
+                    preparation.center_distances[other.0].ok_or(An19PetalError::Disconnected)?;
+                let reduced_cost = edge
+                    .length
+                    .checked_add(from_distance)
+                    .and_then(|value| value.checked_sub(to_distance))
+                    .and_then(|value| value.checked_mul_integer(2))
+                    .map_err(|_| An19PetalError::Overflow)?;
+                if reduced_cost.is_negative() {
+                    return Err(An19PetalError::InvalidHighway);
+                }
                 trace.push(make_trace_record(
                     problem,
                     event_type,
@@ -1453,10 +1469,7 @@ fn build_semantic_trace(
                     Some(ArcWitness {
                         edge: SourceEdgeId(*edge_index),
                         to: other,
-                        reduced_cost: preparation.witnesses[entry.vertex.0]
-                            .map_or(ratio(0, 1).expect("constant ratio"), |witness| {
-                                witness.reduced_cost
-                            }),
+                        reduced_cost,
                         orientation,
                         directed_incidence: incidence,
                     }),
@@ -2501,6 +2514,35 @@ mod tests {
         assert!(!reduced.runtime_status.an19_runtime_verified);
         oracle.verify_trace().unwrap();
         reduced.verify_trace().unwrap();
+        let mut metrics = An19PetalMetrics::default();
+        let paths =
+            shortest_paths(problem.graph, problem.cluster, problem.center, &mut metrics).unwrap();
+        for event in reduced.semantic_trace.iter().filter(|event| {
+            matches!(
+                event.event_type,
+                An19EventType::OutsideToBoundaryEdgeTransition
+                    | An19EventType::BoundaryToInternalEdgeTransition
+            )
+        }) {
+            let edge = problem
+                .graph
+                .edge(SourceEdgeId(event.active_segment_id.unwrap()))
+                .unwrap();
+            let (from, to) = match event.orientation.unwrap() {
+                An19EventOrientation::FirstToSecond => (edge.first, edge.second),
+                An19EventOrientation::SecondToFirst => (edge.second, edge.first),
+            };
+            let expected = edge
+                .length
+                .checked_add(paths.distances[from.0].unwrap())
+                .and_then(|value| value.checked_sub(paths.distances[to.0].unwrap()))
+                .and_then(|value| value.checked_mul_integer(2))
+                .unwrap();
+            assert_eq!(
+                ExactRatio::try_from(event.exact_reduced_cost.unwrap()).unwrap(),
+                expected
+            );
+        }
     }
 
     #[test]
