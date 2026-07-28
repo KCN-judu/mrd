@@ -262,9 +262,9 @@ not sufficient.
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 245 passed and 3 existing release-scale campaigns ignored across 13 suites; 405.23 seconds |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.84 seconds |
-| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 15.87 seconds |
+| `cargo test --workspace` | 0 | 246 passed and 3 existing release-scale campaigns ignored across 13 suites; 411.89 seconds |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 5.58 seconds |
+| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 17.84 seconds |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
