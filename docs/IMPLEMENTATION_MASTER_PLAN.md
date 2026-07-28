@@ -531,7 +531,8 @@ P9.3 is split into the following source-gated subphases:
 2. **P9.3.2 state: in_progress. Start SHA: `6e96916`; implementation SHAs:
    `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
-   `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`.** The Appendix B.3
+   `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
+   `f54c29a`, `c02c7c9`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -568,7 +569,7 @@ P9.3 is split into the following source-gated subphases:
      recovery are implemented and differentially audited.
    - **P9.3.2d state: in_progress. Implementation SHAs: `3bb0400`, `839cb5c`,
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
-     `27d5773`.** The exact
+     `27d5773`, `f54c29a`, `c02c7c9`.** The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge
@@ -582,11 +583,14 @@ P9.3 is split into the following source-gated subphases:
      fast event processing, cluster-local projection, actual heap-comparison
      accounting, and scale-relative power-of-two length rounding are now
      implemented without numeric graph expansion or fallback. The source
-     runtime gate remains open: replace the binary/event heaps with the Section
-     7 monotone distinct-length queue and add structural certificates for the
-     `O(log n)` active length classes, per-edge recursive participation, and
-     node-slot/allocation work. The fixed `1024` aggregate ceiling is only a
-     regression guard and is not an asymptotic proof.
+     runtime gate remains open. Production binary heaps have been replaced by
+     balanced monotone queues and their use is certified, but reduced directed
+     costs do not inherit the `O(log n)` original-length-class bound: a retained
+     128-node power-of-two chord fixture has 162 reduced classes. Recover and
+     implement KMPb's source `ConeCut`/star-decomposition processing over the
+     original length classes, then add structural certificates for per-edge
+     recursive participation and node-slot/allocation work. The fixed `1024`
+     aggregate ceiling is only a regression guard and is not an asymptotic proof.
 3. **P9.3.3 state: planned.** Implement Lemma 5.5's deterministic MWU
    collection of exactly `k` LSFs and prove the uniform per-edge average
    stretch bound while retaining the P8 weighted-Kruskal Oracle.
@@ -731,4 +735,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773 | pending | 2278f9a | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, cluster-local projection, complete heap-comparison accounting, and scale-relative power-of-two rounding; no numeric expansion or fallback | 2026-07-28T02:48:00Z | pending | Section 7 monotone/event queue and structural recursive/allocation work proof remain |
+| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9 | pending | 2278f9a | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, cluster-local projection, scale-relative rounding, and zero-production-binary-heap reduced-length monotone queues; retained 162-class counterexample prevents a false source-runtime claim | 2026-07-28T02:48:00Z | pending | KMPb original-length-class `ConeCut` plus structural recursion/allocation proof remain |

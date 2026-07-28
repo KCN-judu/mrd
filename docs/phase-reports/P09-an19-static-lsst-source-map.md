@@ -210,7 +210,7 @@ path with the parametric and repeated-shortest-path Oracles.
 | repeated Figure 5 distances | The implementation formerly recomputed `d_X(x0, .)` for every later petal and located a target using a new path in `Y`. | Figure 5 fixes `d_X` and `P_x0,t(X)` for the entire decomposition; Claim 1 proves the fixed path remains in `Y`. | `720f0cb` rebuilds once after the imaginary first path and reuses fixed `X` distances for later target selection. |
 | omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
 | weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
-| source priority queue | All shortest-path and event queues still use a binary heap; sorted membership events are materialized after their multi-source run. | Section 7 delegates to the monotone distinct-length queue with `O(log k)` deletion cost, where `k = O(log n)`, and region growing must process changes within the same bound. | **Open.** `An19WorkCertificate::source_runtime_verified()` is false until `SourceMonotone` is recorded and independently verified. |
+| source priority queue | Production shortest paths, directed Claim 15 runs, multi-source membership, and event ordering now use balanced per-length monotone queues; all production binary-heap counters are zero. However, grouping by reduced directed cost can create more than `O(log n)` classes. A 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; AN19 Section 7 delegates fast `ConeCut`/star-decomposition to KMPb. The reduced-cost graph alone does not preserve that hypothesis. | **Open.** Commits `f54c29a` and `c02c7c9` retain the faster queue and the counterexample, but accurately report `ReducedLengthMonotone`. Recover or implement KMPb's original-length-class cone processing before recording `SourceMonotone`. |
 | recursive amortization | The certificate compares an aggregate counter with a fixed `1024` factor. It does not yet certify per-edge recursion depth, active length-class bounds, or all node-slot initialization work. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Replace the fixed-factor-only check with structural per-level participation and allocation/queue certificates before closing P9.3.2d. |
 
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
@@ -224,13 +224,13 @@ Lemma 5.4 completion is claimed.
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 26 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 27 tests passed, including the reduced-length class counterexample |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 241 passed and 3 existing release-scale campaigns ignored across 13 suites; 404.93 seconds |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.72 seconds |
-| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 16.65 seconds |
+| `cargo test --workspace` | 0 | 242 passed and 3 existing release-scale campaigns ignored across 13 suites; 407.53 seconds |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.87 seconds |
+| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 15.62 seconds |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
