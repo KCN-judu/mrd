@@ -54,7 +54,10 @@ pub use min_ratio_cycle::{
 pub use rooted_forest::{
     DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };
-pub use source_an19::{An19PetalError, An19PetalMetrics, An19UnweightedPetal};
+pub use source_an19::{
+    An19HalvedInterval, An19HighwayLedger, An19HighwaySegment, An19PathPoint, An19PetalError,
+    An19PetalMetrics, An19ShortEdgeContraction, An19UnweightedPetal, An19WeightedPetalAtRadius,
+};
 pub use source_lsf::{
     BranchFreeTree, CongestionOrder, ConstructedLsfInitialization, DynamicLsfCore,
     DynamicLsfCoreMetrics, ExactStaticLsstOracle, GlobalStretchCertificate,

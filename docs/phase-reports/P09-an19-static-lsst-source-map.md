@@ -2,7 +2,8 @@
 
 ## Status
 
-Source recovery and the first exact single-petal gate are complete. This report
+Source recovery, the exact single-petal gate, and the symbolic weighted-portal
+gate are complete. This report
 maps the complete 2012 AN19 manuscript and the 2019 journal citation
 (`10.1137/17M1115575`) to implementation gates. It does not claim that the
 hierarchical constructor, weighted extension, or runtime bound is implemented.
@@ -129,21 +130,42 @@ This implementation deliberately recomputes exact shortest paths and all
 membership thresholds. It is a source-semantics baseline for one petal, not the
 Claim 15 region-growing runtime implementation.
 
+## Implemented weighted-portal gate
+
+- `An19WeightedPetalAtRadius` evaluates Claim 15 with exact rational reduced
+  directed lengths. It represents a radius inside an edge as the original edge
+  ID, orientation, and exact offset, without unit subdivision.
+- Each highway records the exact original-edge portion whose forward directed
+  cost is halved. The directed region-growing result is differentially equal
+  to the cone-union baseline on their shared unit-length domain.
+- `An19HighwayLedger` stores canonical exact intervals on original edges,
+  atomically rejects positive overlap, merges touching intervals, and computes
+  the effective endpoint-to-endpoint length after every portion is halved once.
+- `An19ShortEdgeContraction` computes the cluster radius, contracts exactly the
+  edges shorter than `rad(X)/n^2`, retains original IDs on quotient edges, and
+  expands a certified quotient tree with deterministic internal forests into
+  an original-edge spanning tree.
+
+These pieces establish P9.3.2c's symbolic representation and recovery
+contracts. They do not yet compose Figure 5 recursively; that hierarchy and
+its radius/stretch proof remain P9.3.2d.
+
 ## Focused evidence
 
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 4 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 8 tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 219 passed, 3 ignored across 13 suites |
+| `cargo test --workspace` | 0 | 223 passed, 3 ignored across 13 suites |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
-nonunit edge, stable choice between equal diamond paths, and a fractional
-radius whose portal remains unresolved.
+nonunit edge, stable choice between equal diamond paths, a fractional radius,
+an interior rational portal, Claim 15 differential equality, short-edge tree
+expansion, and atomic highway interval accounting.

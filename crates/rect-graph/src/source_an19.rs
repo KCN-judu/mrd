@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
@@ -22,6 +22,7 @@ pub struct An19PetalMetrics {
 pub struct An19UnweightedPetal {
     pub vertices: BTreeSet<FlowNodeId>,
     pub path_from_center: Vec<FlowNodeId>,
+    pub path_edges: Vec<SourceEdgeId>,
     pub center_vertex: Option<FlowNodeId>,
     pub radius: ExactRatio,
     pub window_index: usize,
@@ -56,12 +57,16 @@ impl An19UnweightedPetal {
         validate_domain(graph, cluster, remaining, center, target, budget)?;
         let mut metrics = An19PetalMetrics::default();
         let cluster_paths = shortest_paths(graph, cluster, center, &mut metrics)?;
-        let path = recover_path(center, target, &cluster_paths)?;
-        if path.iter().any(|vertex| !remaining.contains(vertex)) {
+        let recovered_path = recover_path(center, target, &cluster_paths)?;
+        if recovered_path
+            .vertices
+            .iter()
+            .any(|vertex| !remaining.contains(vertex))
+        {
             return Err(An19PetalError::InvalidDomain);
         }
         let remaining_from_center = shortest_paths(graph, remaining, center, &mut metrics)?;
-        for vertex in &path {
+        for vertex in &recovered_path.vertices {
             if cluster_paths.distances[vertex.0] != remaining_from_center.distances[vertex.0] {
                 return Err(An19PetalError::InvalidDomain);
             }
@@ -69,7 +74,7 @@ impl An19UnweightedPetal {
         let thresholds = membership_thresholds(
             graph,
             remaining,
-            &path,
+            &recovered_path.vertices,
             &remaining_from_center,
             target,
             budget,
@@ -130,13 +135,15 @@ impl An19UnweightedPetal {
                 .checked_add(1)
                 .ok_or(An19PetalError::Overflow)?;
         };
-        let center_vertex = path
+        let center_vertex = recovered_path
+            .vertices
             .iter()
             .copied()
             .find(|vertex| thresholds.path_distance_from_target[vertex.0] == Some(radius));
         Ok(Self {
             vertices,
-            path_from_center: path,
+            path_from_center: recovered_path.vertices,
+            path_edges: recovered_path.edges,
             center_vertex,
             radius,
             window_index,
@@ -150,10 +157,458 @@ impl An19UnweightedPetal {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum An19PathPoint {
+    Vertex(FlowNodeId),
+    EdgeInterior {
+        edge: SourceEdgeId,
+        from: FlowNodeId,
+        toward_center: FlowNodeId,
+        offset_from: ExactRatio,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19HighwaySegment {
+    pub edge: SourceEdgeId,
+    pub from: FlowNodeId,
+    pub toward_center: FlowNodeId,
+    pub halved_length: ExactRatio,
+    pub original_edge_length: ExactRatio,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19WeightedPetalAtRadius {
+    pub vertices: BTreeSet<FlowNodeId>,
+    pub path_from_center: Vec<FlowNodeId>,
+    pub path_edges: Vec<SourceEdgeId>,
+    pub portal: An19PathPoint,
+    pub radius: ExactRatio,
+    pub highway_segments: Vec<An19HighwaySegment>,
+    pub directed_distances: Vec<Option<ExactRatio>>,
+    pub metrics: An19PetalMetrics,
+}
+
+impl An19WeightedPetalAtRadius {
+    /// Evaluates AN19 Claim 15 at one exact rational radius without expanding
+    /// edges into unit-length paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid/disconnected cluster, a radius beyond
+    /// the fixed center-target path, or inconsistent reduced directed lengths.
+    pub fn construct(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        remaining: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+        target: FlowNodeId,
+        radius: ExactRatio,
+    ) -> Result<Self, An19PetalError> {
+        validate_weighted_domain(graph, cluster, remaining, center, target, radius)?;
+        let mut metrics = An19PetalMetrics::default();
+        let cluster_paths = shortest_paths(graph, cluster, center, &mut metrics)?;
+        let path = recover_path(center, target, &cluster_paths)?;
+        if path
+            .vertices
+            .iter()
+            .any(|vertex| !remaining.contains(vertex))
+        {
+            return Err(An19PetalError::InvalidDomain);
+        }
+        let remaining_paths = shortest_paths(graph, remaining, center, &mut metrics)?;
+        for vertex in &path.vertices {
+            if cluster_paths.distances[vertex.0] != remaining_paths.distances[vertex.0] {
+                return Err(An19PetalError::InvalidDomain);
+            }
+        }
+        let (portal, highway_segments) = locate_portal_and_highway(graph, &path, target, radius)?;
+        let directed_distances = directed_petal_distances(
+            graph,
+            remaining,
+            target,
+            &remaining_paths.distances,
+            &highway_segments,
+            &mut metrics,
+        )?;
+        let half_radius = radius
+            .checked_mul(ratio(1, 2)?)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let mut vertices = BTreeSet::new();
+        for vertex in remaining {
+            let distance = directed_distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+            if half_radius
+                .at_least(distance)
+                .map_err(|_| An19PetalError::Overflow)?
+            {
+                vertices.insert(*vertex);
+            }
+        }
+        Ok(Self {
+            vertices,
+            path_from_center: path.vertices,
+            path_edges: path.edges,
+            portal,
+            radius,
+            highway_segments,
+            directed_distances,
+            metrics,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19ShortEdgeContraction {
+    pub cluster: BTreeSet<FlowNodeId>,
+    pub center: FlowNodeId,
+    pub radius: ExactRatio,
+    pub contraction_threshold: ExactRatio,
+    pub component_of: Vec<Option<usize>>,
+    pub components: Vec<BTreeSet<FlowNodeId>>,
+    pub contracted_edges: BTreeSet<SourceEdgeId>,
+    pub retained_edges: BTreeSet<SourceEdgeId>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19HalvedInterval {
+    pub start_from_first: ExactRatio,
+    pub end_from_first: ExactRatio,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19HighwayLedger {
+    original_lengths: Vec<Option<ExactRatio>>,
+    halved_intervals: Vec<Vec<An19HalvedInterval>>,
+    applications: u64,
+}
+
+impl An19HighwayLedger {
+    /// Creates an empty interval ledger over every active original edge.
+    #[must_use]
+    pub fn new(graph: &SourceDynamicGraph) -> Self {
+        Self {
+            original_lengths: (0..graph.edge_count())
+                .map(|index| graph.edge(SourceEdgeId(index)).map(|edge| edge.length))
+                .collect(),
+            halved_intervals: vec![Vec::new(); graph.edge_count()],
+            applications: 0,
+        }
+    }
+
+    #[must_use]
+    pub const fn applications(&self) -> u64 {
+        self.applications
+    }
+
+    #[must_use]
+    pub fn intervals(&self, edge: SourceEdgeId) -> Option<&[An19HalvedInterval]> {
+        self.halved_intervals.get(edge.0).map(Vec::as_slice)
+    }
+
+    /// Atomically records symbolic highway portions and rejects any positive
+    /// overlap with a portion that has already been halved.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for stale edge data, an invalid orientation/length, a
+    /// repeated interval, or exact arithmetic overflow.
+    pub fn apply(
+        &mut self,
+        graph: &SourceDynamicGraph,
+        highway: &[An19HighwaySegment],
+    ) -> Result<(), An19PetalError> {
+        let mut candidate = self.clone();
+        for segment in highway {
+            let edge = graph
+                .edge(segment.edge)
+                .ok_or(An19PetalError::InvalidHighway)?;
+            let original = candidate
+                .original_lengths
+                .get(segment.edge.0)
+                .copied()
+                .flatten()
+                .ok_or(An19PetalError::InvalidHighway)?;
+            if original != edge.length
+                || original != segment.original_edge_length
+                || !segment.halved_length.is_positive()
+                || ratio_less(original, segment.halved_length)?
+            {
+                return Err(An19PetalError::InvalidHighway);
+            }
+            let (start, end) = if segment.from == edge.first && segment.toward_center == edge.second
+            {
+                (ratio(0, 1)?, segment.halved_length)
+            } else if segment.from == edge.second && segment.toward_center == edge.first {
+                (
+                    original
+                        .checked_sub(segment.halved_length)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                    original,
+                )
+            } else {
+                return Err(An19PetalError::InvalidHighway);
+            };
+            let intervals = candidate
+                .halved_intervals
+                .get_mut(segment.edge.0)
+                .ok_or(An19PetalError::InvalidHighway)?;
+            for old in intervals.iter() {
+                if intervals_overlap(start, end, old.start_from_first, old.end_from_first)? {
+                    return Err(An19PetalError::RepeatedHighway);
+                }
+            }
+            intervals.push(An19HalvedInterval {
+                start_from_first: start,
+                end_from_first: end,
+            });
+            sort_and_merge_touching(intervals)?;
+        }
+        candidate.applications = candidate
+            .applications
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    /// Returns the full endpoint-to-endpoint length after every recorded
+    /// interval is halved once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unknown edge or exact arithmetic overflow.
+    pub fn effective_length(&self, edge: SourceEdgeId) -> Result<ExactRatio, An19PetalError> {
+        let original = self
+            .original_lengths
+            .get(edge.0)
+            .copied()
+            .flatten()
+            .ok_or(An19PetalError::InvalidHighway)?;
+        let mut halved = ratio(0, 1)?;
+        for interval in self
+            .halved_intervals
+            .get(edge.0)
+            .ok_or(An19PetalError::InvalidHighway)?
+        {
+            halved = halved
+                .checked_add(
+                    interval
+                        .end_from_first
+                        .checked_sub(interval.start_from_first)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                )
+                .map_err(|_| An19PetalError::Overflow)?;
+        }
+        original
+            .checked_sub(
+                halved
+                    .checked_mul(ratio(1, 2)?)
+                    .map_err(|_| An19PetalError::Overflow)?,
+            )
+            .map_err(|_| An19PetalError::Overflow)
+    }
+}
+
+impl An19ShortEdgeContraction {
+    /// Contracts the edges shorter than `rad(X)/n^2` from AN19 Section 6.
+    /// Original edge IDs are retained so a quotient tree can be expanded
+    /// without choosing synthetic edges.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid/disconnected cluster or exact
+    /// arithmetic overflow.
+    pub fn build(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+    ) -> Result<Self, An19PetalError> {
+        if cluster.is_empty()
+            || !cluster.contains(&center)
+            || cluster.iter().any(|vertex| vertex.0 >= graph.node_count())
+        {
+            return Err(An19PetalError::InvalidContraction);
+        }
+        let mut metrics = An19PetalMetrics::default();
+        let paths = shortest_paths(graph, cluster, center, &mut metrics)?;
+        let mut radius = ratio(0, 1)?;
+        for vertex in cluster {
+            let distance = paths.distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+            if ratio_less(radius, distance)? {
+                radius = distance;
+            }
+        }
+        if !radius.is_positive() && cluster.len() > 1 {
+            return Err(An19PetalError::InvalidContraction);
+        }
+        let n = i128::try_from(graph.node_count()).map_err(|_| An19PetalError::Overflow)?;
+        let n_squared = n.checked_mul(n).ok_or(An19PetalError::Overflow)?;
+        let contraction_threshold = radius
+            .checked_mul(ratio(1, n_squared)?)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let mut connectivity = DisjointSet::new(graph.node_count());
+        let mut contracted_edges = BTreeSet::new();
+        for index in 0..graph.edge_count() {
+            let edge_id = SourceEdgeId(index);
+            let Some(edge) = graph.edge(edge_id) else {
+                continue;
+            };
+            if cluster.contains(&edge.first)
+                && cluster.contains(&edge.second)
+                && ratio_less(edge.length, contraction_threshold)?
+            {
+                connectivity.union(edge.first.0, edge.second.0);
+                contracted_edges.insert(edge_id);
+            }
+        }
+        let mut root_to_component = BTreeMap::new();
+        let mut component_of = vec![None; graph.node_count()];
+        let mut components = Vec::<BTreeSet<FlowNodeId>>::new();
+        for vertex in cluster {
+            let root = connectivity.find(vertex.0);
+            let component = if let Some(component) = root_to_component.get(&root) {
+                *component
+            } else {
+                let component = components.len();
+                root_to_component.insert(root, component);
+                components.push(BTreeSet::new());
+                component
+            };
+            component_of[vertex.0] = Some(component);
+            components[component].insert(*vertex);
+        }
+        let retained_edges = (0..graph.edge_count())
+            .filter_map(|index| {
+                let edge_id = SourceEdgeId(index);
+                graph.edge(edge_id).and_then(|edge| {
+                    let first = component_of[edge.first.0]?;
+                    let second = component_of[edge.second.0]?;
+                    (first != second).then_some(edge_id)
+                })
+            })
+            .collect();
+        Ok(Self {
+            cluster: cluster.clone(),
+            center,
+            radius,
+            contraction_threshold,
+            component_of,
+            components,
+            contracted_edges,
+            retained_edges,
+        })
+    }
+
+    /// Expands a tree of contracted components into a tree of original edges.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless the supplied IDs form a tree of the quotient
+    /// components using retained original edges.
+    pub fn expand_quotient_tree(
+        &self,
+        graph: &SourceDynamicGraph,
+        quotient_tree_edges: &BTreeSet<SourceEdgeId>,
+    ) -> Result<BTreeSet<SourceEdgeId>, An19PetalError> {
+        if self.component_of.len() != graph.node_count()
+            || quotient_tree_edges.len() + 1 != self.components.len()
+        {
+            return Err(An19PetalError::InvalidContraction);
+        }
+        let mut quotient_connectivity = DisjointSet::new(self.components.len());
+        for edge_id in quotient_tree_edges {
+            if !self.retained_edges.contains(edge_id) {
+                return Err(An19PetalError::InvalidContraction);
+            }
+            let edge = graph
+                .edge(*edge_id)
+                .ok_or(An19PetalError::InvalidContraction)?;
+            let first =
+                self.component_of[edge.first.0].ok_or(An19PetalError::InvalidContraction)?;
+            let second =
+                self.component_of[edge.second.0].ok_or(An19PetalError::InvalidContraction)?;
+            if !quotient_connectivity.union(first, second) {
+                return Err(An19PetalError::InvalidContraction);
+            }
+        }
+        if !all_connected(&mut quotient_connectivity, self.components.len()) {
+            return Err(An19PetalError::InvalidContraction);
+        }
+        let mut original_connectivity = DisjointSet::new(graph.node_count());
+        let mut result = BTreeSet::new();
+        for edge_id in &self.contracted_edges {
+            let edge = graph
+                .edge(*edge_id)
+                .ok_or(An19PetalError::InvalidContraction)?;
+            if original_connectivity.union(edge.first.0, edge.second.0) {
+                result.insert(*edge_id);
+            }
+        }
+        for edge_id in quotient_tree_edges {
+            let edge = graph
+                .edge(*edge_id)
+                .ok_or(An19PetalError::InvalidContraction)?;
+            if !original_connectivity.union(edge.first.0, edge.second.0) {
+                return Err(An19PetalError::InvalidContraction);
+            }
+            result.insert(*edge_id);
+        }
+        if result.len() + 1 != self.cluster.len()
+            || !all_cluster_connected(&mut original_connectivity, &self.cluster)
+        {
+            return Err(An19PetalError::InvalidContraction);
+        }
+        Ok(result)
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DisjointSet {
+    parent: Vec<usize>,
+    rank: Vec<u8>,
+}
+
+impl DisjointSet {
+    fn new(size: usize) -> Self {
+        Self {
+            parent: (0..size).collect(),
+            rank: vec![0; size],
+        }
+    }
+
+    fn find(&mut self, vertex: usize) -> usize {
+        if self.parent[vertex] != vertex {
+            self.parent[vertex] = self.find(self.parent[vertex]);
+        }
+        self.parent[vertex]
+    }
+
+    fn union(&mut self, first: usize, second: usize) -> bool {
+        let mut first_root = self.find(first);
+        let mut second_root = self.find(second);
+        if first_root == second_root {
+            return false;
+        }
+        if self.rank[first_root] < self.rank[second_root] {
+            std::mem::swap(&mut first_root, &mut second_root);
+        }
+        self.parent[second_root] = first_root;
+        if self.rank[first_root] == self.rank[second_root] {
+            self.rank[first_root] = self.rank[first_root].saturating_add(1);
+        }
+        true
+    }
+}
+
 #[derive(Clone, Debug)]
 struct ShortestPaths {
     distances: Vec<Option<ExactRatio>>,
     predecessors: Vec<Option<(usize, SourceEdgeId)>>,
+}
+
+struct RecoveredPath {
+    vertices: Vec<FlowNodeId>,
+    edges: Vec<SourceEdgeId>,
 }
 
 #[derive(Clone, Debug)]
@@ -186,6 +641,26 @@ fn validate_domain(
         {
             return Err(An19PetalError::NonunitLength);
         }
+    }
+    Ok(())
+}
+
+fn validate_weighted_domain(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    remaining: &BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    radius: ExactRatio,
+) -> Result<(), An19PetalError> {
+    if cluster.is_empty()
+        || !remaining.is_subset(cluster)
+        || !remaining.contains(&center)
+        || !remaining.contains(&target)
+        || radius.is_negative()
+        || cluster.iter().any(|vertex| vertex.0 >= graph.node_count())
+    {
+        return Err(An19PetalError::InvalidDomain);
     }
     Ok(())
 }
@@ -306,16 +781,221 @@ fn recover_path(
     source: FlowNodeId,
     target: FlowNodeId,
     paths: &ShortestPaths,
-) -> Result<Vec<FlowNodeId>, An19PetalError> {
+) -> Result<RecoveredPath, An19PetalError> {
     let mut reversed = vec![target];
+    let mut reversed_edges = Vec::new();
     let mut current = target.0;
     while current != source.0 {
-        let (parent, _) = paths.predecessors[current].ok_or(An19PetalError::Disconnected)?;
+        let (parent, edge) = paths.predecessors[current].ok_or(An19PetalError::Disconnected)?;
+        reversed_edges.push(edge);
         current = parent;
         reversed.push(FlowNodeId(current));
     }
     reversed.reverse();
-    Ok(reversed)
+    reversed_edges.reverse();
+    Ok(RecoveredPath {
+        vertices: reversed,
+        edges: reversed_edges,
+    })
+}
+
+fn locate_portal_and_highway(
+    graph: &SourceDynamicGraph,
+    path: &RecoveredPath,
+    target: FlowNodeId,
+    radius: ExactRatio,
+) -> Result<(An19PathPoint, Vec<An19HighwaySegment>), An19PetalError> {
+    if path.vertices.last().copied() != Some(target) || path.vertices.len() != path.edges.len() + 1
+    {
+        return Err(An19PetalError::InvalidDomain);
+    }
+    if radius.is_zero() {
+        return Ok((An19PathPoint::Vertex(target), Vec::new()));
+    }
+    let mut traversed = ratio(0, 1)?;
+    let mut segments = Vec::new();
+    for index in (0..path.edges.len()).rev() {
+        let edge_id = path.edges[index];
+        let edge = graph.edge(edge_id).ok_or(An19PetalError::InvalidDomain)?;
+        let from = path.vertices[index + 1];
+        let toward_center = path.vertices[index];
+        let remaining = radius
+            .checked_sub(traversed)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if !remaining.is_positive() {
+            break;
+        }
+        let halved_length = if edge
+            .length
+            .at_least(remaining)
+            .map_err(|_| An19PetalError::Overflow)?
+        {
+            remaining
+        } else {
+            edge.length
+        };
+        segments.push(An19HighwaySegment {
+            edge: edge_id,
+            from,
+            toward_center,
+            halved_length,
+            original_edge_length: edge.length,
+        });
+        traversed = traversed
+            .checked_add(halved_length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if traversed == radius {
+            let portal = if halved_length == edge.length {
+                An19PathPoint::Vertex(toward_center)
+            } else {
+                An19PathPoint::EdgeInterior {
+                    edge: edge_id,
+                    from,
+                    toward_center,
+                    offset_from: halved_length,
+                }
+            };
+            return Ok((portal, segments));
+        }
+    }
+    Err(An19PetalError::InvalidRadius)
+}
+
+fn directed_petal_distances(
+    graph: &SourceDynamicGraph,
+    allowed: &BTreeSet<FlowNodeId>,
+    target: FlowNodeId,
+    center_distances: &[Option<ExactRatio>],
+    highway: &[An19HighwaySegment],
+    metrics: &mut An19PetalMetrics,
+) -> Result<Vec<Option<ExactRatio>>, An19PetalError> {
+    let mut distances = vec![None; graph.node_count()];
+    let mut path_keys = vec![None; graph.node_count()];
+    let mut settled = vec![false; graph.node_count()];
+    distances[target.0] = Some(ratio(0, 1)?);
+    path_keys[target.0] = Some(Vec::new());
+    loop {
+        let mut next = None;
+        for vertex in allowed {
+            if settled[vertex.0] || distances[vertex.0].is_none() {
+                continue;
+            }
+            match next {
+                None => next = Some(vertex.0),
+                Some(old) if path_state_is_better(vertex.0, old, &distances, &path_keys)? => {
+                    next = Some(vertex.0);
+                }
+                Some(_) => {}
+            }
+        }
+        let Some(node) = next else {
+            break;
+        };
+        settled[node] = true;
+        for edge_index in 0..graph.edge_count() {
+            let edge_id = SourceEdgeId(edge_index);
+            let Some(edge) = graph.edge(edge_id) else {
+                continue;
+            };
+            let other = if edge.first.0 == node {
+                edge.second.0
+            } else if edge.second.0 == node {
+                edge.first.0
+            } else {
+                continue;
+            };
+            if !allowed.contains(&FlowNodeId(other)) || settled[other] {
+                continue;
+            }
+            metrics.edge_relaxations = metrics
+                .edge_relaxations
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+            let directed_length = reduced_directed_length(
+                edge_id,
+                FlowNodeId(node),
+                FlowNodeId(other),
+                edge.length,
+                center_distances,
+                highway,
+            )?;
+            let candidate = distances[node]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_add(directed_length)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let mut key = path_keys[node]
+                .as_ref()
+                .ok_or(An19PetalError::Disconnected)?
+                .clone();
+            key.push(edge_id);
+            let improves = match distances[other] {
+                None => true,
+                Some(old) => {
+                    ratio_less(candidate, old)?
+                        || (candidate == old
+                            && key
+                                < *path_keys[other]
+                                    .as_ref()
+                                    .ok_or(An19PetalError::Disconnected)?)
+                }
+            };
+            if improves {
+                distances[other] = Some(candidate);
+                path_keys[other] = Some(key);
+            }
+        }
+    }
+    metrics.shortest_path_runs = metrics
+        .shortest_path_runs
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    if allowed.iter().any(|vertex| distances[vertex.0].is_none()) {
+        return Err(An19PetalError::Disconnected);
+    }
+    Ok(distances)
+}
+
+fn reduced_directed_length(
+    edge_id: SourceEdgeId,
+    from: FlowNodeId,
+    to: FlowNodeId,
+    edge_length: ExactRatio,
+    center_distances: &[Option<ExactRatio>],
+    highway: &[An19HighwaySegment],
+) -> Result<ExactRatio, An19PetalError> {
+    if let Some(segment) = highway
+        .iter()
+        .find(|segment| segment.edge == edge_id && segment.from == from)
+    {
+        if segment.toward_center != to {
+            return Err(An19PetalError::InvalidHighway);
+        }
+        let unhalved = edge_length
+            .checked_sub(segment.halved_length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        return segment
+            .halved_length
+            .checked_mul(ratio(1, 2)?)
+            .and_then(|value| {
+                unhalved
+                    .checked_mul_integer(2)
+                    .and_then(|remainder| value.checked_add(remainder))
+            })
+            .map_err(|_| An19PetalError::Overflow);
+    }
+    let from_distance = center_distances[from.0].ok_or(An19PetalError::Disconnected)?;
+    let to_distance = center_distances[to.0].ok_or(An19PetalError::Disconnected)?;
+    let reduced = edge_length
+        .checked_sub(
+            to_distance
+                .checked_sub(from_distance)
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .map_err(|_| An19PetalError::Overflow)?;
+    if reduced.is_negative() {
+        return Err(An19PetalError::InvalidHighway);
+    }
+    Ok(reduced)
 }
 
 fn membership_thresholds(
@@ -642,6 +1322,60 @@ fn boundary_edge_count(
         .count()
 }
 
+fn all_connected(connectivity: &mut DisjointSet, count: usize) -> bool {
+    if count == 0 {
+        return false;
+    }
+    let root = connectivity.find(0);
+    (1..count).all(|vertex| connectivity.find(vertex) == root)
+}
+
+fn all_cluster_connected(connectivity: &mut DisjointSet, cluster: &BTreeSet<FlowNodeId>) -> bool {
+    let Some(first) = cluster.first() else {
+        return false;
+    };
+    let root = connectivity.find(first.0);
+    cluster
+        .iter()
+        .all(|vertex| connectivity.find(vertex.0) == root)
+}
+
+fn intervals_overlap(
+    first_start: ExactRatio,
+    first_end: ExactRatio,
+    second_start: ExactRatio,
+    second_end: ExactRatio,
+) -> Result<bool, An19PetalError> {
+    Ok(ratio_less(first_start, second_end)? && ratio_less(second_start, first_end)?)
+}
+
+fn sort_and_merge_touching(intervals: &mut Vec<An19HalvedInterval>) -> Result<(), An19PetalError> {
+    for index in 1..intervals.len() {
+        let mut cursor = index;
+        while cursor > 0
+            && ratio_less(
+                intervals[cursor].start_from_first,
+                intervals[cursor - 1].start_from_first,
+            )?
+        {
+            intervals.swap(cursor, cursor - 1);
+            cursor -= 1;
+        }
+    }
+    let mut merged = Vec::<An19HalvedInterval>::new();
+    for interval in intervals.drain(..) {
+        if let Some(previous) = merged.last_mut()
+            && previous.end_from_first == interval.start_from_first
+        {
+            previous.end_from_first = interval.end_from_first;
+            continue;
+        }
+        merged.push(interval);
+    }
+    *intervals = merged;
+    Ok(())
+}
+
 fn ceil_log_log(value: usize) -> usize {
     let log = usize::try_from(usize::BITS - value.saturating_sub(1).leading_zeros()).unwrap_or(1);
     usize::try_from(usize::BITS - log.saturating_sub(1).leading_zeros())
@@ -667,6 +1401,12 @@ pub enum An19PetalError {
     Disconnected,
     #[error("AN19 Figure 6 radius window or stopping event is invalid")]
     InvalidRadius,
+    #[error("AN19 symbolic portal or highway certificate is invalid")]
+    InvalidHighway,
+    #[error("AN19 highway interval was already halved")]
+    RepeatedHighway,
+    #[error("AN19 short-edge contraction or tree expansion is invalid")]
+    InvalidContraction,
     #[error("certified AN19 logarithmic comparison needs more bounded precision")]
     InsufficientPrecision,
     #[error("checked AN19 petal arithmetic overflowed")]
@@ -814,5 +1554,219 @@ mod tests {
             petal.vertices,
             BTreeSet::from([FlowNodeId(8), FlowNodeId(9)])
         );
+    }
+
+    #[test]
+    fn represents_a_rational_portal_inside_an_original_edge() {
+        use super::{An19HighwaySegment, An19PathPoint, An19WeightedPetalAtRadius};
+
+        let graph = SourceDynamicGraph::new(
+            3,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(3, 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(1),
+                    second: FlowNodeId(2),
+                    length: ExactRatio::new(5, 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            16,
+        )
+        .unwrap();
+        let vertices = BTreeSet::from([FlowNodeId(0), FlowNodeId(1), FlowNodeId(2)]);
+        let petal = An19WeightedPetalAtRadius::construct(
+            &graph,
+            &vertices,
+            &vertices,
+            FlowNodeId(0),
+            FlowNodeId(2),
+            ExactRatio::new(2, 1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            petal.portal,
+            An19PathPoint::EdgeInterior {
+                edge: crate::SourceEdgeId(1),
+                from: FlowNodeId(2),
+                toward_center: FlowNodeId(1),
+                offset_from: ExactRatio::new(2, 1).unwrap(),
+            }
+        );
+        assert_eq!(
+            petal.highway_segments,
+            vec![An19HighwaySegment {
+                edge: crate::SourceEdgeId(1),
+                from: FlowNodeId(2),
+                toward_center: FlowNodeId(1),
+                halved_length: ExactRatio::new(2, 1).unwrap(),
+                original_edge_length: ExactRatio::new(5, 2).unwrap(),
+            }]
+        );
+        assert_eq!(petal.vertices, BTreeSet::from([FlowNodeId(2)]));
+        assert_eq!(
+            petal.directed_distances[1],
+            Some(ExactRatio::new(2, 1).unwrap())
+        );
+    }
+
+    #[test]
+    fn expands_a_short_edge_contraction_to_original_ids() {
+        use super::An19ShortEdgeContraction;
+
+        let graph = SourceDynamicGraph::new(
+            4,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(2),
+                    second: FlowNodeId(3),
+                    length: ExactRatio::new(1, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(1),
+                    second: FlowNodeId(2),
+                    length: ExactRatio::new(100, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(3),
+                    length: ExactRatio::new(200, 1).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            256,
+        )
+        .unwrap();
+        let vertices = (0..4).map(FlowNodeId).collect::<BTreeSet<_>>();
+        let contraction =
+            An19ShortEdgeContraction::build(&graph, &vertices, FlowNodeId(0)).unwrap();
+        assert_eq!(contraction.radius, ExactRatio::new(102, 1).unwrap());
+        assert_eq!(
+            contraction.contraction_threshold,
+            ExactRatio::new(51, 8).unwrap()
+        );
+        assert_eq!(contraction.components.len(), 2);
+        assert_eq!(
+            contraction.contracted_edges,
+            BTreeSet::from([crate::SourceEdgeId(0), crate::SourceEdgeId(1)])
+        );
+        let expanded = contraction
+            .expand_quotient_tree(&graph, &BTreeSet::from([crate::SourceEdgeId(2)]))
+            .unwrap();
+        assert_eq!(
+            expanded,
+            BTreeSet::from([
+                crate::SourceEdgeId(0),
+                crate::SourceEdgeId(1),
+                crate::SourceEdgeId(2)
+            ])
+        );
+    }
+
+    #[test]
+    fn highway_ledger_merges_touching_intervals_and_rejects_overlap() {
+        use super::{An19HighwayLedger, An19HighwaySegment};
+
+        let graph = SourceDynamicGraph::new(
+            2,
+            vec![SourceWeightedEdge {
+                first: FlowNodeId(0),
+                second: FlowNodeId(1),
+                length: ExactRatio::new(5, 2).unwrap(),
+                weight: ExactRatio::new(1, 1).unwrap(),
+            }],
+            16,
+        )
+        .unwrap();
+        let mut ledger = An19HighwayLedger::new(&graph);
+        ledger
+            .apply(
+                &graph,
+                &[An19HighwaySegment {
+                    edge: crate::SourceEdgeId(0),
+                    from: FlowNodeId(1),
+                    toward_center: FlowNodeId(0),
+                    halved_length: ExactRatio::new(2, 1).unwrap(),
+                    original_edge_length: ExactRatio::new(5, 2).unwrap(),
+                }],
+            )
+            .unwrap();
+        ledger
+            .apply(
+                &graph,
+                &[An19HighwaySegment {
+                    edge: crate::SourceEdgeId(0),
+                    from: FlowNodeId(0),
+                    toward_center: FlowNodeId(1),
+                    halved_length: ExactRatio::new(1, 2).unwrap(),
+                    original_edge_length: ExactRatio::new(5, 2).unwrap(),
+                }],
+            )
+            .unwrap();
+        assert_eq!(ledger.intervals(crate::SourceEdgeId(0)).unwrap().len(), 1);
+        assert_eq!(
+            ledger.effective_length(crate::SourceEdgeId(0)).unwrap(),
+            ExactRatio::new(5, 4).unwrap()
+        );
+        let before = ledger.clone();
+        assert!(
+            ledger
+                .apply(
+                    &graph,
+                    &[An19HighwaySegment {
+                        edge: crate::SourceEdgeId(0),
+                        from: FlowNodeId(0),
+                        toward_center: FlowNodeId(1),
+                        halved_length: ExactRatio::new(3, 4).unwrap(),
+                        original_edge_length: ExactRatio::new(5, 2).unwrap(),
+                    }],
+                )
+                .is_err()
+        );
+        assert_eq!(ledger, before);
+    }
+
+    #[test]
+    fn claim_15_region_growing_matches_the_cone_union() {
+        use super::An19WeightedPetalAtRadius;
+
+        let graph = path_graph(10);
+        let vertices = (0..10).map(FlowNodeId).collect::<BTreeSet<_>>();
+        let cone_union = An19UnweightedPetal::construct(
+            &graph,
+            &vertices,
+            &vertices,
+            FlowNodeId(0),
+            FlowNodeId(9),
+            ExactRatio::new(3, 1).unwrap(),
+        )
+        .unwrap();
+        let region_growing = An19WeightedPetalAtRadius::construct(
+            &graph,
+            &vertices,
+            &vertices,
+            FlowNodeId(0),
+            FlowNodeId(9),
+            cone_union.radius,
+        )
+        .unwrap();
+        assert_eq!(region_growing.vertices, cone_union.vertices);
+        assert!(matches!(
+            region_growing.portal,
+            super::An19PathPoint::EdgeInterior { .. }
+        ));
     }
 }
