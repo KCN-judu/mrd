@@ -1763,6 +1763,7 @@ pub enum An19LengthMode {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum An19PriorityQueueMode {
     BinaryHeap,
+    ReducedLengthMonotone,
     SourceMonotone,
 }
 
@@ -1819,7 +1820,7 @@ impl An19WorkCertificate {
             compact_weighted_input: !unit_input,
             projection_mode: An19ProjectionMode::ClusterLocal,
             length_mode,
-            priority_queue_mode: An19PriorityQueueMode::SourceMonotone,
+            priority_queue_mode: An19PriorityQueueMode::ReducedLengthMonotone,
             amortization_mode: An19AmortizationMode::AggregateRegressionOnly,
         })
     }
@@ -1840,7 +1841,7 @@ impl An19WorkCertificate {
             || self.numeric_length_expansions != 0
             || self.projection_mode != An19ProjectionMode::ClusterLocal
             || self.length_mode != An19LengthMode::RoundedPowerOfTwo
-            || self.priority_queue_mode != An19PriorityQueueMode::SourceMonotone
+            || self.priority_queue_mode != An19PriorityQueueMode::ReducedLengthMonotone
             || metrics.shortest_heap_pushes != 0
             || metrics.shortest_heap_pops != 0
             || metrics.directed_heap_pushes != 0
@@ -6263,7 +6264,7 @@ mod tests {
         );
         assert_eq!(
             small_hierarchy.work_certificate.priority_queue_mode,
-            super::An19PriorityQueueMode::SourceMonotone
+            super::An19PriorityQueueMode::ReducedLengthMonotone
         );
         assert_eq!(small_hierarchy.metrics.shortest_heap_pushes, 0);
         assert_eq!(small_hierarchy.metrics.directed_heap_pushes, 0);
@@ -6441,5 +6442,46 @@ mod tests {
         invalid_binary_heap.metrics.event_heap_pushes = 1;
         invalid_binary_heap.metrics.event_heap_pops = 1;
         assert!(invalid_binary_heap.verify(&small).is_err());
+    }
+
+    #[test]
+    fn reduced_length_queue_exposes_unbounded_source_classes() {
+        use super::An19WeightedPetal;
+
+        let nodes = 128_usize;
+        let mut edges = (0..nodes - 1)
+            .map(|index| SourceWeightedEdge {
+                first: FlowNodeId(index),
+                second: FlowNodeId(index + 1),
+                length: ExactRatio::new(1, 1).unwrap(),
+                weight: ExactRatio::new(1, 1).unwrap(),
+            })
+            .collect::<Vec<_>>();
+        for index in 0..nodes - 2 {
+            let distance = nodes - 1 - index;
+            let length = distance.next_power_of_two();
+            edges.push(SourceWeightedEdge {
+                first: FlowNodeId(index),
+                second: FlowNodeId(nodes - 1),
+                length: ExactRatio::new(i128::try_from(length).unwrap(), 1).unwrap(),
+                weight: ExactRatio::new(1, 1).unwrap(),
+            });
+        }
+        let graph = SourceDynamicGraph::new(nodes, edges, 1_024).unwrap();
+        let cluster = (0..nodes).map(FlowNodeId).collect::<BTreeSet<_>>();
+        let petal = An19WeightedPetal::construct_for_hierarchy(
+            &graph,
+            &cluster,
+            &cluster,
+            FlowNodeId(0),
+            FlowNodeId(nodes - 1),
+            ExactRatio::new(32, 1).unwrap(),
+            true,
+        )
+        .unwrap();
+        assert!(
+            petal.at_radius.metrics.maximum_length_classes > u64::try_from(nodes).unwrap(),
+            "reduced lengths are not bounded by the original power-of-two classes"
+        );
     }
 }
