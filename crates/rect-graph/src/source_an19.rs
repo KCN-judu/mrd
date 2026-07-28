@@ -1319,6 +1319,7 @@ pub struct AugmentedAn19Graph {
     original_node_count: usize,
     original_endpoints: Vec<(FlowNodeId, FlowNodeId)>,
     unit_input: bool,
+    length_mode: An19LengthMode,
     node_count: usize,
     edges: Vec<AugmentedAn19Edge>,
     incident_edges: Vec<Vec<usize>>,
@@ -1354,24 +1355,47 @@ impl AugmentedAn19Graph {
     /// Returns an error when an active source edge cannot be recovered or
     /// exact provenance coordinates overflow.
     pub fn from_source(graph: &SourceDynamicGraph) -> Result<Self, An19PetalError> {
+        Self::from_source_with_length_mode(graph, An19LengthMode::ExactRational)
+    }
+
+    fn from_source_with_length_mode(
+        graph: &SourceDynamicGraph,
+        length_mode: An19LengthMode,
+    ) -> Result<Self, An19PetalError> {
         let mut edges = Vec::new();
         let mut incident_edges = vec![Vec::new(); graph.node_count()];
         let mut original_endpoints = Vec::new();
         let one = ratio(1, 1)?;
         let mut unit_input = true;
+        let minimum_length = (0..graph.edge_count())
+            .filter_map(|index| graph.edge(SourceEdgeId(index)))
+            .try_fold(None, |minimum, edge| {
+                let replace = match minimum {
+                    Some(value) => ratio_less(edge.length, value)?,
+                    None => true,
+                };
+                Ok::<_, An19PetalError>(if replace { Some(edge.length) } else { minimum })
+            })?
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
         for index in 0..graph.edge_count() {
             let edge = graph
                 .edge(SourceEdgeId(index))
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
             original_endpoints.push((edge.first, edge.second));
             unit_input &= edge.length == one;
+            let workspace_length = match length_mode {
+                An19LengthMode::ExactRational => edge.length,
+                An19LengthMode::RoundedPowerOfTwo => {
+                    round_length_to_power_of_two(edge.length, minimum_length)?
+                }
+            };
             let stable = edges.len();
             edges.push(AugmentedAn19Edge {
                 active: true,
                 halved: false,
                 first: edge.first,
                 second: edge.second,
-                length: edge.length,
+                length: workspace_length,
                 provenance: Some(OriginalEdgeInterval {
                     edge: SourceEdgeId(index),
                     first_position: ratio(0, 1)?,
@@ -1385,6 +1409,7 @@ impl AugmentedAn19Graph {
             original_node_count: graph.node_count(),
             original_endpoints,
             unit_input,
+            length_mode,
             node_count: graph.node_count(),
             edges,
             incident_edges,
@@ -1739,6 +1764,7 @@ impl An19WorkCertificate {
     fn build(
         graph: &SourceDynamicGraph,
         unit_input: bool,
+        length_mode: An19LengthMode,
         metrics: &An19HierarchyMetrics,
     ) -> Result<Self, An19PetalError> {
         let logarithmic_levels =
@@ -1763,7 +1789,7 @@ impl An19WorkCertificate {
             numeric_length_expansions: 0,
             compact_weighted_input: !unit_input,
             projection_mode: An19ProjectionMode::ClusterLocal,
-            length_mode: An19LengthMode::ExactRational,
+            length_mode,
             priority_queue_mode: An19PriorityQueueMode::BinaryHeap,
         })
     }
@@ -1773,11 +1799,17 @@ impl An19WorkCertificate {
         graph: &SourceDynamicGraph,
         metrics: &An19HierarchyMetrics,
     ) -> Result<(), An19PetalError> {
-        let rebuilt = Self::build(graph, !self.compact_weighted_input, metrics)?;
+        let rebuilt = Self::build(
+            graph,
+            !self.compact_weighted_input,
+            An19LengthMode::RoundedPowerOfTwo,
+            metrics,
+        )?;
         if *self != rebuilt
             || self.oracle_fallbacks != 0
             || self.numeric_length_expansions != 0
             || self.projection_mode != An19ProjectionMode::ClusterLocal
+            || self.length_mode != An19LengthMode::RoundedPowerOfTwo
             || self.observed_work_units > self.maximum_work_units
             || metrics.event_heap_pushes != metrics.event_heap_pops
             || metrics.shortest_heap_pushes != metrics.shortest_heap_pops
@@ -2048,7 +2080,10 @@ impl An19HierarchicalLsst {
         if root.0 >= graph.node_count() {
             return Err(An19PetalError::InvalidDomain);
         }
-        let mut workspace = AugmentedAn19Graph::from_source(graph)?;
+        let mut workspace = AugmentedAn19Graph::from_source_with_length_mode(
+            graph,
+            An19LengthMode::RoundedPowerOfTwo,
+        )?;
         let cluster = (0..graph.node_count())
             .map(FlowNodeId)
             .collect::<BTreeSet<_>>();
@@ -2070,7 +2105,12 @@ impl An19HierarchicalLsst {
             .checked_mul(2)
             .ok_or(An19PetalError::Overflow)?;
         let (weighted_stretch, total_weight) = audit_original_tree_stretch(graph, &tree_edges)?;
-        let work_certificate = An19WorkCertificate::build(graph, workspace.unit_input, &metrics)?;
+        let work_certificate = An19WorkCertificate::build(
+            graph,
+            workspace.unit_input,
+            workspace.length_mode,
+            &metrics,
+        )?;
         let result = Self {
             tree_edges,
             weighted_stretch,
@@ -4730,6 +4770,27 @@ fn ceil_log_log(value: usize) -> usize {
         .max(1)
 }
 
+fn round_length_to_power_of_two(
+    length: ExactRatio,
+    base: ExactRatio,
+) -> Result<ExactRatio, An19PetalError> {
+    let scaled = length
+        .checked_mul(base.reciprocal().map_err(|_| An19PetalError::Overflow)?)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let mut power = ratio(1, 1)?;
+    loop {
+        let Ok(next) = power.checked_mul_integer(2) else {
+            break;
+        };
+        if ratio_less(scaled, next)? {
+            break;
+        }
+        power = next;
+    }
+    base.checked_mul(power)
+        .map_err(|_| An19PetalError::Overflow)
+}
+
 fn ratio(numerator: i128, denominator: i128) -> Result<ExactRatio, An19PetalError> {
     ExactRatio::new(numerator, denominator).map_err(|_| An19PetalError::Overflow)
 }
@@ -5939,7 +6000,37 @@ mod tests {
             small_hierarchy.work_certificate.projection_mode,
             super::An19ProjectionMode::ClusterLocal
         );
+        assert_eq!(
+            small_hierarchy.work_certificate.length_mode,
+            super::An19LengthMode::RoundedPowerOfTwo
+        );
         assert!(!small_hierarchy.work_certificate.source_runtime_verified());
+    }
+
+    #[test]
+    fn power_of_two_rounding_is_scale_relative_and_within_factor_two() {
+        use super::round_length_to_power_of_two;
+
+        let base = ExactRatio::new(2, 3).unwrap();
+        let length = ExactRatio::new(3, 2).unwrap();
+        let rounded = round_length_to_power_of_two(length, base).unwrap();
+        assert_eq!(rounded, ExactRatio::new(4, 3).unwrap());
+        assert!(length.at_least(rounded).unwrap());
+        assert!(
+            rounded
+                .checked_mul_integer(2)
+                .unwrap()
+                .at_least(length)
+                .unwrap()
+        );
+        assert_eq!(
+            round_length_to_power_of_two(
+                length.checked_mul_integer(1_000).unwrap(),
+                base.checked_mul_integer(1_000).unwrap(),
+            )
+            .unwrap(),
+            rounded.checked_mul_integer(1_000).unwrap()
+        );
     }
 
     #[test]
@@ -6069,7 +6160,8 @@ mod tests {
             .saturating_sub(1);
         assert!(invalid_bound.verify(&small).is_err());
         let mut invalid_projection = small_hierarchy.clone();
-        invalid_projection.work_certificate.length_mode = super::An19LengthMode::RoundedPowerOfTwo;
+        invalid_projection.work_certificate.priority_queue_mode =
+            super::An19PriorityQueueMode::SourceMonotone;
         assert!(invalid_projection.verify(&small).is_err());
     }
 }
