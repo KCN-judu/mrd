@@ -23,6 +23,7 @@ pub struct An19PetalMetrics {
     pub membership_sources: u64,
     pub event_heap_pushes: u64,
     pub event_heap_pops: u64,
+    pub heap_comparisons: u64,
     pub event_vertex_activations: u64,
     pub event_edge_touches: u64,
     pub volume_queries: u64,
@@ -55,6 +56,7 @@ impl An19PetalMetrics {
         self.event_heap_pushes =
             checked_metric_sum(self.event_heap_pushes, other.event_heap_pushes)?;
         self.event_heap_pops = checked_metric_sum(self.event_heap_pops, other.event_heap_pops)?;
+        self.heap_comparisons = checked_metric_sum(self.heap_comparisons, other.heap_comparisons)?;
         self.event_vertex_activations = checked_metric_sum(
             self.event_vertex_activations,
             other.event_vertex_activations,
@@ -1319,6 +1321,7 @@ pub struct AugmentedAn19Graph {
     unit_input: bool,
     node_count: usize,
     edges: Vec<AugmentedAn19Edge>,
+    incident_edges: Vec<Vec<usize>>,
 }
 
 #[derive(Clone, Debug)]
@@ -1352,6 +1355,7 @@ impl AugmentedAn19Graph {
     /// exact provenance coordinates overflow.
     pub fn from_source(graph: &SourceDynamicGraph) -> Result<Self, An19PetalError> {
         let mut edges = Vec::new();
+        let mut incident_edges = vec![Vec::new(); graph.node_count()];
         let mut original_endpoints = Vec::new();
         let one = ratio(1, 1)?;
         let mut unit_input = true;
@@ -1361,6 +1365,7 @@ impl AugmentedAn19Graph {
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
             original_endpoints.push((edge.first, edge.second));
             unit_input &= edge.length == one;
+            let stable = edges.len();
             edges.push(AugmentedAn19Edge {
                 active: true,
                 halved: false,
@@ -1373,6 +1378,8 @@ impl AugmentedAn19Graph {
                     second_position: edge.length,
                 }),
             });
+            incident_edges[edge.first.0].push(stable);
+            incident_edges[edge.second.0].push(stable);
         }
         Ok(Self {
             original_node_count: graph.node_count(),
@@ -1380,6 +1387,7 @@ impl AugmentedAn19Graph {
             unit_input,
             node_count: graph.node_count(),
             edges,
+            incident_edges,
         })
     }
 
@@ -1403,6 +1411,7 @@ impl AugmentedAn19Graph {
             .node_count
             .checked_add(1)
             .ok_or(An19PetalError::Overflow)?;
+        self.incident_edges.push(Vec::new());
         let edge = self.edges.len();
         self.edges.push(AugmentedAn19Edge {
             active: true,
@@ -1412,6 +1421,8 @@ impl AugmentedAn19Graph {
             length,
             provenance: None,
         });
+        self.incident_edges[attached_to.0].push(edge);
+        self.incident_edges[vertex.0].push(edge);
         Ok((vertex, edge))
     }
 
@@ -1452,6 +1463,7 @@ impl AugmentedAn19Graph {
             .node_count
             .checked_add(1)
             .ok_or(An19PetalError::Overflow)?;
+        self.incident_edges.push(Vec::new());
         let (from_provenance, toward_provenance) = split_provenance(&edge, from, offset)?;
         self.edges[edge_id].active = false;
         let from_edge = self.edges.len();
@@ -1463,6 +1475,8 @@ impl AugmentedAn19Graph {
             length: offset,
             provenance: from_provenance,
         });
+        self.incident_edges[from.0].push(from_edge);
+        self.incident_edges[vertex.0].push(from_edge);
         let toward_edge = self.edges.len();
         self.edges.push(AugmentedAn19Edge {
             active: true,
@@ -1472,7 +1486,60 @@ impl AugmentedAn19Graph {
             length: remainder,
             provenance: toward_provenance,
         });
+        self.incident_edges[vertex.0].push(toward_edge);
+        self.incident_edges[toward.0].push(toward_edge);
         Ok((vertex, from_edge, toward_edge))
+    }
+
+    fn project_cluster(
+        &self,
+        cluster: &BTreeSet<FlowNodeId>,
+        metrics: &mut An19HierarchyMetrics,
+    ) -> Result<AugmentedProjection, An19PetalError> {
+        let mut dense_to_augmented = Vec::new();
+        let mut edges = Vec::new();
+        let mut bound = 1_i128;
+        for vertex in cluster {
+            let incident = self
+                .incident_edges
+                .get(vertex.0)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            add_workspace_edge_scans(metrics, incident.len(), 1)?;
+            for stable in incident {
+                let edge = self
+                    .edges
+                    .get(*stable)
+                    .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+                if !edge.active
+                    || !cluster.contains(&edge.first)
+                    || !cluster.contains(&edge.second)
+                    || *vertex != edge.first.min(edge.second)
+                {
+                    continue;
+                }
+                bound = bound
+                    .max(
+                        edge.length
+                            .numerator()
+                            .checked_abs()
+                            .ok_or(An19PetalError::Overflow)?,
+                    )
+                    .max(edge.length.denominator());
+                dense_to_augmented.push(*stable);
+                edges.push(SourceWeightedEdge {
+                    first: edge.first,
+                    second: edge.second,
+                    length: edge.length,
+                    weight: ratio(1, 1)?,
+                });
+            }
+        }
+        let graph = SourceDynamicGraph::new(self.node_count, edges, bound)
+            .map_err(|_| An19PetalError::InvalidAugmentedGraph)?;
+        Ok(AugmentedProjection {
+            graph,
+            dense_to_augmented,
+        })
     }
 
     /// Builds the dense active graph consumed by exact Figure 6 operations.
@@ -1625,6 +1692,7 @@ pub struct An19HierarchyMetrics {
     pub membership_sources: u64,
     pub event_heap_pushes: u64,
     pub event_heap_pops: u64,
+    pub heap_comparisons: u64,
     pub event_vertex_activations: u64,
     pub event_edge_touches: u64,
     pub volume_queries: u64,
@@ -1633,6 +1701,23 @@ pub struct An19HierarchyMetrics {
 }
 
 const AN19_WORK_BOUND_FACTOR: u64 = 1_024;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum An19ProjectionMode {
+    ClusterLocal,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum An19LengthMode {
+    ExactRational,
+    RoundedPowerOfTwo,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum An19PriorityQueueMode {
+    BinaryHeap,
+    SourceMonotone,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct An19WorkCertificate {
@@ -1645,6 +1730,9 @@ pub struct An19WorkCertificate {
     pub oracle_fallbacks: u64,
     pub numeric_length_expansions: u64,
     pub compact_weighted_input: bool,
+    pub projection_mode: An19ProjectionMode,
+    pub length_mode: An19LengthMode,
+    pub priority_queue_mode: An19PriorityQueueMode,
 }
 
 impl An19WorkCertificate {
@@ -1674,6 +1762,9 @@ impl An19WorkCertificate {
             oracle_fallbacks: 0,
             numeric_length_expansions: 0,
             compact_weighted_input: !unit_input,
+            projection_mode: An19ProjectionMode::ClusterLocal,
+            length_mode: An19LengthMode::ExactRational,
+            priority_queue_mode: An19PriorityQueueMode::BinaryHeap,
         })
     }
 
@@ -1686,6 +1777,7 @@ impl An19WorkCertificate {
         if *self != rebuilt
             || self.oracle_fallbacks != 0
             || self.numeric_length_expansions != 0
+            || self.projection_mode != An19ProjectionMode::ClusterLocal
             || self.observed_work_units > self.maximum_work_units
             || metrics.event_heap_pushes != metrics.event_heap_pops
             || metrics.shortest_heap_pushes != metrics.shortest_heap_pops
@@ -1699,6 +1791,18 @@ impl An19WorkCertificate {
             return Err(An19PetalError::InvalidWorkCertificate);
         }
         Ok(())
+    }
+
+    /// Reports whether the implementation satisfies AN19 Section 7's
+    /// power-of-two rounding and monotone-queue runtime prerequisites.
+    #[must_use]
+    pub const fn source_runtime_verified(&self) -> bool {
+        matches!(self.projection_mode, An19ProjectionMode::ClusterLocal)
+            && matches!(self.length_mode, An19LengthMode::RoundedPowerOfTwo)
+            && matches!(
+                self.priority_queue_mode,
+                An19PriorityQueueMode::SourceMonotone
+            )
     }
 }
 
@@ -1726,6 +1830,7 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.membership_sources,
         metrics.event_heap_pushes,
         metrics.event_heap_pops,
+        metrics.heap_comparisons,
         metrics.event_vertex_activations,
         metrics.event_edge_touches,
         metrics.volume_queries,
@@ -2044,7 +2149,7 @@ fn hierarchical_petal_decomposition(
         .recursion_calls
         .checked_add(1)
         .ok_or(An19PetalError::Overflow)?;
-    let projection = hierarchy_projection(workspace, metrics)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
     let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
     add_workspace_edge_scans(metrics, projection.graph().edge_count(), 2)?;
@@ -2298,7 +2403,7 @@ fn petal_decomposition(
         .checked_mul(half)
         .map_err(|_| An19PetalError::Overflow)?;
     let mut remaining = cluster.clone();
-    let projection = hierarchy_projection(workspace, metrics)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
     let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     let target_distance = paths.distances[target.0].ok_or(An19PetalError::Disconnected)?;
     let first_target = hierarchy_first_target(
@@ -2328,12 +2433,12 @@ fn petal_decomposition(
     let later_budget = delta
         .checked_mul(ratio(1, 8)?)
         .map_err(|_| An19PetalError::Overflow)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
+    let fixed_paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     loop {
-        let projection = hierarchy_projection(workspace, metrics)?;
-        let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
         let mut outside = None;
         for vertex in &remaining {
-            let distance = paths.distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+            let distance = fixed_paths.distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
             if ratio_less(r0, distance)? {
                 outside = Some(*vertex);
                 break;
@@ -2420,7 +2525,7 @@ fn create_hierarchy_petal(
     budget: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
 ) -> Result<An19HierarchyPiece, An19PetalError> {
-    let projection = hierarchy_projection(workspace, metrics)?;
+    let projection = hierarchy_projection(workspace, fixed_cluster, metrics)?;
     let petal = An19WeightedPetal::construct_for_hierarchy(
         projection.graph(),
         fixed_cluster,
@@ -2549,6 +2654,10 @@ fn add_petal_metrics(
         .event_heap_pops
         .checked_add(petal.event_heap_pops)
         .ok_or(An19PetalError::Overflow)?;
+    hierarchy.heap_comparisons = hierarchy
+        .heap_comparisons
+        .checked_add(petal.heap_comparisons)
+        .ok_or(An19PetalError::Overflow)?;
     hierarchy.event_vertex_activations = hierarchy
         .event_vertex_activations
         .checked_add(petal.event_vertex_activations)
@@ -2573,8 +2682,8 @@ fn ensure_vertex_at_distance(
     distance: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
 ) -> Result<FlowNodeId, An19PetalError> {
-    let projection = hierarchy_projection(workspace, metrics)?;
-    let paths = hierarchy_shortest_paths(projection.graph(), remaining, center, metrics)?;
+    let projection = hierarchy_projection(workspace, fixed_cluster, metrics)?;
+    let paths = hierarchy_shortest_paths(projection.graph(), fixed_cluster, center, metrics)?;
     let path = recover_path(center, target, &paths)?;
     let mut traversed = ratio(0, 1)?;
     if distance == traversed {
@@ -2644,7 +2753,7 @@ fn halve_highway(
     target: FlowNodeId,
     metrics: &mut An19HierarchyMetrics,
 ) -> Result<(), An19PetalError> {
-    let projection = hierarchy_projection(workspace, metrics)?;
+    let projection = hierarchy_projection(workspace, cluster, metrics)?;
     let paths = hierarchy_shortest_paths(projection.graph(), cluster, center, metrics)?;
     let path = recover_path(center, target, &paths)?;
     for dense in path.edges {
@@ -2710,13 +2819,10 @@ fn hierarchy_shortest_paths(
 
 fn hierarchy_projection(
     workspace: &AugmentedAn19Graph,
+    cluster: &BTreeSet<FlowNodeId>,
     metrics: &mut An19HierarchyMetrics,
 ) -> Result<AugmentedProjection, An19PetalError> {
-    metrics.workspace_edge_scans = metrics
-        .workspace_edge_scans
-        .checked_add(u64::try_from(workspace.edges.len()).map_err(|_| An19PetalError::Overflow)?)
-        .ok_or(An19PetalError::Overflow)?;
-    workspace.project()
+    workspace.project_cluster(cluster, metrics)
 }
 
 fn add_workspace_edge_scans(
@@ -3906,7 +4012,7 @@ fn exact_heap_push(
     entry: ExactHeapEntry,
     metrics: &mut An19PetalMetrics,
 ) -> Result<(), An19PetalError> {
-    heap_push(heap, entry)?;
+    heap_push(heap, entry, &mut metrics.heap_comparisons)?;
     metrics.directed_heap_pushes = metrics
         .directed_heap_pushes
         .checked_add(1)
@@ -3919,7 +4025,7 @@ fn shortest_heap_push(
     entry: ExactHeapEntry,
     metrics: &mut An19PetalMetrics,
 ) -> Result<(), An19PetalError> {
-    heap_push(heap, entry)?;
+    heap_push(heap, entry, &mut metrics.heap_comparisons)?;
     metrics.shortest_heap_pushes = metrics
         .shortest_heap_pushes
         .checked_add(1)
@@ -3932,16 +4038,21 @@ fn event_heap_push(
     entry: ExactHeapEntry,
     metrics: &mut An19PetalMetrics,
 ) -> Result<(), An19PetalError> {
-    heap_push(heap, entry)?;
+    heap_push(heap, entry, &mut metrics.heap_comparisons)?;
     metrics.event_heap_pushes = checked_metric_sum(metrics.event_heap_pushes, 1)?;
     Ok(())
 }
 
-fn heap_push(heap: &mut Vec<ExactHeapEntry>, entry: ExactHeapEntry) -> Result<(), An19PetalError> {
+fn heap_push(
+    heap: &mut Vec<ExactHeapEntry>,
+    entry: ExactHeapEntry,
+    comparisons: &mut u64,
+) -> Result<(), An19PetalError> {
     heap.push(entry);
     let mut index = heap.len() - 1;
     while index > 0 {
         let parent = (index - 1) / 2;
+        *comparisons = checked_metric_sum(*comparisons, 1)?;
         if !exact_heap_entry_less(&heap[index], &heap[parent])? {
             break;
         }
@@ -3955,7 +4066,7 @@ fn exact_heap_pop(
     heap: &mut Vec<ExactHeapEntry>,
     metrics: &mut An19PetalMetrics,
 ) -> Result<Option<ExactHeapEntry>, An19PetalError> {
-    let result = heap_pop(heap)?;
+    let result = heap_pop(heap, &mut metrics.heap_comparisons)?;
     if result.is_some() {
         metrics.directed_heap_pops = metrics
             .directed_heap_pops
@@ -3969,7 +4080,7 @@ fn shortest_heap_pop(
     heap: &mut Vec<ExactHeapEntry>,
     metrics: &mut An19PetalMetrics,
 ) -> Result<Option<ExactHeapEntry>, An19PetalError> {
-    let result = heap_pop(heap)?;
+    let result = heap_pop(heap, &mut metrics.heap_comparisons)?;
     if result.is_some() {
         metrics.shortest_heap_pops = metrics
             .shortest_heap_pops
@@ -3983,14 +4094,17 @@ fn event_heap_pop(
     heap: &mut Vec<ExactHeapEntry>,
     metrics: &mut An19PetalMetrics,
 ) -> Result<Option<ExactHeapEntry>, An19PetalError> {
-    let result = heap_pop(heap)?;
+    let result = heap_pop(heap, &mut metrics.heap_comparisons)?;
     if result.is_some() {
         metrics.event_heap_pops = checked_metric_sum(metrics.event_heap_pops, 1)?;
     }
     Ok(result)
 }
 
-fn heap_pop(heap: &mut Vec<ExactHeapEntry>) -> Result<Option<ExactHeapEntry>, An19PetalError> {
+fn heap_pop(
+    heap: &mut Vec<ExactHeapEntry>,
+    comparisons: &mut u64,
+) -> Result<Option<ExactHeapEntry>, An19PetalError> {
     let Some(last) = heap.pop() else {
         return Ok(None);
     };
@@ -4005,11 +4119,17 @@ fn heap_pop(heap: &mut Vec<ExactHeapEntry>) -> Result<Option<ExactHeapEntry>, An
                 break;
             }
             let right = left + 1;
-            let child = if right < heap.len() && exact_heap_entry_less(&heap[right], &heap[left])? {
-                right
+            let child = if right < heap.len() {
+                *comparisons = checked_metric_sum(*comparisons, 1)?;
+                if exact_heap_entry_less(&heap[right], &heap[left])? {
+                    right
+                } else {
+                    left
+                }
             } else {
                 left
             };
+            *comparisons = checked_metric_sum(*comparisons, 1)?;
             if !exact_heap_entry_less(&heap[child], &heap[index])? {
                 break;
             }
@@ -5815,6 +5935,11 @@ mod tests {
             small_hierarchy.work_certificate.numeric_length_expansions,
             0
         );
+        assert_eq!(
+            small_hierarchy.work_certificate.projection_mode,
+            super::An19ProjectionMode::ClusterLocal
+        );
+        assert!(!small_hierarchy.work_certificate.source_runtime_verified());
     }
 
     #[test]
@@ -5943,5 +6068,8 @@ mod tests {
             .observed_work_units
             .saturating_sub(1);
         assert!(invalid_bound.verify(&small).is_err());
+        let mut invalid_projection = small_hierarchy.clone();
+        invalid_projection.work_certificate.length_mode = super::An19LengthMode::RoundedPowerOfTwo;
+        assert!(invalid_projection.verify(&small).is_err());
     }
 }
