@@ -123,7 +123,7 @@ impl An19UnweightedPetal {
                 cluster_edges,
                 start_edges,
                 internal,
-                boundary,
+                count_ratio(boundary)?,
                 levels,
                 budget,
             )? {
@@ -288,6 +288,39 @@ impl An19WeightedPetal {
         target: FlowNodeId,
         budget: ExactRatio,
     ) -> Result<Self, An19PetalError> {
+        Self::construct_with_portal_volume(graph, cluster, remaining, center, target, budget, false)
+    }
+
+    fn construct_for_hierarchy(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        remaining: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+        target: FlowNodeId,
+        budget: ExactRatio,
+        compact_weighted_portals: bool,
+    ) -> Result<Self, An19PetalError> {
+        Self::construct_with_portal_volume(
+            graph,
+            cluster,
+            remaining,
+            center,
+            target,
+            budget,
+            compact_weighted_portals,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn construct_with_portal_volume(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        remaining: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+        target: FlowNodeId,
+        budget: ExactRatio,
+        compact_weighted_portals: bool,
+    ) -> Result<Self, An19PetalError> {
         validate_weighted_domain(graph, cluster, remaining, center, target, budget)?;
         if !budget.is_positive() {
             return Err(An19PetalError::InvalidDomain);
@@ -328,6 +361,7 @@ impl An19WeightedPetal {
             remaining,
             &thresholds,
             budget,
+            compact_weighted_portals,
             &mut metrics,
         )?;
         let mut at_radius = An19WeightedPetalAtRadius::construct(
@@ -378,13 +412,14 @@ fn select_weighted_figure_six(
     remaining: &BTreeSet<FlowNodeId>,
     thresholds: &MembershipThresholds,
     budget: ExactRatio,
+    compact_weighted_portals: bool,
     metrics: &mut An19PetalMetrics,
 ) -> Result<FigureSixSelection, An19PetalError> {
-    let cluster_edges = internal_edge_count(graph, cluster);
-    let active_edges = (0..graph.edge_count())
+    let base_cluster_edges = internal_edge_count(graph, cluster);
+    let base_active_edges = (0..graph.edge_count())
         .filter(|index| graph.edge(SourceEdgeId(*index)).is_some())
         .count();
-    if cluster_edges == 0 || active_edges < 2 {
+    if base_cluster_edges == 0 || base_active_edges < 2 {
         return Err(An19PetalError::InvalidDomain);
     }
     let levels = ceil_log_log(graph.node_count());
@@ -392,7 +427,17 @@ fn select_weighted_figure_six(
     for index in 1..=levels {
         let window_end = window_radius(budget, index, levels, true)?;
         let vertices = vertices_at_radius(remaining, thresholds, window_end)?;
-        let internal = internal_edge_count(graph, &vertices);
+        let portal_split =
+            usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_end));
+        let internal = petal_edge_measure(
+            graph,
+            cluster,
+            &vertices,
+            compact_weighted_portals,
+            portal_split,
+        )?;
+        let cluster_edges = checked_edge_sum(base_cluster_edges, portal_split)?;
+        let active_edges = checked_edge_sum(base_active_edges, portal_split)?;
         metrics.certified_comparisons = metrics
             .certified_comparisons
             .checked_add(1)
@@ -405,15 +450,38 @@ fn select_weighted_figure_six(
     let (window_index, window_end) = selected.ok_or(An19PetalError::InvalidRadius)?;
     let window_start = window_radius(budget, window_index, levels, false)?;
     let start_vertices = vertices_at_radius(remaining, thresholds, window_start)?;
-    let start_edges = internal_edge_count(graph, &start_vertices);
-    if start_edges == 0 || start_edges >= cluster_edges {
+    let start_portal_split =
+        usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_start));
+    let start_edges = petal_edge_measure(
+        graph,
+        cluster,
+        &start_vertices,
+        compact_weighted_portals,
+        start_portal_split,
+    )?;
+    let start_cluster_edges = checked_edge_sum(base_cluster_edges, start_portal_split)?;
+    if start_edges == 0 || start_edges >= start_cluster_edges {
         return Err(An19PetalError::InvalidRadius);
     }
     let mut radius = window_start;
     loop {
         let vertices = vertices_at_radius(remaining, thresholds, radius)?;
-        let internal_edges = internal_edge_count(graph, &vertices);
+        let portal_split =
+            usize::from(compact_weighted_portals && portal_is_interior(thresholds, radius));
+        let internal_edges = petal_edge_measure(
+            graph,
+            cluster,
+            &vertices,
+            compact_weighted_portals,
+            portal_split,
+        )?;
+        let cluster_edges = checked_edge_sum(base_cluster_edges, portal_split)?;
         let boundary_edges = boundary_edge_count(graph, cluster, &vertices);
+        let boundary_cost = if compact_weighted_portals {
+            boundary_edge_cost(graph, cluster, &vertices)?
+        } else {
+            count_ratio(boundary_edges)?
+        };
         metrics.certified_comparisons = metrics
             .certified_comparisons
             .checked_add(1)
@@ -422,7 +490,7 @@ fn select_weighted_figure_six(
             cluster_edges,
             start_edges,
             internal_edges,
-            boundary_edges,
+            boundary_cost,
             levels,
             budget,
         )? {
@@ -443,6 +511,29 @@ fn select_weighted_figure_six(
             .checked_add(1)
             .ok_or(An19PetalError::Overflow)?;
     }
+}
+
+fn portal_is_interior(thresholds: &MembershipThresholds, radius: ExactRatio) -> bool {
+    !thresholds.path_distance_from_target.contains(&Some(radius))
+}
+
+fn petal_edge_measure(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    vertices: &BTreeSet<FlowNodeId>,
+    use_incident_volume: bool,
+    portal_split: usize,
+) -> Result<usize, An19PetalError> {
+    let base = if use_incident_volume {
+        incident_edge_count(graph, cluster, vertices)
+    } else {
+        internal_edge_count(graph, vertices)
+    };
+    checked_edge_sum(base, portal_split)
+}
+
+fn checked_edge_sum(first: usize, second: usize) -> Result<usize, An19PetalError> {
+    first.checked_add(second).ok_or(An19PetalError::Overflow)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -760,6 +851,7 @@ struct DisjointSet {
 pub struct AugmentedAn19Graph {
     original_node_count: usize,
     original_endpoints: Vec<(FlowNodeId, FlowNodeId)>,
+    unit_input: bool,
     node_count: usize,
     edges: Vec<AugmentedAn19Edge>,
 }
@@ -796,11 +888,14 @@ impl AugmentedAn19Graph {
     pub fn from_source(graph: &SourceDynamicGraph) -> Result<Self, An19PetalError> {
         let mut edges = Vec::new();
         let mut original_endpoints = Vec::new();
+        let one = ratio(1, 1)?;
+        let mut unit_input = true;
         for index in 0..graph.edge_count() {
             let edge = graph
                 .edge(SourceEdgeId(index))
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
             original_endpoints.push((edge.first, edge.second));
+            unit_input &= edge.length == one;
             edges.push(AugmentedAn19Edge {
                 active: true,
                 halved: false,
@@ -817,6 +912,7 @@ impl AugmentedAn19Graph {
         Ok(Self {
             original_node_count: graph.node_count(),
             original_endpoints,
+            unit_input,
             node_count: graph.node_count(),
             edges,
         })
@@ -1048,6 +1144,7 @@ pub struct An19HierarchyMetrics {
     pub portal_splits: u64,
     pub virtual_leaves: u64,
     pub highway_edges_halved: u64,
+    pub highway_edges_reused: u64,
     pub shortest_path_runs: u64,
     pub edge_relaxations: u64,
 }
@@ -1062,6 +1159,7 @@ pub struct An19RadiusEdge {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct An19RadiusCertificate {
     pub cluster_size: usize,
+    pub base_vertex_limit: usize,
     pub center: FlowNodeId,
     pub target: FlowNodeId,
     pub radius: ExactRatio,
@@ -1159,7 +1257,7 @@ impl An19RadiusCertificate {
                 return Err(An19PetalError::InvalidRadiusCertificate);
             }
         }
-        let expected_base = self.cluster_size <= 2
+        let expected_base = self.cluster_size <= self.base_vertex_limit
             || self
                 .base_threshold
                 .at_least(self.radius)
@@ -1171,7 +1269,7 @@ impl An19RadiusCertificate {
     }
 }
 
-/// Exact unit-length source-semantics implementation of AN19 Figures 4--6.
+/// Exact source-semantics implementation of AN19 Figures 4--6.
 ///
 /// This constructor deliberately uses the repeated-shortest-path Figure 6
 /// baseline. Its output and counters do not establish the fast region-growing
@@ -1190,21 +1288,12 @@ impl An19HierarchicalLsst {
     ///
     /// # Errors
     ///
-    /// Returns an error for a nonunit or disconnected source graph, an invalid
-    /// root, a failed Figure 5 partition, repeated highway halving, an invalid
-    /// recovered tree, or exact arithmetic overflow.
+    /// Returns an error for a disconnected source graph, an invalid root, a
+    /// failed Figure 5 partition, an invalid recovered tree, or exact
+    /// arithmetic overflow.
     pub fn construct(graph: &SourceDynamicGraph, root: FlowNodeId) -> Result<Self, An19PetalError> {
         if root.0 >= graph.node_count() {
             return Err(An19PetalError::InvalidDomain);
-        }
-        let one = ratio(1, 1)?;
-        for index in 0..graph.edge_count() {
-            if graph
-                .edge(SourceEdgeId(index))
-                .is_some_and(|edge| edge.length != one)
-            {
-                return Err(An19PetalError::NonunitLength);
-            }
         }
         let mut workspace = AugmentedAn19Graph::from_source(graph)?;
         let cluster = (0..graph.node_count())
@@ -1283,8 +1372,13 @@ fn hierarchical_petal_decomposition(
     let projection = workspace.project()?;
     let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
-    let threshold = hierarchy_base_threshold(original_node_count)?;
-    let base_case = cluster.len() <= 2
+    let logarithmic_vertex_limit = hierarchy_base_vertex_limit(original_node_count)?;
+    let (threshold, base_vertex_limit) = if workspace.unit_input {
+        (hierarchy_base_threshold(original_node_count)?, 2)
+    } else {
+        (ratio(0, 1)?, logarithmic_vertex_limit)
+    };
+    let base_case = cluster.len() <= base_vertex_limit
         || threshold
             .at_least(radius)
             .map_err(|_| An19PetalError::Overflow)?;
@@ -1295,6 +1389,7 @@ fn hierarchical_petal_decomposition(
         target,
         radius,
         threshold,
+        base_vertex_limit,
         base_case,
         &paths,
     )?);
@@ -1361,42 +1456,16 @@ fn petal_decomposition(
     let projection = workspace.project()?;
     let paths = hierarchy_shortest_paths(projection.graph(), &cluster, center, metrics)?;
     let target_distance = paths.distances[target.0].ok_or(An19PetalError::Disconnected)?;
-    let first_target = if ratio_less(target_distance, r0)? {
-        let mut extension = r0
-            .checked_sub(target_distance)
-            .map_err(|_| An19PetalError::Overflow)?;
-        let one = ratio(1, 1)?;
-        let mut virtual_target = target;
-        while extension.is_positive() {
-            let segment = if ratio_less(one, extension)? {
-                one
-            } else {
-                extension
-            };
-            let (next, _) = workspace.add_virtual_leaf(virtual_target, segment)?;
-            cluster.insert(next);
-            remaining.insert(next);
-            virtual_target = next;
-            extension = extension
-                .checked_sub(segment)
-                .map_err(|_| An19PetalError::Overflow)?;
-            metrics.virtual_leaves = metrics
-                .virtual_leaves
-                .checked_add(1)
-                .ok_or(An19PetalError::Overflow)?;
-        }
-        virtual_target
-    } else {
-        ensure_vertex_at_distance(
-            workspace,
-            &mut cluster,
-            &mut remaining,
-            center,
-            target,
-            r0,
-            metrics,
-        )?
-    };
+    let first_target = hierarchy_first_target(
+        workspace,
+        &mut cluster,
+        &mut remaining,
+        center,
+        target,
+        target_distance,
+        r0,
+        metrics,
+    )?;
     let first_budget = delta
         .checked_mul(ratio(1, 4)?)
         .map_err(|_| An19PetalError::Overflow)?;
@@ -1454,6 +1523,49 @@ fn petal_decomposition(
     Ok((remaining, pieces, stigma_target))
 }
 
+#[allow(clippy::too_many_arguments)]
+fn hierarchy_first_target(
+    workspace: &mut AugmentedAn19Graph,
+    cluster: &mut BTreeSet<FlowNodeId>,
+    remaining: &mut BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    target_distance: ExactRatio,
+    r0: ExactRatio,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<FlowNodeId, An19PetalError> {
+    if !ratio_less(target_distance, r0)? {
+        return ensure_vertex_at_distance(
+            workspace, cluster, remaining, center, target, r0, metrics,
+        );
+    }
+    let mut extension = r0
+        .checked_sub(target_distance)
+        .map_err(|_| An19PetalError::Overflow)?;
+    let mut virtual_target = target;
+    loop {
+        let segment = if workspace.unit_input && ratio_less(ratio(1, 1)?, extension)? {
+            ratio(1, 1)?
+        } else {
+            extension
+        };
+        let (next, _) = workspace.add_virtual_leaf(virtual_target, segment)?;
+        cluster.insert(next);
+        remaining.insert(next);
+        virtual_target = next;
+        metrics.virtual_leaves = metrics
+            .virtual_leaves
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        extension = extension
+            .checked_sub(segment)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if !extension.is_positive() {
+            return Ok(virtual_target);
+        }
+    }
+}
+
 fn create_hierarchy_petal(
     workspace: &mut AugmentedAn19Graph,
     fixed_cluster: &mut BTreeSet<FlowNodeId>,
@@ -1464,13 +1576,14 @@ fn create_hierarchy_petal(
     metrics: &mut An19HierarchyMetrics,
 ) -> Result<An19HierarchyPiece, An19PetalError> {
     let projection = workspace.project()?;
-    let petal = An19WeightedPetal::construct(
+    let petal = An19WeightedPetal::construct_for_hierarchy(
         projection.graph(),
         fixed_cluster,
         remaining,
         center,
         target,
         budget,
+        !workspace.unit_input,
     )?;
     let mut petal_vertices = petal.at_radius.vertices;
     let (petal_center, connection_edge) = match petal.at_radius.portal {
@@ -1632,7 +1745,11 @@ fn halve_highway(
             .filter(|edge| edge.active)
             .ok_or(An19PetalError::InvalidAugmentedGraph)?;
         if edge.halved {
-            return Err(An19PetalError::RepeatedHighway);
+            metrics.highway_edges_reused = metrics
+                .highway_edges_reused
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+            continue;
         }
         edge.length = edge
             .length
@@ -1688,6 +1805,7 @@ fn build_radius_certificate(
     target: FlowNodeId,
     radius: ExactRatio,
     base_threshold: ExactRatio,
+    base_vertex_limit: usize,
     base_case: bool,
     paths: &ShortestPaths,
 ) -> Result<An19RadiusCertificate, An19PetalError> {
@@ -1715,6 +1833,7 @@ fn build_radius_certificate(
     }
     let certificate = An19RadiusCertificate {
         cluster_size: cluster.len(),
+        base_vertex_limit,
         center,
         target,
         radius,
@@ -1753,17 +1872,21 @@ fn hierarchy_shortest_path_tree(
 }
 
 fn hierarchy_base_threshold(node_count: usize) -> Result<ExactRatio, An19PetalError> {
+    ratio(
+        i128::try_from(hierarchy_base_vertex_limit(node_count)?)
+            .map_err(|_| An19PetalError::Overflow)?,
+        1,
+    )
+}
+
+fn hierarchy_base_vertex_limit(node_count: usize) -> Result<usize, An19PetalError> {
     let log_n = usize::BITS - node_count.saturating_sub(1).leading_zeros();
     let log_log_n = ceil_log_log(node_count);
-    let product = usize::try_from(log_n)
+    usize::try_from(log_n)
         .ok()
         .and_then(|value| value.checked_mul(log_log_n))
         .and_then(|value| value.checked_mul(10))
-        .ok_or(An19PetalError::Overflow)?;
-    ratio(
-        i128::try_from(product).map_err(|_| An19PetalError::Overflow)?,
-        1,
-    )
+        .ok_or(An19PetalError::Overflow)
 }
 
 fn audit_original_tree_stretch(
@@ -2740,11 +2863,11 @@ fn certify_stopping_condition(
     cluster_edges: usize,
     start_edges: usize,
     petal_edges: usize,
-    boundary_edges: usize,
+    boundary_cost: ExactRatio,
     levels: usize,
     budget: ExactRatio,
 ) -> Result<bool, An19PetalError> {
-    if boundary_edges == 0 {
+    if boundary_cost.is_zero() {
         return Ok(true);
     }
     if petal_edges == 0 || start_edges == 0 || start_edges >= cluster_edges {
@@ -2756,10 +2879,9 @@ fn certify_stopping_condition(
         .and_then(|value| value.checked_mul(i128::try_from(levels).ok()?))
         .ok_or(An19PetalError::Overflow)?;
     let exact_left = budget
-        .checked_mul(ratio(
-            i128::try_from(boundary_edges).map_err(|_| An19PetalError::Overflow)?,
-            denominator,
-        )?)
+        .checked_mul(boundary_cost)
+        .map_err(|_| An19PetalError::Overflow)?
+        .checked_mul(ratio(1, denominator)?)
         .map_err(|_| An19PetalError::Overflow)?;
     for precision in [48_u32, 96, 192, 384] {
         match try_stopping_comparison(
@@ -2865,6 +2987,44 @@ fn boundary_edge_count(
         .count()
 }
 
+fn incident_edge_count(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    petal: &BTreeSet<FlowNodeId>,
+) -> usize {
+    (0..graph.edge_count())
+        .filter_map(|index| graph.edge(SourceEdgeId(index)))
+        .filter(|edge| cluster.contains(&edge.first) && cluster.contains(&edge.second))
+        .filter(|edge| petal.contains(&edge.first) || petal.contains(&edge.second))
+        .count()
+}
+
+fn boundary_edge_cost(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    petal: &BTreeSet<FlowNodeId>,
+) -> Result<ExactRatio, An19PetalError> {
+    let mut cost = ratio(0, 1)?;
+    for index in 0..graph.edge_count() {
+        let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+            continue;
+        };
+        if cluster.contains(&edge.first)
+            && cluster.contains(&edge.second)
+            && petal.contains(&edge.first) != petal.contains(&edge.second)
+        {
+            cost = cost
+                .checked_add(
+                    edge.length
+                        .reciprocal()
+                        .map_err(|_| An19PetalError::Overflow)?,
+                )
+                .map_err(|_| An19PetalError::Overflow)?;
+        }
+    }
+    Ok(cost)
+}
+
 fn all_connected(connectivity: &mut DisjointSet, count: usize) -> bool {
     if count == 0 {
         return false;
@@ -2928,6 +3088,13 @@ fn ceil_log_log(value: usize) -> usize {
 
 fn ratio(numerator: i128, denominator: i128) -> Result<ExactRatio, An19PetalError> {
     ExactRatio::new(numerator, denominator).map_err(|_| An19PetalError::Overflow)
+}
+
+fn count_ratio(value: usize) -> Result<ExactRatio, An19PetalError> {
+    ratio(
+        i128::try_from(value).map_err(|_| An19PetalError::Overflow)?,
+        1,
+    )
 }
 
 fn ratio_less(left: ExactRatio, right: ExactRatio) -> Result<bool, An19PetalError> {
@@ -3287,6 +3454,84 @@ mod tests {
     }
 
     #[test]
+    fn weighted_boundary_volume_and_cost_are_scale_covariant() {
+        use super::{boundary_edge_cost, incident_edge_count};
+
+        let make_graph = |scale: i128| {
+            SourceDynamicGraph::new(
+                4,
+                vec![
+                    SourceWeightedEdge {
+                        first: FlowNodeId(0),
+                        second: FlowNodeId(1),
+                        length: ExactRatio::new(2 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(1),
+                        second: FlowNodeId(2),
+                        length: ExactRatio::new(4 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(2),
+                        second: FlowNodeId(3),
+                        length: ExactRatio::new(8 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(1, 1).unwrap(),
+                    },
+                ],
+                10_000,
+            )
+            .unwrap()
+        };
+        let cluster = BTreeSet::from([FlowNodeId(0), FlowNodeId(1), FlowNodeId(2)]);
+        let petal = BTreeSet::from([FlowNodeId(0), FlowNodeId(1)]);
+        let small = make_graph(1);
+        let large = make_graph(1_000);
+        assert_eq!(incident_edge_count(&small, &cluster, &petal), 2);
+        assert_eq!(incident_edge_count(&large, &cluster, &petal), 2);
+        assert_eq!(
+            boundary_edge_cost(&small, &cluster, &petal).unwrap(),
+            ExactRatio::new(1, 4).unwrap()
+        );
+        assert_eq!(
+            boundary_edge_cost(&large, &cluster, &petal).unwrap(),
+            ExactRatio::new(1, 4_000).unwrap()
+        );
+    }
+
+    #[test]
+    fn hierarchy_highway_reuse_preserves_the_original_half_length() {
+        use super::{An19HierarchyMetrics, AugmentedAn19Graph, halve_highway};
+
+        let graph = path_graph(2);
+        let mut workspace = AugmentedAn19Graph::from_source(&graph).unwrap();
+        let cluster = BTreeSet::from([FlowNodeId(0), FlowNodeId(1)]);
+        let mut metrics = An19HierarchyMetrics::default();
+        halve_highway(
+            &mut workspace,
+            &cluster,
+            FlowNodeId(0),
+            FlowNodeId(1),
+            &mut metrics,
+        )
+        .unwrap();
+        let half = ExactRatio::new(1, 2).unwrap();
+        assert_eq!(workspace.edges[0].length, half);
+        halve_highway(
+            &mut workspace,
+            &cluster,
+            FlowNodeId(0),
+            FlowNodeId(1),
+            &mut metrics,
+        )
+        .unwrap();
+        assert_eq!(workspace.edges[0].length, half);
+        assert_eq!(metrics.highway_edges_halved, 1);
+        assert_eq!(metrics.highway_edges_reused, 1);
+    }
+
+    #[test]
     fn claim_15_region_growing_matches_the_cone_union() {
         use super::{An19WeightedPetal, An19WeightedPetalAtRadius};
 
@@ -3612,5 +3857,88 @@ mod tests {
             checked += 1;
         }
         assert_eq!(checked, 38);
+    }
+
+    #[test]
+    fn compact_rational_hierarchy_is_scale_invariant_without_length_expansion() {
+        use super::An19HierarchicalLsst;
+
+        let make_graph = |scale: i128| {
+            SourceDynamicGraph::new(
+                3,
+                vec![
+                    SourceWeightedEdge {
+                        first: FlowNodeId(0),
+                        second: FlowNodeId(1),
+                        length: ExactRatio::new(2 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(2, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(1),
+                        second: FlowNodeId(2),
+                        length: ExactRatio::new(2 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(3, 1).unwrap(),
+                    },
+                    SourceWeightedEdge {
+                        first: FlowNodeId(0),
+                        second: FlowNodeId(2),
+                        length: ExactRatio::new(3 * scale, 1).unwrap(),
+                        weight: ExactRatio::new(5, 1).unwrap(),
+                    },
+                ],
+                10_000,
+            )
+            .unwrap()
+        };
+        let small = make_graph(1);
+        let large = make_graph(1_000);
+        let small_hierarchy = An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
+        let large_hierarchy = An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
+        small_hierarchy.verify(&small).unwrap();
+        large_hierarchy.verify(&large).unwrap();
+        assert_eq!(small_hierarchy.tree_edges, large_hierarchy.tree_edges);
+        assert_eq!(
+            small_hierarchy.weighted_stretch,
+            large_hierarchy.weighted_stretch
+        );
+        assert!(small_hierarchy.metrics.virtual_leaves <= 3);
+        assert_eq!(
+            small_hierarchy.metrics.virtual_leaves,
+            large_hierarchy.metrics.virtual_leaves
+        );
+        assert_eq!(
+            small_hierarchy.metrics.portal_splits,
+            large_hierarchy.metrics.portal_splits
+        );
+    }
+
+    #[test]
+    fn compact_rational_hierarchy_recurses_with_scale_independent_counters() {
+        use super::An19HierarchicalLsst;
+
+        let make_path = |scale: i128| {
+            let edges = (0..499)
+                .map(|index| SourceWeightedEdge {
+                    first: FlowNodeId(index),
+                    second: FlowNodeId(index + 1),
+                    length: ExactRatio::new(scale * i128::try_from(2 + index % 2).unwrap(), 1)
+                        .unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                })
+                .collect();
+            SourceDynamicGraph::new(500, edges, 10_000).unwrap()
+        };
+        let small = make_path(1);
+        let large = make_path(1_000);
+        let small_hierarchy = An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
+        let large_hierarchy = An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
+        small_hierarchy.verify(&small).unwrap();
+        large_hierarchy.verify(&large).unwrap();
+        assert_eq!(small_hierarchy.tree_edges, large_hierarchy.tree_edges);
+        assert_eq!(small_hierarchy.metrics, large_hierarchy.metrics);
+        assert!(small_hierarchy.metrics.recursion_calls > 1);
+        assert!(small_hierarchy.metrics.virtual_leaves > 0);
+        assert!(small_hierarchy.metrics.virtual_leaves < 500);
+        assert!(small_hierarchy.metrics.virtual_leaves <= small_hierarchy.metrics.recursion_calls);
     }
 }
