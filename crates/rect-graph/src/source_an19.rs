@@ -258,6 +258,193 @@ impl An19WeightedPetalAtRadius {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19WeightedPetal {
+    pub at_radius: An19WeightedPetalAtRadius,
+    pub window_index: usize,
+    pub window_start: ExactRatio,
+    pub window_end: ExactRatio,
+    pub internal_edges: usize,
+    pub boundary_edges: usize,
+    pub cluster_edges: usize,
+}
+
+impl An19WeightedPetal {
+    /// Executes Figure 6 for arbitrary positive rational edge lengths using
+    /// exact parametric Claim 15 membership events.
+    ///
+    /// This is a source-semantics baseline. Its repeated exact shortest paths
+    /// do not establish AN19's fast region-growing runtime.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid source cluster, an insufficient target
+    /// path, or an uncertifiable Figure 6 comparison.
+    pub fn construct(
+        graph: &SourceDynamicGraph,
+        cluster: &BTreeSet<FlowNodeId>,
+        remaining: &BTreeSet<FlowNodeId>,
+        center: FlowNodeId,
+        target: FlowNodeId,
+        budget: ExactRatio,
+    ) -> Result<Self, An19PetalError> {
+        validate_weighted_domain(graph, cluster, remaining, center, target, budget)?;
+        if !budget.is_positive() {
+            return Err(An19PetalError::InvalidDomain);
+        }
+        let mut metrics = An19PetalMetrics::default();
+        let cluster_paths = shortest_paths(graph, cluster, center, &mut metrics)?;
+        let path = recover_path(center, target, &cluster_paths)?;
+        if path
+            .vertices
+            .iter()
+            .any(|vertex| !remaining.contains(vertex))
+        {
+            return Err(An19PetalError::InvalidDomain);
+        }
+        let remaining_paths = shortest_paths(graph, remaining, center, &mut metrics)?;
+        for vertex in &path.vertices {
+            if cluster_paths.distances[vertex.0] != remaining_paths.distances[vertex.0] {
+                return Err(An19PetalError::InvalidDomain);
+            }
+        }
+        let target_distance =
+            remaining_paths.distances[target.0].ok_or(An19PetalError::Disconnected)?;
+        if ratio_less(target_distance, budget)? {
+            return Err(An19PetalError::InvalidRadius);
+        }
+        let thresholds = weighted_membership_thresholds(
+            graph,
+            remaining,
+            target,
+            &path,
+            &remaining_paths.distances,
+            budget,
+            &mut metrics,
+        )?;
+        let selection = select_weighted_figure_six(
+            graph,
+            cluster,
+            remaining,
+            &thresholds,
+            budget,
+            &mut metrics,
+        )?;
+        let mut at_radius = An19WeightedPetalAtRadius::construct(
+            graph,
+            cluster,
+            remaining,
+            center,
+            target,
+            selection.radius,
+        )?;
+        at_radius.metrics.shortest_path_runs = at_radius
+            .metrics
+            .shortest_path_runs
+            .checked_add(metrics.shortest_path_runs)
+            .ok_or(An19PetalError::Overflow)?;
+        at_radius.metrics.edge_relaxations = at_radius
+            .metrics
+            .edge_relaxations
+            .checked_add(metrics.edge_relaxations)
+            .ok_or(An19PetalError::Overflow)?;
+        at_radius.metrics.radius_events = metrics.radius_events;
+        at_radius.metrics.certified_comparisons = metrics.certified_comparisons;
+        Ok(Self {
+            at_radius,
+            window_index: selection.window_index,
+            window_start: selection.window_start,
+            window_end: selection.window_end,
+            internal_edges: selection.internal_edges,
+            boundary_edges: selection.boundary_edges,
+            cluster_edges: selection.cluster_edges,
+        })
+    }
+}
+
+struct FigureSixSelection {
+    radius: ExactRatio,
+    window_index: usize,
+    window_start: ExactRatio,
+    window_end: ExactRatio,
+    internal_edges: usize,
+    boundary_edges: usize,
+    cluster_edges: usize,
+}
+
+fn select_weighted_figure_six(
+    graph: &SourceDynamicGraph,
+    cluster: &BTreeSet<FlowNodeId>,
+    remaining: &BTreeSet<FlowNodeId>,
+    thresholds: &MembershipThresholds,
+    budget: ExactRatio,
+    metrics: &mut An19PetalMetrics,
+) -> Result<FigureSixSelection, An19PetalError> {
+    let cluster_edges = internal_edge_count(graph, cluster);
+    let active_edges = (0..graph.edge_count())
+        .filter(|index| graph.edge(SourceEdgeId(*index)).is_some())
+        .count();
+    if cluster_edges == 0 || active_edges < 2 {
+        return Err(An19PetalError::InvalidDomain);
+    }
+    let levels = ceil_log_log(graph.node_count());
+    let mut selected = None;
+    for index in 1..=levels {
+        let window_end = window_radius(budget, index, levels, true)?;
+        let vertices = vertices_at_radius(remaining, thresholds, window_end)?;
+        let internal = internal_edge_count(graph, &vertices);
+        metrics.certified_comparisons = metrics
+            .certified_comparisons
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        if certify_window_condition(active_edges, cluster_edges, internal, index, levels)? {
+            selected = Some((index, window_end));
+            break;
+        }
+    }
+    let (window_index, window_end) = selected.ok_or(An19PetalError::InvalidRadius)?;
+    let window_start = window_radius(budget, window_index, levels, false)?;
+    let start_vertices = vertices_at_radius(remaining, thresholds, window_start)?;
+    let start_edges = internal_edge_count(graph, &start_vertices);
+    if start_edges == 0 || start_edges >= cluster_edges {
+        return Err(An19PetalError::InvalidRadius);
+    }
+    let mut radius = window_start;
+    loop {
+        let vertices = vertices_at_radius(remaining, thresholds, radius)?;
+        let internal_edges = internal_edge_count(graph, &vertices);
+        let boundary_edges = boundary_edge_count(graph, cluster, &vertices);
+        metrics.certified_comparisons = metrics
+            .certified_comparisons
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        if certify_stopping_condition(
+            cluster_edges,
+            start_edges,
+            internal_edges,
+            boundary_edges,
+            levels,
+            budget,
+        )? {
+            return Ok(FigureSixSelection {
+                radius,
+                window_index,
+                window_start,
+                window_end,
+                internal_edges,
+                boundary_edges,
+                cluster_edges,
+            });
+        }
+        radius = next_radius_event(remaining, thresholds, radius, window_end)?
+            .ok_or(An19PetalError::InvalidRadius)?;
+        metrics.radius_events = metrics
+            .radius_events
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct An19ShortEdgeContraction {
     pub cluster: BTreeSet<FlowNodeId>,
     pub center: FlowNodeId,
@@ -1058,6 +1245,225 @@ fn membership_thresholds(
     })
 }
 
+fn weighted_membership_thresholds(
+    graph: &SourceDynamicGraph,
+    remaining: &BTreeSet<FlowNodeId>,
+    target: FlowNodeId,
+    path: &RecoveredPath,
+    center_distances: &[Option<ExactRatio>],
+    maximum_radius: ExactRatio,
+    metrics: &mut An19PetalMetrics,
+) -> Result<MembershipThresholds, An19PetalError> {
+    let mut thresholds = MembershipThresholds {
+        by_vertex: vec![None; graph.node_count()],
+        path_distance_from_target: vec![None; graph.node_count()],
+    };
+    thresholds.by_vertex[target.0] = Some(ratio(0, 1)?);
+    thresholds.path_distance_from_target[target.0] = Some(ratio(0, 1)?);
+    let mut fully_halved = Vec::new();
+    let mut interval_start = ratio(0, 1)?;
+    for path_index in (0..path.edges.len()).rev() {
+        if !ratio_less(interval_start, maximum_radius)? {
+            break;
+        }
+        let edge_id = path.edges[path_index];
+        let edge = graph.edge(edge_id).ok_or(An19PetalError::InvalidDomain)?;
+        let from = path.vertices[path_index + 1];
+        let toward_center = path.vertices[path_index];
+        let full_end = interval_start
+            .checked_add(edge.length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let interval_end = if ratio_less(maximum_radius, full_end)? {
+            maximum_radius
+        } else {
+            full_end
+        };
+        thresholds.path_distance_from_target[toward_center.0] = Some(full_end);
+        let removed = Some((edge_id, from, toward_center));
+        let without_current = constant_directed_distances(
+            graph,
+            remaining,
+            target,
+            center_distances,
+            &fully_halved,
+            removed,
+            metrics,
+        )?;
+        let from_toward = constant_directed_distances(
+            graph,
+            remaining,
+            toward_center,
+            center_distances,
+            &fully_halved,
+            removed,
+            metrics,
+        )?;
+        let source_to_from = without_current[from.0].ok_or(An19PetalError::Disconnected)?;
+        let three_halves = ratio(3, 2)?;
+        let one_half = ratio(1, 2)?;
+        let current_constant = edge
+            .length
+            .checked_mul_integer(2)
+            .and_then(|value| {
+                interval_start
+                    .checked_mul(three_halves)
+                    .and_then(|offset| value.checked_add(offset))
+            })
+            .map_err(|_| An19PetalError::Overflow)?;
+        for vertex in remaining {
+            if let Some(distance) = without_current[vertex.0] {
+                let entry = max_ratio(
+                    interval_start,
+                    distance
+                        .checked_mul_integer(2)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                )?;
+                if !ratio_less(interval_end, entry)? {
+                    record_threshold(&mut thresholds.by_vertex[vertex.0], entry)?;
+                }
+            }
+            if let Some(suffix) = from_toward[vertex.0] {
+                let entry = source_to_from
+                    .checked_add(current_constant)
+                    .and_then(|value| value.checked_add(suffix))
+                    .and_then(|value| value.checked_mul(one_half))
+                    .map_err(|_| An19PetalError::Overflow)?;
+                let entry = max_ratio(interval_start, entry)?;
+                if !ratio_less(interval_end, entry)? {
+                    record_threshold(&mut thresholds.by_vertex[vertex.0], entry)?;
+                }
+            }
+        }
+        if interval_end != full_end {
+            break;
+        }
+        fully_halved.push(An19HighwaySegment {
+            edge: edge_id,
+            from,
+            toward_center,
+            halved_length: edge.length,
+            original_edge_length: edge.length,
+        });
+        interval_start = full_end;
+    }
+    Ok(thresholds)
+}
+
+fn constant_directed_distances(
+    graph: &SourceDynamicGraph,
+    allowed: &BTreeSet<FlowNodeId>,
+    source: FlowNodeId,
+    center_distances: &[Option<ExactRatio>],
+    fully_halved: &[An19HighwaySegment],
+    removed: Option<(SourceEdgeId, FlowNodeId, FlowNodeId)>,
+    metrics: &mut An19PetalMetrics,
+) -> Result<Vec<Option<ExactRatio>>, An19PetalError> {
+    let mut distances = vec![None; graph.node_count()];
+    let mut path_keys = vec![None; graph.node_count()];
+    let mut settled = vec![false; graph.node_count()];
+    distances[source.0] = Some(ratio(0, 1)?);
+    path_keys[source.0] = Some(Vec::new());
+    loop {
+        let mut next = None;
+        for vertex in allowed {
+            if settled[vertex.0] || distances[vertex.0].is_none() {
+                continue;
+            }
+            match next {
+                None => next = Some(vertex.0),
+                Some(old) if path_state_is_better(vertex.0, old, &distances, &path_keys)? => {
+                    next = Some(vertex.0);
+                }
+                Some(_) => {}
+            }
+        }
+        let Some(node) = next else {
+            break;
+        };
+        settled[node] = true;
+        for edge_index in 0..graph.edge_count() {
+            let edge_id = SourceEdgeId(edge_index);
+            let Some(edge) = graph.edge(edge_id) else {
+                continue;
+            };
+            let other = if edge.first.0 == node {
+                edge.second.0
+            } else if edge.second.0 == node {
+                edge.first.0
+            } else {
+                continue;
+            };
+            if !allowed.contains(&FlowNodeId(other)) || settled[other] {
+                continue;
+            }
+            if removed == Some((edge_id, FlowNodeId(node), FlowNodeId(other))) {
+                continue;
+            }
+            metrics.edge_relaxations = metrics
+                .edge_relaxations
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?;
+            let directed_length = reduced_directed_length(
+                edge_id,
+                FlowNodeId(node),
+                FlowNodeId(other),
+                edge.length,
+                center_distances,
+                fully_halved,
+            )?;
+            let candidate = distances[node]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_add(directed_length)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let mut key = path_keys[node]
+                .as_ref()
+                .ok_or(An19PetalError::Disconnected)?
+                .clone();
+            key.push(edge_id);
+            let improves = match distances[other] {
+                None => true,
+                Some(old) => {
+                    ratio_less(candidate, old)?
+                        || (candidate == old
+                            && key
+                                < *path_keys[other]
+                                    .as_ref()
+                                    .ok_or(An19PetalError::Disconnected)?)
+                }
+            };
+            if improves {
+                distances[other] = Some(candidate);
+                path_keys[other] = Some(key);
+            }
+        }
+    }
+    metrics.shortest_path_runs = metrics
+        .shortest_path_runs
+        .checked_add(1)
+        .ok_or(An19PetalError::Overflow)?;
+    Ok(distances)
+}
+
+fn record_threshold(
+    current: &mut Option<ExactRatio>,
+    candidate: ExactRatio,
+) -> Result<(), An19PetalError> {
+    match *current {
+        None => *current = Some(candidate),
+        Some(old) if ratio_less(candidate, old)? => *current = Some(candidate),
+        Some(_) => {}
+    }
+    Ok(())
+}
+
+fn max_ratio(first: ExactRatio, second: ExactRatio) -> Result<ExactRatio, An19PetalError> {
+    if ratio_less(first, second)? {
+        Ok(second)
+    } else {
+        Ok(first)
+    }
+}
+
 fn vertices_at_radius(
     remaining: &BTreeSet<FlowNodeId>,
     thresholds: &MembershipThresholds,
@@ -1741,7 +2147,7 @@ mod tests {
 
     #[test]
     fn claim_15_region_growing_matches_the_cone_union() {
-        use super::An19WeightedPetalAtRadius;
+        use super::{An19WeightedPetal, An19WeightedPetalAtRadius};
 
         let graph = path_graph(10);
         let vertices = (0..10).map(FlowNodeId).collect::<BTreeSet<_>>();
@@ -1768,5 +2174,68 @@ mod tests {
             region_growing.portal,
             super::An19PathPoint::EdgeInterior { .. }
         ));
+        let weighted_selector = An19WeightedPetal::construct(
+            &graph,
+            &vertices,
+            &vertices,
+            FlowNodeId(0),
+            FlowNodeId(9),
+            ExactRatio::new(3, 1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(weighted_selector.window_index, cone_union.window_index);
+        assert_eq!(weighted_selector.at_radius.radius, cone_union.radius);
+        assert_eq!(weighted_selector.at_radius.vertices, cone_union.vertices);
+    }
+
+    #[test]
+    fn selects_a_weighted_figure_6_radius_from_parametric_events() {
+        use super::{An19PathPoint, An19WeightedPetal};
+
+        let graph = SourceDynamicGraph::new(
+            3,
+            vec![
+                SourceWeightedEdge {
+                    first: FlowNodeId(0),
+                    second: FlowNodeId(1),
+                    length: ExactRatio::new(7, 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+                SourceWeightedEdge {
+                    first: FlowNodeId(1),
+                    second: FlowNodeId(2),
+                    length: ExactRatio::new(1, 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                },
+            ],
+            16,
+        )
+        .unwrap();
+        let vertices = (0..3).map(FlowNodeId).collect::<BTreeSet<_>>();
+        let petal = An19WeightedPetal::construct(
+            &graph,
+            &vertices,
+            &vertices,
+            FlowNodeId(0),
+            FlowNodeId(2),
+            ExactRatio::new(4, 1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(petal.window_index, 1);
+        assert_eq!(petal.window_start, ExactRatio::new(2, 1).unwrap());
+        assert_eq!(petal.at_radius.radius, ExactRatio::new(2, 1).unwrap());
+        assert_eq!(
+            petal.at_radius.vertices,
+            BTreeSet::from([FlowNodeId(1), FlowNodeId(2)])
+        );
+        assert_eq!(
+            petal.at_radius.portal,
+            An19PathPoint::EdgeInterior {
+                edge: crate::SourceEdgeId(0),
+                from: FlowNodeId(1),
+                toward_center: FlowNodeId(0),
+                offset_from: ExactRatio::new(3, 2).unwrap(),
+            }
+        );
     }
 }

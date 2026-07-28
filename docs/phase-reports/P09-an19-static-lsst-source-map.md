@@ -151,17 +151,26 @@ These pieces establish P9.3.2c's symbolic representation and recovery
 contracts. They do not yet compose Figure 5 recursively; that hierarchy and
 its radius/stretch proof remain P9.3.2d.
 
+P9.3.2d now also has an exact weighted Figure 6 baseline.
+`An19WeightedPetal` treats each successive highway edge as one parametric
+interval: with the current forward edge removed, every directed shortest-path
+distance has the form `min(A, B - 3r/2)`. It derives exact vertex-entry radii,
+then reuses the certified window and strict stopping comparisons. On the shared
+unit domain it exactly matches the cone-union window index, selected radius,
+and vertex set. This implementation deliberately reruns exact shortest paths
+per highway interval and therefore makes no fast region-growing runtime claim.
+
 ## Focused evidence
 
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 8 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 9 tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 223 passed, 3 ignored across 13 suites |
+| `cargo test --workspace` | 0 | 224 passed, 3 ignored across 13 suites |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
