@@ -2,6 +2,7 @@ pub mod bitset;
 pub mod decremental_spanner;
 pub mod dinic;
 pub mod dynamic_min_ratio;
+pub mod fixed_point;
 pub mod hopcroft_karp;
 pub mod interior_point;
 pub mod lsf_mwu;
@@ -22,6 +23,9 @@ pub use dynamic_min_ratio::{
     CompactCycle, CompactCycleSegment, DynamicAuditMetrics, DynamicMinRatioAudit,
     DynamicMinRatioError, DynamicMinRatioReplay, ShiftedTreeChain, TreeChainMetrics,
     UnsupportedDynamicOperation,
+};
+pub use fixed_point::{
+    CertifiedFixedPoint, DyadicInterval, FixedPointConfig, FixedPointError, FixedPointMetrics,
 };
 pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
