@@ -431,6 +431,35 @@ P9.3.2d-local-proof, -global-proof, -pq-proof, and -runtime remain blocked.
 mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
 false.
 
+## Complete event-engine phase audit
+
+The implementation baseline for this closeout was `89b5ea3`; the pre-closeout
+working HEAD was `4413e94`. All required commands completed successfully:
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git status --short` | 0 | clean before closeout |
+| `git diff --check` | 0 | clean |
+| `cargo fmt --all -- --check` | 0 | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo test --workspace` | 0 | 254 passed, 3 existing ignored, 13 suites, 395.92 s |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | release workspace current |
+| `python3 tools/check_release_consistency.py` | 0 | P1 baseline and AN19 evidence checks passed; 30 reachable manifest commits |
+| `python3 -m py_compile tools/generate_paper_tables.py tools/check_release_consistency.py` | 0 | both tools compile |
+| bounded event CLI twice | 0 | stable JSON SHA-256 `0a3bc0ea`; Markdown SHA-256 `00646fde` |
+| paper-table generator twice | 0 | stable scope SHA-256 `06bcd4b3`; paper SHA-256 `42e91945`; manifest SHA-256 `7eada86b` |
+| `git diff 89b5ea3..HEAD -G '#\\[ignore' --stat` | 0 | no ignored tests changed |
+| changed-line credential/local-path scan | 0 | no credentials, private keys, or absolute local paths |
+
+The full campaign result is `results/an19-event-adversarial.json` with its
+generated summary in `results/an19-event-adversarial.md`. The release checker
+also verifies all eight families, 31 cases, Oracle agreement, four true
+implementation statuses, four false proof/runtime statuses, and the retained
+Family A reduced-class witness. No downstream runtime-dependent phase was
+started.
+
 ## Runtime acceptance audit
 
 | Issue | Observed | Source requirement | Current acceptance |
