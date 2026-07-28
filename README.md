@@ -227,6 +227,14 @@ ordering/counting conversion required by the local AN19 proof plan.
 Consequently, the reduced-event class bound and AN19 runtime remain unproved,
 P9.3.2d is a hard blocker, and dependent P9 phases must not start.
 
+The AN19-shaped all-radii event engine is now implemented behind a replaceable
+interface with exact rational ordering, a definition-level `ExactEventOracle`,
+canonical semantic and queue traces, and six empirical charge maps. A bounded
+A--H campaign differentially agrees on all 31 fixed snapshots in
+`results/an19-event-adversarial.json`. This establishes source-shaped semantics
+on the tested domain; it does not establish the fixed-snapshot event bound,
+hierarchy-wide amortization, priority-queue bound, or claimed AN19 runtime.
+
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;
 see `docs/GEOMETRIC_COMPLETION.md` for the deterministic policy and exact

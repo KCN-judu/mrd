@@ -337,6 +337,31 @@ the exact costs `ell(u,v) + d(x,u) - d(x,v)`. The AN19 asymptotic runtime and
 P9.3.2d therefore remain blocked; no experimental population is treated as a
 proof of that bound.
 
+## AN19 exact event campaign
+
+`results/an19-event-adversarial.json` and its generated Markdown summary record
+31 deterministic fixed snapshots for sizes 16 and 32 across families A--H.
+Both independent exact paths agree on every normalized semantic event sequence,
+selected Figure 6 radius, vertex membership, edge partition, and stopping
+certificate. The activity records 781 semantic events and a maximum of 40
+distinct reduced costs in one snapshot. Every case includes exact
+numerator/denominator values, full Oracle and reduced traces, queue counters,
+and all six charge analyses.
+
+Family A grows from 5 original length classes and 20 reduced costs at size 16
+to 6 classes and 40 reduced costs at size 32. This finite witness agrees with
+the separately documented algebraic family and rejects the naive conversion
+used by the abandoned route; the experiment alone is not an asymptotic proof.
+Families B, C, and F are fixed-snapshot observation sequences rather than a
+hierarchy proof. Family D has equal active forward propagation keys (the reverse
+arcs retain their distinct exact direction cost), and Family G is a paired
+pre/post-halving snapshot whose 4/3 materialized order becomes 2/3.
+
+The campaign sets `semantics_implemented`, `exact_oracle_verified`,
+`differential_verified`, and `trace_complete` to true. It keeps the local event
+bound, global amortization, priority-queue bound, and AN19 runtime statuses
+false.
+
 ## v0.4 indexed completion evidence
 
 The v0.4 campaign keeps the v0.3 populations unchanged and compares the two

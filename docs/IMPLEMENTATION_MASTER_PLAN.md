@@ -573,7 +573,24 @@ P9.3 is split into the following source-gated subphases:
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
      `27d5773`, `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`,
      `bc61592`, `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`, `60fdfe4`,
-     `0fc48a1`, `d17a6cd`, `0b3b704`.** The exact
+     `0fc48a1`, `d17a6cd`, `0b3b704`, `7ea13da`, `28f9ff7`, `6c8cfac`,
+     `98bb615`.**
+     Substatus is intentionally split so implementation evidence cannot imply a
+     runtime proof:
+
+     | Substatus | State | Acceptance evidence |
+     | --- | --- | --- |
+     | P9.3.2d-impl: AN19-shaped exact event engine | complete | isolated `An19ReducedEventEngine`; exact reduced costs; no numeric expansion, Oracle fallback, or unproved merging |
+     | P9.3.2d-oracle: explicit exact event Oracle | complete | independent repeated-shortest-path thresholds and definition-level Figure 6 selection |
+     | P9.3.2d-trace: canonical event and charge trace | complete | exact rational semantic/queue records, structural generations, state transitions, and six charge maps |
+     | P9.3.2d-differential: exact semantic agreement | complete | 31 bounded A--H snapshots agree on normalized order, radius, membership, edge partitions, path, and stopping certificate |
+     | P9.3.2d-counterexample: reduced-class adversarial families | evidence recorded; proof status open | bounded A--H campaign plus the earlier algebraic Family A lower bound; finite growth analysis is not treated as proof |
+     | P9.3.2d-local-proof: fixed-snapshot event bound | blocked | no proved exact bound for all candidate events/comparisons |
+     | P9.3.2d-global-proof: hierarchy-wide amortization | blocked | no charge argument bounds all snapshots across recursion |
+     | P9.3.2d-pq-proof: exact event-order data structure | blocked | no proved source-equivalent `O(m+n log log n)` ordering structure |
+     | P9.3.2d-runtime: AN19 runtime verification | blocked | depends on all three proof rows above; `source_runtime_verified()` remains false |
+
+     The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge

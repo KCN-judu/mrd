@@ -43,6 +43,24 @@ ordering/counting conversion required by P9.3.2d. That mathematical obligation
 is blocked independently of the green test suite, and downstream P9 phases may
 not start.
 
+The exact fixed-snapshot event layer has a separate bounded gate:
+
+```bash
+cargo test -p rect-graph event_engine
+cargo run --release -p rect-cli -- an19-events \
+  --an19-event-engine reduced-exact \
+  --an19-adversarial-family all \
+  --an19-adversarial-size 16,32 \
+  --output results/an19-event-adversarial.json \
+  --markdown results/an19-event-adversarial.md
+```
+
+This covers exact Oracle/reduced agreement, canonical trace verification, the
+six charge maps, all A--H fixed-snapshot families, highway-halving key reorder,
+and the requested trace mutations. Green results set only the implementation,
+Oracle, differential, and trace statuses; they do not validate AN19's
+asymptotic runtime.
+
 Run larger exhaustive and random campaigns with:
 
 ```bash

@@ -395,6 +395,42 @@ the independent unproved structural interface. It does not resolve the exact
 reduced-event ordering gap, so `StructuralSourceBound` and `SourceMonotone`
 remain unselected and `source_runtime_verified()` remains false.
 
+## Exact all-radii event implementation evidence
+
+Commits `7ea13da`, `28f9ff7`, `6c8cfac`, and `98bb615` isolate the fixed-projection event
+contract from the existing hierarchy production path. `ExactEventOracle` uses
+definition-level exact threshold and Figure 6 selection logic.
+`An19ReducedEventEngine` independently runs the integral-normalized exact
+reduced costs `2(ell(u,v) + d(x,u) - d(x,v))`, records each insertion, pop,
+replacement, tie, and stale item, and rejects disagreement with the existing
+source-shaped threshold path rather than falling back. `ProvedEventEngine`
+remains unavailable and returns an explicit error.
+
+The canonical trace contains projection/recursion identity, stable source and
+segment lineage, exact materialized and symbolic length, halving and structural
+generations, reduced cost and event radius numerator/denominator pairs, queue
+sequence numbers, stale reasons, before/after semantic state, endpoints,
+directed incidences, deterministic tie fields, and six candidate charge keys.
+Verification reruns the selected backend and rejects reduced-cost, radius,
+source, depth, lineage, halving, tie, stale, duplicate-event, and state
+mutations.
+
+The bounded release campaign in `results/an19-event-adversarial.json` covers 31
+fixed snapshots at sizes 16 and 32 across all A--H families. Oracle and reduced
+outputs agree in every case. Family A records 20 reduced costs from 5 original
+classes and then 40 from 6; this is a finite witness consistent with the
+separately proved linear lower-bound family, not a new asymptotic proof. Family
+G uses paired snapshots in which highway halving changes the reverse-key order
+from 4/3 to 2/3. Families B, C, and F emulate recursive observation contexts;
+they are not a hierarchy amortization argument.
+
+This completes only P9.3.2d-impl, -oracle, -trace, and -differential. The
+counterexample activity is recorded as empirical/proof-discovery evidence.
+P9.3.2d-local-proof, -global-proof, -pq-proof, and -runtime remain blocked.
+`An19AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
+mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
+false.
+
 ## Runtime acceptance audit
 
 | Issue | Observed | Source requirement | Current acceptance |
