@@ -3413,7 +3413,7 @@ fn shortest_paths(
     distances[source.0] = Some(ratio(0, 1)?);
     path_keys[source.0] = Some(Vec::new());
     loop {
-        let mut next = None;
+        let mut next: Option<usize> = None;
         for vertex in allowed {
             if settled[vertex.0] || distances[vertex.0].is_none() {
                 continue;
@@ -3732,35 +3732,100 @@ fn directed_petal_distances(
             continue;
         };
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
-            let forward = reduced_directed_length(
-                edge_id,
-                edge.first,
-                edge.second,
-                edge.length,
-                center_distances,
-                highway,
-            )?;
-            let reverse = reduced_directed_length(
-                edge_id,
-                edge.second,
-                edge.first,
-                edge.length,
-                center_distances,
-                highway,
-            )?;
-            let next_forward = length_classes.len();
-            let forward_class = *length_classes
-                .entry((forward.numerator(), forward.denominator()))
-                .or_insert(next_forward);
-            let next_reverse = length_classes.len();
-            let reverse_class = *length_classes
-                .entry((reverse.numerator(), reverse.denominator()))
-                .or_insert(next_reverse);
-            adjacency[edge.first.0].push((edge.second, forward, forward_class));
-            adjacency[edge.second.0].push((edge.first, reverse, reverse_class));
+            let next_class = length_classes.len();
+            let class = *length_classes
+                .entry((edge.length.numerator(), edge.length.denominator()))
+                .or_insert(next_class);
+            adjacency[edge.first.0].push((edge.second, edge.length, class));
+            adjacency[edge.second.0].push((edge.first, edge.length, class));
         }
     }
-    distances[target.0] = Some(ratio(0, 1)?);
+
+    // For every ordinary arc, Claim 15's reduced length is
+    // l(u,v) + d(x,u) - d(x,v). Adding the fixed center potential to a
+    // tentative label therefore leaves the original undirected edge length.
+    // The halved highway is represented by source labels at its path points.
+    let half = ratio(1, 2)?;
+    let target_potential = center_distances[target.0].ok_or(An19PetalError::Disconnected)?;
+    let mut descending_highway_sources = vec![ExactHeapEntry {
+        distance: target_potential,
+        vertex: target,
+    }];
+    let mut portal_sources = Vec::new();
+    let mut traversed = ratio(0, 1)?;
+    for segment in highway {
+        let edge = graph
+            .edge(segment.edge)
+            .ok_or(An19PetalError::InvalidHighway)?;
+        if edge.length != segment.original_edge_length
+            || segment.halved_length.is_negative()
+            || ratio_less(edge.length, segment.halved_length)?
+        {
+            return Err(An19PetalError::InvalidHighway);
+        }
+        traversed = traversed
+            .checked_add(segment.halved_length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let highway_distance = traversed
+            .checked_mul(half)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if segment.halved_length == edge.length {
+            let transformed = highway_distance
+                .checked_add(
+                    center_distances[segment.toward_center.0]
+                        .ok_or(An19PetalError::Disconnected)?,
+                )
+                .map_err(|_| An19PetalError::Overflow)?;
+            descending_highway_sources.push(ExactHeapEntry {
+                distance: transformed,
+                vertex: segment.toward_center,
+            });
+        } else {
+            let portal_potential = center_distances[segment.from.0]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_sub(segment.halved_length)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let portal_label = highway_distance
+                .checked_add(portal_potential)
+                .map_err(|_| An19PetalError::Overflow)?;
+            portal_sources.push(ExactHeapEntry {
+                distance: portal_label
+                    .checked_add(segment.halved_length)
+                    .map_err(|_| An19PetalError::Overflow)?,
+                vertex: segment.from,
+            });
+            portal_sources.push(ExactHeapEntry {
+                distance: portal_label
+                    .checked_add(
+                        edge.length
+                            .checked_sub(segment.halved_length)
+                            .map_err(|_| An19PetalError::Overflow)?,
+                    )
+                    .map_err(|_| An19PetalError::Overflow)?,
+                vertex: segment.toward_center,
+            });
+        }
+    }
+    descending_highway_sources.reverse();
+    for source in portal_sources {
+        let mut position = descending_highway_sources.len();
+        for (index, current) in descending_highway_sources.iter().enumerate() {
+            if exact_heap_entry_less(&source, current)? {
+                position = index;
+                break;
+            }
+        }
+        descending_highway_sources.insert(position, source);
+    }
+    for source in &descending_highway_sources {
+        let improves = match distances[source.vertex.0] {
+            Some(old) => ratio_less(source.distance, old)?,
+            None => true,
+        };
+        if improves {
+            distances[source.vertex.0] = Some(source.distance);
+        }
+    }
     let source_class = length_classes.len();
     let mut queue = DistinctLengthQueue::new(
         source_class
@@ -3768,14 +3833,9 @@ fn directed_petal_distances(
             .ok_or(An19PetalError::Overflow)?,
         metrics,
     )?;
-    queue.push(
-        source_class,
-        ExactHeapEntry {
-            distance: ratio(0, 1)?,
-            vertex: target,
-        },
-        metrics,
-    )?;
+    for source in descending_highway_sources {
+        queue.push(source_class, source, metrics)?;
+    }
     while let Some(entry) = queue.pop(metrics)? {
         if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
             continue;
@@ -3825,6 +3885,14 @@ fn directed_petal_distances(
     if allowed.iter().any(|vertex| distances[vertex.0].is_none()) {
         return Err(An19PetalError::Disconnected);
     }
+    for vertex in allowed {
+        distances[vertex.0] = Some(
+            distances[vertex.0]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_sub(center_distances[vertex.0].ok_or(An19PetalError::Disconnected)?)
+                .map_err(|_| An19PetalError::Overflow)?,
+        );
+    }
     Ok(distances)
 }
 
@@ -3869,6 +3937,79 @@ fn reduced_directed_length(
         return Err(An19PetalError::InvalidHighway);
     }
     Ok(reduced)
+}
+
+#[cfg(test)]
+fn directed_petal_distances_oracle(
+    graph: &SourceDynamicGraph,
+    allowed: &BTreeSet<FlowNodeId>,
+    target: FlowNodeId,
+    center_distances: &[Option<ExactRatio>],
+    highway: &[An19HighwaySegment],
+) -> Result<Vec<Option<ExactRatio>>, An19PetalError> {
+    let mut distances = vec![None; graph.node_count()];
+    let mut settled = vec![false; graph.node_count()];
+    distances[target.0] = Some(ratio(0, 1)?);
+    loop {
+        let mut next: Option<usize> = None;
+        for vertex in allowed {
+            if settled[vertex.0] || distances[vertex.0].is_none() {
+                continue;
+            }
+            let improves = match next {
+                None => true,
+                Some(old) => {
+                    let candidate = distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
+                    let old_distance = distances[old].ok_or(An19PetalError::Disconnected)?;
+                    ratio_less(candidate, old_distance)?
+                        || (candidate == old_distance && vertex.0 < old)
+                }
+            };
+            if improves {
+                next = Some(vertex.0);
+            }
+        }
+        let Some(node) = next else {
+            break;
+        };
+        settled[node] = true;
+        for edge_index in 0..graph.edge_count() {
+            let edge_id = SourceEdgeId(edge_index);
+            let Some(edge) = graph.edge(edge_id) else {
+                continue;
+            };
+            let other = if edge.first.0 == node {
+                edge.second
+            } else if edge.second.0 == node {
+                edge.first
+            } else {
+                continue;
+            };
+            if !allowed.contains(&other) || settled[other.0] {
+                continue;
+            }
+            let length = reduced_directed_length(
+                edge_id,
+                FlowNodeId(node),
+                other,
+                edge.length,
+                center_distances,
+                highway,
+            )?;
+            let candidate = distances[node]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_add(length)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let improves = match distances[other.0] {
+                Some(old) => ratio_less(candidate, old)?,
+                None => true,
+            };
+            if improves {
+                distances[other.0] = Some(candidate);
+            }
+        }
+    }
+    Ok(distances)
 }
 
 fn membership_thresholds(
@@ -4231,6 +4372,164 @@ fn weighted_adjacency(
         }
     }
     Ok((adjacency, length_classes.len()))
+}
+
+#[cfg(test)]
+fn transformed_weighted_adjacency(
+    graph: &SourceDynamicGraph,
+    allowed: &BTreeSet<FlowNodeId>,
+    metrics: &mut An19PetalMetrics,
+) -> Result<(ClassifiedAdjacency, usize), An19PetalError> {
+    let mut adjacency = vec![Vec::new(); graph.node_count()];
+    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
+    for index in 0..graph.edge_count() {
+        metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
+        let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+            continue;
+        };
+        if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
+            let length = edge
+                .length
+                .checked_mul_integer(2)
+                .map_err(|_| An19PetalError::Overflow)?;
+            let next_class = length_classes.len();
+            let class = *length_classes
+                .entry((length.numerator(), length.denominator()))
+                .or_insert(next_class);
+            adjacency[edge.first.0].push((edge.second, length, class));
+            adjacency[edge.second.0].push((edge.first, length, class));
+        }
+    }
+    Ok((adjacency, length_classes.len()))
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_lines)]
+fn transformed_weighted_membership_thresholds_oracle(
+    graph: &SourceDynamicGraph,
+    remaining: &BTreeSet<FlowNodeId>,
+    target: FlowNodeId,
+    path: &RecoveredPath,
+    center_distances: &[Option<ExactRatio>],
+    maximum_radius: ExactRatio,
+    metrics: &mut An19PetalMetrics,
+) -> Result<MembershipThresholds, An19PetalError> {
+    let mut reduced_labels = vec![None; graph.node_count()];
+    let mut reduced_sources = Vec::new();
+    let target_distance = center_distances[target.0].ok_or(An19PetalError::Disconnected)?;
+    let mut path_distance_from_target = vec![None; graph.node_count()];
+    let mut distance_from_target = ratio(0, 1)?;
+    add_membership_source(
+        target,
+        distance_from_target,
+        &mut reduced_labels,
+        &mut reduced_sources,
+        metrics,
+    )?;
+    path_distance_from_target[target.0] = Some(distance_from_target);
+    for path_index in (0..path.edges.len()).rev() {
+        let edge = graph
+            .edge(path.edges[path_index])
+            .ok_or(An19PetalError::InvalidDomain)?;
+        let from = path.vertices[path_index + 1];
+        let toward_center = path.vertices[path_index];
+        let next_distance = distance_from_target
+            .checked_add(edge.length)
+            .map_err(|_| An19PetalError::Overflow)?;
+        path_distance_from_target[toward_center.0] = Some(next_distance);
+        if ratio_less(maximum_radius, next_distance)? {
+            if ratio_less(distance_from_target, maximum_radius)? {
+                add_interior_membership_source(
+                    from,
+                    toward_center,
+                    edge.length,
+                    maximum_radius
+                        .checked_sub(distance_from_target)
+                        .map_err(|_| An19PetalError::Overflow)?,
+                    target_distance,
+                    maximum_radius,
+                    center_distances,
+                    &mut reduced_labels,
+                    &mut reduced_sources,
+                    metrics,
+                )?;
+            }
+            break;
+        }
+        add_membership_source(
+            toward_center,
+            next_distance,
+            &mut reduced_labels,
+            &mut reduced_sources,
+            metrics,
+        )?;
+        distance_from_target = next_distance;
+        if distance_from_target == maximum_radius {
+            break;
+        }
+    }
+
+    let two = ratio(2, 1)?;
+    let mut transformed_labels = vec![None; graph.node_count()];
+    let mut transformed_sources = Vec::with_capacity(reduced_sources.len());
+    for source in reduced_sources {
+        let potential = center_distances[source.vertex.0]
+            .ok_or(An19PetalError::Disconnected)?
+            .checked_mul(two)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let transformed = source
+            .distance
+            .checked_add(potential)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let improves = match transformed_labels[source.vertex.0] {
+            Some(old) => ratio_less(transformed, old)?,
+            None => true,
+        };
+        if improves {
+            transformed_labels[source.vertex.0] = Some(transformed);
+            transformed_sources.push(ExactHeapEntry {
+                distance: transformed,
+                vertex: source.vertex,
+            });
+        }
+    }
+    let mut comparisons = 0;
+    let mut source_heap = Vec::new();
+    for source in transformed_sources {
+        heap_push(&mut source_heap, source, &mut comparisons)?;
+    }
+    let mut sorted_sources = Vec::new();
+    while let Some(source) = heap_pop(&mut source_heap, &mut comparisons)? {
+        sorted_sources.push(source);
+    }
+    let (adjacency, length_classes) = transformed_weighted_adjacency(graph, remaining, metrics)?;
+    exact_multi_source_dijkstra(
+        &adjacency,
+        length_classes,
+        &mut transformed_labels,
+        &sorted_sources,
+        metrics,
+    )?;
+
+    let mut by_vertex = vec![None; graph.node_count()];
+    for vertex in remaining {
+        let potential = center_distances[vertex.0]
+            .ok_or(An19PetalError::Disconnected)?
+            .checked_mul(two)
+            .map_err(|_| An19PetalError::Overflow)?;
+        let threshold = transformed_labels[vertex.0]
+            .ok_or(An19PetalError::Disconnected)?
+            .checked_sub(potential)
+            .map_err(|_| An19PetalError::Overflow)?;
+        if !ratio_less(maximum_radius, threshold)? {
+            by_vertex[vertex.0] = Some(threshold);
+        }
+    }
+    Ok(MembershipThresholds {
+        by_vertex,
+        path_distance_from_target,
+        ordered_events: None,
+    })
 }
 
 fn exact_multi_source_dijkstra(
@@ -5598,6 +5897,7 @@ mod tests {
     fn fast_weighted_events_match_the_parametric_oracle_at_an_interior_cut() {
         use super::{
             An19PetalMetrics, fast_weighted_membership_thresholds, recover_path, shortest_paths,
+            transformed_weighted_membership_thresholds_oracle,
             weighted_membership_thresholds_oracle,
         };
 
@@ -5654,7 +5954,23 @@ mod tests {
             &mut fast_metrics,
         )
         .unwrap();
+        let mut transformed_metrics = An19PetalMetrics::default();
+        let transformed = transformed_weighted_membership_thresholds_oracle(
+            &graph,
+            &vertices,
+            FlowNodeId(2),
+            &path,
+            &center_paths.distances,
+            maximum_radius,
+            &mut transformed_metrics,
+        )
+        .unwrap();
         assert_eq!(fast.by_vertex, oracle.by_vertex);
+        assert_eq!(transformed.by_vertex, oracle.by_vertex);
+        assert_eq!(
+            transformed.path_distance_from_target,
+            oracle.path_distance_from_target
+        );
         assert_eq!(
             fast.path_distance_from_target,
             oracle.path_distance_from_target
@@ -5663,12 +5979,14 @@ mod tests {
         assert_eq!(fast_metrics.shortest_path_runs, 0);
         assert!(fast_metrics.directed_edge_scans <= 3 * 3);
         assert!(oracle_metrics.shortest_path_runs > 1);
+        assert!(transformed_metrics.maximum_length_classes <= 4);
     }
 
     #[test]
     fn fast_weighted_events_match_oracle_on_all_connected_four_node_graphs() {
         use super::{
             An19PetalMetrics, fast_weighted_membership_thresholds, recover_path, shortest_paths,
+            transformed_weighted_membership_thresholds_oracle,
             weighted_membership_thresholds_oracle,
         };
 
@@ -5724,12 +6042,28 @@ mod tests {
                         &mut fast_metrics,
                     )
                     .unwrap();
+                    let mut transformed_metrics = An19PetalMetrics::default();
+                    let transformed = transformed_weighted_membership_thresholds_oracle(
+                        &graph,
+                        &vertices,
+                        target,
+                        &path,
+                        &center_paths.distances,
+                        maximum_radius,
+                        &mut transformed_metrics,
+                    )
+                    .unwrap();
                     assert_eq!(fast.by_vertex, oracle.by_vertex);
+                    assert_eq!(transformed.by_vertex, oracle.by_vertex);
                     assert_eq!(
                         fast.path_distance_from_target,
                         oracle.path_distance_from_target
                     );
                     assert_eq!(fast_metrics.directed_region_runs, 1);
+                    assert!(
+                        transformed_metrics.maximum_length_classes
+                            <= u64::try_from(graph.edge_count() + 1).unwrap()
+                    );
                     assert!(
                         fast_metrics.directed_edge_scans
                             <= u64::try_from(graph.edge_count() * 3).unwrap()
@@ -5805,6 +6139,75 @@ mod tests {
             }
         }
         assert_eq!(checked, 152);
+    }
+
+    #[test]
+    fn source_class_directed_distances_match_reduced_oracle_on_four_node_graphs() {
+        use super::{
+            An19PetalMetrics, directed_petal_distances, directed_petal_distances_oracle,
+            locate_portal_and_highway, recover_path, shortest_paths,
+        };
+
+        let endpoints = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
+        let mut checked = 0;
+        for mask in 0_u32..(1_u32 << endpoints.len()) {
+            let edges = endpoints
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| mask & (1_u32 << index) != 0)
+                .map(|(index, (first, second))| SourceWeightedEdge {
+                    first: FlowNodeId(*first),
+                    second: FlowNodeId(*second),
+                    length: ExactRatio::new(i128::try_from(index % 3 + 1).unwrap(), 2).unwrap(),
+                    weight: ExactRatio::new(1, 1).unwrap(),
+                })
+                .collect::<Vec<_>>();
+            let graph = SourceDynamicGraph::new(4, edges, 16).unwrap();
+            let vertices = (0..4).map(FlowNodeId).collect::<BTreeSet<_>>();
+            let mut setup_metrics = An19PetalMetrics::default();
+            let Ok(center_paths) =
+                shortest_paths(&graph, &vertices, FlowNodeId(0), &mut setup_metrics)
+            else {
+                continue;
+            };
+            for target in 1..4 {
+                let target = FlowNodeId(target);
+                let path = recover_path(FlowNodeId(0), target, &center_paths).unwrap();
+                let target_distance = center_paths.distances[target.0].unwrap();
+                for numerator in 1..=4 {
+                    let radius = target_distance
+                        .checked_mul(ExactRatio::new(numerator, 4).unwrap())
+                        .unwrap();
+                    let (_, highway) =
+                        locate_portal_and_highway(&graph, &path, target, radius).unwrap();
+                    let mut metrics = An19PetalMetrics::default();
+                    let source_class = directed_petal_distances(
+                        &graph,
+                        &vertices,
+                        target,
+                        &center_paths.distances,
+                        &highway,
+                        &mut metrics,
+                    )
+                    .unwrap();
+                    let reduced = directed_petal_distances_oracle(
+                        &graph,
+                        &vertices,
+                        target,
+                        &center_paths.distances,
+                        &highway,
+                    )
+                    .unwrap();
+                    assert_eq!(source_class, reduced);
+                    assert!(
+                        metrics.maximum_length_classes
+                            <= u64::try_from(graph.edge_count() + 1).unwrap()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+        assert_eq!(checked, 456);
     }
 
     #[test]
@@ -6446,7 +6849,10 @@ mod tests {
 
     #[test]
     fn reduced_length_queue_exposes_unbounded_source_classes() {
-        use super::An19WeightedPetal;
+        use super::{
+            An19PetalMetrics, An19WeightedPetal, An19WeightedPetalAtRadius, fast_shortest_paths,
+            recover_path, transformed_weighted_membership_thresholds_oracle,
+        };
 
         let nodes = 128_usize;
         let mut edges = (0..nodes - 1)
@@ -6482,6 +6888,39 @@ mod tests {
         assert!(
             petal.at_radius.metrics.maximum_length_classes > u64::try_from(nodes).unwrap(),
             "reduced lengths are not bounded by the original power-of-two classes"
+        );
+        let fixed_radius = An19WeightedPetalAtRadius::construct_for_hierarchy(
+            &graph,
+            &cluster,
+            &cluster,
+            FlowNodeId(0),
+            FlowNodeId(nodes - 1),
+            ExactRatio::new(32, 1).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            fixed_radius.metrics.maximum_length_classes <= 9,
+            "fixed-radius Claim 15 now uses only original edge-length classes plus sources"
+        );
+        let mut setup_metrics = An19PetalMetrics::default();
+        let center_paths =
+            fast_shortest_paths(&graph, &cluster, FlowNodeId(0), &mut setup_metrics).unwrap();
+        let path = recover_path(FlowNodeId(0), FlowNodeId(nodes - 1), &center_paths).unwrap();
+        let mut transformed_metrics = An19PetalMetrics::default();
+        let transformed = transformed_weighted_membership_thresholds_oracle(
+            &graph,
+            &cluster,
+            FlowNodeId(nodes - 1),
+            &path,
+            &center_paths.distances,
+            ExactRatio::new(32, 1).unwrap(),
+            &mut transformed_metrics,
+        )
+        .unwrap();
+        assert!(transformed.by_vertex.iter().any(Option::is_some));
+        assert!(
+            transformed_metrics.maximum_length_classes <= 9,
+            "the transformed queue uses only doubled original edge-length classes plus sources"
         );
     }
 }
