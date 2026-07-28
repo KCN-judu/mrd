@@ -358,8 +358,10 @@ arcs retain their distinct exact direction cost), and Family G is a paired
 pre/post-halving snapshot whose 4/3 materialized order becomes 2/3.
 
 The campaign sets `semantics_implemented`, `exact_oracle_verified`,
-`differential_verified`, and `trace_complete` to true. It keeps the local event
-bound, global amortization, priority-queue bound, and AN19 runtime statuses
+`differential_verified`, `trace_complete`, and `local_event_bound_proved` to
+true. Every run reconstructs the structural bounds `3n + 4m + 2` for semantic
+events and `n + 2m + 2` for queue insertions/pops. It keeps global
+amortization, the priority-queue comparison bound, and AN19 runtime statuses
 false.
 
 ## v0.4 indexed completion evidence

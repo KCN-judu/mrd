@@ -72,7 +72,9 @@ enumerates definition-level fixed-snapshot events, while
 any semantic disagreement. `ProvedEventEngine` is a replaceable placeholder
 that returns an explicit unsupported error. The canonical trace and six charge
 maps support future proof or counterexample work, but their bounded A--H
-campaign does not supply the missing local, global, or priority-queue proof.
+campaign is not itself a proof. A separate structural certificate now proves
+the fixed-snapshot semantic-event and queue-item cardinalities. It does not
+supply the missing priority-queue comparison or global amortization proof.
 
 ## Historical P6 next action
 

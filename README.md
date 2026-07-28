@@ -232,8 +232,10 @@ interface with exact rational ordering, a definition-level `ExactEventOracle`,
 canonical semantic and queue traces, and six empirical charge maps. A bounded
 A--H campaign differentially agrees on all 31 fixed snapshots in
 `results/an19-event-adversarial.json`. This establishes source-shaped semantics
-on the tested domain; it does not establish the fixed-snapshot event bound,
-hierarchy-wide amortization, priority-queue bound, or claimed AN19 runtime.
+on the tested domain. A machine-checked structural certificate additionally
+proves at most `3n + 4m + 2` semantic events and `n + 2m + 2` queue items per
+fixed snapshot. It does not establish the priority-queue comparison bound,
+hierarchy-wide amortization, or claimed AN19 runtime.
 
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;

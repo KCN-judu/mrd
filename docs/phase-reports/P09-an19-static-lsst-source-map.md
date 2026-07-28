@@ -397,7 +397,8 @@ remain unselected and `source_runtime_verified()` remains false.
 
 ## Exact all-radii event implementation evidence
 
-Commits `7ea13da`, `28f9ff7`, `6c8cfac`, and `98bb615` isolate the fixed-projection event
+Commits `7ea13da`, `28f9ff7`, `6c8cfac`, `98bb615`, `5e771d8`,
+`a25ac08`, and `d4dda8f` isolate and certify the fixed-projection event
 contract from the existing hierarchy production path. `ExactEventOracle` uses
 definition-level exact threshold and Figure 6 selection logic.
 `An19ReducedEventEngine` independently runs the integral-normalized exact
@@ -424,9 +425,12 @@ G uses paired snapshots in which highway halving changes the reverse-key order
 from 4/3 to 2/3. Families B, C, and F emulate recursive observation contexts;
 they are not a hierarchy amortization argument.
 
-This completes only P9.3.2d-impl, -oracle, -trace, and -differential. The
-counterexample activity is recorded as empirical/proof-discovery evidence.
-P9.3.2d-local-proof, -global-proof, -pq-proof, and -runtime remain blocked.
+This initially completed P9.3.2d-impl, -oracle, -trace, and -differential. The
+follow-up `An19LocalEventBoundCertificate` also completes P9.3.2d-local-proof:
+each fixed snapshot has at most `3n + 4m + 2` semantic events and
+`n + 2m + 2` queue insertions/pops. The counterexample activity remains
+empirical/proof-discovery evidence. P9.3.2d-global-proof, -pq-proof, and
+-runtime remain blocked.
 `An19AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
 mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
 false.
@@ -448,17 +452,17 @@ working HEAD was `4413e94`. All required commands completed successfully:
 | `cargo build --workspace --release` | 0 | release workspace current |
 | `python3 tools/check_release_consistency.py` | 0 | P1 baseline and AN19 evidence checks passed; 30 reachable manifest commits |
 | `python3 -m py_compile tools/generate_paper_tables.py tools/check_release_consistency.py` | 0 | both tools compile |
-| bounded event CLI twice | 0 | stable JSON SHA-256 `0a3bc0ea`; Markdown SHA-256 `00646fde` |
-| paper-table generator twice | 0 | stable scope SHA-256 `06bcd4b3`; paper SHA-256 `42e91945`; manifest SHA-256 `7eada86b` |
+| bounded event CLI twice | 0 | stable JSON SHA-256 `53782128`; Markdown SHA-256 `6ae987a5` |
+| paper-table generator twice | 0 | stable scope SHA-256 `539d98ed`; paper SHA-256 `031edcd4`; manifest SHA-256 `7eada86b` |
 | `git diff 89b5ea3..HEAD -G '#\\[ignore' --stat` | 0 | no ignored tests changed |
 | changed-line credential/local-path scan | 0 | no credentials, private keys, or absolute local paths |
 
 The full campaign result is `results/an19-event-adversarial.json` with its
 generated summary in `results/an19-event-adversarial.md`. The release checker
-also verifies all eight families, 31 cases, Oracle agreement, four true
-implementation statuses, four false proof/runtime statuses, and the retained
-Family A reduced-class witness. No downstream runtime-dependent phase was
-started.
+also verifies all eight families, 31 cases, Oracle agreement, five true
+implementation/local statuses, three false global/PQ/runtime statuses, every
+local-bound formula, and the retained Family A reduced-class witness. No
+downstream runtime-dependent phase was started.
 
 ## Runtime acceptance audit
 

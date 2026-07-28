@@ -81,9 +81,10 @@
   `ell(u,v) + d(x,u) - d(x,v)`. This missing lemma blocks P9.3.2d and the AN19
   asymptotic runtime chain; empirical counts do not close the proof. An isolated
   exact all-radii engine and definition-level Oracle now agree on the bounded
-  A--H campaign and emit complete charge traces. That closes tested
-  fixed-snapshot semantics only; the local event bound, global amortization,
-  exact priority-queue bound, and production AN19 runtime remain unproved.
+  A--H campaign and emit complete charge traces. The fixed-snapshot semantic
+  event and queue-item cardinalities are structurally certified as `O(n+m)`.
+  The exact-comparison time of the priority queue, global amortization, and
+  production AN19 runtime remain unproved.
 - The exact-cover oracle is exponential and intended for small components. The
   verification harness defaults to a 40-cell cutoff.
 - JSON colors are compared as exact `serde_json::Value` values. SVG output is a
