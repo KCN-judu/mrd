@@ -1378,6 +1378,7 @@ pub struct AugmentedAn19Edge {
     /// Top-level input edge charged by the runtime audit, independent of the
     /// current quotient workspace's local recovery provenance.
     root_source: Option<SourceEdgeId>,
+    unsplit_length: ExactRatio,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1387,12 +1388,49 @@ pub struct OriginalEdgeInterval {
     second_position: ExactRatio,
 }
 
+/// Symbolic source label retained when an augmented edge is split at portals.
+///
+/// Equal labels identify a common unsplit source length, but do not by
+/// themselves prove that arbitrary candidate distances may share one monotone
+/// queue.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct An19SymbolicLengthLabel {
+    pub root_source: Option<SourceEdgeId>,
+    pub unsplit_length: ExactRatio,
+    pub halved: bool,
+}
+
+impl An19SymbolicLengthLabel {
+    fn effective_length(self) -> Result<ExactRatio, An19PetalError> {
+        if self.halved {
+            self.unsplit_length
+                .checked_mul(ratio(1, 2)?)
+                .map_err(|_| An19PetalError::Overflow)
+        } else {
+            Ok(self.unsplit_length)
+        }
+    }
+}
+
+impl AugmentedAn19Edge {
+    fn symbolic_length_label(&self) -> An19SymbolicLengthLabel {
+        An19SymbolicLengthLabel {
+            root_source: self.root_source,
+            unsplit_length: self.unsplit_length,
+            halved: self.halved,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AugmentedProjection {
     graph: SourceDynamicGraph,
     dense_to_augmented: Vec<usize>,
     dense_root_sources: Vec<Option<SourceEdgeId>>,
+    dense_symbolic_labels: Vec<An19SymbolicLengthLabel>,
     length_class_counts: BTreeMap<(i128, i128), usize>,
+    symbolic_source_classes: BTreeSet<(i128, i128)>,
+    symbolic_virtual_classes: BTreeSet<(i128, i128)>,
     local_to_augmented_node: Vec<FlowNodeId>,
     augmented_to_local_node: BTreeMap<FlowNodeId, FlowNodeId>,
 }
@@ -1432,15 +1470,32 @@ impl AugmentedAn19Graph {
         let root_sources = (0..graph.edge_count())
             .map(|index| Some(SourceEdgeId(index)))
             .collect::<Vec<_>>();
-        Self::from_source_with_root_sources(graph, length_mode, &root_sources)
+        Self::from_source_with_root_sources_and_labels(graph, length_mode, &root_sources, None)
     }
 
-    fn from_source_with_root_sources(
+    fn from_source_with_inherited_labels(
         graph: &SourceDynamicGraph,
         length_mode: An19LengthMode,
         root_sources: &[Option<SourceEdgeId>],
+        symbolic_labels: &[An19SymbolicLengthLabel],
     ) -> Result<Self, An19PetalError> {
-        if root_sources.len() != graph.edge_count() {
+        Self::from_source_with_root_sources_and_labels(
+            graph,
+            length_mode,
+            root_sources,
+            Some(symbolic_labels),
+        )
+    }
+
+    fn from_source_with_root_sources_and_labels(
+        graph: &SourceDynamicGraph,
+        length_mode: An19LengthMode,
+        root_sources: &[Option<SourceEdgeId>],
+        symbolic_labels: Option<&[An19SymbolicLengthLabel]>,
+    ) -> Result<Self, An19PetalError> {
+        if root_sources.len() != graph.edge_count()
+            || symbolic_labels.is_some_and(|labels| labels.len() != graph.edge_count())
+        {
             return Err(An19PetalError::InvalidAugmentedGraph);
         }
         let mut edges = Vec::new();
@@ -1470,10 +1525,23 @@ impl AugmentedAn19Graph {
                     round_length_to_power_of_two(edge.length, minimum_length)?
                 }
             };
+            let symbolic_label = symbolic_labels.map_or(
+                An19SymbolicLengthLabel {
+                    root_source,
+                    unsplit_length: workspace_length,
+                    halved: false,
+                },
+                |labels| labels[index],
+            );
+            if symbolic_label.root_source != root_source
+                || !symbolic_label.unsplit_length.is_positive()
+            {
+                return Err(An19PetalError::InvalidAugmentedGraph);
+            }
             let stable = edges.len();
             edges.push(AugmentedAn19Edge {
                 active: true,
-                halved: false,
+                halved: symbolic_label.halved,
                 first: edge.first,
                 second: edge.second,
                 length: workspace_length,
@@ -1483,6 +1551,7 @@ impl AugmentedAn19Graph {
                     second_position: edge.length,
                 }),
                 root_source,
+                unsplit_length: symbolic_label.unsplit_length,
             });
             incident_edges[edge.first.0].push(stable);
             incident_edges[edge.second.0].push(stable);
@@ -1547,6 +1616,7 @@ impl AugmentedAn19Graph {
             length,
             provenance: None,
             root_source: None,
+            unsplit_length: length,
         });
         self.incident_edges[attached_to.0].push(edge);
         self.incident_edges[vertex.0].push(edge);
@@ -1603,6 +1673,7 @@ impl AugmentedAn19Graph {
             length: offset,
             provenance: from_provenance,
             root_source: edge.root_source,
+            unsplit_length: edge.unsplit_length,
         });
         self.incident_edges[from.0].push(from_edge);
         self.incident_edges[vertex.0].push(from_edge);
@@ -1615,6 +1686,7 @@ impl AugmentedAn19Graph {
             length: remainder,
             provenance: toward_provenance,
             root_source: edge.root_source,
+            unsplit_length: edge.unsplit_length,
         });
         self.incident_edges[vertex.0].push(toward_edge);
         self.incident_edges[toward.0].push(toward_edge);
@@ -1689,8 +1761,11 @@ impl AugmentedAn19Graph {
             .map(|(local, augmented)| (*augmented, FlowNodeId(local)))
             .collect::<BTreeMap<_, _>>();
         let mut dense_to_augmented = Vec::new();
+        let mut dense_symbolic_labels = Vec::new();
         let mut edges = Vec::new();
         let mut length_class_counts = BTreeMap::new();
+        let mut symbolic_source_classes = BTreeSet::new();
+        let mut symbolic_virtual_classes = BTreeSet::new();
         let mut bound = 1_i128;
         for vertex in cluster {
             let incident = self
@@ -1719,6 +1794,15 @@ impl AugmentedAn19Graph {
                     )
                     .max(edge.length.denominator());
                 dense_to_augmented.push(*stable);
+                let symbolic_label = edge.symbolic_length_label();
+                let symbolic_length = symbolic_label.effective_length()?;
+                let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+                if symbolic_label.root_source.is_some() {
+                    symbolic_source_classes.insert(symbolic_class);
+                } else {
+                    symbolic_virtual_classes.insert(symbolic_class);
+                }
+                dense_symbolic_labels.push(symbolic_label);
                 *length_class_counts
                     .entry((edge.length.numerator(), edge.length.denominator()))
                     .or_insert(0) += 1;
@@ -1744,7 +1828,10 @@ impl AugmentedAn19Graph {
             graph,
             dense_to_augmented,
             dense_root_sources,
+            dense_symbolic_labels,
             length_class_counts,
+            symbolic_source_classes,
+            symbolic_virtual_classes,
             local_to_augmented_node,
             augmented_to_local_node,
         });
@@ -1772,6 +1859,9 @@ impl AugmentedAn19Graph {
             .map(|node| (node, node))
             .collect::<BTreeMap<_, _>>();
         let mut dense_to_augmented = Vec::new();
+        let mut dense_symbolic_labels = Vec::new();
+        let mut symbolic_source_classes = BTreeSet::new();
+        let mut symbolic_virtual_classes = BTreeSet::new();
         let mut edges = Vec::new();
         let mut bound = 1_i128;
         for (index, edge) in self.edges.iter().enumerate() {
@@ -1787,6 +1877,15 @@ impl AugmentedAn19Graph {
                 )
                 .max(edge.length.denominator());
             dense_to_augmented.push(index);
+            let symbolic_label = edge.symbolic_length_label();
+            let symbolic_length = symbolic_label.effective_length()?;
+            let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+            if symbolic_label.root_source.is_some() {
+                symbolic_source_classes.insert(symbolic_class);
+            } else {
+                symbolic_virtual_classes.insert(symbolic_class);
+            }
+            dense_symbolic_labels.push(symbolic_label);
             edges.push(SourceWeightedEdge {
                 first: edge.first,
                 second: edge.second,
@@ -1804,6 +1903,7 @@ impl AugmentedAn19Graph {
             graph,
             dense_to_augmented,
             dense_root_sources,
+            dense_symbolic_labels,
             length_class_counts: self.edges.iter().filter(|edge| edge.active).fold(
                 BTreeMap::new(),
                 |mut counts, edge| {
@@ -1813,6 +1913,8 @@ impl AugmentedAn19Graph {
                     counts
                 },
             ),
+            symbolic_source_classes,
+            symbolic_virtual_classes,
             local_to_augmented_node,
             augmented_to_local_node,
         })
@@ -1908,6 +2010,13 @@ impl AugmentedProjection {
             .dense_root_sources
             .get(dense)
             .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        let symbolic_label = *self
+            .dense_symbolic_labels
+            .get(dense)
+            .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+        if symbolic_label.root_source != root_source {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
         let original_length = self
             .graph
             .edge(SourceEdgeId(dense))
@@ -1957,6 +2066,7 @@ impl AugmentedProjection {
         }
         self.dense_to_augmented.push(update.toward_edge);
         self.dense_root_sources.push(root_source);
+        self.dense_symbolic_labels.push(symbolic_label);
         self.local_to_augmented_node.push(update.portal);
         if self
             .augmented_to_local_node
@@ -1982,6 +2092,16 @@ impl AugmentedProjection {
 
     fn root_source(&self, dense: SourceEdgeId) -> Result<Option<SourceEdgeId>, An19PetalError> {
         self.dense_root_sources
+            .get(dense.0)
+            .copied()
+            .ok_or(An19PetalError::InvalidAugmentedGraph)
+    }
+
+    fn symbolic_label(
+        &self,
+        dense: SourceEdgeId,
+    ) -> Result<An19SymbolicLengthLabel, An19PetalError> {
+        self.dense_symbolic_labels
             .get(dense.0)
             .copied()
             .ok_or(An19PetalError::InvalidAugmentedGraph)
@@ -2024,6 +2144,8 @@ pub struct An19ProjectionAudit {
     pub maximum_projection_edges: u64,
     pub total_projection_length_classes: u64,
     pub maximum_projection_length_classes: u64,
+    pub maximum_symbolic_source_label_classes: u64,
+    pub maximum_symbolic_virtual_label_classes: u64,
     pub maximum_original_edge_segment_occurrences: u64,
 }
 
@@ -2036,6 +2158,8 @@ impl An19ProjectionAudit {
             maximum_projection_edges: 0,
             total_projection_length_classes: 0,
             maximum_projection_length_classes: 0,
+            maximum_symbolic_source_label_classes: 0,
+            maximum_symbolic_virtual_label_classes: 0,
             maximum_original_edge_segment_occurrences: 0,
         }
     }
@@ -2045,7 +2169,9 @@ impl An19ProjectionAudit {
         projection: &AugmentedProjection,
         metrics: &mut An19HierarchyMetrics,
     ) -> Result<(), An19PetalError> {
-        if projection.dense_root_sources.len() != projection.graph.edge_count() {
+        if projection.dense_root_sources.len() != projection.graph.edge_count()
+            || projection.dense_symbolic_labels.len() != projection.graph.edge_count()
+        {
             return Err(An19PetalError::InvalidWorkCertificate);
         }
         let edge_count =
@@ -2057,13 +2183,29 @@ impl An19ProjectionAudit {
             checked_metric_sum(metrics.projected_edge_slots, edge_count)?;
         metrics.maximum_projection_edges = metrics.maximum_projection_edges.max(edge_count);
         let mut length_classes = BTreeSet::new();
+        let mut symbolic_source_classes = BTreeSet::new();
+        let mut symbolic_virtual_classes = BTreeSet::new();
         for index in 0..projection.graph.edge_count() {
             let edge = projection
                 .graph
                 .edge(SourceEdgeId(index))
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
             length_classes.insert((edge.length.numerator(), edge.length.denominator()));
-            match projection.root_source(SourceEdgeId(index))? {
+            let root_source = projection.root_source(SourceEdgeId(index))?;
+            let symbolic_label = projection.symbolic_label(SourceEdgeId(index))?;
+            if symbolic_label.root_source != root_source
+                || !symbolic_label.unsplit_length.is_positive()
+            {
+                return Err(An19PetalError::InvalidWorkCertificate);
+            }
+            let symbolic_length = symbolic_label.effective_length()?;
+            let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+            if root_source.is_some() {
+                symbolic_source_classes.insert(symbolic_class);
+            } else {
+                symbolic_virtual_classes.insert(symbolic_class);
+            }
+            match root_source {
                 Some(root) => {
                     let occurrences = self
                         .original_edge_segment_occurrences
@@ -2080,8 +2222,17 @@ impl An19ProjectionAudit {
                 }
             }
         }
+        if symbolic_source_classes != projection.symbolic_source_classes
+            || symbolic_virtual_classes != projection.symbolic_virtual_classes
+        {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
         let class_count =
             u64::try_from(length_classes.len()).map_err(|_| An19PetalError::Overflow)?;
+        let symbolic_source_class_count =
+            u64::try_from(symbolic_source_classes.len()).map_err(|_| An19PetalError::Overflow)?;
+        let symbolic_virtual_class_count =
+            u64::try_from(symbolic_virtual_classes.len()).map_err(|_| An19PetalError::Overflow)?;
         self.total_projection_length_classes =
             checked_metric_sum(self.total_projection_length_classes, class_count)?;
         self.maximum_projection_length_classes =
@@ -2090,6 +2241,18 @@ impl An19ProjectionAudit {
             checked_metric_sum(metrics.projection_length_class_sum, class_count)?;
         metrics.maximum_projection_length_classes =
             metrics.maximum_projection_length_classes.max(class_count);
+        self.maximum_symbolic_source_label_classes = self
+            .maximum_symbolic_source_label_classes
+            .max(symbolic_source_class_count);
+        self.maximum_symbolic_virtual_label_classes = self
+            .maximum_symbolic_virtual_label_classes
+            .max(symbolic_virtual_class_count);
+        metrics.maximum_symbolic_source_label_classes = metrics
+            .maximum_symbolic_source_label_classes
+            .max(symbolic_source_class_count);
+        metrics.maximum_symbolic_virtual_label_classes = metrics
+            .maximum_symbolic_virtual_label_classes
+            .max(symbolic_virtual_class_count);
         Ok(())
     }
 
@@ -2102,12 +2265,28 @@ impl An19ProjectionAudit {
             u64::try_from(projection.graph.edge_count()).map_err(|_| An19PetalError::Overflow)?;
         let class_count = u64::try_from(projection.length_class_counts.len())
             .map_err(|_| An19PetalError::Overflow)?;
+        let symbolic_source_class_count = u64::try_from(projection.symbolic_source_classes.len())
+            .map_err(|_| An19PetalError::Overflow)?;
+        let symbolic_virtual_class_count = u64::try_from(projection.symbolic_virtual_classes.len())
+            .map_err(|_| An19PetalError::Overflow)?;
         self.maximum_projection_edges = self.maximum_projection_edges.max(edge_count);
         self.maximum_projection_length_classes =
             self.maximum_projection_length_classes.max(class_count);
         metrics.maximum_projection_edges = metrics.maximum_projection_edges.max(edge_count);
         metrics.maximum_projection_length_classes =
             metrics.maximum_projection_length_classes.max(class_count);
+        self.maximum_symbolic_source_label_classes = self
+            .maximum_symbolic_source_label_classes
+            .max(symbolic_source_class_count);
+        self.maximum_symbolic_virtual_label_classes = self
+            .maximum_symbolic_virtual_label_classes
+            .max(symbolic_virtual_class_count);
+        metrics.maximum_symbolic_source_label_classes = metrics
+            .maximum_symbolic_source_label_classes
+            .max(symbolic_source_class_count);
+        metrics.maximum_symbolic_virtual_label_classes = metrics
+            .maximum_symbolic_virtual_label_classes
+            .max(symbolic_virtual_class_count);
         Ok(())
     }
 
@@ -2142,8 +2321,14 @@ impl An19ProjectionAudit {
             || self.maximum_projection_edges != metrics.maximum_projection_edges
             || self.total_projection_length_classes != metrics.projection_length_class_sum
             || self.maximum_projection_length_classes != metrics.maximum_projection_length_classes
+            || self.maximum_symbolic_source_label_classes
+                != metrics.maximum_symbolic_source_label_classes
+            || self.maximum_symbolic_virtual_label_classes
+                != metrics.maximum_symbolic_virtual_label_classes
             || self.total_projection_length_classes > self.projected_edge_occurrences
             || self.maximum_projection_length_classes > self.maximum_projection_edges
+            || self.maximum_symbolic_source_label_classes > self.maximum_projection_edges
+            || self.maximum_symbolic_virtual_label_classes > self.maximum_projection_edges
         {
             return Err(An19PetalError::InvalidWorkCertificate);
         }
@@ -2164,6 +2349,8 @@ pub struct An19HierarchyMetrics {
     pub maximum_projection_edges: u64,
     pub projection_length_class_sum: u64,
     pub maximum_projection_length_classes: u64,
+    pub maximum_symbolic_source_label_classes: u64,
+    pub maximum_symbolic_virtual_label_classes: u64,
     pub contraction_calls: u64,
     pub contracted_edges: u64,
     pub quotient_edges: u64,
@@ -2876,6 +3063,7 @@ fn hierarchy_contracted_tree(
     let mut quotient_edges = Vec::new();
     let mut quotient_to_dense = Vec::new();
     let mut quotient_root_sources = Vec::new();
+    let mut quotient_symbolic_labels = Vec::new();
     let mut bound = 1_i128;
     for dense in &contraction.retained_edges {
         let edge = projection
@@ -2910,14 +3098,16 @@ fn hierarchy_contracted_tree(
         });
         quotient_to_dense.push(*dense);
         quotient_root_sources.push(projection.root_source(*dense)?);
+        quotient_symbolic_labels.push(projection.symbolic_label(*dense)?);
     }
     let quotient_graph =
         SourceDynamicGraph::new(contraction.components.len(), quotient_edges, bound)
             .map_err(|_| An19PetalError::InvalidContraction)?;
-    let mut quotient_workspace = AugmentedAn19Graph::from_source_with_root_sources(
+    let mut quotient_workspace = AugmentedAn19Graph::from_source_with_inherited_labels(
         &quotient_graph,
         An19LengthMode::ExactRational,
         &quotient_root_sources,
+        &quotient_symbolic_labels,
     )?;
     let quotient_cluster = (0..contraction.components.len())
         .map(FlowNodeId)
@@ -6992,7 +7182,7 @@ mod tests {
 
     #[test]
     fn splits_augmented_provenance_in_both_orientations_and_projects_dense_ids() {
-        use super::{AugmentedAn19Graph, OriginalEdgeInterval};
+        use super::{An19SymbolicLengthLabel, AugmentedAn19Graph, OriginalEdgeInterval};
 
         let graph = SourceDynamicGraph::new(
             3,
@@ -7043,12 +7233,27 @@ mod tests {
             augmented.edges[toward_edge].root_source,
             Some(SourceEdgeId(0))
         );
+        let expected_label = An19SymbolicLengthLabel {
+            root_source: Some(SourceEdgeId(0)),
+            unsplit_length: ExactRatio::new(3, 2).unwrap(),
+            halved: false,
+        };
+        assert_eq!(
+            augmented.edges[from_edge].symbolic_length_label(),
+            expected_label
+        );
+        assert_eq!(
+            augmented.edges[toward_edge].symbolic_length_label(),
+            expected_label
+        );
         let projection = augmented.project().unwrap();
         assert_eq!(projection.graph.node_count(), 4);
         assert_eq!(
             projection.dense_to_augmented,
             vec![1, from_edge, toward_edge]
         );
+        assert_eq!(projection.dense_symbolic_labels[1], expected_label);
+        assert_eq!(projection.dense_symbolic_labels[2], expected_label);
 
         let selected = BTreeSet::from([1, from_edge, toward_edge]);
         assert_eq!(
@@ -7115,12 +7320,16 @@ mod tests {
         assert_eq!(metrics.maximum_projection_edges, 2);
         assert_eq!(metrics.projection_length_class_sum, 1);
         assert_eq!(metrics.maximum_projection_length_classes, 1);
+        assert_eq!(metrics.maximum_symbolic_source_label_classes, 1);
+        assert_eq!(metrics.maximum_symbolic_virtual_label_classes, 0);
         assert_eq!(audit.original_edge_segment_occurrences, vec![0, 1, 1]);
         assert_eq!(audit.provenance_free_segment_occurrences, 0);
         assert_eq!(audit.projected_edge_occurrences, 2);
         assert_eq!(audit.maximum_projection_edges, 2);
         assert_eq!(audit.total_projection_length_classes, 1);
         assert_eq!(audit.maximum_projection_length_classes, 1);
+        assert_eq!(audit.maximum_symbolic_source_label_classes, 1);
+        assert_eq!(audit.maximum_symbolic_virtual_label_classes, 0);
         assert_eq!(audit.maximum_original_edge_segment_occurrences, 1);
         audit.verify(graph.edge_count(), &metrics).unwrap();
     }
@@ -7154,6 +7363,15 @@ mod tests {
         assert!(Rc::ptr_eq(&split, &cached_split));
         assert_eq!(split.graph().node_count(), 3);
         assert_eq!(split.graph().edge_count(), 2);
+        assert_eq!(split.dense_symbolic_labels.len(), 2);
+        assert_eq!(
+            split.dense_symbolic_labels[0],
+            split.dense_symbolic_labels[1]
+        );
+        assert_eq!(
+            split.dense_symbolic_labels[0].unsplit_length,
+            ExactRatio::new(1, 1).unwrap()
+        );
         assert_eq!(metrics.projection_calls, 3);
         assert_eq!(metrics.projection_cache_hits, 2);
         assert_eq!(metrics.projection_incremental_splits, 1);
@@ -7194,17 +7412,42 @@ mod tests {
     }
 
     #[test]
-    fn quotient_projection_retains_root_sources_through_splits() {
+    fn quotient_projection_retains_symbolic_labels_through_splits() {
         use super::{
-            An19HierarchyMetrics, An19LengthMode, An19ProjectionAudit, AugmentedAn19Graph,
+            An19HierarchyMetrics, An19LengthMode, An19ProjectionAudit, An19SymbolicLengthLabel,
+            AugmentedAn19Graph,
         };
 
         let graph =
             SourceDynamicGraph::new(3, vec![test_edge(0, 1, 1), test_edge(1, 2, 1)], 8).unwrap();
-        let mut augmented = AugmentedAn19Graph::from_source_with_root_sources(
+        let source_label = An19SymbolicLengthLabel {
+            root_source: Some(SourceEdgeId(4)),
+            unsplit_length: ExactRatio::new(8, 1).unwrap(),
+            halved: true,
+        };
+        let virtual_label = An19SymbolicLengthLabel {
+            root_source: None,
+            unsplit_length: ExactRatio::new(3, 1).unwrap(),
+            halved: false,
+        };
+        let mismatched_label = An19SymbolicLengthLabel {
+            root_source: Some(SourceEdgeId(3)),
+            ..source_label
+        };
+        assert!(
+            AugmentedAn19Graph::from_source_with_inherited_labels(
+                &graph,
+                An19LengthMode::ExactRational,
+                &[Some(SourceEdgeId(4)), None],
+                &[mismatched_label, virtual_label],
+            )
+            .is_err()
+        );
+        let mut augmented = AugmentedAn19Graph::from_source_with_inherited_labels(
             &graph,
             An19LengthMode::ExactRational,
             &[Some(SourceEdgeId(4)), None],
+            &[source_label, virtual_label],
         )
         .unwrap();
         let (portal, _, _) = augmented
@@ -7213,14 +7456,37 @@ mod tests {
         let cluster = BTreeSet::from([FlowNodeId(0), FlowNodeId(1), FlowNodeId(2), portal]);
         let mut metrics = An19HierarchyMetrics::default();
         let mut audit = An19ProjectionAudit::new(5);
-        augmented
+        let projection = augmented
             .project_cluster(&cluster, &mut metrics, &mut audit)
             .unwrap();
 
+        assert_eq!(projection.dense_symbolic_labels.len(), 3);
+        assert_eq!(
+            projection
+                .dense_symbolic_labels
+                .iter()
+                .filter(|label| **label == source_label)
+                .count(),
+            2
+        );
+        assert_eq!(
+            projection
+                .dense_symbolic_labels
+                .iter()
+                .filter(|label| **label == virtual_label)
+                .count(),
+            1
+        );
+        assert_eq!(
+            source_label.effective_length().unwrap(),
+            ExactRatio::new(4, 1).unwrap()
+        );
         assert_eq!(audit.original_edge_segment_occurrences, vec![0, 0, 0, 0, 2]);
         assert_eq!(audit.provenance_free_segment_occurrences, 1);
         assert_eq!(audit.projected_edge_occurrences, 3);
         assert_eq!(audit.maximum_projection_edges, 3);
+        assert_eq!(audit.maximum_symbolic_source_label_classes, 1);
+        assert_eq!(audit.maximum_symbolic_virtual_label_classes, 1);
         assert_eq!(audit.maximum_original_edge_segment_occurrences, 2);
         audit.verify(5, &metrics).unwrap();
     }
@@ -7346,6 +7612,11 @@ mod tests {
         assert!(metrics.projection_incremental_splits > 0);
         assert!(projection_audit.provenance_free_segment_occurrences > 0);
         assert!(projection_audit.maximum_projection_length_classes > 1);
+        assert!(
+            projection_audit.maximum_projection_length_classes
+                > projection_audit.maximum_symbolic_source_label_classes
+        );
+        assert!(projection_audit.maximum_symbolic_source_label_classes > 0);
         let logarithmic_levels =
             u64::from(usize::BITS - graph.node_count().saturating_sub(1).leading_zeros());
         assert!(projection_audit.maximum_original_edge_segment_occurrences > logarithmic_levels);
@@ -7533,6 +7804,22 @@ mod tests {
         assert_eq!(
             small_hierarchy.projection_audit,
             large_hierarchy.projection_audit
+        );
+        assert_eq!(
+            small_hierarchy
+                .projection_audit
+                .maximum_symbolic_source_label_classes,
+            large_hierarchy
+                .projection_audit
+                .maximum_symbolic_source_label_classes
+        );
+        assert_eq!(
+            small_hierarchy
+                .projection_audit
+                .maximum_symbolic_virtual_label_classes,
+            large_hierarchy
+                .projection_audit
+                .maximum_symbolic_virtual_label_classes
         );
         assert_eq!(small_hierarchy.work_certificate.oracle_fallbacks, 0);
         assert_eq!(
@@ -7743,6 +8030,11 @@ mod tests {
             .projection_audit
             .original_edge_segment_occurrences[0] += 1;
         assert!(invalid_audit.verify(&small).is_err());
+        let mut invalid_symbolic_audit = small_hierarchy.clone();
+        invalid_symbolic_audit
+            .projection_audit
+            .maximum_symbolic_source_label_classes += 1;
+        assert!(invalid_symbolic_audit.verify(&small).is_err());
         let mut invalid_queue = small_hierarchy.clone();
         invalid_queue.metrics.monotone_queue_pops =
             invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);

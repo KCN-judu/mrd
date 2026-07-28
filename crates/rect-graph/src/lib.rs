@@ -58,8 +58,8 @@ pub use source_an19::{
     An19AmortizationMode, An19HalvedInterval, An19HierarchicalLsst, An19HierarchyMetrics,
     An19HighwayLedger, An19HighwaySegment, An19LengthMode, An19PathPoint, An19PetalError,
     An19PetalMetrics, An19PriorityQueueMode, An19ProjectionAudit, An19ProjectionMode,
-    An19RadiusCertificate, An19RadiusEdge, An19ShortEdgeContraction, An19UnweightedPetal,
-    An19WeightedPetal, An19WeightedPetalAtRadius, An19WorkCertificate,
+    An19RadiusCertificate, An19RadiusEdge, An19ShortEdgeContraction, An19SymbolicLengthLabel,
+    An19UnweightedPetal, An19WeightedPetal, An19WeightedPetalAtRadius, An19WorkCertificate,
 };
 pub use source_lsf::{
     BranchFreeTree, CongestionOrder, ConstructedLsfInitialization, DynamicLsfCore,
