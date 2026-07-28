@@ -496,10 +496,12 @@ correctness cannot be inferred from an end-to-end test alone:
    source step size, strict-interior successor validation, certified potential
    decrease, iteration/coordinate counters, and lower-bound Detect accounting.
    Evidence is in `docs/phase-reports/P09-lemma-44-updates.md`.
-4. **P9.2.4 state: in_progress. Start SHA: `ab6fb10`.** Implement and certify
-   the source initial-point and additive-half termination boundary, then use
-   deterministic KP15 rounding and the P7 exact Oracle for recovery
-   differentials.
+4. **P9.2.4 state: in_progress. Start SHA: `ab6fb10`.** A restricted
+   zero-demand midpoint initializer, initial-potential bound, additive-half
+   termination certificate, and exact recovery differential are implemented.
+   The source arbitrary-demand/lower-bound augmentation and Lemma 4.11
+   perturbation-cost probability contract remain open; evidence is in
+   `docs/phase-reports/P09-initial-termination-recovery.md`.
 
 No P9.2 item may use `f64`, the existing rational surrogate, or an unchecked
 transcendental result as evidence for Equation (9). The fixed-point word-size
@@ -638,3 +640,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.1 | complete | d1c7a3b | 44d50d4 | 44d50d4 | 44d50d4 | `docs/phase-reports/P09-fixed-point-arithmetic.md` | certified dyadic `log`, `exp`, and negative-power intervals; 191 workspace tests passed | 2026-07-27T23:36:48Z | 2026-07-28T00:05:39Z | Equation (9) integration continues in P9.2.2 |
 | P9.2.2 | complete | 44d50d4 | bba500e | bba500e | bba500e | `docs/phase-reports/P09-certified-ipm-quantities.md` | certified Equation (9), lengths, gradients, and approximation hypotheses; 194 workspace tests passed | 2026-07-28T00:05:39Z | 2026-07-28T00:23:57Z | Lemma 4.4 transitions continue in P9.2.3 |
 | P9.2.3 | complete | bba500e | ab6fb10 | cdc4c0d | cdc4c0d | `docs/phase-reports/P09-lemma-44-updates.md` | certified Lemma 4.4 transition, strict-interior/potential-drop checks, and Detect ledger; full workspace audit passed | 2026-07-28T00:24:00Z | 2026-07-28T01:20:00Z | P9.2.4 initial point, termination, and recovery remain |
+| P9.2.4 | in_progress | ab6fb10 | 5719917 | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | restricted midpoint initializer, additive-half certificate, and exact recovery differential; source augmentation and perturbation contract remain | 2026-07-28T01:26:00Z | pending | arbitrary-demand/lower-bound augmentation and Lemma 4.11 perturbation interface |
