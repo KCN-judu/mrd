@@ -67,6 +67,64 @@ pub struct ConstructedLsfInitialization {
     pub decomposition_boundary: BTreeSet<FlowNodeId>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExactStaticLsstOracle {
+    pub tree_edges: BTreeSet<SourceEdgeId>,
+    pub weighted_stretch: ExactRatio,
+    pub total_weight: ExactRatio,
+    pub candidates_checked: u64,
+}
+
+impl ExactStaticLsstOracle {
+    /// Exhaustively finds the minimum exact weighted-stretch spanning tree on
+    /// a bounded small graph. This is a differential Oracle, not AN19.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error beyond the explicit small-instance limit, for a
+    /// disconnected graph, or when exact enumeration arithmetic overflows.
+    pub fn solve(graph: &SourceDynamicGraph) -> Result<Self, SourceLsfConstructionError> {
+        if graph.node_count() == 0 || graph.node_count() > 12 || graph.edge_count() > 24 {
+            return Err(SourceLsfConstructionError::OracleLimitExceeded);
+        }
+        let active = (0..graph.edge_count())
+            .filter(|index| graph.edge(SourceEdgeId(*index)).is_some())
+            .map(SourceEdgeId)
+            .collect::<Vec<_>>();
+        let required = graph
+            .node_count()
+            .checked_sub(1)
+            .ok_or(SourceLsfConstructionError::InvalidTree)?;
+        if active.len() < required {
+            return Err(SourceLsfConstructionError::InvalidTree);
+        }
+        let mut state = OracleEnumeration {
+            graph,
+            active: &active,
+            required,
+            best: None,
+            candidates_checked: 0,
+        };
+        state.enumerate(0, &mut Vec::new())?;
+        let (tree_edges, weighted_stretch, total_weight) =
+            state.best.ok_or(SourceLsfConstructionError::InvalidTree)?;
+        Ok(Self {
+            tree_edges,
+            weighted_stretch,
+            total_weight,
+            candidates_checked: state.candidates_checked,
+        })
+    }
+}
+
+struct OracleEnumeration<'a> {
+    graph: &'a SourceDynamicGraph,
+    active: &'a [SourceEdgeId],
+    required: usize,
+    best: Option<(BTreeSet<SourceEdgeId>, ExactRatio, ExactRatio)>,
+    candidates_checked: u64,
+}
+
 struct DecomposeResult {
     attached_edges: BTreeSet<SourceEdgeId>,
     weight: ExactRatio,
@@ -1100,6 +1158,72 @@ impl DecomposeBuilder<'_> {
     }
 }
 
+impl OracleEnumeration<'_> {
+    fn enumerate(
+        &mut self,
+        cursor: usize,
+        chosen: &mut Vec<SourceEdgeId>,
+    ) -> Result<(), SourceLsfConstructionError> {
+        if chosen.len() == self.required {
+            self.evaluate(chosen)?;
+            return Ok(());
+        }
+        let needed = self.required - chosen.len();
+        if self.active.len().saturating_sub(cursor) < needed {
+            return Ok(());
+        }
+        for index in cursor..self.active.len() {
+            chosen.push(self.active[index]);
+            self.enumerate(index + 1, chosen)?;
+            chosen.pop();
+        }
+        Ok(())
+    }
+
+    fn evaluate(&mut self, chosen: &[SourceEdgeId]) -> Result<(), SourceLsfConstructionError> {
+        let tree = match BranchFreeTree::new(self.graph, chosen.iter().copied(), FlowNodeId(0)) {
+            Ok(tree) => tree,
+            Err(SourceLsfConstructionError::InvalidTree) => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        self.candidates_checked = self
+            .candidates_checked
+            .checked_add(1)
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        let roots = BTreeSet::from([FlowNodeId(0)]);
+        let stretches =
+            exact_forest_stretches(&tree, self.graph, &chosen.iter().copied().collect(), &roots)?;
+        let mut weighted_stretch = ratio(0)?;
+        let mut total_weight = ratio(0)?;
+        for (index, stretch) in stretches.into_iter().enumerate() {
+            let Some(edge) = self.graph.edge(SourceEdgeId(index)) else {
+                continue;
+            };
+            total_weight = total_weight.checked_add(edge.weight).map_err(map_ratio)?;
+            weighted_stretch = weighted_stretch
+                .checked_add(edge.weight.checked_mul(stretch).map_err(map_ratio)?)
+                .map_err(map_ratio)?;
+        }
+        let improves = match &self.best {
+            None => true,
+            Some((_, old, _)) => {
+                old.at_least(weighted_stretch).map_err(map_ratio)? && *old != weighted_stretch
+            }
+        };
+        let ties_with_lower_ids = self.best.as_ref().is_some_and(|(old_edges, old, _)| {
+            *old == weighted_stretch && chosen.iter().copied().collect::<BTreeSet<_>>() < *old_edges
+        });
+        if improves || ties_with_lower_ids {
+            self.best = Some((
+                chosen.iter().copied().collect(),
+                weighted_stretch,
+                total_weight,
+            ));
+        }
+        Ok(())
+    }
+}
+
 fn batch_root_inputs(
     graph: &SourceDynamicGraph,
     batch: &SourceUpdateBatch,
@@ -1254,6 +1378,8 @@ pub enum SourceLsfConstructionError {
     InvalidDecomposition,
     #[error("weighted-copy expansion is invalid")]
     InvalidWeightedExpansion,
+    #[error("exact static LSST Oracle exceeds its bounded small-instance domain")]
+    OracleLimitExceeded,
     #[error("dynamic LSF update is invalid")]
     InvalidUpdate,
     #[error("updated rooted forest is not a subset of the previous forest")]
@@ -1561,7 +1687,7 @@ fn active_copy_limit(m: i128) -> Result<usize, SourceLsfConstructionError> {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{BranchFreeTree, DynamicLsfCore, WeightedCopyExpansion};
+    use super::{BranchFreeTree, DynamicLsfCore, ExactStaticLsstOracle, WeightedCopyExpansion};
     use crate::{
         ExactRatio, FlowNodeId, LsfPiece, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
         SourceUpdateBatch, SourceWeightedEdge,
@@ -1827,5 +1953,18 @@ mod tests {
         assert!(
             expansion.graph.edge(SourceEdgeId(0)).unwrap().weight == ExactRatio::new(1, 1).unwrap()
         );
+    }
+
+    #[test]
+    fn exact_static_oracle_minimizes_weighted_stretch() {
+        let mut edges = vec![edge(0, 1, 1), edge(1, 2, 1), edge(0, 2, 1)];
+        edges[0].weight = ExactRatio::new(10, 1).unwrap();
+        let graph = SourceDynamicGraph::new(3, edges, 16).unwrap();
+        let oracle = ExactStaticLsstOracle::solve(&graph).unwrap();
+        assert!(oracle.tree_edges.contains(&SourceEdgeId(0)));
+        assert_eq!(oracle.tree_edges.len(), 2);
+        assert_eq!(oracle.weighted_stretch, ExactRatio::new(25, 1).unwrap());
+        assert_eq!(oracle.total_weight, ExactRatio::new(12, 1).unwrap());
+        assert_eq!(oracle.candidates_checked, 3);
     }
 }

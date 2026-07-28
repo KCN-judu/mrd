@@ -49,6 +49,12 @@ can close.
 - Constructs the weighted-copy graph `G_v` with
   `ceil(m v_e / ||v||_1)` unit-weight copies per active edge, exact copy maps,
   retained lengths, and a checked total of at most `2m` copies.
+- Provides `ExactStaticLsstOracle` for differential testing on bounded small
+  graphs (`n <= 12`, `m <= 24`). It exhaustively enumerates spanning trees,
+  evaluates exact weighted stretch with the certified forest routines, and
+  chooses the exact minimum with a stable edge-ID tie break. This exponential
+  Oracle is not the AN19 constructor and establishes no production runtime
+  claim.
 - Verifies the monotonicity required by Lemma 5.4: enlarging the ancestor-closed
   root set produces a forest edge subset.
 
@@ -67,7 +73,10 @@ isolated root, and preserves its unit stretch certificate. Additional fixtures
 validate a two-piece branch-free decomposition and a `1,2,3` weighted graph
 whose copy multiplicities are `1,1,2`. The five-edge fixture also executes the
 ST04 DFS with `t=2`, verifies `phi=5`, checks every `rho(e)` has size one or
-two, and consumes the resulting boundary in the dynamic LSF initializer.
+two, and consumes the resulting boundary in the dynamic LSF initializer. A
+weighted triangle with edge weights `10,1,1` checks all three spanning-tree
+candidates and proves that the exact Oracle selects a tree containing the
+weight-10 edge, with weighted stretch `25` and total graph weight `12`.
 
 ## Audit
 
@@ -75,9 +84,16 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 
 | Command | Exit | Result |
 | --- | ---: | --- |
-| `cargo test -p rect-graph source_lsf` | 0 | 2 focused tests passed |
+| `git status --short` | 0 | only the Oracle implementation, export, and this report were modified |
+| `git diff --check` | 0 | clean |
+| `cargo test -p rect-graph source_lsf` | 0 | 7 focused tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
-| `cargo clippy -p rect-graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo test --workspace` | 0 | 215 passed, 3 ignored across 13 suites |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
+| `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The AN19 static low-stretch-tree constructor remains open. Its candidate output
 already has strong exact tree/stretch verifiers. No complete Lemma 5.4 or
