@@ -153,6 +153,11 @@ impl DyadicInterval {
     pub fn is_strictly_positive(&self) -> bool {
         self.lower_scaled.is_positive()
     }
+
+    #[must_use]
+    pub fn absolute_upper_scaled(&self) -> BigInt {
+        self.lower_scaled.abs().max(self.upper_scaled.abs())
+    }
 }
 
 /// Auditable arithmetic work and bounded-word observations.
@@ -273,6 +278,72 @@ impl CertifiedFixedPoint {
         let scaled_logarithm = self.multiply(alpha, &logarithm)?;
         let exponent = self.negate(&scaled_logarithm)?;
         self.exponential(&exponent)
+    }
+
+    /// Adds two intervals with the configured word checks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for mismatched precision or a word-bound breach.
+    pub fn add_intervals(
+        &mut self,
+        left: &DyadicInterval,
+        right: &DyadicInterval,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        self.add(left, right)
+    }
+
+    /// Subtracts two intervals with outward rounding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for mismatched precision or a word-bound breach.
+    pub fn subtract_intervals(
+        &mut self,
+        left: &DyadicInterval,
+        right: &DyadicInterval,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        self.subtract(left, right)
+    }
+
+    /// Multiplies two intervals with outward rounding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for mismatched precision or a word-bound breach.
+    pub fn multiply_intervals(
+        &mut self,
+        left: &DyadicInterval,
+        right: &DyadicInterval,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        self.multiply(left, right)
+    }
+
+    /// Divides by a wholly positive interval with outward rounding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless the denominator is wholly positive, or for a
+    /// precision/word-bound violation.
+    pub fn divide_intervals(
+        &mut self,
+        numerator: &DyadicInterval,
+        denominator: &DyadicInterval,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        self.divide(numerator, denominator)
+    }
+
+    /// Multiplies an interval by an exact integer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for mismatched precision or a word-bound breach.
+    pub fn multiply_interval_integer(
+        &mut self,
+        value: &DyadicInterval,
+        factor: i128,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        self.multiply_integer(value, factor)
     }
 
     fn logarithm_point(&mut self, scaled: &BigInt) -> Result<DyadicInterval, FixedPointError> {

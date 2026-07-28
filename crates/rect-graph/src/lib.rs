@@ -30,7 +30,10 @@ pub use fixed_point::{
 pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
 };
-pub use interior_point::{InteriorPointError, InteriorPointMetrics, RationalInteriorPointState};
+pub use interior_point::{
+    CertifiedIpmError, CertifiedIpmSnapshot, InteriorPointError, InteriorPointMetrics,
+    IpmApproximationCertificate, RationalInteriorPointState,
+};
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,

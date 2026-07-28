@@ -23,6 +23,16 @@ pub struct CirculationNetwork {
 }
 
 impl CirculationNetwork {
+    #[must_use]
+    pub const fn arc_count(&self) -> usize {
+        self.arcs.len()
+    }
+
+    #[must_use]
+    pub fn arc_capacity_cost(&self, arc: CirculationArcId) -> Option<(i128, i128)> {
+        self.arcs.get(arc.0).map(|arc| (arc.capacity, arc.cost))
+    }
+
     /// Validates that signed arc occurrences form a nonempty circulation.
     ///
     /// # Errors

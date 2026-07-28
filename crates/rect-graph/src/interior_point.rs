@@ -7,12 +7,293 @@
 //! a rational reciprocal-slack surrogate, strict feasibility, bounded inputs,
 //! and every observed potential decrease with exact arithmetic.
 
+use num_bigint::BigInt;
 use thiserror::Error;
 
 use crate::{
-    CirculationNetwork, CostedFlowRoundingResult, ExactRatio, FractionalCirculation,
-    MinCostCirculationError,
+    CertifiedFixedPoint, CirculationArcId, CirculationNetwork, CostedFlowRoundingResult,
+    DyadicInterval, ExactRatio, FixedPointConfig, FixedPointError, FixedPointMetrics,
+    FractionalCirculation, MinCostCirculationError,
 };
+
+/// Certified Equation (9) and Definition 4.2 quantities at one feasible flow.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertifiedIpmSnapshot {
+    fixed_point_config: FixedPointConfig,
+    alpha: DyadicInterval,
+    objective_gap: DyadicInterval,
+    potential: DyadicInterval,
+    lengths: Vec<DyadicInterval>,
+    gradients: Vec<DyadicInterval>,
+    arithmetic_metrics: FixedPointMetrics,
+}
+
+/// Proof that supplied approximate lengths and gradients meet Theorem 4.3.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct IpmApproximationCertificate {
+    pub edge_count: usize,
+    pub factor_two_length_checks: u64,
+    pub scaled_gradient_checks: u64,
+}
+
+impl CertifiedIpmSnapshot {
+    /// Evaluates CKLPPS22 Equation (9) and Definition 4.2 with certified
+    /// fixed-point intervals.
+    ///
+    /// The current circulation model has lower capacity zero. `optimal_cost`
+    /// is the known integral `F*`, and `maximum_abs_input` is the checked source
+    /// bound `U`. The source parameter is generated as
+    /// `alpha = 1 / (1000 log(mU))`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless the flow is strictly interior, its objective is
+    /// strictly above an integral `F*`, `mU > 1`, all inputs satisfy the bound,
+    /// and every fixed-point enclosure stays within the configured word limit.
+    pub fn evaluate(
+        network: &CirculationNetwork,
+        flow: &FractionalCirculation,
+        optimal_cost: ExactRatio,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+    ) -> Result<Self, CertifiedIpmError> {
+        network.verify_input_domain(maximum_abs_input)?;
+        network.verify_fractional_solution(flow)?;
+        if !optimal_cost.is_integral() {
+            return Err(CertifiedIpmError::InvalidSourceDomain);
+        }
+        let objective_gap = flow
+            .cost
+            .checked_sub(optimal_cost)
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?;
+        let zero = exact_ratio(0)?;
+        if !objective_gap
+            .at_least(zero)
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            || objective_gap == zero
+        {
+            return Err(CertifiedIpmError::InvalidSourceDomain);
+        }
+        let edge_count = network.arc_count();
+        let edge_count_i128 =
+            i128::try_from(edge_count).map_err(|_| CertifiedIpmError::InvalidSourceDomain)?;
+        let m_u = edge_count_i128
+            .checked_mul(maximum_abs_input)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        if m_u <= 1 {
+            return Err(CertifiedIpmError::InvalidSourceDomain);
+        }
+        let mut arithmetic = CertifiedFixedPoint::new(fixed_point_config)?;
+
+        let m_u_interval = arithmetic.enclose_ratio(m_u, 1)?;
+        let log_m_u = arithmetic.logarithm(&m_u_interval)?;
+        let thousand_log = arithmetic.multiply_interval_integer(&log_m_u, 1_000)?;
+        let one = arithmetic.enclose_ratio(1, 1)?;
+        let alpha = arithmetic.divide_intervals(&one, &thousand_log)?;
+        if !alpha.is_strictly_positive() {
+            return Err(CertifiedIpmError::UncertifiedApproximation);
+        }
+
+        let gap_interval = enclose_exact(&mut arithmetic, objective_gap)?;
+        let log_gap = arithmetic.logarithm(&gap_interval)?;
+        let potential_factor = edge_count_i128
+            .checked_mul(20)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        let mut potential = arithmetic.multiply_interval_integer(&log_gap, potential_factor)?;
+        let exponent = arithmetic.add_intervals(&one, &alpha)?;
+        let slacks = network.fractional_slacks(&flow.arc_flows)?;
+        let mut lengths = Vec::with_capacity(edge_count);
+        let mut gradients = Vec::with_capacity(edge_count);
+
+        for (index, (lower_slack, upper_slack)) in slacks.into_iter().enumerate() {
+            let lower = enclose_exact(&mut arithmetic, lower_slack)?;
+            let upper = enclose_exact(&mut arithmetic, upper_slack)?;
+            if !lower.is_strictly_positive() || !upper.is_strictly_positive() {
+                return Err(CertifiedIpmError::NotStrictlyInterior);
+            }
+            let lower_barrier = arithmetic.negative_power(&lower, &alpha)?;
+            let upper_barrier = arithmetic.negative_power(&upper, &alpha)?;
+            potential = arithmetic.add_intervals(&potential, &lower_barrier)?;
+            potential = arithmetic.add_intervals(&potential, &upper_barrier)?;
+
+            let lower_length = arithmetic.negative_power(&lower, &exponent)?;
+            let upper_length = arithmetic.negative_power(&upper, &exponent)?;
+            let length = arithmetic.add_intervals(&upper_length, &lower_length)?;
+            if !length.is_strictly_positive() {
+                return Err(CertifiedIpmError::UncertifiedApproximation);
+            }
+
+            let (_, cost) = network
+                .arc_capacity_cost(CirculationArcId(index))
+                .ok_or(CertifiedIpmError::InvalidSourceDomain)?;
+            let cost_interval = arithmetic.enclose_ratio(cost, 1)?;
+            let objective_numerator =
+                arithmetic.multiply_interval_integer(&cost_interval, potential_factor)?;
+            let objective_gradient =
+                arithmetic.divide_intervals(&objective_numerator, &gap_interval)?;
+            let upper_gradient = arithmetic.multiply_intervals(&alpha, &upper_length)?;
+            let lower_gradient = arithmetic.multiply_intervals(&alpha, &lower_length)?;
+            let barrier_gradient =
+                arithmetic.subtract_intervals(&upper_gradient, &lower_gradient)?;
+            let gradient = arithmetic.add_intervals(&objective_gradient, &barrier_gradient)?;
+
+            lengths.push(length);
+            gradients.push(gradient);
+        }
+
+        Ok(Self {
+            fixed_point_config,
+            alpha,
+            objective_gap: gap_interval,
+            potential,
+            lengths,
+            gradients,
+            arithmetic_metrics: arithmetic.metrics(),
+        })
+    }
+
+    #[must_use]
+    pub const fn fixed_point_config(&self) -> FixedPointConfig {
+        self.fixed_point_config
+    }
+
+    #[must_use]
+    pub const fn alpha(&self) -> &DyadicInterval {
+        &self.alpha
+    }
+
+    #[must_use]
+    pub const fn objective_gap(&self) -> &DyadicInterval {
+        &self.objective_gap
+    }
+
+    #[must_use]
+    pub const fn potential(&self) -> &DyadicInterval {
+        &self.potential
+    }
+
+    #[must_use]
+    pub fn lengths(&self) -> &[DyadicInterval] {
+        &self.lengths
+    }
+
+    #[must_use]
+    pub fn gradients(&self) -> &[DyadicInterval] {
+        &self.gradients
+    }
+
+    #[must_use]
+    pub const fn arithmetic_metrics(&self) -> FixedPointMetrics {
+        self.arithmetic_metrics
+    }
+
+    /// Certifies the factor-two length and scaled-gradient-error hypotheses in
+    /// CKLPPS22 Theorem 4.3 for exact rational approximations.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first edge whose length enclosure cannot prove
+    /// `ell/2 <= ell_tilde <= 2ell` or whose gradient enclosure cannot prove
+    /// `|(g_tilde-g)/ell| <= kappa/8`.
+    pub fn certify_approximations(
+        &self,
+        approximate_gradients: &[ExactRatio],
+        approximate_lengths: &[ExactRatio],
+        kappa: ExactRatio,
+        arithmetic: &mut CertifiedFixedPoint,
+    ) -> Result<IpmApproximationCertificate, CertifiedIpmError> {
+        if arithmetic.config() != self.fixed_point_config {
+            return Err(CertifiedIpmError::ArithmeticConfigMismatch);
+        }
+        if approximate_gradients.len() != self.gradients.len()
+            || approximate_lengths.len() != self.lengths.len()
+        {
+            return Err(CertifiedIpmError::DimensionMismatch);
+        }
+        let zero = exact_ratio(0)?;
+        let one = exact_ratio(1)?;
+        if !kappa
+            .at_least(zero)
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            || kappa == zero
+            || !one
+                .at_least(kappa)
+                .map_err(|_| CertifiedIpmError::ExactOverflow)?
+        {
+            return Err(CertifiedIpmError::InvalidSourceDomain);
+        }
+        let kappa_numerator = BigInt::from(kappa.numerator());
+        let kappa_denominator = BigInt::from(kappa.denominator());
+
+        for (edge, ((gradient, length), (approx_gradient, approx_length))) in self
+            .gradients
+            .iter()
+            .zip(&self.lengths)
+            .zip(approximate_gradients.iter().zip(approximate_lengths))
+            .enumerate()
+        {
+            let approximate_length = enclose_exact(arithmetic, *approx_length)?;
+            if !approximate_length.is_strictly_positive()
+                || approximate_length.lower_scaled() * 2 < *length.upper_scaled()
+                || approximate_length.upper_scaled() > &(length.lower_scaled() * 2)
+            {
+                return Err(CertifiedIpmError::LengthApproximation { edge });
+            }
+
+            let approximate_gradient = enclose_exact(arithmetic, *approx_gradient)?;
+            let error = arithmetic.subtract_intervals(&approximate_gradient, gradient)?;
+            let scaled_error = error.absolute_upper_scaled();
+            let left = scaled_error * 8 * &kappa_denominator;
+            let right = &kappa_numerator * length.lower_scaled();
+            if left > right {
+                return Err(CertifiedIpmError::GradientApproximation { edge });
+            }
+        }
+
+        let edge_count = self.lengths.len();
+        let checks = u64::try_from(edge_count).map_err(|_| CertifiedIpmError::ExactOverflow)?;
+        Ok(IpmApproximationCertificate {
+            edge_count,
+            factor_two_length_checks: checks,
+            scaled_gradient_checks: checks,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+pub enum CertifiedIpmError {
+    #[error(transparent)]
+    Network(#[from] MinCostCirculationError),
+    #[error(transparent)]
+    FixedPoint(#[from] FixedPointError),
+    #[error("exact source arithmetic overflowed")]
+    ExactOverflow,
+    #[error("the source IPM domain or parameter is invalid")]
+    InvalidSourceDomain,
+    #[error("the flow is not strictly inside every capacity bound")]
+    NotStrictlyInterior,
+    #[error("the approximation vector dimensions do not match the graph")]
+    DimensionMismatch,
+    #[error("edge {edge} does not have a certified factor-two length approximation")]
+    LengthApproximation { edge: usize },
+    #[error("edge {edge} exceeds the certified scaled-gradient error")]
+    GradientApproximation { edge: usize },
+    #[error("the fixed-point intervals are too wide to certify the source hypothesis")]
+    UncertifiedApproximation,
+    #[error("the approximation auditor uses a different fixed-point configuration")]
+    ArithmeticConfigMismatch,
+}
+
+fn exact_ratio(value: i128) -> Result<ExactRatio, CertifiedIpmError> {
+    ExactRatio::new(value, 1).map_err(|_| CertifiedIpmError::ExactOverflow)
+}
+
+fn enclose_exact(
+    arithmetic: &mut CertifiedFixedPoint,
+    value: ExactRatio,
+) -> Result<DyadicInterval, CertifiedIpmError> {
+    Ok(arithmetic.enclose_ratio(value.numerator(), value.denominator())?)
+}
 
 /// Auditable totals for rational potential-reduction updates.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -222,8 +503,13 @@ fn rational_potential(
 
 #[cfg(test)]
 mod tests {
-    use super::{InteriorPointError, RationalInteriorPointState};
-    use crate::{CirculationNetwork, ExactRatio, FlowNodeId, FractionalCirculation};
+    use super::{
+        CertifiedIpmError, CertifiedIpmSnapshot, InteriorPointError, RationalInteriorPointState,
+    };
+    use crate::{
+        CertifiedFixedPoint, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
+        FractionalCirculation,
+    };
 
     #[test]
     fn records_exact_decreasing_rational_updates() {
@@ -302,6 +588,217 @@ mod tests {
                 ExactRatio::new(1, 10).unwrap(),
             ),
             Err(InteriorPointError::PotentialDidNotDecrease)
+        );
+    }
+
+    fn certified_arithmetic() -> CertifiedFixedPoint {
+        CertifiedFixedPoint::new(FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap())
+            .unwrap()
+    }
+
+    #[test]
+    fn certifies_equation_nine_and_definition_four_two() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+            cost: ExactRatio::new(1, 1).unwrap(),
+        };
+        let mut arithmetic = certified_arithmetic();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &flow,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+
+        assert!(snapshot.alpha().is_strictly_positive());
+        assert!(snapshot.objective_gap().contains_ratio(1, 1).unwrap());
+        assert!(snapshot.potential().contains_ratio(4, 1).unwrap());
+        assert_eq!(snapshot.lengths().len(), 2);
+        assert!(
+            snapshot
+                .lengths()
+                .iter()
+                .all(|length| length.contains_ratio(2, 1).unwrap())
+        );
+        assert!(snapshot.gradients()[0].contains_ratio(40, 1).unwrap());
+        assert!(snapshot.gradients()[1].contains_ratio(0, 1).unwrap());
+        assert!(snapshot.arithmetic_metrics().arithmetic_operations > 0);
+
+        let certificate = snapshot
+            .certify_approximations(
+                &[
+                    ExactRatio::new(40, 1).unwrap(),
+                    ExactRatio::new(0, 1).unwrap(),
+                ],
+                &[
+                    ExactRatio::new(2, 1).unwrap(),
+                    ExactRatio::new(2, 1).unwrap(),
+                ],
+                ExactRatio::new(1, 2).unwrap(),
+                &mut arithmetic,
+            )
+            .unwrap();
+        assert_eq!(certificate.edge_count, 2);
+        assert_eq!(certificate.factor_two_length_checks, 2);
+        assert_eq!(certificate.scaled_gradient_checks, 2);
+    }
+
+    #[test]
+    fn rejects_uncertified_ipm_domains_and_approximations() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let boundary_flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(0, 1).unwrap(); 2],
+            cost: ExactRatio::new(0, 1).unwrap(),
+        };
+        let mut arithmetic = certified_arithmetic();
+        assert_eq!(
+            CertifiedIpmSnapshot::evaluate(
+                &network,
+                &boundary_flow,
+                ExactRatio::new(-1, 1).unwrap(),
+                4,
+                arithmetic.config(),
+            ),
+            Err(CertifiedIpmError::NotStrictlyInterior)
+        );
+
+        let flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+            cost: ExactRatio::new(1, 1).unwrap(),
+        };
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &flow,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot.certify_approximations(
+                &[
+                    ExactRatio::new(40, 1).unwrap(),
+                    ExactRatio::new(0, 1).unwrap()
+                ],
+                &[
+                    ExactRatio::new(5, 1).unwrap(),
+                    ExactRatio::new(2, 1).unwrap()
+                ],
+                ExactRatio::new(1, 2).unwrap(),
+                &mut arithmetic,
+            ),
+            Err(CertifiedIpmError::LengthApproximation { edge: 0 })
+        );
+        assert_eq!(
+            snapshot.certify_approximations(
+                &[
+                    ExactRatio::new(41, 1).unwrap(),
+                    ExactRatio::new(0, 1).unwrap()
+                ],
+                &[
+                    ExactRatio::new(2, 1).unwrap(),
+                    ExactRatio::new(2, 1).unwrap()
+                ],
+                ExactRatio::new(1, 2).unwrap(),
+                &mut arithmetic,
+            ),
+            Err(CertifiedIpmError::GradientApproximation { edge: 0 })
+        );
+
+        let mut mismatched =
+            CertifiedFixedPoint::new(FixedPointConfig::source_bounded(1 << 20, 64, 32, 3).unwrap())
+                .unwrap();
+        assert_eq!(
+            snapshot.certify_approximations(
+                &[
+                    ExactRatio::new(40, 1).unwrap(),
+                    ExactRatio::new(0, 1).unwrap()
+                ],
+                &[
+                    ExactRatio::new(2, 1).unwrap(),
+                    ExactRatio::new(2, 1).unwrap()
+                ],
+                ExactRatio::new(1, 2).unwrap(),
+                &mut mismatched,
+            ),
+            Err(CertifiedIpmError::ArithmeticConfigMismatch)
+        );
+    }
+
+    #[test]
+    fn matches_high_precision_oracle_on_nonunit_slacks() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 3, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 3, 0).unwrap();
+        let flow = FractionalCirculation {
+            arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+            cost: ExactRatio::new(1, 1).unwrap(),
+        };
+        let arithmetic = certified_arithmetic();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &flow,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+
+        assert!(
+            snapshot
+                .alpha()
+                .overlaps_ratio_interval(
+                    480_898_346_962_987,
+                    480_898_346_962_988,
+                    1_000_000_000_000_000_000,
+                )
+                .unwrap()
+        );
+        assert!(
+            snapshot
+                .potential()
+                .overlaps_ratio_interval(
+                    3_999_333_444_432_099_794,
+                    3_999_333_444_432_099_795,
+                    1_000_000_000_000_000_000,
+                )
+                .unwrap()
+        );
+        for length in snapshot.lengths() {
+            assert!(
+                length
+                    .overlaps_ratio_interval(
+                        1_499_833_361_108_024_948,
+                        1_499_833_361_108_024_949,
+                        1_000_000_000_000_000_000,
+                    )
+                    .unwrap()
+            );
+        }
+        assert!(
+            snapshot.gradients()[0]
+                .overlaps_ratio_interval(
+                    39_999_759_470_690_150_815,
+                    39_999_759_470_690_150_816,
+                    1_000_000_000_000_000_000,
+                )
+                .unwrap()
+        );
+        assert!(
+            snapshot.gradients()[1]
+                .overlaps_ratio_interval(
+                    -240_529_309_849_185,
+                    -240_529_309_849_184,
+                    1_000_000_000_000_000_000,
+                )
+                .unwrap()
         );
     }
 }
