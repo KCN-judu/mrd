@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 44d50d46f25b2a493630481916be3589b6f3188e
-- Plan last updated: 2026-07-28T00:05:39Z
+- Last pushed SHA: bba500e8dfef7e90dbddd077bd23d0df0922137a
+- Plan last updated: 2026-07-28T00:23:57Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -486,13 +486,14 @@ correctness cannot be inferred from an end-to-end test alone:
    `x^-alpha` on the checked positive domain. The full audit and mathematical
    error bounds are in
    `docs/phase-reports/P09-fixed-point-arithmetic.md`.
-2. **P9.2.2 state: in_progress. Start SHA: `44d50d4`.** Evaluate Equation (9)
-   and Definition 4.2 lengths/gradients with certified error intervals; every
-   approximation must prove the factor-two length and scaled-gradient error
-   hypotheses used by Theorem 4.3.
-3. P9.2.3 implements and certifies Lemma 4.4 updates, including circulation,
-   step size, strict-interior, potential-decrease, iteration, coordinate-update,
-   and Detect accounting.
+2. **P9.2.2 state: complete. Implementation SHA: `bba500e`.** Equation (9)
+   and Definition 4.2 lengths/gradients are evaluated with certified error
+   intervals; every approximation proves the factor-two length and
+   scaled-gradient error hypotheses used by Theorem 4.3. Evidence is in
+   `docs/phase-reports/P09-certified-ipm-quantities.md`.
+3. **P9.2.3 state: in_progress. Start SHA: `bba500e`.** Implement and certify
+   Lemma 4.4 updates, including circulation, step size, strict-interior,
+   potential-decrease, iteration, coordinate-update, and Detect accounting.
 4. P9.2.4 implements the source initial-point and additive-half termination
    boundary, then uses deterministic KP15 rounding and the P7 exact Oracle for
    recovery differentials.
@@ -632,3 +633,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P8 | complete | 237d55b | 37088c9, bc09a0f, a70e783, 749536c, 200bcc8, 32d7b49 | 32d7b49 | 32d7b49 | `docs/phase-reports/P08-1-stable-min-ratio-contract.md` through `P08-6-dynamic-min-ratio-audit.md` | checked baseline contracts and exact Oracles only | 2026-07-27T16:24:35Z | 2026-07-27T17:02:26Z | source-grade constructions deferred to P9.3--P9.4 |
 | P9 | in_progress | 32d7b49 | 0abf2a1, d1cefdd, 48250f5, 959ed00, 4e66be4, ffb371f | pending | ffb371f | `docs/phase-reports/P09-integration-gate-audit.md` | exact P9.1 Oracles; no almost-linear backend | 2026-07-27T17:02:52Z | pending | P9.2--P9.6 source gates remain |
 | P9.2.1 | complete | d1c7a3b | 44d50d4 | 44d50d4 | 44d50d4 | `docs/phase-reports/P09-fixed-point-arithmetic.md` | certified dyadic `log`, `exp`, and negative-power intervals; 191 workspace tests passed | 2026-07-27T23:36:48Z | 2026-07-28T00:05:39Z | Equation (9) integration continues in P9.2.2 |
+| P9.2.2 | complete | 44d50d4 | bba500e | bba500e | bba500e | `docs/phase-reports/P09-certified-ipm-quantities.md` | certified Equation (9), lengths, gradients, and approximation hypotheses; 194 workspace tests passed | 2026-07-28T00:05:39Z | 2026-07-28T00:23:57Z | Lemma 4.4 transitions continue in P9.2.3 |
