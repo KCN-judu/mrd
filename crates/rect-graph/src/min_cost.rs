@@ -29,6 +29,11 @@ impl CirculationNetwork {
     }
 
     #[must_use]
+    pub fn demands(&self) -> &[i128] {
+        &self.demands
+    }
+
+    #[must_use]
     pub fn arc_capacity_cost(&self, arc: CirculationArcId) -> Option<(i128, i128)> {
         self.arcs.get(arc.0).map(|arc| (arc.capacity, arc.cost))
     }
@@ -123,6 +128,113 @@ impl CirculationNetwork {
             demands: vec![0; node_count],
             arcs: Vec::new(),
         }
+    }
+
+    /// Constructs the O(m+n)-edge initial-point augmentation from CKLPPS22
+    /// Appendix B.1 for the normalized zero-lower-bound model.
+    ///
+    /// Original arcs start at their capacity midpoint. One root vertex and at
+    /// most one artificial root arc per original vertex correct the resulting
+    /// imbalance. Artificial arcs have capacity twice their initial flow and
+    /// cost `4mU^2`, so they cannot occur in an optimum whenever the original
+    /// instance is feasible.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid bound, zero-capacity arc, unbalanced
+    /// demands, nonintegral artificial capacity, or checked arithmetic overflow.
+    pub fn initial_point_augmentation(
+        &self,
+        maximum_abs_input: i128,
+    ) -> Result<InitialPointAugmentation, MinCostCirculationError> {
+        self.verify_input_domain(maximum_abs_input)?;
+        if self.arcs.iter().any(|arc| arc.capacity <= 0) {
+            return Err(MinCostCirculationError::InvalidFractionalSolution);
+        }
+        if self.demands.iter().try_fold(0_i128, |sum, value| {
+            sum.checked_add(*value)
+                .ok_or(MinCostCirculationError::Overflow)
+        })? != 0
+        {
+            return Err(MinCostCirculationError::UnbalancedDemand);
+        }
+        let m = i128::try_from(self.arcs.len()).map_err(|_| MinCostCirculationError::Overflow)?;
+        let u_squared = maximum_abs_input
+            .checked_mul(maximum_abs_input)
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let artificial_cost = m
+            .checked_mul(u_squared)
+            .and_then(|value| value.checked_mul(4))
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let root = self.node_count;
+        let mut augmented = Self::new(
+            root.checked_add(1)
+                .ok_or(MinCostCirculationError::Overflow)?,
+        );
+        for (node, demand) in self.demands.iter().copied().enumerate() {
+            augmented.set_demand(FlowNodeId(node), demand)?;
+        }
+        let mut initial_flows = Vec::with_capacity(self.arcs.len() + self.node_count);
+        let mut balance = vec![ExactRatio::new(0, 1).map_err(map_ratio_error)?; self.node_count];
+        for arc in &self.arcs {
+            augmented.add_arc(
+                FlowNodeId(arc.from),
+                FlowNodeId(arc.to),
+                arc.capacity,
+                arc.cost,
+            )?;
+            let flow = ExactRatio::new(arc.capacity, 2).map_err(map_ratio_error)?;
+            balance[arc.from] = balance[arc.from]
+                .checked_sub(flow)
+                .map_err(map_ratio_error)?;
+            balance[arc.to] = balance[arc.to].checked_add(flow).map_err(map_ratio_error)?;
+            initial_flows.push(flow);
+        }
+        augmented.set_demand(FlowNodeId(root), 0)?;
+        let mut artificial_arc_ids = Vec::new();
+        for (node, current) in balance.into_iter().enumerate() {
+            let target = ExactRatio::new(self.demands[node], 1).map_err(map_ratio_error)?;
+            let correction = target.checked_sub(current).map_err(map_ratio_error)?;
+            if correction.is_zero() {
+                continue;
+            }
+            let magnitude = correction.abs().map_err(map_ratio_error)?;
+            let capacity_ratio = magnitude.checked_mul_integer(2).map_err(map_ratio_error)?;
+            if !capacity_ratio.is_integral() {
+                return Err(MinCostCirculationError::InvalidFractionalSolution);
+            }
+            let capacity = capacity_ratio.numerator() / capacity_ratio.denominator();
+            let (from, to) = if correction.is_positive() {
+                (FlowNodeId(root), FlowNodeId(node))
+            } else {
+                (FlowNodeId(node), FlowNodeId(root))
+            };
+            let id = augmented.add_arc(from, to, capacity, artificial_cost)?;
+            artificial_arc_ids.push(id);
+            initial_flows.push(magnitude);
+        }
+        let cost = augmented.fractional_cost(&initial_flows)?;
+        let initial_flow = FractionalCirculation {
+            arc_flows: initial_flows,
+            cost,
+        };
+        augmented.verify_fractional_solution(&initial_flow)?;
+        let maximum_abs_augmented = maximum_abs_input.max(artificial_cost).max(
+            initial_flow
+                .arc_flows
+                .iter()
+                .map(|flow| flow.numerator().unsigned_abs())
+                .max()
+                .and_then(|value| i128::try_from(value).ok())
+                .unwrap_or(0),
+        );
+        Ok(InitialPointAugmentation {
+            original_network: self.clone(),
+            network: augmented,
+            initial_flow,
+            artificial_arc_ids,
+            maximum_abs_input: maximum_abs_augmented,
+        })
     }
 
     /// # Errors
@@ -533,6 +645,53 @@ pub struct MinCostSolution {
 pub struct FractionalCirculation {
     pub arc_flows: Vec<ExactRatio>,
     pub cost: ExactRatio,
+}
+
+/// Source-compatible initial-point augmentation and its strict fractional flow.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InitialPointAugmentation {
+    original_network: CirculationNetwork,
+    pub network: CirculationNetwork,
+    pub initial_flow: FractionalCirculation,
+    pub artificial_arc_ids: Vec<CirculationArcId>,
+    pub maximum_abs_input: i128,
+}
+
+impl InitialPointAugmentation {
+    #[must_use]
+    pub const fn original_network(&self) -> &CirculationNetwork {
+        &self.original_network
+    }
+
+    /// Recovers an original optimum from a verified augmented optimum, or
+    /// concludes that the original instance is infeasible when an artificial
+    /// root arc carries flow.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the augmented witness is not optimal, an
+    /// artificial arc is used, or the truncated original witness is invalid.
+    pub fn recover_original(
+        &self,
+        augmented_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
+        self.network.verify_solution(augmented_solution)?;
+        if self
+            .artificial_arc_ids
+            .iter()
+            .any(|arc| augmented_solution.arc_flows[arc.0] != 0)
+        {
+            return Err(MinCostCirculationError::Infeasible);
+        }
+        let arc_count = self.original_network.arc_count();
+        let arc_flows = augmented_solution.arc_flows[..arc_count].to_vec();
+        let solution = MinCostSolution {
+            cost: solution_cost(&self.original_network, &arc_flows)?,
+            arc_flows,
+        };
+        self.original_network.verify_solution(&solution)?;
+        Ok(solution)
+    }
 }
 
 /// One deterministic fractional-cycle cancellation used by
@@ -1340,5 +1499,36 @@ mod tests {
             }
         }
         best
+    }
+
+    #[test]
+    fn source_initial_augmentation_routes_arbitrary_demands_strictly() {
+        let mut network = CirculationNetwork::new(2);
+        network.set_demand(FlowNodeId(0), -1).unwrap();
+        network.set_demand(FlowNodeId(1), 1).unwrap();
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network
+            .add_arc(FlowNodeId(1), FlowNodeId(0), 2, -1)
+            .unwrap();
+        let augmentation = network.initial_point_augmentation(2).unwrap();
+        assert_eq!(augmentation.network.arc_count(), 4);
+        assert_eq!(augmentation.artificial_arc_ids.len(), 2);
+        assert_eq!(
+            augmentation.initial_flow.arc_flows[0],
+            ExactRatio::new(1, 1).unwrap()
+        );
+        assert_eq!(
+            augmentation.initial_flow.arc_flows[1],
+            ExactRatio::new(1, 1).unwrap()
+        );
+        augmentation
+            .network
+            .verify_fractional_solution(&augmentation.initial_flow)
+            .unwrap();
+        assert!(augmentation.maximum_abs_input >= 32);
+        let augmented_optimum = augmentation.network.solve().unwrap();
+        let original_optimum = augmentation.recover_original(&augmented_optimum).unwrap();
+        assert_eq!(original_optimum.cost, 1);
+        assert_eq!(original_optimum.arc_flows, vec![1, 0]);
     }
 }

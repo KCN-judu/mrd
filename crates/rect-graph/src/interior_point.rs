@@ -13,7 +13,7 @@ use thiserror::Error;
 use crate::{
     CertifiedFixedPoint, CirculationArcId, CirculationNetwork, CostedFlowRoundingResult,
     DyadicInterval, ExactRatio, FixedPointConfig, FixedPointError, FixedPointMetrics,
-    FractionalCirculation, MinCostCirculationError, MinRatioEdgeId,
+    FractionalCirculation, InitialPointAugmentation, MinCostCirculationError, MinRatioEdgeId,
 };
 
 /// Certified Equation (9) and Definition 4.2 quantities at one feasible flow.
@@ -54,6 +54,13 @@ pub struct CertifiedIpmUpdate {
 pub struct IpmTerminationCertificate {
     pub potential_bound: DyadicInterval,
     pub objective_gap: DyadicInterval,
+}
+
+/// Augmented source instance together with its certified initial snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertifiedIpmInitialPoint {
+    pub augmentation: InitialPointAugmentation,
+    pub snapshot: CertifiedIpmSnapshot,
 }
 
 /// Certified per-edge accounting for the dynamic `Detect` operation.
@@ -180,6 +187,35 @@ pub struct IpmApproximationCertificate {
 }
 
 impl CertifiedIpmSnapshot {
+    /// Constructs and certifies the Appendix B.1 initial-point augmentation
+    /// for the current zero-lower-bound circulation model.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the source input bound is violated, the augmented
+    /// midpoint is malformed, or its conservative initial-potential bound
+    /// cannot be certified.
+    pub fn initial_point_augmented(
+        network: &CirculationNetwork,
+        optimal_cost: ExactRatio,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+    ) -> Result<CertifiedIpmInitialPoint, CertifiedIpmError> {
+        let augmentation = network.initial_point_augmentation(maximum_abs_input)?;
+        let snapshot = Self::evaluate(
+            &augmentation.network,
+            &augmentation.initial_flow,
+            optimal_cost,
+            augmentation.maximum_abs_input,
+            fixed_point_config,
+        )?;
+        certify_initial_potential_bound(&snapshot, &augmentation.network)?;
+        Ok(CertifiedIpmInitialPoint {
+            augmentation,
+            snapshot,
+        })
+    }
+
     /// Builds the midpoint flow for the normalized zero-demand model and
     /// certifies the source `200m log(mU)` initial-potential bound.
     ///
@@ -223,21 +259,7 @@ impl CertifiedIpmSnapshot {
             maximum_abs_input,
             fixed_point_config,
         )?;
-        let mut arithmetic = CertifiedFixedPoint::new(fixed_point_config)?;
-        let m_u = i128::try_from(network.arc_count())
-            .map_err(|_| CertifiedIpmError::ExactOverflow)?
-            .checked_mul(maximum_abs_input)
-            .ok_or(CertifiedIpmError::ExactOverflow)?;
-        let m_u_interval = arithmetic.enclose_ratio(m_u, 1)?;
-        let log_m_u = arithmetic.logarithm(&m_u_interval)?;
-        let factor = i128::try_from(network.arc_count())
-            .map_err(|_| CertifiedIpmError::ExactOverflow)?
-            .checked_mul(200)
-            .ok_or(CertifiedIpmError::ExactOverflow)?;
-        let bound = arithmetic.multiply_interval_integer(&log_m_u, factor)?;
-        if snapshot.potential.upper_scaled() > bound.lower_scaled() {
-            return Err(CertifiedIpmError::InitialPotentialNotCertified);
-        }
+        certify_initial_potential_bound(&snapshot, network)?;
         Ok(snapshot)
     }
 
@@ -726,6 +748,28 @@ fn enclose_exact(
 
 fn map_exact(_: crate::StableMinRatioError) -> CertifiedIpmError {
     CertifiedIpmError::ExactOverflow
+}
+
+fn certify_initial_potential_bound(
+    snapshot: &CertifiedIpmSnapshot,
+    network: &CirculationNetwork,
+) -> Result<(), CertifiedIpmError> {
+    let mut arithmetic = CertifiedFixedPoint::new(snapshot.fixed_point_config)?;
+    let edge_count =
+        i128::try_from(network.arc_count()).map_err(|_| CertifiedIpmError::ExactOverflow)?;
+    let m_u = edge_count
+        .checked_mul(snapshot.maximum_abs_input)
+        .ok_or(CertifiedIpmError::ExactOverflow)?;
+    let m_u_interval = arithmetic.enclose_ratio(m_u, 1)?;
+    let log_m_u = arithmetic.logarithm(&m_u_interval)?;
+    let factor = edge_count
+        .checked_mul(200)
+        .ok_or(CertifiedIpmError::ExactOverflow)?;
+    let bound = arithmetic.multiply_interval_integer(&log_m_u, factor)?;
+    if snapshot.potential.upper_scaled() > bound.lower_scaled() {
+        return Err(CertifiedIpmError::InitialPotentialNotCertified);
+    }
+    Ok(())
 }
 
 /// Auditable totals for rational potential-reduction updates.
@@ -1372,5 +1416,34 @@ mod tests {
         let recovered = snapshot.recover_additive_half(&network).unwrap();
         assert_eq!(recovered.solution.cost, 0);
         assert_eq!(recovered.solution.arc_flows, vec![0, 0]);
+    }
+
+    #[test]
+    fn certifies_appendix_b_initial_point_for_nonzero_demands() {
+        let mut network = CirculationNetwork::new(2);
+        network.set_demand(FlowNodeId(0), -1).unwrap();
+        network.set_demand(FlowNodeId(1), 1).unwrap();
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network
+            .add_arc(FlowNodeId(1), FlowNodeId(0), 2, -1)
+            .unwrap();
+        let arithmetic = certified_arithmetic();
+        let initial = CertifiedIpmSnapshot::initial_point_augmented(
+            &network,
+            ExactRatio::new(1, 1).unwrap(),
+            2,
+            arithmetic.config(),
+        )
+        .unwrap();
+        assert_eq!(initial.augmentation.artificial_arc_ids.len(), 2);
+        assert_eq!(
+            initial.snapshot.optimal_cost(),
+            ExactRatio::new(1, 1).unwrap()
+        );
+        initial
+            .augmentation
+            .network
+            .verify_fractional_solution(initial.snapshot.flow())
+            .unwrap();
     }
 }

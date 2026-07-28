@@ -31,15 +31,15 @@ pub use hopcroft_karp::{
     BipartiteGraph, GraphError, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover,
 };
 pub use interior_point::{
-    CertifiedIpmError, CertifiedIpmSnapshot, CertifiedIpmUpdate, InteriorPointError,
-    InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate,
-    IpmUpdateMetrics, RationalInteriorPointState,
+    CertifiedIpmError, CertifiedIpmInitialPoint, CertifiedIpmSnapshot, CertifiedIpmUpdate,
+    InteriorPointError, InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger,
+    IpmTerminationCertificate, IpmUpdateMetrics, RationalInteriorPointState,
 };
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,
-    FractionalCirculation, IterativeRefinementResult, IterativeRefinementStep,
-    MinCostCirculationError, MinCostSolution, MinRatioCycle,
+    FractionalCirculation, InitialPointAugmentation, IterativeRefinementResult,
+    IterativeRefinementStep, MinCostCirculationError, MinCostSolution, MinRatioCycle,
 };
 pub use min_ratio_cycle::{
     ExactRatio, MinRatioEdgeId, StableEdge, StableMinRatioError, StableMinRatioLedger,
