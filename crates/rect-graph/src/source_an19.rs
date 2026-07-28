@@ -9063,14 +9063,7 @@ mod tests {
         assert!(invalid_binary_heap.verify(&small).is_err());
     }
 
-    #[test]
-    fn reduced_length_queue_exposes_unbounded_source_classes() {
-        use super::{
-            An19PetalMetrics, An19WeightedPetal, An19WeightedPetalAtRadius, fast_shortest_paths,
-            recover_path, transformed_weighted_membership_thresholds_oracle,
-        };
-
-        let nodes = 128_usize;
+    fn power_of_two_chord_graph(nodes: usize) -> SourceDynamicGraph {
         let mut edges = (0..nodes - 1)
             .map(|index| SourceWeightedEdge {
                 first: FlowNodeId(index),
@@ -9081,15 +9074,72 @@ mod tests {
             .collect::<Vec<_>>();
         for index in 0..nodes - 2 {
             let distance = nodes - 1 - index;
-            let length = distance.next_power_of_two();
             edges.push(SourceWeightedEdge {
                 first: FlowNodeId(index),
                 second: FlowNodeId(nodes - 1),
-                length: ExactRatio::new(i128::try_from(length).unwrap(), 1).unwrap(),
+                length: ExactRatio::new(i128::try_from(distance.next_power_of_two()).unwrap(), 1)
+                    .unwrap(),
                 weight: ExactRatio::new(1, 1).unwrap(),
             });
         }
-        let graph = SourceDynamicGraph::new(nodes, edges, 1_024).unwrap();
+        SourceDynamicGraph::new(nodes, edges, 4_096).unwrap()
+    }
+
+    fn assert_power_of_two_chord_family_has_linear_reduced_length_classes() {
+        use super::{An19PetalMetrics, fast_shortest_paths, weighted_adjacency};
+
+        for nodes in [16_usize, 32, 64, 128, 256] {
+            let graph = power_of_two_chord_graph(nodes);
+            let cluster = (0..nodes).map(FlowNodeId).collect::<BTreeSet<_>>();
+            let mut metrics = An19PetalMetrics::default();
+            let paths = fast_shortest_paths(&graph, &cluster, FlowNodeId(0), &mut metrics).unwrap();
+            for vertex in 0..nodes {
+                assert_eq!(
+                    paths.distances[vertex],
+                    Some(ExactRatio::new(i128::try_from(vertex).unwrap(), 1).unwrap())
+                );
+            }
+            let (adjacency, reduced_classes) =
+                weighted_adjacency(&graph, &cluster, &paths.distances, &mut metrics).unwrap();
+
+            // For r in (N/2, N), the chord from v_(N-1-r) to v_(N-1)
+            // has length N and forward reduced cost 2 * (N-r). These N/2-1
+            // costs are distinct although the graph has only log2(N)+1
+            // original power-of-two length classes.
+            let mut witnessed = BTreeSet::new();
+            for distance in nodes / 2 + 1..nodes {
+                let from = nodes - 1 - distance;
+                let expected =
+                    ExactRatio::new(i128::try_from(2 * (nodes - distance)).unwrap(), 1).unwrap();
+                assert!(adjacency[from].iter().any(|(other, length, _)| *other
+                    == FlowNodeId(nodes - 1)
+                    && *length == expected));
+                witnessed.insert((expected.numerator(), expected.denominator()));
+            }
+            assert_eq!(witnessed.len(), nodes / 2 - 1);
+            assert!(reduced_classes >= witnessed.len());
+            assert_eq!(
+                usize::try_from(nodes.ilog2()).unwrap() + 1,
+                (0..graph.edge_count())
+                    .filter_map(|index| graph.edge(SourceEdgeId(index)))
+                    .map(|edge| (edge.length.numerator(), edge.length.denominator()))
+                    .collect::<BTreeSet<_>>()
+                    .len()
+            );
+        }
+    }
+
+    #[test]
+    fn reduced_length_queue_exposes_unbounded_source_classes() {
+        use super::{
+            An19PetalMetrics, An19WeightedPetal, An19WeightedPetalAtRadius, fast_shortest_paths,
+            recover_path, transformed_weighted_membership_thresholds_oracle,
+        };
+
+        assert_power_of_two_chord_family_has_linear_reduced_length_classes();
+
+        let nodes = 128_usize;
+        let graph = power_of_two_chord_graph(nodes);
         let cluster = (0..nodes).map(FlowNodeId).collect::<BTreeSet<_>>();
         let petal = An19WeightedPetal::construct_for_hierarchy(
             &graph,
