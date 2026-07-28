@@ -16,6 +16,8 @@ is `839cb5c`; the certified unit-length Figures 4--5 composition commit is
 are `cdf732d`, `d6b8e6b`, and `3d3afe2`; and the work-accounting and rounded
 length prerequisites are `720f0cb` and `27d5773`. Dense cluster-local node
 projection and allocation counters are `6901703`.
+Top-level source-edge projection attribution and aggregate segment/class audits
+are `e4f54af`.
 
 ## Resolved source questions
 
@@ -218,12 +220,14 @@ path with the parametric and repeated-shortest-path Oracles.
 | omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
 | weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
 | source priority queue | Production shortest paths and fixed-radius Claim 15 runs now use original edge-length classes. Potential reweighting changes every ordinary reduced arc `l+d(x,u)-d(x,v)` back to `l`; ordered highway source labels represent the half-length path and an interior portal exactly. The all-radii Figure 6 event stream still groups by reduced directed cost, and a 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; KMPb Corollary 5.5 states its fast `ConeCut` bound for `k` distinct cone distances. EEST05 Definition 4.4 charges an original edge length only when a path leaves the forward-edge ideal, but AN19 explicitly uses the different excess metric. Final AN19 Section 6, p. 245, repeats the jump from original power-of-two weights to improved Dijkstra on the reduced graph without bounding the reduced cost classes. | **Blocked.** `ece2722` closes the fixed-radius subproblem with 456 directed-distance differentials and a source-class counterexample audit. Neither the public manuscript nor the final journal text proves that AN19's exact event order has `O(log n)` classes; KMPb Lemma 5.6 also moves from distinct graph lengths to its `ConeCut` call without giving the missing conversion. Keep `ReducedLengthMonotone` until an authoritative correction or an independently proved exact rational event-order structure is available. |
-| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections now remap every noncontiguous augmented cluster to exactly `0..|X|`, so shortest-path, region, and contraction vectors allocate local rather than global node slots. Projection calls, total projected slots, and maximum projected size are counted. Per-edge recursion depth and active length-class bounds are not yet certified. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** The local-allocation defect is fixed and directly tested on a high-ID three-node cluster. Add structural per-original-edge participation and active-class certificates before closing P9.3.2d. |
+| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections remap every noncontiguous augmented cluster to exactly `0..|X|`. `e4f54af` also keeps top-level source IDs independent of quotient-local recovery provenance through portal splits and nested contractions, and stores only `O(m)` per-source and aggregate projection counters. On the deterministic 500-node unit path, one original length class becomes as many as 16 active projection classes; 16,948 projected edge occurrences include 4,332 provenance-free segments, and the maximum count for one original edge is 111, exceeding the recursion-call count. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Aggregate cross-checks and mutation tests verify the observation, but repeated fixed-cluster projection and materialized portal-segment classes are not structurally bounded. Implement incremental/reused cluster projection and symbolic portal labels, then prove per-edge recursive-scale participation. Do not select `StructuralSourceBound` or `SourceMonotone` from these observations. |
 
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
-a regression guard for observed counters. It is not accepted as an asymptotic
-proof. P9.3.2d is `blocked`, and no AN19 production runtime or full
-Lemma 5.4 completion is claimed.
+a regression guard for observed counters. The source-edge audit exposes where
+work accumulates but does not convert the observed totals into an asymptotic
+bound. It is not accepted as a proof. P9.3.2d is `blocked`,
+`An19AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
+production runtime or full Lemma 5.4 completion is claimed.
 
 ## Persisted source blocker
 
@@ -251,13 +255,13 @@ not sufficient.
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 29 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; a noncontiguous high-ID cluster projects to exactly three local node slots |
+| `cargo test -p rect-graph source_an19` | 0 | 30 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; root sources survive portal splits and quotient recursion; projection aggregate mutation is rejected |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 244 passed and 3 existing release-scale campaigns ignored across 13 suites; 407.19 seconds |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 2.62 seconds |
-| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 16.08 seconds |
+| `cargo test --workspace` | 0 | 245 passed and 3 existing release-scale campaigns ignored across 13 suites; 405.23 seconds |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.84 seconds |
+| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 15.87 seconds |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
@@ -267,4 +271,9 @@ expansion, atomic highway interval accounting, bidirectional rational
 provenance splitting, dense-to-stable projection, complete-segment recovery,
 rejection of partial/cyclic/disconnected recovery, unit Figures 4--5 recursion,
 virtual-path suppression, radius/tree/stretch verification, mutation rejection,
-and exact-Oracle comparison on every connected four-node simple graph.
+exact-Oracle comparison on every connected four-node simple graph, top-level
+source preservation across portal splits and quotient recursion, and
+source-edge projection aggregate mutation rejection. The 500-node nonvirtual
+path additionally demonstrates multiple materialized projection length classes,
+nonzero provenance-free projection work even though its first top-level target
+is not virtual, and per-source segment repetition beyond recursion depth.
