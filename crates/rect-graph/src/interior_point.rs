@@ -49,6 +49,13 @@ pub struct CertifiedIpmUpdate {
     pub approximation: IpmApproximationCertificate,
 }
 
+/// Evidence that the source additive-half termination boundary is certified.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IpmTerminationCertificate {
+    pub potential_bound: DyadicInterval,
+    pub objective_gap: DyadicInterval,
+}
+
 /// Certified per-edge accounting for the dynamic `Detect` operation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IpmDetectLedger {
@@ -173,6 +180,67 @@ pub struct IpmApproximationCertificate {
 }
 
 impl CertifiedIpmSnapshot {
+    /// Builds the midpoint flow for the normalized zero-demand model and
+    /// certifies the source `200m log(mU)` initial-potential bound.
+    ///
+    /// This is deliberately a restricted initializer: it does not construct
+    /// the source paper's O(m)-edge augmentation for arbitrary demands or
+    /// lower bounds. Every arc must have positive capacity and the network
+    /// must have zero demands.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the normalized domain is unsupported, the
+    /// midpoint is not feasible, or the initial potential bound cannot be
+    /// certified with the supplied fixed-point configuration.
+    pub fn initial_point_zero_demand(
+        network: &CirculationNetwork,
+        optimal_cost: ExactRatio,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+    ) -> Result<Self, CertifiedIpmError> {
+        if network.arc_count() == 0 {
+            return Err(CertifiedIpmError::UnsupportedInitialPointDomain);
+        }
+        let mut arc_flows = Vec::with_capacity(network.arc_count());
+        for index in 0..network.arc_count() {
+            let (capacity, _) = network
+                .arc_capacity_cost(CirculationArcId(index))
+                .ok_or(CertifiedIpmError::InvalidSourceDomain)?;
+            if capacity <= 0 {
+                return Err(CertifiedIpmError::UnsupportedInitialPointDomain);
+            }
+            arc_flows.push(ExactRatio::new(capacity, 2).map_err(map_exact)?);
+        }
+        let flow = FractionalCirculation {
+            cost: network.fractional_cost(&arc_flows)?,
+            arc_flows,
+        };
+        let snapshot = Self::evaluate(
+            network,
+            &flow,
+            optimal_cost,
+            maximum_abs_input,
+            fixed_point_config,
+        )?;
+        let mut arithmetic = CertifiedFixedPoint::new(fixed_point_config)?;
+        let m_u = i128::try_from(network.arc_count())
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            .checked_mul(maximum_abs_input)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        let m_u_interval = arithmetic.enclose_ratio(m_u, 1)?;
+        let log_m_u = arithmetic.logarithm(&m_u_interval)?;
+        let factor = i128::try_from(network.arc_count())
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            .checked_mul(200)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        let bound = arithmetic.multiply_interval_integer(&log_m_u, factor)?;
+        if snapshot.potential.upper_scaled() > bound.lower_scaled() {
+            return Err(CertifiedIpmError::InitialPotentialNotCertified);
+        }
+        Ok(snapshot)
+    }
+
     /// Evaluates CKLPPS22 Equation (9) and Definition 4.2 with certified
     /// fixed-point intervals.
     ///
@@ -345,6 +413,58 @@ impl CertifiedIpmSnapshot {
     #[must_use]
     pub const fn arithmetic_metrics(&self) -> FixedPointMetrics {
         self.arithmetic_metrics
+    }
+
+    /// Certifies the additive-half termination boundary from Lemma 4.1.
+    ///
+    /// The proof uses the certified inequality
+    /// `Phi(f) <= 20m log(1/2)`, and also retains the enclosed objective gap
+    /// as an independently auditable consequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless the potential and objective gap are both
+    /// certified below one half using this snapshot's fixed-point budget.
+    pub fn certify_additive_half_termination(
+        &self,
+        network: &CirculationNetwork,
+    ) -> Result<IpmTerminationCertificate, CertifiedIpmError> {
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        let half = arithmetic.enclose_ratio(1, 2)?;
+        let log_half = arithmetic.logarithm(&half)?;
+        let factor = i128::try_from(network.arc_count())
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            .checked_mul(20)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        let potential_bound = arithmetic.multiply_interval_integer(&log_half, factor)?;
+        if self.potential.upper_scaled() > potential_bound.lower_scaled()
+            || self.objective_gap.upper_scaled() > half.upper_scaled()
+        {
+            return Err(CertifiedIpmError::NotAtAdditiveHalfBoundary);
+        }
+        Ok(IpmTerminationCertificate {
+            potential_bound,
+            objective_gap: self.objective_gap.clone(),
+        })
+    }
+
+    /// Runs the permanent exact rounding Oracle after additive-half
+    /// termination and checks that the recovered integral cost equals `F*`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the additive-half boundary is not certified, the
+    /// exact rounding Oracle rejects the flow, or its result is not optimal.
+    pub fn recover_additive_half(
+        &self,
+        network: &CirculationNetwork,
+    ) -> Result<CostedFlowRoundingResult, CertifiedIpmError> {
+        self.certify_additive_half_termination(network)?;
+        let result = network.round_fractional_costed(&self.flow)?;
+        if ExactRatio::new(result.solution.cost, 1).map_err(map_exact)? != self.optimal_cost {
+            return Err(CertifiedIpmError::RecoveryNotOptimal);
+        }
+        Ok(result)
     }
 
     /// Certifies the factor-two length and scaled-gradient-error hypotheses in
@@ -583,6 +703,14 @@ pub enum CertifiedIpmError {
     PotentialDecreaseNotCertified,
     #[error("the Detect threshold must be strictly positive")]
     InvalidDetectThreshold,
+    #[error("the normalized zero-demand initial-point domain is unsupported")]
+    UnsupportedInitialPointDomain,
+    #[error("the initial potential is not certified below 200m log(mU)")]
+    InitialPotentialNotCertified,
+    #[error("the additive-half termination potential or gap boundary is not certified")]
+    NotAtAdditiveHalfBoundary,
+    #[error("exact recovery did not return the supplied optimal cost")]
+    RecoveryNotOptimal,
 }
 
 fn exact_ratio(value: i128) -> Result<ExactRatio, CertifiedIpmError> {
@@ -1204,5 +1332,45 @@ mod tests {
         );
         assert_eq!(ledger.metrics().detect_calls, 2);
         assert_eq!(ledger.metrics().detected_edges, 2);
+    }
+
+    #[test]
+    fn certifies_restricted_initial_point_and_additive_half_recovery() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let arithmetic = certified_arithmetic();
+        let initial = CertifiedIpmSnapshot::initial_point_zero_demand(
+            &network,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+        assert_eq!(
+            initial.flow().arc_flows,
+            vec![ExactRatio::new(1, 1).unwrap(); 2]
+        );
+
+        let quarter = ExactRatio::new(1, 4).unwrap();
+        let near = FractionalCirculation {
+            arc_flows: vec![quarter; 2],
+            cost: quarter,
+        };
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &near,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            arithmetic.config(),
+        )
+        .unwrap();
+        let certificate = snapshot
+            .certify_additive_half_termination(&network)
+            .unwrap();
+        assert!(certificate.objective_gap.contains_ratio(1, 4).unwrap());
+        let recovered = snapshot.recover_additive_half(&network).unwrap();
+        assert_eq!(recovered.solution.cost, 0);
+        assert_eq!(recovered.solution.arc_flows, vec![0, 0]);
     }
 }

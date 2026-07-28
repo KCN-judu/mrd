@@ -32,8 +32,8 @@ pub use hopcroft_karp::{
 };
 pub use interior_point::{
     CertifiedIpmError, CertifiedIpmSnapshot, CertifiedIpmUpdate, InteriorPointError,
-    InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics,
-    RationalInteriorPointState,
+    InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate,
+    IpmUpdateMetrics, RationalInteriorPointState,
 };
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
