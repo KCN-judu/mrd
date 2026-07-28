@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: blocked
 - Last completed phase: P8
-- Last pushed SHA: 0d7cccce3a5dd22404829e52206fc217258a5410
-- Plan last updated: 2026-07-28T15:51:42Z
+- Last pushed SHA: af46e7423c06b9460d81e11c657abbc8d707ad7b
+- Plan last updated: 2026-07-28T16:15:17Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -706,14 +706,24 @@ P9.3 is split into the following source-gated subphases:
      scans. The alternating rational path has 63 materializations, 4,319 node
      slots, 4,256 edge slots, and 8,512 internal, 113 boundary, and 203 inactive
      scans. All counters are scale invariant and mutation checked. This closes
-     the remaining projection-side node and incident-index work, but not the
-     separate nonprojection workspace scans or all-radii event work.
+     the remaining projection-side node and incident-index work.
+     `d17a6cd` classifies every remaining workspace visit as a radius,
+     contraction-input, retained quotient-edge, contraction-recovery, or final
+     augmented-tree recovery scan. The verifier requires all projection and
+     nonprojection classes to reconstruct the workspace total exactly, rebuilds
+     the first four classes from radius and contraction certificates, and
+     derives final recovery from the exact source/virtual/split lineage counts.
+     The unit fixture's 5,838 remaining scans are all radius scans; the rational
+     fixture splits 7,215 scans into 4,032 radius, 1,496 contraction-input, and
+     1,687 final-recovery scans. A recursive-contraction fixture covers nonzero
+     retained and contraction-recovery classes. Scaling preserves all counts,
+     and synchronized class/aggregate mutations are rejected. This closes the
+     complete workspace-scan ledger, but not the all-radii event work.
      Unblock only with an authoritative corrected construction or a separately
      proved exact event-order data structure meeting the rational-input bound;
      that structure must preserve exact event order while consuming the
-     symbolic labels. The implementation must also charge the remaining
-     nonprojection workspace scans and exact all-radii event work before
-     selecting a structural amortization mode. `An19AmortizationMode`
+     symbolic labels. The implementation must charge the exact all-radii event
+     work before selecting a structural amortization mode. `An19AmortizationMode`
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
@@ -861,4 +871,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | blocked | aabe7fc | pending | pending | 09ea2bb | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | P9.3.2d source event-order interface is unresolved |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59, 5cc49f0, b050625, 60fdfe4, 0fc48a1 | pending | e9919f3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source/symbolic-label/recursive-scale/projection/scan audits, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; 500-node logical recursion has depth 8 and per-source maximum 9; 5,974 projected occurrences and 12,452 classified incident scans have structural source/virtual charges; 16 materialized classes reduce to 2 symbolic source and 3 virtual classes; the retained 162-class event counterexample still prevents a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction plus structural charging for remaining nonprojection workspace scans and candidate-event work remain; source runtime is unverified |
+| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59, 5cc49f0, b050625, 60fdfe4, 0fc48a1, d17a6cd | pending | e9919f3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source/symbolic-label/recursive-scale/projection/workspace-scan audits, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; 500-node logical recursion has depth 8 and per-source maximum 9; 5,974 projected occurrences, 12,452 classified incident scans, and all 18,290 workspace scans have structural source/virtual/certificate charges; 16 materialized classes reduce to 2 symbolic source and 3 virtual classes; the retained 162-class event counterexample still prevents a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction and candidate-event work charging remain; source runtime is unverified |

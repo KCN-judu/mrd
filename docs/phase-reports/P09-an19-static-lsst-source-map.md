@@ -318,6 +318,32 @@ This closes projection-side node and incident-index work. The remaining
 structural ledger concerns nonprojection workspace scans and the independent
 all-radii candidate-event work; `StructuralSourceBound` remains unselected.
 
+Every nonprojection workspace edge visit is now also classified as a radius
+certificate scan, contraction-input scan, retained quotient-edge scan,
+contraction-recovery scan, or final augmented-tree recovery scan. The verifier
+requires these five classes plus the three projection incident classes to sum
+exactly to all workspace scans. It independently rebuilds radius scans as
+twice the stored radius-certificate edge total, contraction-input scans from
+every nonbase compact-weighted certificate, retained scans from quotient-edge
+counts, and contraction recovery from contracted edges plus twice the checked
+quotient-tree size. Final recovery is reconstructed from the exact stable-edge
+and augmented-tree lineage formulas using input edges and nodes, virtual
+leaves, and portal splits. Overflow is checked at every sum and product.
+
+The 500-node nonvirtual unit fixture's 5,838 nonprojection scans are all radius
+scans. The alternating rational fixture decomposes its 7,215 nonprojection
+scans into 4,032 radius scans, 1,496 contraction-input scans, and 1,687 final
+recovery scans. A dedicated recursive-contraction fixture records 12 radius,
+4 contraction-input, 2 retained, 4 contraction-recovery, and 11 final-recovery
+scans. Uniform scaling preserves these counts, and every class is rejected
+when mutated even if the aggregate workspace total is changed with it.
+
+This closes the remaining workspace-scan ledger. Inspection of the complete
+`hierarchy_work_units` sum leaves the all-radii candidate-event processing as
+the independent unproved structural interface. It does not resolve the exact
+reduced-event ordering gap, so `StructuralSourceBound` and `SourceMonotone`
+remain unselected and `source_runtime_verified()` remains false.
+
 ## Runtime acceptance audit
 
 | Issue | Observed | Source requirement | Current acceptance |
@@ -327,7 +353,7 @@ all-radii candidate-event work; `StructuralSourceBound` remains unselected.
 | omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
 | weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
 | source priority queue | Production shortest paths and fixed-radius Claim 15 runs now use original edge-length classes. Potential reweighting changes every ordinary reduced arc `l+d(x,u)-d(x,v)` back to `l`; ordered highway source labels represent the half-length path and an interior portal exactly. The all-radii Figure 6 event stream still groups by reduced directed cost, and a 128-node power-of-two chord fixture produces 162 classes. | OMSW10 Sections 5--6 bounds its queue by the original edge-length set `L`; KMPb Corollary 5.5 states its fast `ConeCut` bound for `k` distinct cone distances. EEST05 Definition 4.4 charges an original edge length only when a path leaves the forward-edge ideal, but AN19 explicitly uses the different excess metric. Final AN19 Section 6, p. 245, repeats the jump from original power-of-two weights to improved Dijkstra on the reduced graph without bounding the reduced cost classes. | **Blocked.** `ece2722` closes the fixed-radius subproblem with 456 directed-distance differentials and a source-class counterexample audit. Neither the public manuscript nor the final journal text proves that AN19's exact event order has `O(log n)` classes; KMPb Lemma 5.6 also moves from distinct graph lengths to its `ConeCut` call without giving the missing conversion. Keep `ReducedLengthMonotone` until an authoritative correction or an independently proved exact rational event-order structure is available. |
-| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections remap every noncontiguous augmented cluster to exactly `0..|X|`. `e4f54af` also keeps top-level source IDs independent of quotient-local recovery provenance through portal splits and nested contractions, and stores only per-source and aggregate projection counters. On the deterministic 500-node unit path, one original length class becomes as many as 16 active projection classes. Before fixed-path reuse, 16,948 projected edge occurrences included 4,332 provenance-free segments and one original edge reached 111 occurrences. `bc61592` and `14e9abb` reduce materialized edge occurrences to 12,274 and workspace scans to 31,498. `8d68d59` then applies 39 exact portal splits in place across 83 cache hits, reducing those figures to 5,974 and 18,290. Its length-class multiset keeps the active maximum at 16 rather than hiding cached segment classes; one source edge still has 33 materialized occurrences. `5cc49f0` independently propagates unsplit source labels through portal splits and quotient recursion: the 16 active classes reduce to 2 symbolic source classes and 3 symbolic virtual classes. `b050625` independently reconstructs 2,256 logical source-scale participations from radius certificates; their per-source maximum is 9 across maximum partition depth 8, and same-scale contractions do not create a false level. `60fdfe4` decomposes the 5,974 occurrences into 4,533 source materializations, 61 extra source fragments, and 1,380 provenance-free occurrences, and structurally charges each class to certified scales and 49 attributed splits. `0fc48a1` decomposes 12,452 projection incident scans into 11,948 internal, 172 boundary, and 332 inactive references and charges node slots and all three scan classes. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Logical source scales, active projection materializations, descendant source/virtual fragments, node slots, and projection incident scans are structurally certified. Nonprojection workspace scans and the exact all-radii candidate-event order remain outside a complete structural work bound. Keep `AggregateRegressionOnly` and `ReducedLengthMonotone` until those interfaces are proved. |
+| recursive amortization | The aggregate certificate still uses a fixed `1024` factor. Recursive projections remap every noncontiguous augmented cluster to exactly `0..|X|`. `e4f54af` also keeps top-level source IDs independent of quotient-local recovery provenance through portal splits and nested contractions, and stores only per-source and aggregate projection counters. On the deterministic 500-node unit path, one original length class becomes as many as 16 active projection classes. Before fixed-path reuse, 16,948 projected edge occurrences included 4,332 provenance-free segments and one original edge reached 111 occurrences. `bc61592` and `14e9abb` reduce materialized edge occurrences to 12,274 and workspace scans to 31,498. `8d68d59` then applies 39 exact portal splits in place across 83 cache hits, reducing those figures to 5,974 and 18,290. Its length-class multiset keeps the active maximum at 16 rather than hiding cached segment classes; one source edge still has 33 materialized occurrences. `5cc49f0` independently propagates unsplit source labels through portal splits and quotient recursion: the 16 active classes reduce to 2 symbolic source classes and 3 symbolic virtual classes. `b050625` independently reconstructs 2,256 logical source-scale participations from radius certificates; their per-source maximum is 9 across maximum partition depth 8, and same-scale contractions do not create a false level. `60fdfe4` decomposes the 5,974 occurrences into 4,533 source materializations, 61 extra source fragments, and 1,380 provenance-free occurrences, and structurally charges each class to certified scales and 49 attributed splits. `0fc48a1` decomposes 12,452 projection incident scans into 11,948 internal, 172 boundary, and 332 inactive references and charges node slots and all three scan classes. `d17a6cd` closes the remaining 5,838 unit and 7,215 rational nonprojection scans with exact radius, contraction, quotient, and recovery reconstruction. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Logical source scales, projection/source/fragment charges, node and incident scans, and the complete workspace-scan ledger are structurally certified. The exact all-radii candidate-event order remains outside a source-backed structural work bound. Keep `AggregateRegressionOnly` and `ReducedLengthMonotone` until that interface is proved. |
 
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. The source-edge audit exposes where
@@ -362,17 +388,17 @@ not sufficient.
 | --- | ---: | ---: | --- |
 | `git status --short` | 0 | <0.01 s | clean at the audited implementation/documentation HEAD |
 | `git diff --check` | 0 | <0.01 s | clean |
-| `cargo test -p rect-graph source_an19::tests::` | 0 | 0.66 s | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; source/virtual projection charges, node slots, and incident scan classes survive valid hierarchy operations and uniform scaling while mutations are rejected |
-| `cargo test -p rect-graph` | 0 | 2.38 s | 102 tests passed; projection and scan charging preserve hierarchy, contraction, recovery, active-class, source-counter, symbolic-label, and recursive-scale certificates |
-| `cargo fmt --all -- --check` | 0 | 0.50 s | clean |
-| `python3 tools/check_biclique_bound.py` | 0 | 0.14 s | bound check passed |
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | 5.76 s | no warnings |
-| `cargo test --workspace` | 0 | 420.23 s | 247 passed and 3 existing release-scale campaigns ignored across 13 suites |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 4.14 s | 7 package documentation sets generated without warnings |
-| `cargo build --workspace --release` | 0 | 15.80 s | 6 crates compiled successfully |
-| `python3 tools/check_release_consistency.py` | 0 | 2.57 s | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
-| `git diff 0d7cccc..HEAD -G '#\[ignore' --stat` | 0 | <0.01 s | no ignored test changed; the same 3 documented release-scale campaigns remain ignored |
-| `git diff 0d7cccc..HEAD -- results` | 0 | <0.01 s | no stale or regenerated release evidence changed |
+| `cargo test -p rect-graph source_an19::tests::` | 0 | 0.49 s | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; source/virtual projection charges and every workspace scan class survive valid hierarchy operations and uniform scaling while synchronized class/aggregate mutations are rejected |
+| `cargo test -p rect-graph` | 0 | 0.50 s | 102 tests passed; projection and workspace scan charging preserve hierarchy, contraction, recovery, active-class, source-counter, symbolic-label, and recursive-scale certificates |
+| `cargo fmt --all -- --check` | 0 | 0.43 s | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | 0.08 s | bound check passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | 5.67 s | no warnings |
+| `cargo test --workspace` | 0 | 410.44 s | 247 passed and 3 existing release-scale campaigns ignored across 13 suites |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 4.17 s | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | 16.79 s | 6 crates compiled successfully |
+| `python3 tools/check_release_consistency.py` | 0 | 2.71 s | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
+| `git diff af46e74..HEAD -G '#\[ignore' --stat` | 0 | <0.01 s | no ignored test changed; the same 3 documented release-scale campaigns remain ignored |
+| `git diff af46e74..HEAD -- results` | 0 | <0.01 s | no stale or regenerated release evidence changed |
 | changed-line credential, local-path, fallback, and source-runtime mode scans | 0 | <0.01 s | no credentials, local absolute paths, fallback activation, `SourceMonotone`, or `StructuralSourceBound` selection added |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
@@ -386,10 +412,11 @@ exact-Oracle comparison on every connected four-node simple graph, top-level
 source preservation across portal splits and quotient recursion, and
 source-edge, symbolic-class, recursive-parent, same-scale-contraction, and
 per-source scale/materialization/fragment/split audit mutation rejection.
-Uniform scaling preserves symbolic, source-scale, and structural projection
-charge counts; projection-build, node-slot, internal, boundary, inactive, and
-aggregate scan mutations are rejected while the priority mode remains
-`ReducedLengthMonotone` and `source_runtime_verified()` remains false. The
+Uniform scaling preserves symbolic, source-scale, structural projection, and
+workspace-scan charge counts; projection-build, node-slot, internal, boundary,
+inactive, radius, contraction, and recovery mutations are rejected while the
+priority mode remains `ReducedLengthMonotone` and `source_runtime_verified()`
+remains false. The
 500-node nonvirtual path additionally demonstrates multiple materialized
 projection length classes,
 only 2 source-label classes versus 16 materialized classes, 3 virtual-label
