@@ -53,7 +53,9 @@ pub use min_ratio_cycle::{
 pub use rooted_forest::{
     DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };
-pub use source_lsf::{BranchFreeTree, CongestionOrder, SourceLsfConstructionError};
+pub use source_lsf::{
+    BranchFreeTree, CongestionOrder, GlobalStretchCertificate, SourceLsfConstructionError,
+};
 pub use source_lsst::{
     LsfContractAudit, LsfPiece, LsfStructuralCertificate, SourceDynamicGraph, SourceEdgeId,
     SourceGraphMetrics, SourceGraphUpdate, SourceLsstError, SourceSpannerAudit,

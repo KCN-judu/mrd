@@ -15,6 +15,7 @@ pub struct BranchFreeTree {
     parent: Vec<Option<usize>>,
     depth: Vec<usize>,
     auxiliary_parent: Vec<Option<usize>>,
+    auxiliary_depth: Vec<usize>,
     maximum_auxiliary_depth: usize,
 }
 
@@ -22,6 +23,12 @@ pub struct BranchFreeTree {
 pub struct CongestionOrder {
     pub ordered_tree_edges: Vec<SourceEdgeId>,
     pub exact_congestion: Vec<ExactRatio>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GlobalStretchCertificate {
+    pub stretch_overestimates: Vec<ExactRatio>,
+    pub auxiliary_levels: usize,
 }
 
 impl BranchFreeTree {
@@ -54,7 +61,8 @@ impl BranchFreeTree {
         let (parent, depth, order) = rooted_order(&adjacency, root.0)?;
         let heavy_child = heavy_children(&adjacency, &parent, &order)?;
         let auxiliary_parent = build_auxiliary_parents(&parent, &heavy_child)?;
-        let maximum_auxiliary_depth = auxiliary_height(&auxiliary_parent, root.0)?;
+        let (auxiliary_depth, maximum_auxiliary_depth) =
+            auxiliary_depths(&auxiliary_parent, root.0)?;
         Ok(Self {
             root: root.0,
             tree_edges,
@@ -62,6 +70,7 @@ impl BranchFreeTree {
             parent,
             depth,
             auxiliary_parent,
+            auxiliary_depth,
             maximum_auxiliary_depth,
         })
     }
@@ -202,6 +211,84 @@ impl BranchFreeTree {
         Ok(self.tree_edges.difference(&removed).copied().collect())
     }
 
+    /// Computes Equation (56)'s fixed global stretch overestimates by summing
+    /// twice the exact stretch in every auxiliary-depth prefix forest.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an exact prefix forest or rational stretch cannot
+    /// be certified.
+    pub fn global_stretch_overestimates(
+        &self,
+        graph: &SourceDynamicGraph,
+        ordered_tree_edges: &[SourceEdgeId],
+    ) -> Result<GlobalStretchCertificate, SourceLsfConstructionError> {
+        permutation_ranks(&self.tree_edges, ordered_tree_edges)?;
+        let zero = ratio(0)?;
+        let mut sums = vec![zero; graph.edge_count()];
+        for level in 0..=self.maximum_auxiliary_depth {
+            let roots = self
+                .auxiliary_depth
+                .iter()
+                .enumerate()
+                .filter(|(_, depth)| **depth <= level)
+                .map(|(node, _)| FlowNodeId(node))
+                .collect::<BTreeSet<_>>();
+            let forest = self.forest_for_roots(&roots, ordered_tree_edges)?;
+            let stretches = exact_forest_stretches(graph, &forest, &roots)?;
+            for (sum, stretch) in sums.iter_mut().zip(stretches) {
+                *sum = sum.checked_add(stretch).map_err(map_ratio)?;
+            }
+        }
+        let stretch_overestimates = sums
+            .into_iter()
+            .map(|sum| sum.checked_mul_integer(2).map_err(map_ratio))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(GlobalStretchCertificate {
+            stretch_overestimates,
+            auxiliary_levels: self
+                .maximum_auxiliary_depth
+                .checked_add(1)
+                .ok_or(SourceLsfConstructionError::Overflow)?,
+        })
+    }
+
+    /// Recomputes a current ancestor-closed forest and proves every active
+    /// exact stretch is bounded by the fixed Equation (56) vector.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid roots, dimensions, or a violated bound.
+    pub fn certify_global_stretch_for_roots(
+        &self,
+        graph: &SourceDynamicGraph,
+        roots: &BTreeSet<FlowNodeId>,
+        ordered_tree_edges: &[SourceEdgeId],
+        certificate: &GlobalStretchCertificate,
+    ) -> Result<u64, SourceLsfConstructionError> {
+        if certificate.stretch_overestimates.len() != graph.edge_count() {
+            return Err(SourceLsfConstructionError::InvalidStretch);
+        }
+        let forest = self.forest_for_roots(roots, ordered_tree_edges)?;
+        let exact = exact_forest_stretches(graph, &forest, roots)?;
+        let mut checks = 0_u64;
+        for (index, stretch) in exact.into_iter().enumerate() {
+            if graph.edge(SourceEdgeId(index)).is_none() {
+                continue;
+            }
+            if !certificate.stretch_overestimates[index]
+                .at_least(stretch)
+                .map_err(map_ratio)?
+            {
+                return Err(SourceLsfConstructionError::InvalidStretch);
+            }
+            checks = checks
+                .checked_add(1)
+                .ok_or(SourceLsfConstructionError::Overflow)?;
+        }
+        Ok(checks)
+    }
+
     fn path(
         &self,
         first: usize,
@@ -284,6 +371,8 @@ pub enum SourceLsfConstructionError {
     NodeOutOfBounds,
     #[error("tree-edge order is not a valid permutation")]
     InvalidPermutation,
+    #[error("global stretch certificate is invalid")]
+    InvalidStretch,
     #[error("checked source construction arithmetic overflowed")]
     Overflow,
 }
@@ -382,12 +471,13 @@ fn assign_balanced_parents(
     assign_balanced_parents(&vertices[middle + 1..], root, auxiliary_parent)
 }
 
-fn auxiliary_height(
+fn auxiliary_depths(
     parent: &[Option<usize>],
     root: usize,
-) -> Result<usize, SourceLsfConstructionError> {
+) -> Result<(Vec<usize>, usize), SourceLsfConstructionError> {
     let mut maximum = 0;
-    for start in 0..parent.len() {
+    let mut depths = vec![0_usize; parent.len()];
+    for (start, slot) in depths.iter_mut().enumerate() {
         let mut depth = 0_usize;
         let mut current = start;
         let mut seen = BTreeSet::new();
@@ -400,9 +490,119 @@ fn auxiliary_height(
                 .checked_add(1)
                 .ok_or(SourceLsfConstructionError::Overflow)?;
         }
+        *slot = depth;
         maximum = maximum.max(depth);
     }
-    Ok(maximum)
+    Ok((depths, maximum))
+}
+
+fn exact_forest_stretches(
+    graph: &SourceDynamicGraph,
+    forest: &BTreeSet<SourceEdgeId>,
+    roots: &BTreeSet<FlowNodeId>,
+) -> Result<Vec<ExactRatio>, SourceLsfConstructionError> {
+    let mut adjacency = vec![Vec::new(); graph.node_count()];
+    for id in forest {
+        let edge = graph
+            .edge(*id)
+            .ok_or(SourceLsfConstructionError::InvalidTree)?;
+        adjacency[edge.first.0].push((edge.second.0, *id));
+        adjacency[edge.second.0].push((edge.first.0, *id));
+    }
+    let (component_of, component_roots) = forest_components(&adjacency, roots)?;
+    let zero = ratio(0)?;
+    let mut result = vec![zero; graph.edge_count()];
+    for (index, slot) in result.iter_mut().enumerate() {
+        let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+            continue;
+        };
+        let route = if component_of[edge.first.0] == component_of[edge.second.0] {
+            forest_distance(graph, &adjacency, edge.first.0, edge.second.0)?
+        } else {
+            forest_distance(
+                graph,
+                &adjacency,
+                edge.first.0,
+                component_roots[component_of[edge.first.0]],
+            )?
+            .checked_add(forest_distance(
+                graph,
+                &adjacency,
+                edge.second.0,
+                component_roots[component_of[edge.second.0]],
+            )?)
+            .map_err(map_ratio)?
+        };
+        *slot = edge
+            .length
+            .checked_add(route)
+            .and_then(|value| value.checked_mul(edge.length.reciprocal()?))
+            .map_err(map_ratio)?;
+    }
+    Ok(result)
+}
+
+fn forest_components(
+    adjacency: &[Vec<(usize, SourceEdgeId)>],
+    roots: &BTreeSet<FlowNodeId>,
+) -> Result<(Vec<usize>, Vec<usize>), SourceLsfConstructionError> {
+    let mut component_of = vec![usize::MAX; adjacency.len()];
+    let mut component_roots = Vec::new();
+    for start in 0..adjacency.len() {
+        if component_of[start] != usize::MAX {
+            continue;
+        }
+        let component = component_roots.len();
+        let mut queue = VecDeque::from([start]);
+        let mut members = Vec::new();
+        component_of[start] = component;
+        while let Some(node) = queue.pop_front() {
+            members.push(node);
+            for (next, _) in &adjacency[node] {
+                if component_of[*next] == usize::MAX {
+                    component_of[*next] = component;
+                    queue.push_back(*next);
+                }
+            }
+        }
+        let component_root = members
+            .into_iter()
+            .filter(|node| roots.contains(&FlowNodeId(*node)))
+            .collect::<Vec<_>>();
+        if component_root.len() != 1 {
+            return Err(SourceLsfConstructionError::InvalidRoots);
+        }
+        component_roots.push(component_root[0]);
+    }
+    Ok((component_of, component_roots))
+}
+
+fn forest_distance(
+    graph: &SourceDynamicGraph,
+    adjacency: &[Vec<(usize, SourceEdgeId)>],
+    start: usize,
+    target: usize,
+) -> Result<ExactRatio, SourceLsfConstructionError> {
+    let zero = ratio(0)?;
+    let mut queue = VecDeque::from([(start, zero)]);
+    let mut seen = vec![false; adjacency.len()];
+    seen[start] = true;
+    while let Some((node, distance)) = queue.pop_front() {
+        if node == target {
+            return Ok(distance);
+        }
+        for (next, id) in &adjacency[node] {
+            if !seen[*next] {
+                seen[*next] = true;
+                let length = graph
+                    .edge(*id)
+                    .ok_or(SourceLsfConstructionError::InvalidTree)?
+                    .length;
+                queue.push_back((*next, distance.checked_add(length).map_err(map_ratio)?));
+            }
+        }
+    }
+    Err(SourceLsfConstructionError::InvalidTree)
 }
 
 fn congestion_precedes(
@@ -491,6 +691,20 @@ mod tests {
             .unwrap();
         assert!(tree.is_branch_free(&roots));
         let order = tree.congestion_order(&graph).unwrap();
+        let global = tree
+            .global_stretch_overestimates(&graph, &order.ordered_tree_edges)
+            .unwrap();
+        assert_eq!(global.auxiliary_levels, tree.maximum_auxiliary_depth() + 1);
+        assert_eq!(
+            tree.certify_global_stretch_for_roots(
+                &graph,
+                &roots,
+                &order.ordered_tree_edges,
+                &global,
+            )
+            .unwrap(),
+            5
+        );
         let forest = tree
             .forest_for_roots(&roots, &order.ordered_tree_edges)
             .unwrap();

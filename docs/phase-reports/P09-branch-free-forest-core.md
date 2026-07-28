@@ -21,6 +21,10 @@ can close.
   stable edge identifier.
 - Constructs `F_T(R,pi)` by finding adjacent branch-free root pairs and deleting
   the minimum-`pi` edge on each root path.
+- Constructs every auxiliary-depth prefix `B_i`, recomputes exact
+  `str^{F_T(B_i,pi),ell}`, and evaluates Equation (56) as twice their sum.
+- Independently proves the fixed Equation (56) vector bounds every active edge
+  under an arbitrary later ancestor-closed root set.
 - Verifies the monotonicity required by Lemma 5.4: enlarging the ancestor-closed
   root set produces a forest edge subset.
 
@@ -29,7 +33,9 @@ can close.
 A five-vertex branched tree with one off-tree edge validates the auxiliary
 height, branch-free closure, exact congestion order, one-root-per-component
 edge count, and decremental forest property. A separate fork fixture rejects
-the non-branch-free root set containing both children without their LCA.
+the non-branch-free root set containing both children without their LCA. The
+same fixture checks all five active edges against the fixed global stretch
+certificate after the root set changes.
 
 ## Audit
 
