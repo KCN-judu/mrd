@@ -52,6 +52,36 @@ pub struct WeightedCopyExpansion {
     pub total_original_weight: ExactRatio,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SpielmanTengDecomposition {
+    pub pieces: Vec<LsfPiece>,
+    pub edge_assignments: Vec<BTreeSet<usize>>,
+    pub threshold_phi: ExactRatio,
+    pub target_piece_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConstructedLsfInitialization {
+    pub core: DynamicLsfCore,
+    pub spielman_teng: SpielmanTengDecomposition,
+    pub decomposition_boundary: BTreeSet<FlowNodeId>,
+}
+
+struct DecomposeResult {
+    attached_edges: BTreeSet<SourceEdgeId>,
+    weight: ExactRatio,
+    vertices: BTreeSet<FlowNodeId>,
+}
+
+struct DecomposeBuilder<'a> {
+    tree: &'a BranchFreeTree,
+    graph: &'a SourceDynamicGraph,
+    eta: &'a [ExactRatio],
+    phi: ExactRatio,
+    pieces: Vec<LsfPiece>,
+    edge_assignments: Vec<BTreeSet<usize>>,
+}
+
 impl WeightedCopyExpansion {
     /// Applies the exact weighted-to-uniform reduction from Lemma 5.4.
     ///
@@ -146,6 +176,61 @@ struct BatchRootInputs {
 }
 
 impl DynamicLsfCore {
+    /// Runs the exact Spielman--Teng decomposition and consumes it directly in
+    /// the source LSF initializer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when decomposition or any downstream source
+    /// certificate fails.
+    pub fn new_with_spielman_teng(
+        graph: SourceDynamicGraph,
+        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        tree_root: FlowNodeId,
+        target_piece_count: usize,
+        reduction_k: usize,
+        large_stretch_threshold: ExactRatio,
+    ) -> Result<ConstructedLsfInitialization, SourceLsfConstructionError> {
+        let tree_edges = tree_edges.into_iter().collect::<Vec<_>>();
+        let tree = BranchFreeTree::new(&graph, tree_edges.iter().copied(), tree_root)?;
+        let eta = (0..graph.edge_count())
+            .map(|index| {
+                graph
+                    .edge(SourceEdgeId(index))
+                    .map_or_else(|| ratio(1), |edge| Ok(edge.weight))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let spielman_teng = tree.decompose_spielman_teng(&graph, &eta, target_piece_count)?;
+        if reduction_k == 0 || !large_stretch_threshold.is_positive() {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let decomposition_boundary =
+            decomposition_boundary(&spielman_teng.pieces, graph.node_count())?;
+        let order = tree.congestion_order(&graph)?;
+        let global = tree.global_stretch_overestimates(&graph, &order.ordered_tree_edges)?;
+        let mut terminals = decomposition_boundary.iter().copied().collect::<Vec<_>>();
+        for (index, stretch) in global.stretch_overestimates.iter().copied().enumerate() {
+            let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+                continue;
+            };
+            if stretch
+                .at_least(large_stretch_threshold)
+                .map_err(map_ratio)?
+            {
+                terminals.extend([edge.first, edge.second]);
+            }
+        }
+        if terminals.is_empty() {
+            terminals.push(tree_root);
+        }
+        let core = Self::new(graph, tree_edges, tree_root, terminals)?;
+        Ok(ConstructedLsfInitialization {
+            core,
+            spielman_teng,
+            decomposition_boundary,
+        })
+    }
+
     /// Initializes from a verified ST03/ST04 decomposition and explicit
     /// large-stretch threshold, matching the terminal selection in the proof
     /// of Lemma 5.4.
@@ -343,6 +428,59 @@ impl DynamicLsfCore {
 }
 
 impl BranchFreeTree {
+    /// Implements Spielman--Teng `decompose/sub` from `cs/0607105` using
+    /// exact rational edge values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless `eta` is positive on every active edge,
+    /// `1 < t <= sum eta`, and the constructed decomposition proves `h <= t`
+    /// and assigned weight at most `4 sum(eta)/t` per nonsingleton piece.
+    pub fn decompose_spielman_teng(
+        &self,
+        graph: &SourceDynamicGraph,
+        eta: &[ExactRatio],
+        target_piece_count: usize,
+    ) -> Result<SpielmanTengDecomposition, SourceLsfConstructionError> {
+        if eta.len() != graph.edge_count() || target_piece_count <= 1 {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let mut total = ratio(0)?;
+        for (index, value) in eta.iter().copied().enumerate() {
+            if graph.edge(SourceEdgeId(index)).is_some() {
+                if !value.is_positive() {
+                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                }
+                total = total.checked_add(value).map_err(map_ratio)?;
+            }
+        }
+        let target = ExactRatio::new(
+            i128::try_from(target_piece_count).map_err(|_| SourceLsfConstructionError::Overflow)?,
+            1,
+        )
+        .map_err(map_ratio)?;
+        if !total.at_least(target).map_err(map_ratio)? {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let phi = total
+            .checked_mul_integer(2)
+            .and_then(|value| value.checked_mul(target.reciprocal()?))
+            .map_err(map_ratio)?;
+        let mut builder = DecomposeBuilder {
+            tree: self,
+            graph,
+            eta,
+            phi,
+            pieces: Vec::new(),
+            edge_assignments: vec![BTreeSet::new(); graph.edge_count()],
+        };
+        let remaining = builder.sub(self.root)?;
+        if !remaining.vertices.is_empty() {
+            builder.emit(remaining.vertices, &remaining.attached_edges)?;
+        }
+        builder.finish(total, target_piece_count)
+    }
+
     /// Builds the heavy-light/balanced-BST auxiliary tree from Lemma B.9.
     ///
     /// # Errors
@@ -772,6 +910,196 @@ impl BranchFreeTree {
     }
 }
 
+impl DecomposeBuilder<'_> {
+    fn sub(&mut self, vertex: usize) -> Result<DecomposeResult, SourceLsfConstructionError> {
+        let mut children = self.tree.adjacency[vertex]
+            .iter()
+            .map(|(next, _)| *next)
+            .filter(|next| self.tree.parent[*next] == Some(vertex))
+            .collect::<Vec<_>>();
+        children.sort_unstable();
+        let mut attached_edges = BTreeSet::new();
+        let mut vertices = BTreeSet::new();
+        for child in children {
+            let child_result = self.sub(child)?;
+            if self.weight(&child_result.attached_edges)? != child_result.weight {
+                return Err(SourceLsfConstructionError::InvalidDecomposition);
+            }
+            attached_edges.extend(child_result.attached_edges);
+            vertices.extend(child_result.vertices);
+            let weight = self.weight(&attached_edges)?;
+            if weight.at_least(self.phi).map_err(map_ratio)? {
+                let mut piece_vertices = std::mem::take(&mut vertices);
+                piece_vertices.insert(FlowNodeId(vertex));
+                self.emit(piece_vertices, &attached_edges)?;
+                attached_edges.clear();
+            }
+        }
+        let vertex_edges = self.attached_to_vertex(vertex);
+        let mut combined_edges = attached_edges.clone();
+        combined_edges.extend(&vertex_edges);
+        let combined_weight = self.weight(&combined_edges)?;
+        let twice_phi = self.phi.checked_mul_integer(2).map_err(map_ratio)?;
+        if combined_weight.at_least(self.phi).map_err(map_ratio)?
+            && twice_phi.at_least(combined_weight).map_err(map_ratio)?
+        {
+            vertices.insert(FlowNodeId(vertex));
+            self.emit(vertices, &combined_edges)?;
+            return Self::empty_result();
+        }
+        if combined_weight != twice_phi && combined_weight.at_least(twice_phi).map_err(map_ratio)? {
+            vertices.insert(FlowNodeId(vertex));
+            self.emit(vertices, &attached_edges)?;
+            self.emit(BTreeSet::from([FlowNodeId(vertex)]), &vertex_edges)?;
+            return Self::empty_result();
+        }
+        vertices.insert(FlowNodeId(vertex));
+        Ok(DecomposeResult {
+            weight: combined_weight,
+            attached_edges: combined_edges,
+            vertices,
+        })
+    }
+
+    fn empty_result() -> Result<DecomposeResult, SourceLsfConstructionError> {
+        Ok(DecomposeResult {
+            attached_edges: BTreeSet::new(),
+            weight: ratio(0)?,
+            vertices: BTreeSet::new(),
+        })
+    }
+
+    fn emit(
+        &mut self,
+        vertices: BTreeSet<FlowNodeId>,
+        assigned_edges: &BTreeSet<SourceEdgeId>,
+    ) -> Result<(), SourceLsfConstructionError> {
+        if vertices.is_empty() {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let forest_edges = self
+            .tree
+            .tree_edge_data
+            .iter()
+            .filter(|(_, (first, second, _))| {
+                vertices.contains(&FlowNodeId(*first)) && vertices.contains(&FlowNodeId(*second))
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        let piece = self.pieces.len();
+        self.pieces.push(LsfPiece {
+            vertices,
+            forest_edges,
+        });
+        for id in assigned_edges {
+            self.edge_assignments[id.0].insert(piece);
+        }
+        Ok(())
+    }
+
+    fn attached_to_vertex(&self, vertex: usize) -> BTreeSet<SourceEdgeId> {
+        (0..self.graph.edge_count())
+            .filter_map(|index| {
+                let id = SourceEdgeId(index);
+                self.graph.edge(id).and_then(|edge| {
+                    (edge.first.0 == vertex || edge.second.0 == vertex).then_some(id)
+                })
+            })
+            .collect()
+    }
+
+    fn weight(
+        &self,
+        edges: &BTreeSet<SourceEdgeId>,
+    ) -> Result<ExactRatio, SourceLsfConstructionError> {
+        edges.iter().try_fold(ratio(0)?, |sum, id| {
+            sum.checked_add(self.eta[id.0]).map_err(map_ratio)
+        })
+    }
+
+    fn finish(
+        self,
+        total: ExactRatio,
+        target_piece_count: usize,
+    ) -> Result<SpielmanTengDecomposition, SourceLsfConstructionError> {
+        if self.pieces.len() > target_piece_count {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        for piece in &self.pieces {
+            verify_decomposition_piece(self.tree, piece)?;
+        }
+        let mut covered_vertices = BTreeSet::new();
+        for piece in &self.pieces {
+            covered_vertices.extend(piece.vertices.iter().copied());
+        }
+        if covered_vertices.len() != self.tree.parent.len() {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        for first in 0..self.pieces.len() {
+            for second in first + 1..self.pieces.len() {
+                if self.pieces[first]
+                    .vertices
+                    .intersection(&self.pieces[second].vertices)
+                    .count()
+                    > 1
+                {
+                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                }
+            }
+        }
+        let assigned_limit = self.phi.checked_mul_integer(2).map_err(map_ratio)?;
+        for (piece_index, piece) in self.pieces.iter().enumerate() {
+            if piece.vertices.len() <= 1 {
+                continue;
+            }
+            let assigned = self
+                .edge_assignments
+                .iter()
+                .enumerate()
+                .filter(|(_, assignments)| assignments.contains(&piece_index))
+                .map(|(index, _)| SourceEdgeId(index))
+                .collect::<BTreeSet<_>>();
+            if !assigned_limit
+                .at_least(self.weight(&assigned)?)
+                .map_err(map_ratio)?
+            {
+                return Err(SourceLsfConstructionError::InvalidDecomposition);
+            }
+        }
+        for (index, assignments) in self.edge_assignments.iter().enumerate() {
+            let Some(edge) = self.graph.edge(SourceEdgeId(index)) else {
+                continue;
+            };
+            if assignments.is_empty() || assignments.len() > 2 {
+                return Err(SourceLsfConstructionError::InvalidDecomposition);
+            }
+            let endpoints_covered = [edge.first, edge.second].into_iter().all(|endpoint| {
+                assignments
+                    .iter()
+                    .any(|piece| self.pieces[*piece].vertices.contains(&endpoint))
+            });
+            if !endpoints_covered {
+                return Err(SourceLsfConstructionError::InvalidDecomposition);
+            }
+        }
+        let target =
+            i128::try_from(target_piece_count).map_err(|_| SourceLsfConstructionError::Overflow)?;
+        let expected_phi = total
+            .checked_mul_integer(2)
+            .and_then(|value| value.checked_mul(ExactRatio::new(1, target)?))
+            .map_err(map_ratio)?;
+        if expected_phi != self.phi {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        Ok(SpielmanTengDecomposition {
+            pieces: self.pieces,
+            edge_assignments: self.edge_assignments,
+            threshold_phi: self.phi,
+            target_piece_count,
+        })
+    }
+}
+
 fn batch_root_inputs(
     graph: &SourceDynamicGraph,
     batch: &SourceUpdateBatch,
@@ -862,6 +1190,32 @@ fn verify_decomposition_piece(
         return Err(SourceLsfConstructionError::InvalidDecomposition);
     }
     Ok(())
+}
+
+fn decomposition_boundary(
+    pieces: &[LsfPiece],
+    node_count: usize,
+) -> Result<BTreeSet<FlowNodeId>, SourceLsfConstructionError> {
+    let mut memberships = vec![0_usize; node_count];
+    for piece in pieces {
+        for vertex in &piece.vertices {
+            let slot = memberships
+                .get_mut(vertex.0)
+                .ok_or(SourceLsfConstructionError::InvalidDecomposition)?;
+            *slot = slot
+                .checked_add(1)
+                .ok_or(SourceLsfConstructionError::Overflow)?;
+        }
+    }
+    if memberships.contains(&0) {
+        return Err(SourceLsfConstructionError::InvalidDecomposition);
+    }
+    Ok(memberships
+        .into_iter()
+        .enumerate()
+        .filter(|(_, count)| *count > 1)
+        .map(|(node, _)| FlowNodeId(node))
+        .collect())
 }
 
 fn adjacent_nonboundary_weight(
@@ -1248,6 +1602,20 @@ mod tests {
         )
         .unwrap();
         assert!(tree.maximum_auxiliary_depth() <= 4);
+        let st = tree
+            .decompose_spielman_teng(
+                &graph,
+                &vec![ExactRatio::new(1, 1).unwrap(); graph.edge_count()],
+                2,
+            )
+            .unwrap();
+        assert!(st.pieces.len() <= 2);
+        assert_eq!(st.threshold_phi, ExactRatio::new(5, 1).unwrap());
+        assert!(
+            st.edge_assignments
+                .iter()
+                .all(|assigned| { !assigned.is_empty() && assigned.len() <= 2 })
+        );
         let roots = tree
             .ancestor_closure([FlowNodeId(3), FlowNodeId(4)])
             .unwrap();
@@ -1396,6 +1764,48 @@ mod tests {
         assert_eq!(audit.boundary, BTreeSet::from([FlowNodeId(1)]));
         assert!(core.roots().contains(&FlowNodeId(1)));
         assert!(core.tree.is_branch_free(core.roots()));
+    }
+
+    #[test]
+    fn constructs_and_closes_spielman_teng_boundary() {
+        let graph = SourceDynamicGraph::new(
+            5,
+            vec![
+                edge(0, 1, 1),
+                edge(1, 2, 1),
+                edge(2, 3, 1),
+                edge(1, 4, 1),
+                edge(3, 4, 2),
+            ],
+            8,
+        )
+        .unwrap();
+        let initialized = DynamicLsfCore::new_with_spielman_teng(
+            graph,
+            [
+                SourceEdgeId(0),
+                SourceEdgeId(1),
+                SourceEdgeId(2),
+                SourceEdgeId(3),
+            ],
+            FlowNodeId(0),
+            2,
+            1,
+            ExactRatio::new(100, 1).unwrap(),
+        )
+        .unwrap();
+        assert!(initialized.spielman_teng.pieces.len() <= 2);
+        assert!(
+            initialized
+                .core
+                .tree
+                .is_branch_free(initialized.core.roots())
+        );
+        assert!(
+            initialized
+                .decomposition_boundary
+                .is_subset(initialized.core.roots())
+        );
     }
 
     #[test]

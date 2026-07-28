@@ -38,6 +38,12 @@ can close.
   cover the tree, shared vertices form a branch-free boundary, piece count is
   explicitly bounded, and adjacent non-boundary weight satisfies the exact
   published constant `40 ||w||_1 k / m`.
+- Implements the complete Spielman--Teng `decompose/sub` DFS from
+  arXiv:`cs/0607105`: exact `phi=2 sum(eta)/t`, all four piece-emission
+  branches, edge-to-piece map `rho`, `h<=t`, pairwise piece intersection, and
+  nonsingleton assigned weight at most `4 sum(eta)/t`.
+- Correctly distinguishes the generic ST04 boundary from CKLPPS branch freedom:
+  the initializer takes the ST04 boundary and then applies `upward T_H`.
 - Initializes terminals from the certified decomposition boundary and every
   edge above an explicit large-stretch threshold before taking `T_H` closure.
 - Constructs the weighted-copy graph `G_v` with
@@ -59,7 +65,9 @@ both batches, and verifies the deleted tree edge is absent. The same trace
 splits an endpoint, moves the inserted edge to the new vertex, checks the new
 isolated root, and preserves its unit stretch certificate. Additional fixtures
 validate a two-piece branch-free decomposition and a `1,2,3` weighted graph
-whose copy multiplicities are `1,1,2`.
+whose copy multiplicities are `1,1,2`. The five-edge fixture also executes the
+ST04 DFS with `t=2`, verifies `phi=5`, checks every `rho(e)` has size one or
+two, and consumes the resulting boundary in the dynamic LSF initializer.
 
 ## Audit
 
@@ -71,7 +79,6 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 | `cargo fmt --all -- --check` | 0 | clean |
 | `cargo clippy -p rect-graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
 
-The externally delegated ST03/ST04 decomposition algorithm and AN19 static
-low-stretch-tree constructor are still open; their candidate outputs now have
-strong exact verifiers. No complete Lemma 5.4 or runtime claim is made by this
-partial core.
+The AN19 static low-stretch-tree constructor remains open. Its candidate output
+already has strong exact tree/stretch verifiers. No complete Lemma 5.4 or
+runtime claim is made by this partial core.
