@@ -9,7 +9,8 @@ maps the complete 2012 AN19 manuscript and the 2019 journal citation
 hierarchical constructor, weighted extension, or runtime bound is implemented.
 The single-petal implementation commit is `a57e48c`; the symbolic weighted
 portal/contraction commit is `6769ec1`; and the exact weighted Figure 6
-selection commit is `3bb0400`.
+selection commit is `3bb0400`. The stable augmented hierarchy workspace commit
+is `839cb5c`.
 
 ## Resolved source questions
 
@@ -161,17 +162,26 @@ unit domain it exactly matches the cone-union window index, selected radius,
 and vertex set. This implementation deliberately reruns exact shortest paths
 per highway interval and therefore makes no fast region-growing runtime claim.
 
+The hierarchy workspace now retains stable augmented edge IDs while dense
+active projections feed Figure 6. It supports exact rational interior splits
+in either orientation, provenance-free virtual leaves, and oriented rational
+interval provenance for every original edge segment. Original-tree recovery
+requires either every active segment of an original edge or none, rejects
+inactive and partial selections, and independently proves acyclicity and
+connectivity on the original endpoints. This is the representation substrate
+for Figures 4--5, not their completed recursive composition.
+
 ## Focused evidence
 
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 9 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 11 tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 224 passed, 3 ignored across 13 suites |
+| `cargo test --workspace` | 0 | 226 passed, 3 ignored across 13 suites |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
@@ -179,4 +189,6 @@ per highway interval and therefore makes no fast region-growing runtime claim.
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
 nonunit edge, stable choice between equal diamond paths, a fractional radius,
 an interior rational portal, Claim 15 differential equality, short-edge tree
-expansion, and atomic highway interval accounting.
+expansion, atomic highway interval accounting, bidirectional rational
+provenance splitting, dense-to-stable projection, complete-segment recovery,
+and rejection of partial, cyclic, or disconnected original-tree recovery.
