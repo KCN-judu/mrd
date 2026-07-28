@@ -61,11 +61,12 @@ pub use source_an19::{
     An19EventRuntimeStatus, An19EventSegmentMetadata, An19EventState, An19EventTraceRecord,
     An19EventType, An19ExactRatioRecord, An19HalvedInterval, An19HierarchicalLsst,
     An19HierarchyEventMetrics, An19HierarchyMetrics, An19HighwayLedger, An19HighwaySegment,
-    An19LengthMode, An19PathPoint, An19PetalError, An19PetalMetrics, An19PriorityQueueMode,
-    An19ProjectionAudit, An19ProjectionMode, An19RadiusCertificate, An19RadiusEdge,
-    An19ReducedEventEngine, An19ShortEdgeContraction, An19SnapshotMetrics, An19StaleReason,
-    An19StoppingCertificate, An19SymbolicLengthLabel, An19UnweightedPetal, An19WeightedPetal,
-    An19WeightedPetalAtRadius, An19WorkCertificate, ExactEventOracle, ProvedEventEngine,
+    An19LengthMode, An19LocalEventBoundCertificate, An19PathPoint, An19PetalError,
+    An19PetalMetrics, An19PriorityQueueMode, An19ProjectionAudit, An19ProjectionMode,
+    An19RadiusCertificate, An19RadiusEdge, An19ReducedEventEngine, An19ShortEdgeContraction,
+    An19SnapshotMetrics, An19StaleReason, An19StoppingCertificate, An19SymbolicLengthLabel,
+    An19UnweightedPetal, An19WeightedPetal, An19WeightedPetalAtRadius, An19WorkCertificate,
+    ExactEventOracle, ProvedEventEngine,
 };
 pub use source_lsf::{
     BranchFreeTree, CongestionOrder, ConstructedLsfInitialization, DynamicLsfCore,

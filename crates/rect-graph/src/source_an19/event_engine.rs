@@ -257,6 +257,27 @@ pub struct An19HierarchyEventMetrics {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct An19LocalEventBoundCertificate {
+    pub schema_version: u32,
+    pub vertex_count: u64,
+    pub edge_count: u64,
+    pub semantic_event_bound: u64,
+    pub queue_item_bound: u64,
+    pub semantic_event_count: u64,
+    pub candidate_vertex_event_count: u64,
+    pub vertex_entry_count: u64,
+    pub highway_endpoint_count: u64,
+    pub stopping_check_count: u64,
+    pub directed_transition_count: u64,
+    pub virtual_segment_event_count: u64,
+    pub structural_event_count: u64,
+    pub queue_insertion_count: u64,
+    pub queue_pop_count: u64,
+    pub stale_queue_item_count: u64,
+    pub priority_queue_comparison_bound_included: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct An19EventRuntimeStatus {
     pub semantics_implemented: bool,
@@ -277,7 +298,7 @@ impl An19EventRuntimeStatus {
             exact_oracle_verified: true,
             differential_verified,
             trace_complete: true,
-            local_event_bound_proved: false,
+            local_event_bound_proved: true,
             global_amortization_proved: false,
             priority_queue_bound_proved: false,
             an19_runtime_verified: false,
@@ -297,6 +318,7 @@ pub struct An19EventRun {
     pub semantic_trace: Vec<An19EventTraceRecord>,
     pub queue_trace: Vec<An19EventTraceRecord>,
     pub metrics: An19SnapshotMetrics,
+    pub local_event_bound: An19LocalEventBoundCertificate,
     pub charge_analyses: Vec<An19ChargeAnalysis>,
     pub runtime_status: An19EventRuntimeStatus,
 }
@@ -1043,7 +1065,7 @@ impl An19EventRun {
     /// Returns [`An19PetalError::InvalidEventTrace`] when any trace invariant
     /// fails, or an exact-arithmetic error for a malformed ratio.
     pub fn verify_trace(&self) -> Result<(), An19PetalError> {
-        if self.runtime_status.local_event_bound_proved
+        if !self.runtime_status.local_event_bound_proved
             || self.runtime_status.global_amortization_proved
             || self.runtime_status.priority_queue_bound_proved
             || self.runtime_status.an19_runtime_verified
@@ -1114,6 +1136,7 @@ impl An19EventRun {
         {
             return Err(An19PetalError::InvalidEventTrace);
         }
+        verify_local_event_bound(self)?;
         Ok(())
     }
 
@@ -1141,6 +1164,118 @@ impl An19EventRun {
         }
         self.verify_trace()
     }
+}
+
+#[allow(clippy::too_many_lines)]
+fn verify_local_event_bound(run: &An19EventRun) -> Result<(), An19PetalError> {
+    let certificate = run.local_event_bound;
+    let semantic_count =
+        u64::try_from(run.semantic_trace.len()).map_err(|_| An19PetalError::Overflow)?;
+    let count_semantic = |event_type| {
+        u64::try_from(
+            run.semantic_trace
+                .iter()
+                .filter(|event| event.event_type == event_type)
+                .count(),
+        )
+        .map_err(|_| An19PetalError::Overflow)
+    };
+    let vertex_entries = count_semantic(An19EventType::VertexEntry)?;
+    let highway_endpoints = count_semantic(An19EventType::HighwayEndpoint)?;
+    let stopping_checks = count_semantic(An19EventType::StoppingConditionCheck)?;
+    let outside_boundary = count_semantic(An19EventType::OutsideToBoundaryEdgeTransition)?;
+    let boundary_internal = count_semantic(An19EventType::BoundaryToInternalEdgeTransition)?;
+    let transitions = outside_boundary
+        .checked_add(boundary_internal)
+        .ok_or(An19PetalError::Overflow)?;
+    let virtual_events = count_semantic(An19EventType::VirtualSegmentEvent)?;
+    let structural_events = count_semantic(An19EventType::PortalSplit)?
+        .checked_add(count_semantic(An19EventType::ContractionRelatedEvent)?)
+        .ok_or(An19PetalError::Overflow)?;
+    let categorized = vertex_entries
+        .checked_add(highway_endpoints)
+        .and_then(|value| value.checked_add(stopping_checks))
+        .and_then(|value| value.checked_add(transitions))
+        .and_then(|value| value.checked_add(virtual_events))
+        .and_then(|value| value.checked_add(structural_events))
+        .ok_or(An19PetalError::Overflow)?;
+    let queue_insertions = u64::try_from(
+        run.queue_trace
+            .iter()
+            .filter(|event| event.event_type == An19EventType::QueueInsertion)
+            .count(),
+    )
+    .map_err(|_| An19PetalError::Overflow)?;
+    let queue_pops = u64::try_from(
+        run.queue_trace
+            .iter()
+            .filter(|event| event.queue_pop_sequence.is_some())
+            .count(),
+    )
+    .map_err(|_| An19PetalError::Overflow)?;
+    let stale_queue_items = u64::try_from(
+        run.queue_trace
+            .iter()
+            .filter(|event| event.event_type == An19EventType::StaleQueueEvent)
+            .count(),
+    )
+    .map_err(|_| An19PetalError::Overflow)?;
+    let semantic_bound = certificate
+        .vertex_count
+        .checked_mul(3)
+        .and_then(|value| {
+            certificate
+                .edge_count
+                .checked_mul(4)
+                .and_then(|edges| value.checked_add(edges))
+        })
+        .and_then(|value| value.checked_add(2))
+        .ok_or(An19PetalError::Overflow)?;
+    let queue_bound = certificate
+        .edge_count
+        .checked_mul(2)
+        .and_then(|edges| certificate.vertex_count.checked_add(edges))
+        .and_then(|value| value.checked_add(2))
+        .ok_or(An19PetalError::Overflow)?;
+    let twice_edges = certificate
+        .edge_count
+        .checked_mul(2)
+        .ok_or(An19PetalError::Overflow)?;
+    if certificate.schema_version != 1
+        || certificate.priority_queue_comparison_bound_included
+        || certificate.semantic_event_bound != semantic_bound
+        || certificate.queue_item_bound != queue_bound
+        || certificate.semantic_event_count != semantic_count
+        || certificate.candidate_vertex_event_count != run.metrics.candidate_event_count
+        || certificate.vertex_entry_count != vertex_entries
+        || certificate.highway_endpoint_count != highway_endpoints
+        || certificate.stopping_check_count != stopping_checks
+        || certificate.directed_transition_count != transitions
+        || certificate.virtual_segment_event_count != virtual_events
+        || certificate.structural_event_count != structural_events
+        || certificate.queue_insertion_count != queue_insertions
+        || certificate.queue_pop_count != queue_pops
+        || certificate.stale_queue_item_count != stale_queue_items
+        || categorized != semantic_count
+        || certificate.candidate_vertex_event_count > certificate.vertex_count
+        || vertex_entries > certificate.vertex_count
+        || highway_endpoints > certificate.vertex_count
+        || stopping_checks > certificate.vertex_count
+        || transitions > twice_edges
+        || virtual_events > transitions
+        || structural_events > 2
+        || semantic_count > semantic_bound
+        || queue_insertions > queue_bound
+        || queue_pops != queue_insertions
+        || stale_queue_items > queue_pops
+        || run.metrics.inserted_queue_item_count != queue_insertions
+        || run.metrics.popped_queue_item_count != queue_pops
+        || run.metrics.stale_queue_item_count != stale_queue_items
+        || run.metrics.directed_incidence_transition_count != transitions
+    {
+        return Err(An19PetalError::InvalidEventTrace);
+    }
+    Ok(())
 }
 
 type NormalizedEvent = (
@@ -1190,6 +1325,8 @@ fn build_run(
     let semantic_trace = build_semantic_trace(problem, preparation)?;
     let queue_trace = build_queue_trace(problem, &preparation.queue_observations)?;
     let metrics = build_snapshot_metrics(problem, preparation, &semantic_trace, &queue_trace)?;
+    let local_event_bound =
+        build_local_event_bound(problem, &semantic_trace, &queue_trace, &metrics)?;
     let charge_analyses = analyze_all_charge_maps(&semantic_trace)?;
     let runtime_status = match engine {
         An19EventEngineKind::ExactOracle => An19EventRuntimeStatus {
@@ -1197,7 +1334,7 @@ fn build_run(
             exact_oracle_verified: true,
             differential_verified: false,
             trace_complete: true,
-            local_event_bound_proved: false,
+            local_event_bound_proved: true,
             global_amortization_proved: false,
             priority_queue_bound_proved: false,
             an19_runtime_verified: false,
@@ -1207,7 +1344,7 @@ fn build_run(
             exact_oracle_verified: false,
             differential_verified: false,
             trace_complete: true,
-            local_event_bound_proved: false,
+            local_event_bound_proved: true,
             global_amortization_proved: false,
             priority_queue_bound_proved: false,
             an19_runtime_verified: false,
@@ -1235,6 +1372,7 @@ fn build_run(
         semantic_trace,
         queue_trace,
         metrics,
+        local_event_bound,
         charge_analyses,
         runtime_status,
     };
@@ -1730,6 +1868,87 @@ const fn event_type_code(event_type: An19EventType) -> u64 {
         An19EventType::StaleQueueEvent => 8,
         An19EventType::StoppingConditionCheck => 9,
     }
+}
+
+fn build_local_event_bound(
+    problem: &An19EventProblem<'_>,
+    semantic_trace: &[An19EventTraceRecord],
+    queue_trace: &[An19EventTraceRecord],
+    metrics: &An19SnapshotMetrics,
+) -> Result<An19LocalEventBoundCertificate, An19PetalError> {
+    let vertex_count =
+        u64::try_from(problem.remaining.len()).map_err(|_| An19PetalError::Overflow)?;
+    let edge_count =
+        u64::try_from(problem.graph.edge_count()).map_err(|_| An19PetalError::Overflow)?;
+    let semantic_event_bound = vertex_count
+        .checked_mul(3)
+        .and_then(|value| {
+            edge_count
+                .checked_mul(4)
+                .and_then(|edges| value.checked_add(edges))
+        })
+        .and_then(|value| value.checked_add(2))
+        .ok_or(An19PetalError::Overflow)?;
+    let queue_item_bound = edge_count
+        .checked_mul(2)
+        .and_then(|edges| vertex_count.checked_add(edges))
+        .and_then(|value| value.checked_add(2))
+        .ok_or(An19PetalError::Overflow)?;
+    let count_semantic = |event_type| {
+        u64::try_from(
+            semantic_trace
+                .iter()
+                .filter(|event| event.event_type == event_type)
+                .count(),
+        )
+        .map_err(|_| An19PetalError::Overflow)
+    };
+    let directed_transition_count = count_semantic(An19EventType::OutsideToBoundaryEdgeTransition)?
+        .checked_add(count_semantic(
+            An19EventType::BoundaryToInternalEdgeTransition,
+        )?)
+        .ok_or(An19PetalError::Overflow)?;
+    let structural_event_count = count_semantic(An19EventType::PortalSplit)?
+        .checked_add(count_semantic(An19EventType::ContractionRelatedEvent)?)
+        .ok_or(An19PetalError::Overflow)?;
+    Ok(An19LocalEventBoundCertificate {
+        schema_version: 1,
+        vertex_count,
+        edge_count,
+        semantic_event_bound,
+        queue_item_bound,
+        semantic_event_count: u64::try_from(semantic_trace.len())
+            .map_err(|_| An19PetalError::Overflow)?,
+        candidate_vertex_event_count: metrics.candidate_event_count,
+        vertex_entry_count: count_semantic(An19EventType::VertexEntry)?,
+        highway_endpoint_count: count_semantic(An19EventType::HighwayEndpoint)?,
+        stopping_check_count: count_semantic(An19EventType::StoppingConditionCheck)?,
+        directed_transition_count,
+        virtual_segment_event_count: count_semantic(An19EventType::VirtualSegmentEvent)?,
+        structural_event_count,
+        queue_insertion_count: u64::try_from(
+            queue_trace
+                .iter()
+                .filter(|event| event.event_type == An19EventType::QueueInsertion)
+                .count(),
+        )
+        .map_err(|_| An19PetalError::Overflow)?,
+        queue_pop_count: u64::try_from(
+            queue_trace
+                .iter()
+                .filter(|event| event.queue_pop_sequence.is_some())
+                .count(),
+        )
+        .map_err(|_| An19PetalError::Overflow)?,
+        stale_queue_item_count: u64::try_from(
+            queue_trace
+                .iter()
+                .filter(|event| event.event_type == An19EventType::StaleQueueEvent)
+                .count(),
+        )
+        .map_err(|_| An19PetalError::Overflow)?,
+        priority_queue_comparison_bound_included: false,
+    })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -2511,6 +2730,20 @@ mod tests {
         assert!(oracle.semantically_agrees(&reduced));
         assert!(oracle.runtime_status.differential_verified);
         assert!(reduced.runtime_status.differential_verified);
+        assert!(reduced.runtime_status.local_event_bound_proved);
+        assert!(
+            reduced.local_event_bound.semantic_event_count
+                <= reduced.local_event_bound.semantic_event_bound
+        );
+        assert!(
+            reduced.local_event_bound.queue_insertion_count
+                <= reduced.local_event_bound.queue_item_bound
+        );
+        assert!(
+            !reduced
+                .local_event_bound
+                .priority_queue_comparison_bound_included
+        );
         assert!(!reduced.runtime_status.an19_runtime_verified);
         oracle.verify_trace().unwrap();
         reduced.verify_trace().unwrap();
@@ -2568,6 +2801,8 @@ mod tests {
                 .all(|case| case.charge_analyses.len() == 6)
         );
         assert!(!campaign.naive_reduced_class_conversion_survived);
+        assert!(campaign.runtime_status.local_event_bound_proved);
+        assert!(!campaign.runtime_status.priority_queue_bound_proved);
         assert!(!campaign.runtime_status.an19_runtime_verified);
     }
 
@@ -2705,5 +2940,21 @@ mod tests {
         let mut changed = original.clone();
         changed.semantic_trace[0].state_after.active_vertices += 1;
         assert_rejected(&changed, &problem);
+
+        let mut changed = original.clone();
+        changed.local_event_bound.semantic_event_bound += 1;
+        assert_eq!(
+            changed.verify_trace(),
+            Err(An19PetalError::InvalidEventTrace)
+        );
+
+        let mut changed = original.clone();
+        changed
+            .local_event_bound
+            .priority_queue_comparison_bound_included = true;
+        assert_eq!(
+            changed.verify_trace(),
+            Err(An19PetalError::InvalidEventTrace)
+        );
     }
 }

@@ -18,8 +18,9 @@ pub use event_engine::{
     An19ChargeMapKind, An19CountByKey, An19EventContext, An19EventEngine, An19EventEngineKind,
     An19EventOrientation, An19EventProblem, An19EventRun, An19EventRuntimeStatus,
     An19EventSegmentMetadata, An19EventState, An19EventTraceRecord, An19EventType,
-    An19ExactRatioRecord, An19HierarchyEventMetrics, An19ReducedEventEngine, An19SnapshotMetrics,
-    An19StaleReason, An19StoppingCertificate, ExactEventOracle, ProvedEventEngine,
+    An19ExactRatioRecord, An19HierarchyEventMetrics, An19LocalEventBoundCertificate,
+    An19ReducedEventEngine, An19SnapshotMetrics, An19StaleReason, An19StoppingCertificate,
+    ExactEventOracle, ProvedEventEngine,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
