@@ -238,7 +238,8 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
 | workspace scan-count audit | implementation accounting prerequisite | Complete | 247 passed; 3 existing ignored | counters and invariants are internally consistent at 8f9ab06; this is not an asymptotic proof |
 | formal SIAM AN19 source identification | Abraham--Neiman, SIAM J. Comput. 48(2), DOI 10.1137/17M1115575 | Complete | source checked | the reduced-event conversion was not found in the cited source |
-| AN19 reduced-event conversion lemma | required for the local P9.3.2d runtime chain | Blocked / not found in cited source | not provable by finite tests | must bound and order equivalence classes of ell(u,v) + d(x,u) - d(x,v) |
+| AN19 logarithmic reduced-class conversion | not established by the cited source | Refuted | parameterized regression plus algebraic proof | a power-of-two chord family has O(log N) original classes and Omega(N) exact reduced-cost classes |
+| AN19 exact reduced-event ordering replacement | required for the local P9.3.2d runtime chain | Blocked / not found in cited source | not provable by finite tests | must order de-potentialized exact rational thresholds without one priority class per reduced cost |
 | AN19 runtime verification | O(m log n log log n) | Blocked | no | workspace scans do not close the missing mathematical reduction |
 | P9.3.2d | AN19 static LSST prerequisite for Lemma 5.4 | Hard blocker | implementation side only | dependent P9 phases are not started and forbidden until resolved |
 | almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component; blocked downstream of P9.3.2d |

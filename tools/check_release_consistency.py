@@ -136,14 +136,18 @@ def check_an19_status_docs() -> None:
         ),
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
             "P9.3.2d state: blocked. Hard blocker",
-            "ell(u,v) + d(x,u) - d(x,v)",
+            "at least `N/2-1` distinct forward reduced costs",
+            "vertex-dependent subtraction `2 d(x,v)`",
         ),
         "docs/phase-reports/P09-an19-static-lsst-source-map.md": (
-            "Exact unresolved proof obligation",
-            "finite differential tests cannot substitute for the lemma",
+            "Linear reduced-class lower bound and remaining proof obligation",
+            "`Omega(N)` length classes",
+            "unstated bounded-integer assumption is insufficient",
         ),
         "results/paper-tables.md": (
-            "AN19 reduced-event conversion lemma",
+            "AN19 logarithmic reduced-class conversion",
+            "Refuted",
+            "AN19 exact reduced-event ordering replacement",
             "Blocked / not found in cited source",
         ),
     }
