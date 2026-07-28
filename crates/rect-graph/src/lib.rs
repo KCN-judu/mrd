@@ -32,14 +32,17 @@ pub use hopcroft_karp::{
 };
 pub use interior_point::{
     CertifiedIpmError, CertifiedIpmInitialPoint, CertifiedIpmSnapshot, CertifiedIpmUpdate,
-    InteriorPointError, InteriorPointMetrics, IpmApproximationCertificate, IpmDetectLedger,
-    IpmTerminationCertificate, IpmUpdateMetrics, RationalInteriorPointState,
+    CertifiedLowerBoundInitialPoint, InteriorPointError, InteriorPointMetrics,
+    IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate, IpmUpdateMetrics,
+    RationalInteriorPointState,
 };
 pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetrics};
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,
-    FractionalCirculation, InitialPointAugmentation, IterativeRefinementResult,
-    IterativeRefinementStep, MinCostCirculationError, MinCostSolution, MinRatioCycle,
+    FractionalCirculation, InitialPointAugmentation, IsolationPerturbation,
+    IsolationRecoveryCertificate, IterativeRefinementResult, IterativeRefinementStep,
+    LowerBoundArc, LowerBoundCirculationNetwork, LowerBoundNormalization, MinCostCirculationError,
+    MinCostSolution, MinRatioCycle,
 };
 pub use min_ratio_cycle::{
     ExactRatio, MinRatioEdgeId, StableEdge, StableMinRatioError, StableMinRatioLedger,

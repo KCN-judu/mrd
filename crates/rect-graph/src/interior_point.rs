@@ -13,7 +13,9 @@ use thiserror::Error;
 use crate::{
     CertifiedFixedPoint, CirculationArcId, CirculationNetwork, CostedFlowRoundingResult,
     DyadicInterval, ExactRatio, FixedPointConfig, FixedPointError, FixedPointMetrics,
-    FractionalCirculation, InitialPointAugmentation, MinCostCirculationError, MinRatioEdgeId,
+    FractionalCirculation, InitialPointAugmentation, IsolationPerturbation,
+    IsolationRecoveryCertificate, LowerBoundCirculationNetwork, LowerBoundNormalization,
+    MinCostCirculationError, MinRatioEdgeId,
 };
 
 /// Certified Equation (9) and Definition 4.2 quantities at one feasible flow.
@@ -61,6 +63,13 @@ pub struct IpmTerminationCertificate {
 pub struct CertifiedIpmInitialPoint {
     pub augmentation: InitialPointAugmentation,
     pub snapshot: CertifiedIpmSnapshot,
+}
+
+/// Lower-bound normalization followed by the certified Appendix B.1 initial point.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CertifiedLowerBoundInitialPoint {
+    pub normalization: LowerBoundNormalization,
+    pub initial_point: CertifiedIpmInitialPoint,
 }
 
 /// Certified per-edge accounting for the dynamic `Detect` operation.
@@ -187,6 +196,34 @@ pub struct IpmApproximationCertificate {
 }
 
 impl CertifiedIpmSnapshot {
+    /// Normalizes nonzero lower bounds, shifts the supplied optimum exactly,
+    /// and constructs the certified Appendix B.1 initial point.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when lower-bound normalization, objective shifting,
+    /// source augmentation, or fixed-point certification fails.
+    pub fn initial_point_lower_bounded(
+        network: &LowerBoundCirculationNetwork,
+        optimal_cost: ExactRatio,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+    ) -> Result<CertifiedLowerBoundInitialPoint, CertifiedIpmError> {
+        let normalization = network.normalize_lower_bounds(maximum_abs_input)?;
+        let offset = ExactRatio::new(normalization.objective_offset, 1).map_err(map_exact)?;
+        let normalized_optimal = optimal_cost.checked_sub(offset).map_err(map_exact)?;
+        let initial_point = Self::initial_point_augmented(
+            &normalization.normalized,
+            normalized_optimal,
+            maximum_abs_input,
+            fixed_point_config,
+        )?;
+        Ok(CertifiedLowerBoundInitialPoint {
+            normalization,
+            initial_point,
+        })
+    }
+
     /// Constructs and certifies the Appendix B.1 initial-point augmentation
     /// for the current zero-lower-bound circulation model.
     ///
@@ -487,6 +524,21 @@ impl CertifiedIpmSnapshot {
             return Err(CertifiedIpmError::RecoveryNotOptimal);
         }
         Ok(result)
+    }
+
+    /// Applies the Lemma 4.11 nearest-integer recovery contract to this
+    /// snapshot of the integral-cost scaled perturbation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless this flow is within the source scaled tolerance
+    /// of its retained optimum and exact P7 verification accepts the rounded
+    /// original solution.
+    pub fn recover_isolation_perturbed(
+        &self,
+        perturbation: &IsolationPerturbation,
+    ) -> Result<IsolationRecoveryCertificate, CertifiedIpmError> {
+        Ok(perturbation.recover_near_optimal(&self.flow, self.optimal_cost)?)
     }
 
     /// Certifies the factor-two length and scaled-gradient-error hypotheses in
@@ -986,7 +1038,7 @@ mod tests {
     };
     use crate::{
         CertifiedFixedPoint, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
-        FractionalCirculation,
+        FractionalCirculation, LowerBoundCirculationNetwork,
     };
 
     #[test]
@@ -1445,5 +1497,63 @@ mod tests {
             .network
             .verify_fractional_solution(initial.snapshot.flow())
             .unwrap();
+    }
+
+    #[test]
+    fn normalizes_lower_bounds_before_source_initialization() {
+        let mut network = LowerBoundCirculationNetwork::new(2);
+        network.set_demand(FlowNodeId(0), -2).unwrap();
+        network.set_demand(FlowNodeId(1), 2).unwrap();
+        network
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 1, 3, 2)
+            .unwrap();
+        network
+            .add_arc(FlowNodeId(1), FlowNodeId(0), -1, 2, 1)
+            .unwrap();
+        network
+            .add_arc(FlowNodeId(0), FlowNodeId(0), 2, 2, 3)
+            .unwrap();
+        let arithmetic = certified_arithmetic();
+        let initial = CertifiedIpmSnapshot::initial_point_lower_bounded(
+            &network,
+            ExactRatio::new(7, 1).unwrap(),
+            3,
+            arithmetic.config(),
+        )
+        .unwrap();
+        assert_eq!(initial.normalization.objective_offset, 7);
+        assert_eq!(
+            initial.initial_point.snapshot.optimal_cost(),
+            ExactRatio::new(0, 1).unwrap()
+        );
+        let normalized = initial.normalization.normalized.solve().unwrap();
+        let recovered = initial.normalization.recover_original(&normalized).unwrap();
+        assert_eq!(recovered.cost, 7);
+        assert_eq!(recovered.arc_flows, vec![1, -1, 2]);
+    }
+
+    #[test]
+    fn recovers_isolation_perturbed_snapshot_through_exact_oracle() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 1, 0).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 1, 0).unwrap();
+        let perturbation = network.isolation_perturbation(1, vec![1, 2]).unwrap();
+        let hundredth = ExactRatio::new(1, 100).unwrap();
+        let near = FractionalCirculation {
+            arc_flows: vec![hundredth; 2],
+            cost: ExactRatio::new(3, 100).unwrap(),
+        };
+        let arithmetic = certified_arithmetic();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &perturbation.scaled_network,
+            &near,
+            ExactRatio::new(0, 1).unwrap(),
+            perturbation.maximum_abs_input,
+            arithmetic.config(),
+        )
+        .unwrap();
+        let recovered = snapshot.recover_isolation_perturbed(&perturbation).unwrap();
+        assert_eq!(recovered.solution.arc_flows, vec![0, 0]);
+        assert!(recovered.exact_oracle_verified);
     }
 }

@@ -13,6 +13,415 @@ struct Arc {
     cost: i128,
 }
 
+/// One integral min-cost-flow arc with explicit lower and upper bounds.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LowerBoundArc {
+    pub from: FlowNodeId,
+    pub to: FlowNodeId,
+    pub lower: i128,
+    pub upper: i128,
+    pub cost: i128,
+}
+
+/// Integral min-cost circulation before lower-bound normalization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LowerBoundCirculationNetwork {
+    node_count: usize,
+    demands: Vec<i128>,
+    arcs: Vec<LowerBoundArc>,
+}
+
+/// Exact `x_e = f_e - u^-_e` normalization and recovery mapping.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LowerBoundNormalization {
+    original: LowerBoundCirculationNetwork,
+    pub normalized: CirculationNetwork,
+    normalized_arc_for_original: Vec<Option<CirculationArcId>>,
+    pub objective_offset: i128,
+}
+
+/// One realized Lemma 4.11 isolation perturbation with integral scaled costs.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IsolationPerturbation {
+    original: CirculationNetwork,
+    pub scaled_network: CirculationNetwork,
+    pub ranks: Vec<i128>,
+    pub rank_support_upper: i128,
+    pub scaled_cost_denominator: i128,
+    pub scaled_near_optimal_tolerance: ExactRatio,
+    pub maximum_abs_input: i128,
+}
+
+/// Exact recovery evidence for one realized isolation perturbation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IsolationRecoveryCertificate {
+    pub solution: MinCostSolution,
+    pub rank_support_upper: i128,
+    pub scaled_cost_denominator: i128,
+    pub scaled_near_optimal_tolerance: ExactRatio,
+    pub source_success_probability_numerator: u8,
+    pub source_success_probability_denominator: u8,
+    pub exact_oracle_verified: bool,
+}
+
+impl CirculationNetwork {
+    /// Realizes the Lemma 4.11 perturbation from caller-supplied independent
+    /// uniform ranks in `1..=2mU`, scaling all costs by `4m^2U^2`.
+    ///
+    /// The theorem's probability bound applies only when the supplied ranks
+    /// were sampled independently and uniformly from the documented support.
+    /// This deterministic constructor validates the realization, not the
+    /// external entropy source.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a source-domain violation, invalid rank vector, or
+    /// checked scaling overflow.
+    pub fn isolation_perturbation(
+        &self,
+        maximum_abs_input: i128,
+        ranks: Vec<i128>,
+    ) -> Result<IsolationPerturbation, MinCostCirculationError> {
+        self.verify_input_domain(maximum_abs_input)?;
+        let m = i128::try_from(self.arc_count()).map_err(|_| MinCostCirculationError::Overflow)?;
+        if m == 0 || ranks.len() != self.arc_count() {
+            return Err(MinCostCirculationError::InvalidPerturbation);
+        }
+        let support_upper = m
+            .checked_mul(maximum_abs_input)
+            .and_then(|value| value.checked_mul(2))
+            .ok_or(MinCostCirculationError::Overflow)?;
+        if ranks.iter().any(|rank| *rank < 1 || *rank > support_upper) {
+            return Err(MinCostCirculationError::InvalidPerturbation);
+        }
+        let u_squared = maximum_abs_input
+            .checked_mul(maximum_abs_input)
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let scaled_cost_denominator = m
+            .checked_mul(m)
+            .and_then(|value| value.checked_mul(u_squared))
+            .and_then(|value| value.checked_mul(4))
+            .ok_or(MinCostCirculationError::Overflow)?;
+        let mut scaled_network = Self::new(self.node_count);
+        for (node, demand) in self.demands.iter().copied().enumerate() {
+            scaled_network.set_demand(FlowNodeId(node), demand)?;
+        }
+        let mut maximum_scaled = maximum_abs_input;
+        for (arc, rank) in self.arcs.iter().zip(&ranks) {
+            let scaled_cost = arc
+                .cost
+                .checked_mul(scaled_cost_denominator)
+                .and_then(|value| value.checked_add(*rank))
+                .ok_or(MinCostCirculationError::Overflow)?;
+            maximum_scaled = maximum_scaled.max(
+                scaled_cost
+                    .checked_abs()
+                    .ok_or(MinCostCirculationError::Overflow)?,
+            );
+            scaled_network.add_arc(
+                FlowNodeId(arc.from),
+                FlowNodeId(arc.to),
+                arc.capacity,
+                scaled_cost,
+            )?;
+        }
+        let tolerance_denominator = m
+            .checked_mul(maximum_abs_input)
+            .and_then(|value| value.checked_mul(3))
+            .ok_or(MinCostCirculationError::Overflow)?;
+        Ok(IsolationPerturbation {
+            original: self.clone(),
+            scaled_network,
+            ranks,
+            rank_support_upper: support_upper,
+            scaled_cost_denominator,
+            scaled_near_optimal_tolerance: ExactRatio::new(1, tolerance_denominator)
+                .map_err(map_ratio_error)?,
+            maximum_abs_input: maximum_scaled,
+        })
+    }
+}
+
+impl IsolationPerturbation {
+    /// Rounds a scaled perturbed flow coordinatewise and verifies the recovered
+    /// original solution with the permanent exact P7 Oracle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless the flow is feasible, its exact scaled objective
+    /// is within `1/(3mU)` of the supplied scaled optimum, every coordinate can
+    /// be rounded, and the recovered original flow is exactly optimal.
+    pub fn recover_near_optimal(
+        &self,
+        flow: &FractionalCirculation,
+        scaled_optimal_cost: ExactRatio,
+    ) -> Result<IsolationRecoveryCertificate, MinCostCirculationError> {
+        self.scaled_network.verify_fractional_solution(flow)?;
+        if !scaled_optimal_cost.is_integral() {
+            return Err(MinCostCirculationError::InvalidPerturbation);
+        }
+        let zero = ExactRatio::new(0, 1).map_err(map_ratio_error)?;
+        let gap = flow
+            .cost
+            .checked_sub(scaled_optimal_cost)
+            .map_err(map_ratio_error)?;
+        if !gap.at_least(zero).map_err(map_ratio_error)?
+            || (!self
+                .scaled_near_optimal_tolerance
+                .at_least(gap)
+                .map_err(map_ratio_error)?)
+        {
+            return Err(MinCostCirculationError::InvalidPerturbation);
+        }
+        let arc_flows = flow
+            .arc_flows
+            .iter()
+            .copied()
+            .map(round_ratio_nearest)
+            .collect::<Result<Vec<_>, _>>()?;
+        let solution = MinCostSolution {
+            cost: solution_cost(&self.original, &arc_flows)?,
+            arc_flows,
+        };
+        self.original.verify_solution(&solution)?;
+        Ok(IsolationRecoveryCertificate {
+            solution,
+            rank_support_upper: self.rank_support_upper,
+            scaled_cost_denominator: self.scaled_cost_denominator,
+            scaled_near_optimal_tolerance: self.scaled_near_optimal_tolerance,
+            source_success_probability_numerator: 1,
+            source_success_probability_denominator: 2,
+            exact_oracle_verified: true,
+        })
+    }
+}
+
+impl LowerBoundCirculationNetwork {
+    #[must_use]
+    pub fn new(node_count: usize) -> Self {
+        Self {
+            node_count,
+            demands: vec![0; node_count],
+            arcs: Vec::new(),
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when `node` is outside the network.
+    pub fn set_demand(
+        &mut self,
+        node: FlowNodeId,
+        demand: i128,
+    ) -> Result<(), MinCostCirculationError> {
+        let slot =
+            self.demands
+                .get_mut(node.0)
+                .ok_or(MinCostCirculationError::NodeOutOfBounds {
+                    node: node.0,
+                    node_count: self.node_count,
+                })?;
+        *slot = demand;
+        Ok(())
+    }
+
+    /// Adds an arc with explicit integral lower and upper bounds.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid endpoint or `lower > upper`.
+    pub fn add_arc(
+        &mut self,
+        from: FlowNodeId,
+        to: FlowNodeId,
+        lower: i128,
+        upper: i128,
+        cost: i128,
+    ) -> Result<usize, MinCostCirculationError> {
+        if from.0 >= self.node_count || to.0 >= self.node_count {
+            return Err(MinCostCirculationError::NodeOutOfBounds {
+                node: from.0.max(to.0),
+                node_count: self.node_count,
+            });
+        }
+        if lower > upper {
+            return Err(MinCostCirculationError::InvalidLowerBound);
+        }
+        let id = self.arcs.len();
+        self.arcs.push(LowerBoundArc {
+            from,
+            to,
+            lower,
+            upper,
+            cost,
+        });
+        Ok(id)
+    }
+
+    #[must_use]
+    pub fn arcs(&self) -> &[LowerBoundArc] {
+        &self.arcs
+    }
+
+    /// Normalizes every arc by `x_e = f_e - lower_e`, shifting demands and
+    /// the objective exactly. Fixed-flow arcs are eliminated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an input exceeds `maximum_abs_input`, demands are
+    /// unbalanced, or checked capacity/demand/objective arithmetic overflows.
+    pub fn normalize_lower_bounds(
+        &self,
+        maximum_abs_input: i128,
+    ) -> Result<LowerBoundNormalization, MinCostCirculationError> {
+        if maximum_abs_input <= 0 {
+            return Err(MinCostCirculationError::InvalidLowerBound);
+        }
+        for value in self.demands.iter().copied().chain(
+            self.arcs
+                .iter()
+                .flat_map(|arc| [arc.lower, arc.upper, arc.cost]),
+        ) {
+            if value
+                .checked_abs()
+                .ok_or(MinCostCirculationError::Overflow)?
+                > maximum_abs_input
+            {
+                return Err(MinCostCirculationError::InvalidLowerBound);
+            }
+        }
+        let mut shifted_demands = self.demands.clone();
+        let mut objective_offset = 0_i128;
+        for arc in &self.arcs {
+            shifted_demands[arc.from.0] = shifted_demands[arc.from.0]
+                .checked_add(arc.lower)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            shifted_demands[arc.to.0] = shifted_demands[arc.to.0]
+                .checked_sub(arc.lower)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            objective_offset = objective_offset
+                .checked_add(
+                    arc.cost
+                        .checked_mul(arc.lower)
+                        .ok_or(MinCostCirculationError::Overflow)?,
+                )
+                .ok_or(MinCostCirculationError::Overflow)?;
+        }
+        if shifted_demands.iter().try_fold(0_i128, |sum, value| {
+            sum.checked_add(*value)
+                .ok_or(MinCostCirculationError::Overflow)
+        })? != 0
+        {
+            return Err(MinCostCirculationError::UnbalancedDemand);
+        }
+        let mut normalized = CirculationNetwork::new(self.node_count);
+        for (node, demand) in shifted_demands.into_iter().enumerate() {
+            normalized.set_demand(FlowNodeId(node), demand)?;
+        }
+        let mut normalized_arc_for_original = Vec::with_capacity(self.arcs.len());
+        for arc in &self.arcs {
+            let capacity = arc
+                .upper
+                .checked_sub(arc.lower)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            let normalized_id = if capacity == 0 {
+                None
+            } else {
+                Some(normalized.add_arc(arc.from, arc.to, capacity, arc.cost)?)
+            };
+            normalized_arc_for_original.push(normalized_id);
+        }
+        Ok(LowerBoundNormalization {
+            original: self.clone(),
+            normalized,
+            normalized_arc_for_original,
+            objective_offset,
+        })
+    }
+
+    /// Verifies an integral lower-bounded solution and objective exactly.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid dimensions, bounds, conservation, cost, or
+    /// checked arithmetic overflow.
+    pub fn verify_solution(
+        &self,
+        solution: &MinCostSolution,
+    ) -> Result<(), MinCostCirculationError> {
+        if solution.arc_flows.len() != self.arcs.len() {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        let mut balance = vec![0_i128; self.node_count];
+        let mut cost = 0_i128;
+        for (arc, flow) in self.arcs.iter().zip(&solution.arc_flows) {
+            if *flow < arc.lower || *flow > arc.upper {
+                return Err(MinCostCirculationError::InvalidSolution);
+            }
+            balance[arc.from.0] = balance[arc.from.0]
+                .checked_sub(*flow)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            balance[arc.to.0] = balance[arc.to.0]
+                .checked_add(*flow)
+                .ok_or(MinCostCirculationError::Overflow)?;
+            cost = cost
+                .checked_add(
+                    arc.cost
+                        .checked_mul(*flow)
+                        .ok_or(MinCostCirculationError::Overflow)?,
+                )
+                .ok_or(MinCostCirculationError::Overflow)?;
+        }
+        if balance != self.demands || cost != solution.cost {
+            return Err(MinCostCirculationError::InvalidSolution);
+        }
+        Ok(())
+    }
+}
+
+impl LowerBoundNormalization {
+    #[must_use]
+    pub const fn original(&self) -> &LowerBoundCirculationNetwork {
+        &self.original
+    }
+
+    /// Recovers and verifies an original lower-bounded solution.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the normalized solution is invalid or any exact
+    /// flow/objective addition overflows.
+    pub fn recover_original(
+        &self,
+        normalized_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
+        self.normalized.verify_solution(normalized_solution)?;
+        let mut arc_flows = Vec::with_capacity(self.original.arcs.len());
+        for (arc, normalized_id) in self
+            .original
+            .arcs
+            .iter()
+            .zip(&self.normalized_arc_for_original)
+        {
+            let shifted = normalized_id.map_or(0, |id| normalized_solution.arc_flows[id.0]);
+            arc_flows.push(
+                arc.lower
+                    .checked_add(shifted)
+                    .ok_or(MinCostCirculationError::Overflow)?,
+            );
+        }
+        let solution = MinCostSolution {
+            cost: normalized_solution
+                .cost
+                .checked_add(self.objective_offset)
+                .ok_or(MinCostCirculationError::Overflow)?,
+            arc_flows,
+        };
+        self.original.verify_solution(&solution)?;
+        Ok(solution)
+    }
+}
+
 /// Exact integer min-cost circulation input. Positive node demand means net
 /// inflow required; negative demand means net outflow required.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -822,6 +1231,10 @@ pub enum MinCostCirculationError {
     NodeOutOfBounds { node: usize, node_count: usize },
     #[error("capacity must be nonnegative")]
     NegativeCapacity,
+    #[error("lower/upper capacity bounds or their source bound are invalid")]
+    InvalidLowerBound,
+    #[error("isolation perturbation ranks, tolerance, or recovery witness are invalid")]
+    InvalidPerturbation,
     #[error("demands do not sum to zero")]
     UnbalancedDemand,
     #[error("no feasible circulation exists")]
@@ -848,6 +1261,22 @@ fn map_ratio_error(error: StableMinRatioError) -> MinCostCirculationError {
 
 fn ratio_from_integer(value: i128) -> Result<ExactRatio, MinCostCirculationError> {
     ExactRatio::new(value, 1).map_err(map_ratio_error)
+}
+
+fn round_ratio_nearest(value: ExactRatio) -> Result<i128, MinCostCirculationError> {
+    let denominator = value.denominator();
+    let floor = value.numerator().div_euclid(denominator);
+    let remainder = value.numerator().rem_euclid(denominator);
+    let doubled = remainder
+        .checked_mul(2)
+        .ok_or(MinCostCirculationError::Overflow)?;
+    if doubled < denominator {
+        Ok(floor)
+    } else {
+        floor
+            .checked_add(1)
+            .ok_or(MinCostCirculationError::Overflow)
+    }
 }
 
 fn fractional_cost(
@@ -1240,7 +1669,8 @@ fn feasible_path(
 #[cfg(test)]
 mod tests {
     use super::{
-        CirculationNetwork, FractionalCirculation, MinCostCirculationError, MinCostSolution,
+        CirculationNetwork, FractionalCirculation, LowerBoundCirculationNetwork,
+        MinCostCirculationError, MinCostSolution,
     };
     use crate::{ExactRatio, FlowNodeId};
 
@@ -1530,5 +1960,61 @@ mod tests {
         let original_optimum = augmentation.recover_original(&augmented_optimum).unwrap();
         assert_eq!(original_optimum.cost, 1);
         assert_eq!(original_optimum.arc_flows, vec![1, 0]);
+    }
+
+    #[test]
+    fn lower_bound_normalization_shifts_demands_costs_and_fixed_arcs() {
+        let mut original = LowerBoundCirculationNetwork::new(2);
+        original.set_demand(FlowNodeId(0), -2).unwrap();
+        original.set_demand(FlowNodeId(1), 2).unwrap();
+        original
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 1, 3, 2)
+            .unwrap();
+        original
+            .add_arc(FlowNodeId(1), FlowNodeId(0), -1, 2, 1)
+            .unwrap();
+        original
+            .add_arc(FlowNodeId(0), FlowNodeId(0), 2, 2, 3)
+            .unwrap();
+        let normalization = original.normalize_lower_bounds(3).unwrap();
+        assert_eq!(normalization.normalized.demands(), &[0, 0]);
+        assert_eq!(normalization.normalized.arc_count(), 2);
+        assert_eq!(normalization.objective_offset, 7);
+        let normalized = normalization.normalized.solve().unwrap();
+        let recovered = normalization.recover_original(&normalized).unwrap();
+        assert_eq!(recovered.arc_flows, vec![1, -1, 2]);
+        assert_eq!(recovered.cost, 7);
+        original.verify_solution(&recovered).unwrap();
+    }
+
+    #[test]
+    fn isolation_perturbation_recovers_exact_optimum_from_near_flow() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 1, 0).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 1, 0).unwrap();
+        let perturbation = network.isolation_perturbation(1, vec![1, 2]).unwrap();
+        assert_eq!(perturbation.scaled_cost_denominator, 16);
+        assert_eq!(
+            perturbation.scaled_near_optimal_tolerance,
+            ExactRatio::new(1, 6).unwrap()
+        );
+        let hundredth = ExactRatio::new(1, 100).unwrap();
+        let near = FractionalCirculation {
+            arc_flows: vec![hundredth; 2],
+            cost: ExactRatio::new(3, 100).unwrap(),
+        };
+        let recovered = perturbation
+            .recover_near_optimal(&near, ExactRatio::new(0, 1).unwrap())
+            .unwrap();
+        assert_eq!(recovered.solution.arc_flows, vec![0, 0]);
+        assert_eq!(recovered.solution.cost, 0);
+        assert_eq!(recovered.rank_support_upper, 4);
+        assert_eq!(recovered.source_success_probability_numerator, 1);
+        assert_eq!(recovered.source_success_probability_denominator, 2);
+        assert!(recovered.exact_oracle_verified);
+        assert_eq!(
+            network.isolation_perturbation(1, vec![0, 2]),
+            Err(MinCostCirculationError::InvalidPerturbation)
+        );
     }
 }
