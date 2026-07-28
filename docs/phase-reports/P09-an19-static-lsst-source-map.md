@@ -8,7 +8,8 @@ maps the complete 2012 AN19 manuscript and the 2019 journal citation
 (`10.1137/17M1115575`) to implementation gates. It does not claim that the
 hierarchical constructor, weighted extension, or runtime bound is implemented.
 The single-petal implementation commit is `a57e48c`; the symbolic weighted
-portal/contraction commit is `6769ec1`.
+portal/contraction commit is `6769ec1`; and the exact weighted Figure 6
+selection commit is `3bb0400`.
 
 ## Resolved source questions
 
