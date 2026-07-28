@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use thiserror::Error;
 
-use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId};
+use crate::{
+    ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate, SourceUpdateBatch,
+    SourceWeightedEdge,
+};
 
 type RootedOrder = (Vec<Option<usize>>, Vec<usize>, Vec<usize>);
 
@@ -29,6 +32,189 @@ pub struct CongestionOrder {
 pub struct GlobalStretchCertificate {
     pub stretch_overestimates: Vec<ExactRatio>,
     pub auxiliary_levels: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DynamicLsfCoreMetrics {
+    pub batches: u64,
+    pub root_additions: u64,
+    pub forest_edge_removals: u64,
+    pub stretch_checks: u64,
+}
+
+/// Source update mechanics around a fixed Appendix B.3 tree.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DynamicLsfCore {
+    graph: SourceDynamicGraph,
+    tree: BranchFreeTree,
+    ordered_tree_edges: Vec<SourceEdgeId>,
+    roots: BTreeSet<FlowNodeId>,
+    forest_edges: BTreeSet<SourceEdgeId>,
+    global_stretch: GlobalStretchCertificate,
+    metrics: DynamicLsfCoreMetrics,
+}
+
+impl DynamicLsfCore {
+    /// Initializes the fixed-tree dynamic LSF core from seed terminals.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the tree, congestion order, root closure, forest,
+    /// or global stretch vector cannot be certified.
+    pub fn new(
+        graph: SourceDynamicGraph,
+        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        tree_root: FlowNodeId,
+        seed_terminals: impl IntoIterator<Item = FlowNodeId>,
+    ) -> Result<Self, SourceLsfConstructionError> {
+        let tree = BranchFreeTree::new(&graph, tree_edges, tree_root)?;
+        let order = tree.congestion_order(&graph)?;
+        let roots = tree.ancestor_closure(seed_terminals)?;
+        if roots.is_empty() {
+            return Err(SourceLsfConstructionError::InvalidRoots);
+        }
+        let forest_edges = tree.forest_for_roots(&roots, &order.ordered_tree_edges)?;
+        let global_stretch =
+            tree.global_stretch_overestimates(&graph, &order.ordered_tree_edges)?;
+        let stretch_checks = tree.certify_global_stretch_for_roots(
+            &graph,
+            &roots,
+            &order.ordered_tree_edges,
+            &global_stretch,
+        )?;
+        Ok(Self {
+            graph,
+            tree,
+            ordered_tree_edges: order.ordered_tree_edges,
+            roots,
+            forest_edges,
+            global_stretch,
+            metrics: DynamicLsfCoreMetrics {
+                stretch_checks,
+                ..DynamicLsfCoreMetrics::default()
+            },
+        })
+    }
+
+    #[must_use]
+    pub const fn graph(&self) -> &SourceDynamicGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn roots(&self) -> &BTreeSet<FlowNodeId> {
+        &self.roots
+    }
+
+    #[must_use]
+    pub const fn forest_edges(&self) -> &BTreeSet<SourceEdgeId> {
+        &self.forest_edges
+    }
+
+    #[must_use]
+    pub const fn global_stretch(&self) -> &GlobalStretchCertificate {
+        &self.global_stretch
+    }
+
+    #[must_use]
+    pub const fn metrics(&self) -> DynamicLsfCoreMetrics {
+        self.metrics
+    }
+
+    /// Applies an insertion/deletion batch atomically, adding every updated
+    /// endpoint's auxiliary ancestors as roots.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a graph update failure, vertex split (handled by
+    /// the Appendix A.1 extension), nondecremental forest, or stretch failure.
+    pub fn apply_edge_batch(
+        &mut self,
+        batch: &SourceUpdateBatch,
+    ) -> Result<(), SourceLsfConstructionError> {
+        let mut candidate = self.clone();
+        let mut terminals = Vec::new();
+        let mut pending = BTreeMap::<SourceEdgeId, SourceWeightedEdge>::new();
+        let mut next_edge = candidate.graph.edge_count();
+        for update in &batch.updates {
+            match update {
+                SourceGraphUpdate::Insert(edge) => {
+                    terminals.extend([edge.first, edge.second]);
+                    pending.insert(SourceEdgeId(next_edge), edge.clone());
+                    next_edge = next_edge
+                        .checked_add(1)
+                        .ok_or(SourceLsfConstructionError::Overflow)?;
+                }
+                SourceGraphUpdate::Delete(id) => {
+                    let edge = candidate
+                        .graph
+                        .edge(*id)
+                        .or_else(|| pending.get(id))
+                        .ok_or(SourceLsfConstructionError::InvalidUpdate)?;
+                    terminals.extend([edge.first, edge.second]);
+                }
+                SourceGraphUpdate::SplitVertex { .. } => {
+                    return Err(SourceLsfConstructionError::UnsupportedVertexSplit);
+                }
+            }
+        }
+        candidate
+            .graph
+            .apply_batch(batch)
+            .map_err(|_| SourceLsfConstructionError::InvalidUpdate)?;
+        while candidate.global_stretch.stretch_overestimates.len() < candidate.graph.edge_count() {
+            candidate
+                .global_stretch
+                .stretch_overestimates
+                .push(ratio(1)?);
+        }
+        let added = candidate.tree.ancestor_closure(terminals)?;
+        let old_root_count = candidate.roots.len();
+        candidate.roots.extend(added);
+        let next_forest = candidate
+            .tree
+            .forest_for_roots(&candidate.roots, &candidate.ordered_tree_edges)?;
+        if !next_forest.is_subset(&candidate.forest_edges) {
+            return Err(SourceLsfConstructionError::NondecrementalForest);
+        }
+        let removed = candidate
+            .forest_edges
+            .len()
+            .checked_sub(next_forest.len())
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        candidate.forest_edges = next_forest;
+        let checks = candidate.tree.certify_global_stretch_for_roots(
+            &candidate.graph,
+            &candidate.roots,
+            &candidate.ordered_tree_edges,
+            &candidate.global_stretch,
+        )?;
+        candidate.metrics.batches = candidate
+            .metrics
+            .batches
+            .checked_add(1)
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        candidate.metrics.root_additions = candidate
+            .metrics
+            .root_additions
+            .checked_add(
+                u64::try_from(candidate.roots.len() - old_root_count)
+                    .map_err(|_| SourceLsfConstructionError::Overflow)?,
+            )
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        candidate.metrics.forest_edge_removals = candidate
+            .metrics
+            .forest_edge_removals
+            .checked_add(u64::try_from(removed).map_err(|_| SourceLsfConstructionError::Overflow)?)
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        candidate.metrics.stretch_checks = candidate
+            .metrics
+            .stretch_checks
+            .checked_add(checks)
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        *self = candidate;
+        Ok(())
+    }
 }
 
 impl BranchFreeTree {
@@ -373,6 +559,12 @@ pub enum SourceLsfConstructionError {
     InvalidPermutation,
     #[error("global stretch certificate is invalid")]
     InvalidStretch,
+    #[error("dynamic LSF update is invalid")]
+    InvalidUpdate,
+    #[error("vertex split requires the Appendix A.1 isolated-vertex extension")]
+    UnsupportedVertexSplit,
+    #[error("updated rooted forest is not a subset of the previous forest")]
+    NondecrementalForest,
     #[error("checked source construction arithmetic overflowed")]
     Overflow,
 }
@@ -648,8 +840,11 @@ fn map_ratio(_: crate::StableMinRatioError) -> SourceLsfConstructionError {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::BranchFreeTree;
-    use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge};
+    use super::{BranchFreeTree, DynamicLsfCore};
+    use crate::{
+        ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
+        SourceUpdateBatch, SourceWeightedEdge,
+    };
 
     fn edge(first: usize, second: usize, length: i128) -> SourceWeightedEdge {
         SourceWeightedEdge {
@@ -726,5 +921,42 @@ mod tests {
             BranchFreeTree::new(&graph, [SourceEdgeId(0), SourceEdgeId(1)], FlowNodeId(0)).unwrap();
         let roots = BTreeSet::from([FlowNodeId(1), FlowNodeId(2)]);
         assert!(!tree.is_branch_free(&roots));
+    }
+
+    #[test]
+    fn edge_updates_add_roots_and_only_remove_forest_edges() {
+        let graph = SourceDynamicGraph::new(
+            4,
+            vec![edge(0, 1, 1), edge(1, 2, 1), edge(2, 3, 1), edge(0, 3, 2)],
+            8,
+        )
+        .unwrap();
+        let mut core = DynamicLsfCore::new(
+            graph,
+            [SourceEdgeId(0), SourceEdgeId(1), SourceEdgeId(2)],
+            FlowNodeId(0),
+            [FlowNodeId(0)],
+        )
+        .unwrap();
+        let initial_forest = core.forest_edges().clone();
+        core.apply_edge_batch(&SourceUpdateBatch {
+            updates: vec![SourceGraphUpdate::Insert(edge(1, 3, 1))],
+        })
+        .unwrap();
+        assert!(core.forest_edges().is_subset(&initial_forest));
+        assert_eq!(
+            core.global_stretch().stretch_overestimates[SourceEdgeId(4).0],
+            ExactRatio::new(1, 1).unwrap()
+        );
+        let after_insert = core.forest_edges().clone();
+        core.apply_edge_batch(&SourceUpdateBatch {
+            updates: vec![SourceGraphUpdate::Delete(SourceEdgeId(0))],
+        })
+        .unwrap();
+        assert!(core.forest_edges().is_subset(&after_insert));
+        assert!(!core.forest_edges().contains(&SourceEdgeId(0)));
+        assert_eq!(core.metrics().batches, 2);
+        assert!(core.metrics().root_additions > 0);
+        assert!(core.metrics().stretch_checks > 0);
     }
 }

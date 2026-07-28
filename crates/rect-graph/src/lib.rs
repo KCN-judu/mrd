@@ -54,7 +54,8 @@ pub use rooted_forest::{
     DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };
 pub use source_lsf::{
-    BranchFreeTree, CongestionOrder, GlobalStretchCertificate, SourceLsfConstructionError,
+    BranchFreeTree, CongestionOrder, DynamicLsfCore, DynamicLsfCoreMetrics,
+    GlobalStretchCertificate, SourceLsfConstructionError,
 };
 pub use source_lsst::{
     LsfContractAudit, LsfPiece, LsfStructuralCertificate, SourceDynamicGraph, SourceEdgeId,

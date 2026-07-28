@@ -25,6 +25,11 @@ can close.
   `str^{F_T(B_i,pi),ell}`, and evaluates Equation (56) as twice their sum.
 - Independently proves the fixed Equation (56) vector bounds every active edge
   under an arbitrary later ancestor-closed root set.
+- Applies insertion/deletion batches atomically, adds both updated endpoints'
+  auxiliary ancestors, extends inserted-edge bounds with exactly one, and
+  rejects any update whose new forest is not a subset of the old forest.
+- Rechecks every active edge after each batch and records root additions,
+  forest-edge removals, batches, and stretch checks.
 - Verifies the monotonicity required by Lemma 5.4: enlarging the ancestor-closed
   root set produces a forest edge subset.
 
@@ -35,7 +40,9 @@ height, branch-free closure, exact congestion order, one-root-per-component
 edge count, and decremental forest property. A separate fork fixture rejects
 the non-branch-free root set containing both children without their LCA. The
 same fixture checks all five active edges against the fixed global stretch
-certificate after the root set changes.
+certificate after the root set changes. A separate dynamic fixture inserts an
+edge, deletes an original tree edge, proves forest subset monotonicity after
+both batches, and verifies the deleted tree edge is absent.
 
 ## Audit
 
@@ -47,4 +54,6 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 | `cargo fmt --all -- --check` | 0 | clean |
 | `cargo clippy -p rect-graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
 
-No low-stretch-tree, Lemma 5.4, or runtime claim is made by this partial core.
+Vertex splits still return a structured unsupported error pending the Appendix
+A.1 isolated-vertex extension. No low-stretch-tree, complete Lemma 5.4, or
+runtime claim is made by this partial core.
