@@ -1,8 +1,10 @@
 # AN19 exact event adversarial campaign
 
-- Commit: `98bb6156fba5c983d8d7f8c6b37da4f26a37fb32`
+- Commit: `a25ac08dd62b4a2a9abd279ff8d9ffda30eb12dc`
 - Cases: 31
 - Naive reduced-class conversion survived: false
+- Fixed-snapshot event-cardinality bound proved: true
+- Priority-queue comparison bound proved: false
 - AN19 runtime verified: false
 
 | family | size | call | nodes | edges | original classes | reduced costs | event radii | events | comparisons | stale | Oracle |
@@ -39,4 +41,4 @@
 | virtual_real_mixed_segments | 16 | 0 | 16 | 15 | 1 | 2 | 6 | 17 | 20 | 0 | true |
 | virtual_real_mixed_segments | 32 | 0 | 32 | 31 | 1 | 2 | 11 | 32 | 65 | 0 | true |
 
-The campaign establishes exact differential semantics on these finite fixtures. It does not prove a fixed-snapshot event bound, hierarchy-wide amortization, priority-queue bound, or the AN19 runtime.
+Each run carries a verified fixed-snapshot certificate: semantic events are at most 3n + 4m + 2 and queue insertions/pops are at most n + 2m + 2. This proves event cardinality, not the current queue's exact-comparison time. The campaign establishes differential semantics on these finite fixtures; it does not prove hierarchy-wide amortization, the priority-queue comparison bound, or the AN19 runtime.

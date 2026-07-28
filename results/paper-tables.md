@@ -240,6 +240,7 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | formal SIAM AN19 source identification | Abraham--Neiman, SIAM J. Comput. 48(2), DOI 10.1137/17M1115575 | Complete | source checked | the reduced-event conversion was not found in the cited source |
 | AN19 logarithmic reduced-class conversion | not established by the cited source | Refuted | parameterized regression plus algebraic proof | a power-of-two chord family has O(log N) original classes and Omega(N) exact reduced-cost classes |
 | AN19 exact reduced-event semantics | fixed-projection Figure 6 event contract | Complete on tested domain | 31 Oracle/reduced A--H snapshots | exact rational trace and six empirical charge maps; no runtime proof |
+| AN19 fixed-snapshot event cardinality | local all-radii event work | Proved | machine certificate in every Oracle/reduced run | semantic events <= 3n + 4m + 2 and queue items <= n + 2m + 2; comparison time excluded |
 | AN19 exact reduced-event ordering replacement | required for the local P9.3.2d runtime chain | Implemented semantics / proof blocked | bounded exact differential only | the proved backend must bound de-potentialized exact rational thresholds without one priority class per reduced cost |
 | AN19 runtime verification | O(m log n log log n) | Blocked | no | workspace scans do not close the missing mathematical reduction |
 | P9.3.2d | AN19 static LSST prerequisite for Lemma 5.4 | Hard blocker | implementation side only | dependent P9 phases are not started and forbidden until resolved |

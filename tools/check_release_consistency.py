@@ -143,6 +143,11 @@ def check_an19_status_docs() -> None:
             "at least `N/2-1` distinct forward reduced costs",
             "vertex-dependent subtraction `2 d(x,v)`",
         ),
+        "docs/AN19_LOCAL_EVENT_BOUND.md": (
+            "3n + 4m + 2",
+            "n + 2m + 2",
+            "priority_queue_bound_proved`",
+        ),
         "docs/phase-reports/P09-an19-static-lsst-source-map.md": (
             "Linear reduced-class lower bound and remaining proof obligation",
             "`Omega(N)` length classes",
@@ -153,6 +158,8 @@ def check_an19_status_docs() -> None:
             "Refuted",
             "AN19 exact reduced-event ordering replacement",
             "Implemented semantics / proof blocked",
+            "AN19 fixed-snapshot event cardinality",
+            "Proved",
         ),
     }
     contents = {}
@@ -364,11 +371,11 @@ def main() -> None:
         "exact_oracle_verified",
         "differential_verified",
         "trace_complete",
+        "local_event_bound_proved",
     ):
         if status.get(key) is not True:
             fail(f"AN19 event evidence has incomplete implementation status: {key}")
     for key in (
-        "local_event_bound_proved",
         "global_amortization_proved",
         "priority_queue_bound_proved",
         "an19_runtime_verified",
@@ -377,6 +384,35 @@ def main() -> None:
             fail(f"AN19 event evidence overclaims proof status: {key}")
     if an19_events.get("naive_reduced_class_conversion_survived") is not False:
         fail("AN19 adversarial evidence does not retain the reduced-class witness")
+    for case in cases:
+        for run_name in ("oracle_run", "reduced_run"):
+            run = case.get(run_name, {})
+            certificate = run.get("local_event_bound", {})
+            vertices = certificate.get("vertex_count")
+            edges = certificate.get("edge_count")
+            if not isinstance(vertices, int) or not isinstance(edges, int):
+                fail(f"AN19 {run_name} omits local-bound dimensions")
+            if certificate.get("semantic_event_bound") != 3 * vertices + 4 * edges + 2:
+                fail(f"AN19 {run_name} has an invalid semantic-event bound")
+            if certificate.get("queue_item_bound") != vertices + 2 * edges + 2:
+                fail(f"AN19 {run_name} has an invalid queue-item bound")
+            semantic_count = certificate.get("semantic_event_count")
+            semantic_bound = certificate.get("semantic_event_bound")
+            queue_insertions = certificate.get("queue_insertion_count")
+            queue_bound = certificate.get("queue_item_bound")
+            if not all(
+                isinstance(value, int)
+                for value in (semantic_count, semantic_bound, queue_insertions, queue_bound)
+            ):
+                fail(f"AN19 {run_name} omits local-bound counts")
+            if semantic_count > semantic_bound:
+                fail(f"AN19 {run_name} exceeds its semantic-event bound")
+            if queue_insertions > queue_bound:
+                fail(f"AN19 {run_name} exceeds its queue-item bound")
+            if certificate.get("queue_pop_count") != certificate.get("queue_insertion_count"):
+                fail(f"AN19 {run_name} does not drain its exact event queue")
+            if certificate.get("priority_queue_comparison_bound_included") is not False:
+                fail(f"AN19 {run_name} overclaims a priority-queue comparison bound")
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
             fail(f"missing generated v0.8 evidence: {relative}")
