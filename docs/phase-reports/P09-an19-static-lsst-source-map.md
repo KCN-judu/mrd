@@ -2,17 +2,19 @@
 
 ## Status
 
-Source recovery, the exact single-petal gate, and the symbolic weighted-portal
-gate are complete. This report
+Source recovery, exact single-petal and symbolic weighted-portal gates, compact
+weighted hierarchy, recursive contraction, and fast membership-event processing
+are implemented. This report
 maps the complete 2012 AN19 manuscript and the 2019 journal citation
 (`10.1137/17M1115575`) to implementation gates. It does not claim that the
-arbitrary-rational hierarchy, fast region-growing engine, or runtime bound is
-implemented.
+AN19 Section 7 runtime bound is implemented.
 The single-petal implementation commit is `a57e48c`; the symbolic weighted
 portal/contraction commit is `6769ec1`; and the exact weighted Figure 6
 selection commit is `3bb0400`. The stable augmented hierarchy workspace commit
 is `839cb5c`; the certified unit-length Figures 4--5 composition commit is
-`20b0421`.
+`20b0421`; compact weighted hierarchy, recursive contraction, and fast events
+are `cdf732d`, `d6b8e6b`, and `3d3afe2`; and the work-accounting and rounded
+length prerequisites are `720f0cb` and `27d5773`.
 
 ## Resolved source questions
 
@@ -192,11 +194,29 @@ suppression on a 500-vertex unit path, certificate mutation rejection, and all
 38 connected labeled simple graphs on four vertices against
 `ExactStaticLsstOracle`.
 
-This does not complete the weighted hierarchy. Compact arbitrary-rational
-representation of Figure 5's imaginary first path must preserve Figure 6 edge
-counts without subdivision by numeric length. The fast directed event engine
-and source-shaped total-work counters also remain required before the AN19
-runtime may be claimed.
+The production hierarchy now accepts arbitrary positive rational lengths,
+uses one compact exact imaginary edge instead of numeric subdivision, performs
+short-edge contraction recursively, and expands quotient trees back to
+original edge IDs. The fast Figure 6 path derives all membership events in one
+multi-source run and incrementally maintains incident volume, boundary size,
+and reciprocal-length boundary cost. Differential fixtures compare the fast
+path with the parametric and repeated-shortest-path Oracles.
+
+## Runtime acceptance audit
+
+| Issue | Observed | Source requirement | Current acceptance |
+| --- | --- | --- | --- |
+| global workspace scans | Recursive projections formerly scanned every augmented edge, including unrelated sibling clusters. | Section 7 charges work to the current cluster and then uses logarithmic edge participation. | `720f0cb` maintains stable incident-edge indexes and projects only the current cluster. Verified by hierarchy differentials and mutation tests. |
+| repeated Figure 5 distances | The implementation formerly recomputed `d_X(x0, .)` for every later petal and located a target using a new path in `Y`. | Figure 5 fixes `d_X` and `P_x0,t(X)` for the entire decomposition; Claim 1 proves the fixed path remains in `Y`. | `720f0cb` rebuilds once after the imaginary first path and reuses fixed `X` distances for later target selection. |
+| omitted heap work | Push/pop counts treated a binary-heap operation as one unit and did not count its comparisons. | A runtime certificate must charge the actual priority-queue implementation. | `720f0cb` counts every heap comparison. The certificate reports `BinaryHeap`, so it cannot claim the Section 7 runtime. |
+| weighted length classes | Exact rational input could contain `m` distinct lengths. | Section 7 rounds down to powers of two so only `O(log n)` active length classes remain after scale restriction. | `27d5773` rounds production workspace lengths to `base * 2^j`, preserves original lengths for provenance/stretch, proves the factor-two interval, and is invariant under uniform scaling. |
+| source priority queue | All shortest-path and event queues still use a binary heap; sorted membership events are materialized after their multi-source run. | Section 7 delegates to the monotone distinct-length queue with `O(log k)` deletion cost, where `k = O(log n)`, and region growing must process changes within the same bound. | **Open.** `An19WorkCertificate::source_runtime_verified()` is false until `SourceMonotone` is recorded and independently verified. |
+| recursive amortization | The certificate compares an aggregate counter with a fixed `1024` factor. It does not yet certify per-edge recursion depth, active length-class bounds, or all node-slot initialization work. | The proof charges every edge to `O(log n)` recursive scales and obtains `O((m+n log log n) log n)`. | **Open.** Replace the fixed-factor-only check with structural per-level participation and allocation/queue certificates before closing P9.3.2d. |
+
+The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
+a regression guard for observed counters. It is not accepted as an asymptotic
+proof. P9.3.2d remains `in_progress`, and no AN19 production runtime or full
+Lemma 5.4 completion is claimed.
 
 ## Focused evidence
 
@@ -204,13 +224,13 @@ runtime may be claimed.
 | --- | ---: | --- |
 | `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
 | `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 15 tests passed |
+| `cargo test -p rect-graph source_an19` | 0 | 26 tests passed |
 | `cargo fmt --all -- --check` | 0 | clean |
 | `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 230 passed, 3 ignored across 13 suites |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
-| `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
+| `cargo test --workspace` | 0 | 241 passed and 3 existing release-scale campaigns ignored across 13 suites; 404.93 seconds |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 3.72 seconds |
+| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 16.65 seconds |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
