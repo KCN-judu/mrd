@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 494f38050b394b73f5832487864bd614be6b6600
-- Plan last updated: 2026-07-28T06:44:01Z
+- Last pushed SHA: 2278f9afb4d500f77edf04061bfb5e9b3784eb27
+- Plan last updated: 2026-07-28T09:21:05Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -530,7 +530,8 @@ P9.3 is split into the following source-gated subphases:
    audited in `docs/phase-reports/P09-source-structure-contracts.md`.
 2. **P9.3.2 state: in_progress. Start SHA: `6e96916`; implementation SHAs:
    `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
-   `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`.** The Appendix B.3
+   `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
+   `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -730,4 +731,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773 | pending | 494f380 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, cluster-local projection, complete heap-comparison accounting, and scale-relative power-of-two rounding; no numeric expansion or fallback | 2026-07-28T02:48:00Z | pending | Section 7 monotone/event queue and structural recursive/allocation work proof remain |
+| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773 | pending | 2278f9a | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, cluster-local projection, complete heap-comparison accounting, and scale-relative power-of-two rounding; no numeric expansion or fallback | 2026-07-28T02:48:00Z | pending | Section 7 monotone/event queue and structural recursive/allocation work proof remain |
