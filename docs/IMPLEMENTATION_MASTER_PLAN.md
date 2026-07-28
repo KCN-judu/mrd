@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: 22e83712fccc484e0d56bac2dd3e4349f726c2f3
-- Plan last updated: 2026-07-28T02:24:00Z
+- Last pushed SHA: 9fdec66bf1990b828b4811aa480f4d938892a7a0
+- Plan last updated: 2026-07-28T02:48:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -523,11 +523,12 @@ assumptions before recording a source runtime guarantee.
 
 P9.3 is split into the following source-gated subphases:
 
-1. **P9.3.1 state: in_progress. Start SHA: `22e8371`.** Persist exact source
+1. **P9.3.1 state: complete. Implementation SHA: `6e96916`.** Exact source
    parameters and checked contracts for positive lengths/weights, `k`, update
    batches, decremental forest edges, root additions, partitions, stretch
-   overestimates, embeddings, encoded recourse, and quasipolynomial bounds.
-2. **P9.3.2 state: planned.** Implement Lemma 5.4's deterministic dynamic
+   overestimates, embeddings, encoded recourse, and quasipolynomial bounds are
+   audited in `docs/phase-reports/P09-source-structure-contracts.md`.
+2. **P9.3.2 state: in_progress. Start SHA: `6e96916`.** Implement Lemma 5.4's deterministic dynamic
    low-stretch forest, including its initial tree/forest construction,
    edge-disjoint pieces, boundary/volume certificate, deletion/insertion and
    vertex-split handling, and total component/stretch/work accounting.
@@ -674,4 +675,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.3 | complete | bba500e | ab6fb10 | cdc4c0d | cdc4c0d | `docs/phase-reports/P09-lemma-44-updates.md` | certified Lemma 4.4 transition, strict-interior/potential-drop checks, and Detect ledger; full workspace audit passed | 2026-07-28T00:24:00Z | 2026-07-28T01:20:00Z | P9.2.4 initial point, termination, and recovery remain |
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
-| P9.3.1 | in_progress | 22e8371 | pending | pending | pending | pending | source parameter and checked-contract audit | 2026-07-28T02:24:00Z | pending | none |
+| P9.3.1 | complete | 22e8371 | 6e96916 | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T02:48:00Z | none |
+| P9.3.2 | in_progress | 6e96916 | pending | pending | pending | pending | deterministic Lemma 5.4 construction and update accounting | 2026-07-28T02:48:00Z | pending | none |
