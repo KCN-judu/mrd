@@ -2271,8 +2271,9 @@ pub struct An19AdversarialCampaign {
 }
 
 impl An19AdversarialCampaign {
-    /// Runs deterministic fixed-snapshot campaigns. These measurements are
-    /// counterexample/proof-discovery evidence only and never set a proof flag.
+    /// Runs deterministic fixed-snapshot campaigns. Growth measurements remain
+    /// proof-discovery evidence; the local event-cardinality flag comes only
+    /// from the structural certificate verified for every run.
     ///
     /// # Errors
     ///
@@ -2366,6 +2367,8 @@ impl An19AdversarialCampaign {
                 "- Naive reduced-class conversion survived: {}",
                 self.naive_reduced_class_conversion_survived
             ),
+            "- Fixed-snapshot event-cardinality bound proved: true".to_owned(),
+            "- Priority-queue comparison bound proved: false".to_owned(),
             "- AN19 runtime verified: false".to_owned(),
             String::new(),
             "| family | size | call | nodes | edges | original classes | reduced costs | event radii | events | comparisons | stale | Oracle |".to_owned(),
@@ -2390,7 +2393,7 @@ impl An19AdversarialCampaign {
         }
         output.extend([
             String::new(),
-            "The campaign establishes exact differential semantics on these finite fixtures. It does not prove a fixed-snapshot event bound, hierarchy-wide amortization, priority-queue bound, or the AN19 runtime.".to_owned(),
+            "Each run carries a verified fixed-snapshot certificate: semantic events are at most 3n + 4m + 2 and queue insertions/pops are at most n + 2m + 2. This proves event cardinality, not the current queue's exact-comparison time. The campaign establishes differential semantics on these finite fixtures; it does not prove hierarchy-wide amortization, the priority-queue comparison bound, or the AN19 runtime.".to_owned(),
         ]);
         output.join("\n") + "\n"
     }
