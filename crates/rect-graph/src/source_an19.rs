@@ -5717,11 +5717,8 @@ mod tests {
                     .map(|(index, (first, second))| SourceWeightedEdge {
                         first: FlowNodeId(*first),
                         second: FlowNodeId(*second),
-                        length: ExactRatio::new(
-                            scale * i128::try_from(index % 3 + 1).unwrap(),
-                            2,
-                        )
-                        .unwrap(),
+                        length: ExactRatio::new(scale * i128::try_from(index % 3 + 1).unwrap(), 2)
+                            .unwrap(),
                         weight: ExactRatio::new(i128::try_from(index + 1).unwrap(), 1).unwrap(),
                     })
                     .collect::<Vec<_>>();
@@ -5732,10 +5729,8 @@ mod tests {
                 continue;
             };
             let large = make_graph(1_000);
-            let small_hierarchy =
-                An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
-            let large_hierarchy =
-                An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
+            let small_hierarchy = An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
+            let large_hierarchy = An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
             small_hierarchy.verify(&small).unwrap();
             large_hierarchy.verify(&large).unwrap();
             assert_eq!(small_hierarchy.tree_edges, large_hierarchy.tree_edges);
