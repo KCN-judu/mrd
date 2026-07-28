@@ -275,19 +275,22 @@ not sufficient.
 
 ## Focused evidence
 
-| Command | Exit | Result |
-| --- | ---: | --- |
-| `git status --short` | 0 | only AN19 source-gate implementation and P9 documentation changed |
-| `git diff --check` | 0 | clean |
-| `cargo test -p rect-graph source_an19` | 0 | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; symbolic labels survive splits and quotient inheritance while mismatched roots are rejected |
-| `cargo test -p rect-graph --lib` | 0 | 102 tests passed; incremental projection updates preserve hierarchy, contraction, recovery, active-class, source-counter, and symbolic-label certificates |
-| `cargo fmt --all -- --check` | 0 | clean |
-| `python3 tools/check_biclique_bound.py` | 0 | bound check passed |
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
-| `cargo test --workspace` | 0 | 247 passed and 3 existing release-scale campaigns ignored across 13 suites; 406.96 seconds |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings; 5.48 seconds |
-| `cargo build --workspace --release` | 0 | 6 crates compiled successfully; 17.62 seconds |
-| `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
+| Command | Exit | Duration | Result |
+| --- | ---: | ---: | --- |
+| `git status --short` | 0 | <0.01 s | clean at the audited implementation/documentation HEAD |
+| `git diff --check` | 0 | <0.01 s | clean |
+| `cargo test -p rect-graph source_an19::tests::` | 0 | 0.46 s | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; symbolic labels survive splits and quotient inheritance while mismatched roots are rejected |
+| `cargo test -p rect-graph` | 0 | 0.49 s | 102 tests passed; incremental projection updates preserve hierarchy, contraction, recovery, active-class, source-counter, and symbolic-label certificates |
+| `cargo fmt --all -- --check` | 0 | 0.39 s | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | 0.06 s | bound check passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | 5.53 s | no warnings |
+| `cargo test --workspace` | 0 | 419.53 s | 247 passed and 3 existing release-scale campaigns ignored across 13 suites |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 3.88 s | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | 15.86 s | 6 crates compiled successfully |
+| `python3 tools/check_release_consistency.py` | 0 | 2.51 s | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
+| `git diff e9eabc6..HEAD -G '#\[ignore' --stat` | 0 | <0.01 s | no ignored test changed; the same 3 documented release-scale campaigns remain ignored |
+| `git diff e9eabc6..HEAD -- results` | 0 | <0.01 s | no stale or regenerated release evidence changed |
+| changed-line credential, local-path, fallback, and source-runtime mode scans | 0 | <0.01 s | no credentials, local absolute paths, fallback activation, `SourceMonotone`, or `StructuralSourceBound` selection added |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
 nonunit edge, stable choice between equal diamond paths, a fractional radius,
@@ -301,8 +304,8 @@ source preservation across portal splits and quotient recursion, and
 source-edge and symbolic-class projection audit mutation rejection. Uniform
 scaling preserves symbolic audit counts while the priority mode remains
 `ReducedLengthMonotone` and `source_runtime_verified()` remains false. The
-500-node nonvirtual
-path additionally demonstrates multiple materialized projection length classes,
+500-node nonvirtual path additionally demonstrates multiple materialized
+projection length classes,
 only 2 source-label classes versus 16 materialized classes, 3 virtual-label
 classes, nonzero provenance-free projection work even though its first
 top-level target is not virtual, and per-source segment repetition beyond
