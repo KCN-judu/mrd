@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use thiserror::Error;
 
@@ -24,6 +24,10 @@ pub struct An19PetalMetrics {
     pub event_heap_pushes: u64,
     pub event_heap_pops: u64,
     pub heap_comparisons: u64,
+    pub monotone_queue_pushes: u64,
+    pub monotone_queue_pops: u64,
+    pub monotone_front_comparisons: u64,
+    pub maximum_length_classes: u64,
     pub event_vertex_activations: u64,
     pub event_edge_touches: u64,
     pub volume_queries: u64,
@@ -57,6 +61,17 @@ impl An19PetalMetrics {
             checked_metric_sum(self.event_heap_pushes, other.event_heap_pushes)?;
         self.event_heap_pops = checked_metric_sum(self.event_heap_pops, other.event_heap_pops)?;
         self.heap_comparisons = checked_metric_sum(self.heap_comparisons, other.heap_comparisons)?;
+        self.monotone_queue_pushes =
+            checked_metric_sum(self.monotone_queue_pushes, other.monotone_queue_pushes)?;
+        self.monotone_queue_pops =
+            checked_metric_sum(self.monotone_queue_pops, other.monotone_queue_pops)?;
+        self.monotone_front_comparisons = checked_metric_sum(
+            self.monotone_front_comparisons,
+            other.monotone_front_comparisons,
+        )?;
+        self.maximum_length_classes = self
+            .maximum_length_classes
+            .max(other.maximum_length_classes);
         self.event_vertex_activations = checked_metric_sum(
             self.event_vertex_activations,
             other.event_vertex_activations,
@@ -781,6 +796,9 @@ fn sorted_membership_events(
     thresholds: &MembershipThresholds,
     metrics: &mut An19PetalMetrics,
 ) -> Result<Vec<ExactHeapEntry>, An19PetalError> {
+    if let Some(events) = &thresholds.ordered_events {
+        return Ok(events.clone());
+    }
     let mut heap = Vec::new();
     for vertex in remaining {
         if let Some(distance) = thresholds.by_vertex[vertex.0] {
@@ -1718,6 +1736,10 @@ pub struct An19HierarchyMetrics {
     pub event_heap_pushes: u64,
     pub event_heap_pops: u64,
     pub heap_comparisons: u64,
+    pub monotone_queue_pushes: u64,
+    pub monotone_queue_pops: u64,
+    pub monotone_front_comparisons: u64,
+    pub maximum_length_classes: u64,
     pub event_vertex_activations: u64,
     pub event_edge_touches: u64,
     pub volume_queries: u64,
@@ -1745,6 +1767,12 @@ pub enum An19PriorityQueueMode {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum An19AmortizationMode {
+    AggregateRegressionOnly,
+    StructuralSourceBound,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct An19WorkCertificate {
     pub input_nodes: usize,
     pub input_edges: usize,
@@ -1758,6 +1786,7 @@ pub struct An19WorkCertificate {
     pub projection_mode: An19ProjectionMode,
     pub length_mode: An19LengthMode,
     pub priority_queue_mode: An19PriorityQueueMode,
+    pub amortization_mode: An19AmortizationMode,
 }
 
 impl An19WorkCertificate {
@@ -1790,7 +1819,8 @@ impl An19WorkCertificate {
             compact_weighted_input: !unit_input,
             projection_mode: An19ProjectionMode::ClusterLocal,
             length_mode,
-            priority_queue_mode: An19PriorityQueueMode::BinaryHeap,
+            priority_queue_mode: An19PriorityQueueMode::SourceMonotone,
+            amortization_mode: An19AmortizationMode::AggregateRegressionOnly,
         })
     }
 
@@ -1810,9 +1840,18 @@ impl An19WorkCertificate {
             || self.numeric_length_expansions != 0
             || self.projection_mode != An19ProjectionMode::ClusterLocal
             || self.length_mode != An19LengthMode::RoundedPowerOfTwo
+            || self.priority_queue_mode != An19PriorityQueueMode::SourceMonotone
+            || metrics.shortest_heap_pushes != 0
+            || metrics.shortest_heap_pops != 0
+            || metrics.directed_heap_pushes != 0
+            || metrics.directed_heap_pops != 0
+            || metrics.event_heap_pushes != 0
+            || metrics.event_heap_pops != 0
+            || metrics.heap_comparisons != 0
             || self.observed_work_units > self.maximum_work_units
             || metrics.event_heap_pushes != metrics.event_heap_pops
             || metrics.shortest_heap_pushes != metrics.shortest_heap_pops
+            || metrics.monotone_queue_pushes != metrics.monotone_queue_pops
             || metrics.directed_region_runs
                 != metrics
                     .petals
@@ -1834,6 +1873,10 @@ impl An19WorkCertificate {
             && matches!(
                 self.priority_queue_mode,
                 An19PriorityQueueMode::SourceMonotone
+            )
+            && matches!(
+                self.amortization_mode,
+                An19AmortizationMode::StructuralSourceBound
             )
     }
 }
@@ -1863,6 +1906,10 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.event_heap_pushes,
         metrics.event_heap_pops,
         metrics.heap_comparisons,
+        metrics.monotone_queue_pushes,
+        metrics.monotone_queue_pops,
+        metrics.monotone_front_comparisons,
+        metrics.maximum_length_classes,
         metrics.event_vertex_activations,
         metrics.event_edge_touches,
         metrics.volume_queries,
@@ -2698,6 +2745,7 @@ fn add_petal_metrics(
         .heap_comparisons
         .checked_add(petal.heap_comparisons)
         .ok_or(An19PetalError::Overflow)?;
+    add_monotone_metrics(hierarchy, petal)?;
     hierarchy.event_vertex_activations = hierarchy
         .event_vertex_activations
         .checked_add(petal.event_vertex_activations)
@@ -2854,7 +2902,30 @@ fn hierarchy_shortest_paths(
         .shortest_edge_scans
         .checked_add(petal_metrics.shortest_edge_scans)
         .ok_or(An19PetalError::Overflow)?;
+    metrics.heap_comparisons = metrics
+        .heap_comparisons
+        .checked_add(petal_metrics.heap_comparisons)
+        .ok_or(An19PetalError::Overflow)?;
+    add_monotone_metrics(metrics, &petal_metrics)?;
     Ok(result)
+}
+
+fn add_monotone_metrics(
+    hierarchy: &mut An19HierarchyMetrics,
+    petal: &An19PetalMetrics,
+) -> Result<(), An19PetalError> {
+    hierarchy.monotone_queue_pushes =
+        checked_metric_sum(hierarchy.monotone_queue_pushes, petal.monotone_queue_pushes)?;
+    hierarchy.monotone_queue_pops =
+        checked_metric_sum(hierarchy.monotone_queue_pops, petal.monotone_queue_pops)?;
+    hierarchy.monotone_front_comparisons = checked_metric_sum(
+        hierarchy.monotone_front_comparisons,
+        petal.monotone_front_comparisons,
+    )?;
+    hierarchy.maximum_length_classes = hierarchy
+        .maximum_length_classes
+        .max(petal.maximum_length_classes);
+    Ok(())
 }
 
 fn hierarchy_projection(
@@ -3276,6 +3347,7 @@ struct RecoveredPath {
 struct MembershipThresholds {
     by_vertex: Vec<Option<ExactRatio>>,
     path_distance_from_target: Vec<Option<ExactRatio>>,
+    ordered_events: Option<Vec<ExactHeapEntry>>,
 }
 
 fn validate_domain(
@@ -3422,7 +3494,8 @@ fn fast_shortest_paths(
     metrics: &mut An19PetalMetrics,
 ) -> Result<ShortestPaths, An19PetalError> {
     let mut adjacency =
-        vec![Vec::<(FlowNodeId, SourceEdgeId, ExactRatio)>::new(); graph.node_count()];
+        vec![Vec::<(FlowNodeId, SourceEdgeId, ExactRatio, usize)>::new(); graph.node_count()];
+    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
     for index in 0..graph.edge_count() {
         metrics.shortest_edge_scans = checked_metric_sum(metrics.shortest_edge_scans, 1)?;
         let edge_id = SourceEdgeId(index);
@@ -3430,8 +3503,12 @@ fn fast_shortest_paths(
             continue;
         };
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
-            adjacency[edge.first.0].push((edge.second, edge_id, edge.length));
-            adjacency[edge.second.0].push((edge.first, edge_id, edge.length));
+            let next_class = length_classes.len();
+            let class = *length_classes
+                .entry((edge.length.numerator(), edge.length.denominator()))
+                .or_insert(next_class);
+            adjacency[edge.first.0].push((edge.second, edge_id, edge.length, class));
+            adjacency[edge.second.0].push((edge.first, edge_id, edge.length, class));
         }
     }
     let mut distances = vec![None; graph.node_count()];
@@ -3439,21 +3516,27 @@ fn fast_shortest_paths(
     let mut settled = vec![false; graph.node_count()];
     let zero = ratio(0, 1)?;
     distances[source.0] = Some(zero);
-    let mut heap = Vec::new();
-    shortest_heap_push(
-        &mut heap,
+    let source_class = length_classes.len();
+    let mut queue = DistinctLengthQueue::new(
+        source_class
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?,
+        metrics,
+    )?;
+    queue.push(
+        source_class,
         ExactHeapEntry {
             distance: zero,
             vertex: source,
         },
         metrics,
     )?;
-    while let Some(entry) = shortest_heap_pop(&mut heap, metrics)? {
+    while let Some(entry) = queue.pop(metrics)? {
         if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
             continue;
         }
         settled[entry.vertex.0] = true;
-        for (other, edge_id, length) in &adjacency[entry.vertex.0] {
+        for (other, edge_id, length, class) in &adjacency[entry.vertex.0] {
             metrics.shortest_edge_scans = metrics
                 .shortest_edge_scans
                 .checked_add(1)
@@ -3481,8 +3564,8 @@ fn fast_shortest_paths(
             if shorter {
                 distances[other.0] = Some(candidate);
                 predecessors[other.0] = Some((entry.vertex.0, *edge_id));
-                shortest_heap_push(
-                    &mut heap,
+                queue.push(
+                    *class,
                     ExactHeapEntry {
                         distance: candidate,
                         vertex: *other,
@@ -3628,6 +3711,7 @@ fn locate_portal_and_highway(
     Err(An19PetalError::InvalidRadius)
 }
 
+#[allow(clippy::too_many_lines)]
 fn directed_petal_distances(
     graph: &SourceDynamicGraph,
     allowed: &BTreeSet<FlowNodeId>,
@@ -3638,8 +3722,8 @@ fn directed_petal_distances(
 ) -> Result<Vec<Option<ExactRatio>>, An19PetalError> {
     let mut distances = vec![None; graph.node_count()];
     let mut settled = vec![false; graph.node_count()];
-    let mut adjacency =
-        vec![Vec::<(FlowNodeId, SourceEdgeId, ExactRatio)>::new(); graph.node_count()];
+    let mut adjacency = vec![Vec::<(FlowNodeId, ExactRatio, usize)>::new(); graph.node_count()];
+    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
     for edge_index in 0..graph.edge_count() {
         metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
         let edge_id = SourceEdgeId(edge_index);
@@ -3647,26 +3731,56 @@ fn directed_petal_distances(
             continue;
         };
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
-            adjacency[edge.first.0].push((edge.second, edge_id, edge.length));
-            adjacency[edge.second.0].push((edge.first, edge_id, edge.length));
+            let forward = reduced_directed_length(
+                edge_id,
+                edge.first,
+                edge.second,
+                edge.length,
+                center_distances,
+                highway,
+            )?;
+            let reverse = reduced_directed_length(
+                edge_id,
+                edge.second,
+                edge.first,
+                edge.length,
+                center_distances,
+                highway,
+            )?;
+            let next_forward = length_classes.len();
+            let forward_class = *length_classes
+                .entry((forward.numerator(), forward.denominator()))
+                .or_insert(next_forward);
+            let next_reverse = length_classes.len();
+            let reverse_class = *length_classes
+                .entry((reverse.numerator(), reverse.denominator()))
+                .or_insert(next_reverse);
+            adjacency[edge.first.0].push((edge.second, forward, forward_class));
+            adjacency[edge.second.0].push((edge.first, reverse, reverse_class));
         }
     }
     distances[target.0] = Some(ratio(0, 1)?);
-    let mut heap = Vec::new();
-    exact_heap_push(
-        &mut heap,
+    let source_class = length_classes.len();
+    let mut queue = DistinctLengthQueue::new(
+        source_class
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?,
+        metrics,
+    )?;
+    queue.push(
+        source_class,
         ExactHeapEntry {
             distance: ratio(0, 1)?,
             vertex: target,
         },
         metrics,
     )?;
-    while let Some(entry) = exact_heap_pop(&mut heap, metrics)? {
+    while let Some(entry) = queue.pop(metrics)? {
         if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
             continue;
         }
         settled[entry.vertex.0] = true;
-        for (other, edge_id, edge_length) in &adjacency[entry.vertex.0] {
+        for (other, directed_length, class) in &adjacency[entry.vertex.0] {
             metrics.directed_edge_scans = metrics
                 .directed_edge_scans
                 .checked_add(1)
@@ -3678,17 +3792,9 @@ fn directed_petal_distances(
                 .edge_relaxations
                 .checked_add(1)
                 .ok_or(An19PetalError::Overflow)?;
-            let directed_length = reduced_directed_length(
-                *edge_id,
-                entry.vertex,
-                *other,
-                *edge_length,
-                center_distances,
-                highway,
-            )?;
             let candidate = entry
                 .distance
-                .checked_add(directed_length)
+                .checked_add(*directed_length)
                 .map_err(|_| An19PetalError::Overflow)?;
             let improves = match distances[other.0] {
                 None => true,
@@ -3696,8 +3802,8 @@ fn directed_petal_distances(
             };
             if improves {
                 distances[other.0] = Some(candidate);
-                exact_heap_push(
-                    &mut heap,
+                queue.push(
+                    *class,
                     ExactHeapEntry {
                         distance: candidate,
                         vertex: *other,
@@ -3821,13 +3927,94 @@ fn membership_thresholds(
     Ok(MembershipThresholds {
         by_vertex,
         path_distance_from_target,
+        ordered_events: None,
     })
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct ExactHeapEntry {
     distance: ExactRatio,
     vertex: FlowNodeId,
+}
+
+#[derive(Clone)]
+struct MonotoneFront {
+    entry: ExactHeapEntry,
+    class: usize,
+}
+
+struct DistinctLengthQueue {
+    queues: Vec<VecDeque<ExactHeapEntry>>,
+    fronts: Vec<MonotoneFront>,
+}
+
+type ClassifiedAdjacency = Vec<Vec<(FlowNodeId, ExactRatio, usize)>>;
+
+impl DistinctLengthQueue {
+    fn new(class_count: usize, metrics: &mut An19PetalMetrics) -> Result<Self, An19PetalError> {
+        metrics.maximum_length_classes = metrics
+            .maximum_length_classes
+            .max(u64::try_from(class_count).map_err(|_| An19PetalError::Overflow)?);
+        Ok(Self {
+            queues: vec![VecDeque::new(); class_count],
+            fronts: Vec::new(),
+        })
+    }
+
+    fn push(
+        &mut self,
+        class: usize,
+        entry: ExactHeapEntry,
+        metrics: &mut An19PetalMetrics,
+    ) -> Result<(), An19PetalError> {
+        let queue = self
+            .queues
+            .get_mut(class)
+            .ok_or(An19PetalError::InvalidWorkCertificate)?;
+        if let Some(back) = queue.back()
+            && ratio_less(entry.distance, back.distance)?
+        {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
+        let was_empty = queue.is_empty();
+        queue.push_back(entry.clone());
+        metrics.monotone_queue_pushes = checked_metric_sum(metrics.monotone_queue_pushes, 1)?;
+        if was_empty {
+            monotone_front_push(&mut self.fronts, MonotoneFront { entry, class }, metrics)?;
+        }
+        Ok(())
+    }
+
+    fn pop(
+        &mut self,
+        metrics: &mut An19PetalMetrics,
+    ) -> Result<Option<ExactHeapEntry>, An19PetalError> {
+        let Some(front) = monotone_front_pop(&mut self.fronts, metrics)? else {
+            return Ok(None);
+        };
+        let queue = self
+            .queues
+            .get_mut(front.class)
+            .ok_or(An19PetalError::InvalidWorkCertificate)?;
+        if queue.front() != Some(&front.entry) {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
+        let result = queue
+            .pop_front()
+            .ok_or(An19PetalError::InvalidWorkCertificate)?;
+        metrics.monotone_queue_pops = checked_metric_sum(metrics.monotone_queue_pops, 1)?;
+        if let Some(next) = queue.front().cloned() {
+            monotone_front_push(
+                &mut self.fronts,
+                MonotoneFront {
+                    entry: next,
+                    class: front.class,
+                },
+                metrics,
+            )?;
+        }
+        Ok(Some(result))
+    }
 }
 
 fn fast_weighted_membership_thresholds(
@@ -3842,21 +4029,13 @@ fn fast_weighted_membership_thresholds(
     let mut thresholds = MembershipThresholds {
         by_vertex: vec![None; graph.node_count()],
         path_distance_from_target: vec![None; graph.node_count()],
+        ordered_events: None,
     };
     let target_distance = center_distances[target.0].ok_or(An19PetalError::Disconnected)?;
-    let two = ratio(2, 1)?;
     let mut labels = vec![None; graph.node_count()];
-    let mut heap = Vec::new();
+    let mut sources = Vec::new();
     let mut distance_from_target = ratio(0, 1)?;
-    add_membership_source(
-        target,
-        target_distance
-            .checked_mul(two)
-            .map_err(|_| An19PetalError::Overflow)?,
-        &mut labels,
-        &mut heap,
-        metrics,
-    )?;
+    add_membership_source(target, ratio(0, 1)?, &mut labels, &mut sources, metrics)?;
     thresholds.path_distance_from_target[target.0] = Some(distance_from_target);
     for path_index in (0..path.edges.len()).rev() {
         let edge = graph
@@ -3879,35 +4058,32 @@ fn fast_weighted_membership_thresholds(
                         .map_err(|_| An19PetalError::Overflow)?,
                     target_distance,
                     maximum_radius,
+                    center_distances,
                     &mut labels,
-                    &mut heap,
+                    &mut sources,
                     metrics,
                 )?;
             }
             break;
         }
-        let potential = target_distance
-            .checked_mul(two)
-            .and_then(|value| value.checked_sub(next_distance))
-            .map_err(|_| An19PetalError::Overflow)?;
-        add_membership_source(toward_center, potential, &mut labels, &mut heap, metrics)?;
+        add_membership_source(
+            toward_center,
+            next_distance,
+            &mut labels,
+            &mut sources,
+            metrics,
+        )?;
         distance_from_target = next_distance;
         if distance_from_target == maximum_radius {
             break;
         }
     }
-    let adjacency = weighted_adjacency(graph, remaining, metrics)?;
-    exact_multi_source_dijkstra(&adjacency, &mut labels, &mut heap, metrics)?;
+    let (adjacency, length_classes) =
+        weighted_adjacency(graph, remaining, center_distances, metrics)?;
+    let events =
+        exact_multi_source_dijkstra(&adjacency, length_classes, &mut labels, &sources, metrics)?;
     for vertex in remaining {
-        let label = labels[vertex.0].ok_or(An19PetalError::Disconnected)?;
-        let center_distance = center_distances[vertex.0].ok_or(An19PetalError::Disconnected)?;
-        let threshold = label
-            .checked_sub(
-                center_distance
-                    .checked_mul(two)
-                    .map_err(|_| An19PetalError::Overflow)?,
-            )
-            .map_err(|_| An19PetalError::Overflow)?;
+        let threshold = labels[vertex.0].ok_or(An19PetalError::Disconnected)?;
         if threshold.is_negative() {
             return Err(An19PetalError::InvalidRadius);
         }
@@ -3915,6 +4091,12 @@ fn fast_weighted_membership_thresholds(
             thresholds.by_vertex[vertex.0] = Some(threshold);
         }
     }
+    thresholds.ordered_events = Some(
+        events
+            .into_iter()
+            .filter(|event| thresholds.by_vertex[event.vertex.0] == Some(event.distance))
+            .collect(),
+    );
     metrics.directed_region_runs = metrics
         .directed_region_runs
         .checked_add(1)
@@ -3930,8 +4112,9 @@ fn add_interior_membership_source(
     offset_from: ExactRatio,
     target_distance: ExactRatio,
     radius: ExactRatio,
+    center_distances: &[Option<ExactRatio>],
     labels: &mut [Option<ExactRatio>],
-    heap: &mut Vec<ExactHeapEntry>,
+    sources: &mut Vec<ExactHeapEntry>,
     metrics: &mut An19PetalMetrics,
 ) -> Result<(), An19PetalError> {
     let two = ratio(2, 1)?;
@@ -3954,8 +4137,24 @@ fn add_interior_membership_source(
                 .map_err(|_| An19PetalError::Overflow)?,
         )
         .map_err(|_| An19PetalError::Overflow)?;
-    add_membership_source(from, from_label, labels, heap, metrics)?;
-    add_membership_source(toward_center, toward_label, labels, heap, metrics)?;
+    let from_threshold = from_label
+        .checked_sub(
+            center_distances[from.0]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_mul(two)
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .map_err(|_| An19PetalError::Overflow)?;
+    let toward_threshold = toward_label
+        .checked_sub(
+            center_distances[toward_center.0]
+                .ok_or(An19PetalError::Disconnected)?
+                .checked_mul(two)
+                .map_err(|_| An19PetalError::Overflow)?,
+        )
+        .map_err(|_| An19PetalError::Overflow)?;
+    add_membership_source(from, from_threshold, labels, sources, metrics)?;
+    add_membership_source(toward_center, toward_threshold, labels, sources, metrics)?;
     metrics.membership_sources = metrics
         .membership_sources
         .checked_sub(1)
@@ -3967,7 +4166,7 @@ fn add_membership_source(
     vertex: FlowNodeId,
     distance: ExactRatio,
     labels: &mut [Option<ExactRatio>],
-    heap: &mut Vec<ExactHeapEntry>,
+    sources: &mut Vec<ExactHeapEntry>,
     metrics: &mut An19PetalMetrics,
 ) -> Result<(), An19PetalError> {
     let improves = match labels[vertex.0] {
@@ -3976,7 +4175,7 @@ fn add_membership_source(
     };
     if improves {
         labels[vertex.0] = Some(distance);
-        exact_heap_push(heap, ExactHeapEntry { distance, vertex }, metrics)?;
+        sources.push(ExactHeapEntry { distance, vertex });
     }
     metrics.membership_sources = metrics
         .membership_sources
@@ -3988,37 +4187,77 @@ fn add_membership_source(
 fn weighted_adjacency(
     graph: &SourceDynamicGraph,
     allowed: &BTreeSet<FlowNodeId>,
+    center_distances: &[Option<ExactRatio>],
     metrics: &mut An19PetalMetrics,
-) -> Result<Vec<Vec<(FlowNodeId, ExactRatio)>>, An19PetalError> {
+) -> Result<(ClassifiedAdjacency, usize), An19PetalError> {
     let mut adjacency = vec![Vec::new(); graph.node_count()];
+    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
     for index in 0..graph.edge_count() {
         metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
             continue;
         };
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
-            let doubled = edge
+            let first_distance =
+                center_distances[edge.first.0].ok_or(An19PetalError::Disconnected)?;
+            let second_distance =
+                center_distances[edge.second.0].ok_or(An19PetalError::Disconnected)?;
+            let forward = edge
                 .length
-                .checked_mul_integer(2)
+                .checked_add(first_distance)
+                .and_then(|value| value.checked_sub(second_distance))
+                .and_then(|value| value.checked_mul_integer(2))
                 .map_err(|_| An19PetalError::Overflow)?;
-            adjacency[edge.first.0].push((edge.second, doubled));
-            adjacency[edge.second.0].push((edge.first, doubled));
+            let reverse = edge
+                .length
+                .checked_add(second_distance)
+                .and_then(|value| value.checked_sub(first_distance))
+                .and_then(|value| value.checked_mul_integer(2))
+                .map_err(|_| An19PetalError::Overflow)?;
+            if forward.is_negative() || reverse.is_negative() {
+                return Err(An19PetalError::InvalidHighway);
+            }
+            let next_forward = length_classes.len();
+            let forward_class = *length_classes
+                .entry((forward.numerator(), forward.denominator()))
+                .or_insert(next_forward);
+            let next_reverse = length_classes.len();
+            let reverse_class = *length_classes
+                .entry((reverse.numerator(), reverse.denominator()))
+                .or_insert(next_reverse);
+            adjacency[edge.first.0].push((edge.second, forward, forward_class));
+            adjacency[edge.second.0].push((edge.first, reverse, reverse_class));
         }
     }
-    Ok(adjacency)
+    Ok((adjacency, length_classes.len()))
 }
 
 fn exact_multi_source_dijkstra(
-    adjacency: &[Vec<(FlowNodeId, ExactRatio)>],
+    adjacency: &[Vec<(FlowNodeId, ExactRatio, usize)>],
+    length_classes: usize,
     distances: &mut [Option<ExactRatio>],
-    heap: &mut Vec<ExactHeapEntry>,
+    sources: &[ExactHeapEntry],
     metrics: &mut An19PetalMetrics,
-) -> Result<(), An19PetalError> {
-    while let Some(entry) = exact_heap_pop(heap, metrics)? {
-        if distances[entry.vertex.0] != Some(entry.distance) {
+) -> Result<Vec<ExactHeapEntry>, An19PetalError> {
+    let source_class = length_classes;
+    let mut queue = DistinctLengthQueue::new(
+        source_class
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?,
+        metrics,
+    )?;
+    for source in sources {
+        queue.push(source_class, source.clone(), metrics)?;
+    }
+    let mut settled = vec![false; distances.len()];
+    let mut events = Vec::new();
+    while let Some(entry) = queue.pop(metrics)? {
+        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
             continue;
         }
-        for (other, length) in &adjacency[entry.vertex.0] {
+        settled[entry.vertex.0] = true;
+        events.push(entry.clone());
+        for (other, length, class) in &adjacency[entry.vertex.0] {
             metrics.directed_edge_scans = metrics
                 .directed_edge_scans
                 .checked_add(1)
@@ -4027,14 +4266,17 @@ fn exact_multi_source_dijkstra(
                 .distance
                 .checked_add(*length)
                 .map_err(|_| An19PetalError::Overflow)?;
+            if settled[other.0] {
+                continue;
+            }
             let improves = match distances[other.0] {
                 Some(old) => ratio_less(candidate, old)?,
                 None => true,
             };
             if improves {
                 distances[other.0] = Some(candidate);
-                exact_heap_push(
-                    heap,
+                queue.push(
+                    *class,
                     ExactHeapEntry {
                         distance: candidate,
                         vertex: *other,
@@ -4044,33 +4286,7 @@ fn exact_multi_source_dijkstra(
             }
         }
     }
-    Ok(())
-}
-
-fn exact_heap_push(
-    heap: &mut Vec<ExactHeapEntry>,
-    entry: ExactHeapEntry,
-    metrics: &mut An19PetalMetrics,
-) -> Result<(), An19PetalError> {
-    heap_push(heap, entry, &mut metrics.heap_comparisons)?;
-    metrics.directed_heap_pushes = metrics
-        .directed_heap_pushes
-        .checked_add(1)
-        .ok_or(An19PetalError::Overflow)?;
-    Ok(())
-}
-
-fn shortest_heap_push(
-    heap: &mut Vec<ExactHeapEntry>,
-    entry: ExactHeapEntry,
-    metrics: &mut An19PetalMetrics,
-) -> Result<(), An19PetalError> {
-    heap_push(heap, entry, &mut metrics.heap_comparisons)?;
-    metrics.shortest_heap_pushes = metrics
-        .shortest_heap_pushes
-        .checked_add(1)
-        .ok_or(An19PetalError::Overflow)?;
-    Ok(())
+    Ok(events)
 }
 
 fn event_heap_push(
@@ -4081,6 +4297,74 @@ fn event_heap_push(
     heap_push(heap, entry, &mut metrics.heap_comparisons)?;
     metrics.event_heap_pushes = checked_metric_sum(metrics.event_heap_pushes, 1)?;
     Ok(())
+}
+
+fn monotone_front_push(
+    heap: &mut Vec<MonotoneFront>,
+    entry: MonotoneFront,
+    metrics: &mut An19PetalMetrics,
+) -> Result<(), An19PetalError> {
+    heap.push(entry);
+    let mut index = heap.len() - 1;
+    while index > 0 {
+        let parent = (index - 1) / 2;
+        metrics.monotone_front_comparisons =
+            checked_metric_sum(metrics.monotone_front_comparisons, 1)?;
+        if !monotone_front_less(&heap[index], &heap[parent])? {
+            break;
+        }
+        heap.swap(index, parent);
+        index = parent;
+    }
+    Ok(())
+}
+
+fn monotone_front_pop(
+    heap: &mut Vec<MonotoneFront>,
+    metrics: &mut An19PetalMetrics,
+) -> Result<Option<MonotoneFront>, An19PetalError> {
+    let Some(last) = heap.pop() else {
+        return Ok(None);
+    };
+    if heap.is_empty() {
+        return Ok(Some(last));
+    }
+    let result = std::mem::replace(&mut heap[0], last);
+    let mut index = 0;
+    loop {
+        let left = index * 2 + 1;
+        if left >= heap.len() {
+            break;
+        }
+        let right = left + 1;
+        let child = if right < heap.len() {
+            metrics.monotone_front_comparisons =
+                checked_metric_sum(metrics.monotone_front_comparisons, 1)?;
+            if monotone_front_less(&heap[right], &heap[left])? {
+                right
+            } else {
+                left
+            }
+        } else {
+            left
+        };
+        metrics.monotone_front_comparisons =
+            checked_metric_sum(metrics.monotone_front_comparisons, 1)?;
+        if !monotone_front_less(&heap[child], &heap[index])? {
+            break;
+        }
+        heap.swap(index, child);
+        index = child;
+    }
+    Ok(Some(result))
+}
+
+fn monotone_front_less(
+    first: &MonotoneFront,
+    second: &MonotoneFront,
+) -> Result<bool, An19PetalError> {
+    Ok(exact_heap_entry_less(&first.entry, &second.entry)?
+        || (first.entry == second.entry && first.class < second.class))
 }
 
 fn heap_push(
@@ -4100,34 +4384,6 @@ fn heap_push(
         index = parent;
     }
     Ok(())
-}
-
-fn exact_heap_pop(
-    heap: &mut Vec<ExactHeapEntry>,
-    metrics: &mut An19PetalMetrics,
-) -> Result<Option<ExactHeapEntry>, An19PetalError> {
-    let result = heap_pop(heap, &mut metrics.heap_comparisons)?;
-    if result.is_some() {
-        metrics.directed_heap_pops = metrics
-            .directed_heap_pops
-            .checked_add(1)
-            .ok_or(An19PetalError::Overflow)?;
-    }
-    Ok(result)
-}
-
-fn shortest_heap_pop(
-    heap: &mut Vec<ExactHeapEntry>,
-    metrics: &mut An19PetalMetrics,
-) -> Result<Option<ExactHeapEntry>, An19PetalError> {
-    let result = heap_pop(heap, &mut metrics.heap_comparisons)?;
-    if result.is_some() {
-        metrics.shortest_heap_pops = metrics
-            .shortest_heap_pops
-            .checked_add(1)
-            .ok_or(An19PetalError::Overflow)?;
-    }
-    Ok(result)
 }
 
 fn event_heap_pop(
@@ -4201,6 +4457,7 @@ fn weighted_membership_thresholds_oracle(
     let mut thresholds = MembershipThresholds {
         by_vertex: vec![None; graph.node_count()],
         path_distance_from_target: vec![None; graph.node_count()],
+        ordered_events: None,
     };
     thresholds.by_vertex[target.0] = Some(ratio(0, 1)?);
     thresholds.path_distance_from_target[target.0] = Some(ratio(0, 1)?);
@@ -6004,6 +6261,14 @@ mod tests {
             small_hierarchy.work_certificate.length_mode,
             super::An19LengthMode::RoundedPowerOfTwo
         );
+        assert_eq!(
+            small_hierarchy.work_certificate.priority_queue_mode,
+            super::An19PriorityQueueMode::SourceMonotone
+        );
+        assert_eq!(small_hierarchy.metrics.shortest_heap_pushes, 0);
+        assert_eq!(small_hierarchy.metrics.directed_heap_pushes, 0);
+        assert_eq!(small_hierarchy.metrics.event_heap_pushes, 0);
+        assert_eq!(small_hierarchy.metrics.heap_comparisons, 0);
         assert!(!small_hierarchy.work_certificate.source_runtime_verified());
     }
 
@@ -6146,6 +6411,11 @@ mod tests {
         );
         assert!(small_hierarchy.metrics.event_edge_touches > 0);
         assert!(small_hierarchy.metrics.workspace_edge_scans > 0);
+        assert_eq!(
+            small_hierarchy.metrics.monotone_queue_pushes,
+            small_hierarchy.metrics.monotone_queue_pops
+        );
+        assert!(small_hierarchy.metrics.maximum_length_classes > 0);
         assert!(
             small_hierarchy.work_certificate.observed_work_units
                 <= small_hierarchy.work_certificate.maximum_work_units
@@ -6160,8 +6430,16 @@ mod tests {
             .saturating_sub(1);
         assert!(invalid_bound.verify(&small).is_err());
         let mut invalid_projection = small_hierarchy.clone();
-        invalid_projection.work_certificate.priority_queue_mode =
-            super::An19PriorityQueueMode::SourceMonotone;
+        invalid_projection.work_certificate.amortization_mode =
+            super::An19AmortizationMode::StructuralSourceBound;
         assert!(invalid_projection.verify(&small).is_err());
+        let mut invalid_queue = small_hierarchy.clone();
+        invalid_queue.metrics.monotone_queue_pops =
+            invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);
+        assert!(invalid_queue.verify(&small).is_err());
+        let mut invalid_binary_heap = small_hierarchy.clone();
+        invalid_binary_heap.metrics.event_heap_pushes = 1;
+        invalid_binary_heap.metrics.event_heap_pops = 1;
+        assert!(invalid_binary_heap.verify(&small).is_err());
     }
 }
