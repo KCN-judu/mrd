@@ -175,6 +175,86 @@ impl SourceDynamicGraph {
             .map(|edge| &edge.edge)
     }
 
+    pub(crate) fn split_projection_edge(
+        &mut self,
+        id: SourceEdgeId,
+        from: FlowNodeId,
+        offset: ExactRatio,
+    ) -> Result<(FlowNodeId, SourceEdgeId, SourceEdgeId), SourceLsstError> {
+        let original = self
+            .edges
+            .get(id.0)
+            .filter(|edge| edge.active)
+            .cloned()
+            .ok_or(SourceLsstError::EdgeOutOfBounds)?;
+        let toward = if original.edge.first == from {
+            original.edge.second
+        } else if original.edge.second == from {
+            original.edge.first
+        } else {
+            return Err(SourceLsstError::InvalidDomain);
+        };
+        let remainder = original
+            .edge
+            .length
+            .checked_sub(offset)
+            .map_err(|_| SourceLsstError::Overflow)?;
+        if !offset.is_positive() || !remainder.is_positive() {
+            return Err(SourceLsstError::InvalidDomain);
+        }
+        let portal = FlowNodeId(self.node_count);
+        let next_node_count = self
+            .node_count
+            .checked_add(1)
+            .ok_or(SourceLsstError::Overflow)?;
+        let first = SourceWeightedEdge {
+            first: from,
+            second: portal,
+            length: offset,
+            weight: original.edge.weight,
+        };
+        let second = SourceWeightedEdge {
+            first: portal,
+            second: toward,
+            length: remainder,
+            weight: original.edge.weight,
+        };
+        let next_bound = [first.length, first.weight, second.length, second.weight]
+            .into_iter()
+            .try_fold(self.maximum_abs_coordinate, |bound, value| {
+                Ok::<_, SourceLsstError>(
+                    bound
+                        .max(
+                            value
+                                .numerator()
+                                .checked_abs()
+                                .ok_or(SourceLsstError::Overflow)?,
+                        )
+                        .max(value.denominator()),
+                )
+            })?;
+        validate_edge(next_node_count, &first, next_bound)?;
+        validate_edge(next_node_count, &second, next_bound)?;
+        let next_initial_edges = self
+            .metrics
+            .initial_edges
+            .checked_add(1)
+            .ok_or(SourceLsstError::Overflow)?;
+
+        self.edges[id.0].edge = first;
+        let first_id = id;
+        let second_id = SourceEdgeId(self.edges.len());
+        self.edges.push(SourceEdgeState {
+            edge: second,
+            active: true,
+            inserted_after_initialization: false,
+        });
+        self.node_count = next_node_count;
+        self.maximum_abs_coordinate = next_bound;
+        self.metrics.initial_edges = next_initial_edges;
+        Ok((portal, first_id, second_id))
+    }
+
     /// Applies one batch atomically after checking every source operation.
     ///
     /// # Errors
