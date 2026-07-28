@@ -3,9 +3,11 @@
 ## Status
 
 P9.3.2 remains in progress. This report covers the completed Appendix B.3 tree
-core; Lemma B.7 decomposition, global stretch overestimates, weighted LSST
-construction, and dynamic batch integration remain required before Lemma 5.4
-can close.
+core, full ST04 decomposition, global stretch overestimates, weighted-copy
+reduction, and dynamic batch integration. The AN19 petal constructor, weighted
+symbolic portals, hierarchical stretch proof, and source-shaped runtime
+counters mapped in `P09-an19-static-lsst-source-map.md` remain required before
+Lemma 5.4 can close.
 
 ## Implemented source mechanics
 

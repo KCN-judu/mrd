@@ -9,6 +9,7 @@ pub mod lsf_mwu;
 pub mod min_cost;
 pub mod min_ratio_cycle;
 pub mod rooted_forest;
+pub mod source_an19;
 pub mod source_lsf;
 pub mod source_lsst;
 
@@ -53,6 +54,7 @@ pub use min_ratio_cycle::{
 pub use rooted_forest::{
     DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };
+pub use source_an19::{An19PetalError, An19PetalMetrics, An19UnweightedPetal};
 pub use source_lsf::{
     BranchFreeTree, CongestionOrder, ConstructedLsfInitialization, DynamicLsfCore,
     DynamicLsfCoreMetrics, ExactStaticLsstOracle, GlobalStretchCertificate,

@@ -546,7 +546,26 @@ P9.3 is split into the following source-gated subphases:
    verifiers, boundary/high-stretch initialization, and all dynamic forest
    mechanics are implemented. A bounded exponential exact static LSST Oracle
    now supplies a permanent differential baseline; it is not AN19 and carries
-   no production runtime claim.
+   no production runtime claim. The recovered full AN19 source and exact
+   implementation gates are mapped in
+   `docs/phase-reports/P09-an19-static-lsst-source-map.md`.
+
+   P9.3.2 continues through these source gates:
+
+   - **P9.3.2a state: complete.** Recover Figures 4--6, Claims 1--15, the
+     weighted extension, the directed region-growing construction, and the
+     deterministic paper's `\widetilde O` notation. Persist exact formulas and
+     reject vertex-rounded substitutes for imaginary portal points.
+   - **P9.3.2b state: planned.** Implement and certify exact single-petal
+     membership, minimum-index radius windows, stopping inequalities, and
+     deterministic shortest-path tie breaking.
+   - **P9.3.2c state: planned.** Implement symbolic interior portal points,
+     short-edge contraction/expansion, highway halving, and exact recovery to
+     original graph edges for arbitrary positive rational lengths.
+   - **P9.3.2d state: planned.** Implement the full hierarchical constructor,
+     radius/tree/stretch certificates, exact-Oracle differentials, directed
+     radius events, and counters proving `O(m log n log log n)` work without
+     graph expansion or fallback.
 3. **P9.3.3 state: planned.** Implement Lemma 5.5's deterministic MWU
    collection of exactly `k` LSFs and prove the uniform per-edge average
    stretch bound while retaining the P8 weighted-Kruskal Oracle.
