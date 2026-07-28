@@ -2134,19 +2134,31 @@ impl AugmentedProjection {
 
 /// Exact observed projection work grouped by top-level input edge.
 ///
-/// This audit exposes segment multiplication and active length classes. It
-/// does not by itself prove AN19's logarithmic per-edge participation bound.
+/// The audit separates one source materialization per projection from extra
+/// portal fragments, attributes every split, and checks both against certified
+/// recursive scales. Provenance-free virtual fragments use a separate global
+/// leaf-and-split charge. This does not prove the independent event-order gate.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct An19ProjectionAudit {
     pub original_edge_segment_occurrences: Vec<u64>,
+    pub original_edge_materialization_occurrences: Vec<u64>,
+    pub original_edge_portal_fragment_occurrences: Vec<u64>,
+    pub original_edge_portal_splits: Vec<u64>,
     pub provenance_free_segment_occurrences: u64,
+    pub provenance_free_portal_splits: u64,
     pub projected_edge_occurrences: u64,
+    pub source_projection_materializations: u64,
+    pub portal_fragment_materializations: u64,
+    pub source_portal_splits: u64,
     pub maximum_projection_edges: u64,
     pub total_projection_length_classes: u64,
     pub maximum_projection_length_classes: u64,
     pub maximum_symbolic_source_label_classes: u64,
     pub maximum_symbolic_virtual_label_classes: u64,
     pub maximum_original_edge_segment_occurrences: u64,
+    pub maximum_original_edge_materialization_occurrences: u64,
+    pub maximum_original_edge_portal_fragment_occurrences: u64,
+    pub maximum_original_edge_portal_splits: u64,
     pub original_edge_scale_occurrences: Vec<u64>,
     pub maximum_original_edge_scale_occurrences: u64,
     scale_observations: u64,
@@ -2157,19 +2169,53 @@ impl An19ProjectionAudit {
     fn new(original_edge_count: usize) -> Self {
         Self {
             original_edge_segment_occurrences: vec![0; original_edge_count],
+            original_edge_materialization_occurrences: vec![0; original_edge_count],
+            original_edge_portal_fragment_occurrences: vec![0; original_edge_count],
+            original_edge_portal_splits: vec![0; original_edge_count],
             provenance_free_segment_occurrences: 0,
+            provenance_free_portal_splits: 0,
             projected_edge_occurrences: 0,
+            source_projection_materializations: 0,
+            portal_fragment_materializations: 0,
+            source_portal_splits: 0,
             maximum_projection_edges: 0,
             total_projection_length_classes: 0,
             maximum_projection_length_classes: 0,
             maximum_symbolic_source_label_classes: 0,
             maximum_symbolic_virtual_label_classes: 0,
             maximum_original_edge_segment_occurrences: 0,
+            maximum_original_edge_materialization_occurrences: 0,
+            maximum_original_edge_portal_fragment_occurrences: 0,
+            maximum_original_edge_portal_splits: 0,
             original_edge_scale_occurrences: vec![0; original_edge_count],
             maximum_original_edge_scale_occurrences: 0,
             scale_observations: 0,
             source_last_scale_observation: vec![0; original_edge_count],
         }
+    }
+
+    fn record_portal_split(
+        &mut self,
+        root_source: Option<SourceEdgeId>,
+        metrics: &mut An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        metrics.portal_splits = checked_metric_sum(metrics.portal_splits, 1)?;
+        let Some(source) = root_source else {
+            self.provenance_free_portal_splits =
+                checked_metric_sum(self.provenance_free_portal_splits, 1)?;
+            return Ok(());
+        };
+        let splits = self
+            .original_edge_portal_splits
+            .get_mut(source.0)
+            .ok_or(An19PetalError::InvalidWorkCertificate)?;
+        *splits = checked_metric_sum(*splits, 1)?;
+        self.source_portal_splits = checked_metric_sum(self.source_portal_splits, 1)?;
+        metrics.source_portal_splits = checked_metric_sum(metrics.source_portal_splits, 1)?;
+        self.maximum_original_edge_portal_splits =
+            self.maximum_original_edge_portal_splits.max(*splits);
+        metrics.maximum_source_portal_splits = metrics.maximum_source_portal_splits.max(*splits);
+        Ok(())
     }
 
     fn record_scale_sources(
@@ -2213,6 +2259,53 @@ impl An19ProjectionAudit {
         Ok(())
     }
 
+    fn record_source_materializations(
+        &mut self,
+        source_segment_counts: Vec<u64>,
+        metrics: &mut An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        for (source, segment_count) in source_segment_counts.into_iter().enumerate() {
+            if segment_count == 0 {
+                continue;
+            }
+            let materializations = self
+                .original_edge_materialization_occurrences
+                .get_mut(source)
+                .ok_or(An19PetalError::InvalidWorkCertificate)?;
+            *materializations = checked_metric_sum(*materializations, 1)?;
+            self.source_projection_materializations =
+                checked_metric_sum(self.source_projection_materializations, 1)?;
+            metrics.source_projection_materializations =
+                checked_metric_sum(metrics.source_projection_materializations, 1)?;
+            self.maximum_original_edge_materialization_occurrences = self
+                .maximum_original_edge_materialization_occurrences
+                .max(*materializations);
+            metrics.maximum_source_projection_materializations = metrics
+                .maximum_source_projection_materializations
+                .max(*materializations);
+
+            let fragment_count = segment_count
+                .checked_sub(1)
+                .ok_or(An19PetalError::Overflow)?;
+            let fragment_occurrences = self
+                .original_edge_portal_fragment_occurrences
+                .get_mut(source)
+                .ok_or(An19PetalError::InvalidWorkCertificate)?;
+            *fragment_occurrences = checked_metric_sum(*fragment_occurrences, fragment_count)?;
+            self.portal_fragment_materializations =
+                checked_metric_sum(self.portal_fragment_materializations, fragment_count)?;
+            metrics.portal_fragment_materializations =
+                checked_metric_sum(metrics.portal_fragment_materializations, fragment_count)?;
+            self.maximum_original_edge_portal_fragment_occurrences = self
+                .maximum_original_edge_portal_fragment_occurrences
+                .max(*fragment_occurrences);
+            metrics.maximum_source_portal_fragment_materializations = metrics
+                .maximum_source_portal_fragment_materializations
+                .max(*fragment_occurrences);
+        }
+        Ok(())
+    }
+
     fn record(
         &mut self,
         projection: &AugmentedProjection,
@@ -2234,6 +2327,7 @@ impl An19ProjectionAudit {
         let mut length_classes = BTreeSet::new();
         let mut symbolic_source_classes = BTreeSet::new();
         let mut symbolic_virtual_classes = BTreeSet::new();
+        let mut source_segment_counts = vec![0_u64; self.original_edge_segment_occurrences.len()];
         for index in 0..projection.graph.edge_count() {
             let edge = projection
                 .graph
@@ -2256,6 +2350,10 @@ impl An19ProjectionAudit {
             }
             match root_source {
                 Some(root) => {
+                    let projection_occurrences = source_segment_counts
+                        .get_mut(root.0)
+                        .ok_or(An19PetalError::InvalidWorkCertificate)?;
+                    *projection_occurrences = checked_metric_sum(*projection_occurrences, 1)?;
                     let occurrences = self
                         .original_edge_segment_occurrences
                         .get_mut(root.0)
@@ -2271,6 +2369,7 @@ impl An19ProjectionAudit {
                 }
             }
         }
+        self.record_source_materializations(source_segment_counts, metrics)?;
         if symbolic_source_classes != projection.symbolic_source_classes
             || symbolic_virtual_classes != projection.symbolic_virtual_classes
         {
@@ -2339,6 +2438,50 @@ impl An19ProjectionAudit {
         Ok(())
     }
 
+    fn verify_structural_charges(
+        &self,
+        metrics: &An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        if self.scale_observations == 0 {
+            return Ok(());
+        }
+        for (((materializations, fragments), splits), scales) in self
+            .original_edge_materialization_occurrences
+            .iter()
+            .zip(&self.original_edge_portal_fragment_occurrences)
+            .zip(&self.original_edge_portal_splits)
+            .zip(&self.original_edge_scale_occurrences)
+        {
+            let scale_charge = source_materialization_charge(*scales)?;
+            let fragment_charge = splits
+                .checked_mul(scale_charge)
+                .ok_or(An19PetalError::Overflow)?;
+            if *materializations > scale_charge || *fragments > fragment_charge {
+                return Err(An19PetalError::InvalidWorkCertificate);
+            }
+        }
+        self.verify_structural_virtual_charges(metrics)
+    }
+
+    fn verify_structural_virtual_charges(
+        &self,
+        metrics: &An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        let virtual_fragments =
+            checked_metric_sum(metrics.virtual_leaves, self.provenance_free_portal_splits)?;
+        let active_scales = metrics
+            .maximum_partition_depth
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?;
+        let bound = virtual_fragments
+            .checked_mul(source_materialization_charge(active_scales)?)
+            .ok_or(An19PetalError::Overflow)?;
+        if self.provenance_free_segment_occurrences > bound {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
+        Ok(())
+    }
+
     /// Recomputes aggregate projection relationships and cross-checks metrics.
     ///
     /// # Errors
@@ -2360,6 +2503,36 @@ impl An19ProjectionAudit {
             .copied()
             .max()
             .unwrap_or(0);
+        let source_materializations = self
+            .original_edge_materialization_occurrences
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let maximum_source_materializations = self
+            .original_edge_materialization_occurrences
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        let portal_fragments = self
+            .original_edge_portal_fragment_occurrences
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let maximum_portal_fragments = self
+            .original_edge_portal_fragment_occurrences
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        let source_portal_splits = self
+            .original_edge_portal_splits
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let maximum_source_portal_splits = self
+            .original_edge_portal_splits
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
         let scale_occurrences = self
             .original_edge_scale_occurrences
             .iter()
@@ -2370,7 +2543,11 @@ impl An19ProjectionAudit {
             .copied()
             .max()
             .unwrap_or(0);
+        self.verify_structural_charges(metrics)?;
         if self.original_edge_segment_occurrences.len() != original_edge_count
+            || self.original_edge_materialization_occurrences.len() != original_edge_count
+            || self.original_edge_portal_fragment_occurrences.len() != original_edge_count
+            || self.original_edge_portal_splits.len() != original_edge_count
             || self.original_edge_scale_occurrences.len() != original_edge_count
             || self.source_last_scale_observation.len() != original_edge_count
             || self.scale_observations != metrics.partition_recursion_calls
@@ -2379,6 +2556,23 @@ impl An19ProjectionAudit {
                 self.provenance_free_segment_occurrences,
             )? != self.projected_edge_occurrences
             || maximum != self.maximum_original_edge_segment_occurrences
+            || source_materializations != self.source_projection_materializations
+            || source_materializations != metrics.source_projection_materializations
+            || maximum_source_materializations
+                != self.maximum_original_edge_materialization_occurrences
+            || maximum_source_materializations != metrics.maximum_source_projection_materializations
+            || portal_fragments != self.portal_fragment_materializations
+            || portal_fragments != metrics.portal_fragment_materializations
+            || maximum_portal_fragments != self.maximum_original_edge_portal_fragment_occurrences
+            || maximum_portal_fragments != metrics.maximum_source_portal_fragment_materializations
+            || source_portal_splits != self.source_portal_splits
+            || source_portal_splits != metrics.source_portal_splits
+            || maximum_source_portal_splits != self.maximum_original_edge_portal_splits
+            || maximum_source_portal_splits != metrics.maximum_source_portal_splits
+            || checked_metric_sum(source_portal_splits, self.provenance_free_portal_splits)?
+                != metrics.portal_splits
+            || checked_metric_sum(source_materializations, portal_fragments)?
+                != original_occurrences
             || self.projected_edge_occurrences != metrics.projected_edge_slots
             || self.maximum_projection_edges != metrics.maximum_projection_edges
             || self.total_projection_length_classes != metrics.projection_length_class_sum
@@ -2419,6 +2613,12 @@ pub struct An19HierarchyMetrics {
     pub maximum_projection_length_classes: u64,
     pub maximum_symbolic_source_label_classes: u64,
     pub maximum_symbolic_virtual_label_classes: u64,
+    pub source_projection_materializations: u64,
+    pub maximum_source_projection_materializations: u64,
+    pub portal_fragment_materializations: u64,
+    pub maximum_source_portal_fragment_materializations: u64,
+    pub source_portal_splits: u64,
+    pub maximum_source_portal_splits: u64,
     pub source_scale_participations: u64,
     pub maximum_source_scale_participations: u64,
     pub source_scale_attribution_scans: u64,
@@ -2456,6 +2656,18 @@ pub struct An19HierarchyMetrics {
 }
 
 const AN19_WORK_BOUND_FACTOR: u64 = 1_024;
+const AN19_PROJECTION_MATERIALIZATIONS_PER_SCALE: u64 = 4;
+
+fn source_materialization_charge(scales: u64) -> Result<u64, An19PetalError> {
+    // A source segment can enter one full projection at the recursive call,
+    // one after the optional imaginary-path mutation, one while preparing its
+    // child highway, and one after a same-scale quotient mutation. Cache hits
+    // and incremental portal splits do not materialize another projection.
+    scales
+        .checked_mul(AN19_PROJECTION_MATERIALIZATIONS_PER_SCALE)
+        .and_then(|value| value.checked_add(1))
+        .ok_or(An19PetalError::Overflow)
+}
 
 fn source_scale_participation_bound(logarithmic_levels: u64) -> Result<u64, An19PetalError> {
     // AN19 Section 6 gives an active radius ratio of at most 2*n^2, while
@@ -2588,6 +2800,24 @@ impl An19WorkCertificate {
                     .maximum_partition_depth
                     .checked_add(1)
                     .ok_or(An19PetalError::Overflow)?
+            || metrics.source_projection_materializations
+                > metrics
+                    .source_scale_participations
+                    .checked_mul(AN19_PROJECTION_MATERIALIZATIONS_PER_SCALE)
+                    .and_then(|value| value.checked_add(u64::try_from(graph.edge_count()).ok()?))
+                    .ok_or(An19PetalError::Overflow)?
+            || metrics.maximum_source_projection_materializations
+                > source_materialization_charge(metrics.maximum_source_scale_participations)?
+            || metrics.source_portal_splits > metrics.portal_splits
+            || metrics.maximum_source_portal_splits > metrics.source_portal_splits
+            || metrics.portal_fragment_materializations
+                > metrics
+                    .source_portal_splits
+                    .checked_mul(source_materialization_charge(
+                        self.source_scale_participation_bound,
+                    )?)
+                    .ok_or(An19PetalError::Overflow)?
+            || metrics.portal_fragment_materializations > metrics.projected_edge_slots
             || metrics.source_scale_participations > metrics.source_scale_attribution_scans
             || metrics.maximum_projection_nodes == 0
             || metrics.maximum_projection_nodes > metrics.projected_node_slots
@@ -2631,6 +2861,8 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.projected_node_slots,
         metrics.projected_edge_slots,
         metrics.projection_length_class_sum,
+        metrics.source_projection_materializations,
+        metrics.portal_fragment_materializations,
         metrics.source_scale_participations,
         metrics.source_scale_attribution_scans,
         metrics.contraction_calls,
@@ -3441,6 +3673,7 @@ fn petal_decomposition(
         &projection,
         &paths,
         metrics,
+        projection_audit,
     )?;
     drop(projection);
     let first_budget = delta
@@ -3519,11 +3752,21 @@ fn hierarchy_first_target(
     projection: &AugmentedProjection,
     paths: &HierarchyShortestPaths,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<FlowNodeId, An19PetalError> {
     if !ratio_less(target_distance, r0)? {
         metrics.fixed_path_reuses = checked_metric_sum(metrics.fixed_path_reuses, 1)?;
         return ensure_vertex_at_distance_from_paths(
-            workspace, cluster, remaining, center, target, r0, projection, paths, metrics,
+            workspace,
+            cluster,
+            remaining,
+            center,
+            target,
+            r0,
+            projection,
+            paths,
+            metrics,
+            projection_audit,
         );
     }
     let mut extension = r0
@@ -3614,15 +3857,18 @@ fn create_hierarchy_petal(
                 .dense_to_augmented()
                 .get(edge.0)
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let root_source = workspace
+                .edges
+                .get(stable)
+                .filter(|edge| edge.active)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?
+                .root_source;
             let augmented_from = projection.augmented_node(from)?;
             let (portal, _, toward_center) =
                 workspace.split_edge(stable, augmented_from, offset_from)?;
             fixed_cluster.insert(portal);
             petal_vertices.insert(portal);
-            metrics.portal_splits = metrics
-                .portal_splits
-                .checked_add(1)
-                .ok_or(An19PetalError::Overflow)?;
+            projection_audit.record_portal_split(root_source, metrics)?;
             (portal, toward_center)
         }
     };
@@ -3748,6 +3994,7 @@ fn ensure_vertex_at_distance(
         &projection,
         &paths,
         metrics,
+        projection_audit,
     )
 }
 
@@ -3762,6 +4009,7 @@ fn ensure_vertex_at_distance_from_paths(
     projection: &AugmentedProjection,
     paths: &HierarchyShortestPaths,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<FlowNodeId, An19PetalError> {
     let path = recover_hierarchy_path(center, target, paths)?;
     let mut traversed = ratio(0, 1)?;
@@ -3792,13 +4040,16 @@ fn ensure_vertex_at_distance_from_paths(
                 .dense_to_augmented()
                 .get(dense_edge.0)
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            let root_source = workspace
+                .edges
+                .get(stable)
+                .filter(|edge| edge.active)
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?
+                .root_source;
             let (vertex, _, _) = workspace.split_edge(stable, from, offset)?;
             fixed_cluster.insert(vertex);
             remaining.insert(vertex);
-            metrics.portal_splits = metrics
-                .portal_splits
-                .checked_add(1)
-                .ok_or(An19PetalError::Overflow)?;
+            projection_audit.record_portal_split(root_source, metrics)?;
             return Ok(vertex);
         }
         traversed = next_distance;
@@ -6494,6 +6745,18 @@ mod tests {
         SourceDynamicGraph::new(nodes, edges, 16).unwrap()
     }
 
+    fn alternating_path_graph(scale: i128) -> SourceDynamicGraph {
+        let edges = (0..499)
+            .map(|index| SourceWeightedEdge {
+                first: FlowNodeId(index),
+                second: FlowNodeId(index + 1),
+                length: ExactRatio::new(scale * i128::try_from(2 + index % 2).unwrap(), 1).unwrap(),
+                weight: ExactRatio::new(1, 1).unwrap(),
+            })
+            .collect();
+        SourceDynamicGraph::new(500, edges, 10_000).unwrap()
+    }
+
     fn test_edge(first: usize, second: usize, length: i128) -> SourceWeightedEdge {
         SourceWeightedEdge {
             first: FlowNodeId(first),
@@ -6552,6 +6815,53 @@ mod tests {
             .work_certificate
             .source_scale_participation_bound += 1;
         assert!(invalid_bound.verify(graph).is_err());
+    }
+
+    fn assert_projection_charging_mutations_rejected(
+        hierarchy: &super::An19HierarchicalLsst,
+        graph: &SourceDynamicGraph,
+    ) {
+        let mut invalid_materialization = hierarchy.clone();
+        invalid_materialization
+            .projection_audit
+            .original_edge_materialization_occurrences[0] += 1;
+        assert!(invalid_materialization.verify(graph).is_err());
+
+        let mut invalid_fragment = hierarchy.clone();
+        invalid_fragment
+            .projection_audit
+            .original_edge_portal_fragment_occurrences[0] += 1;
+        assert!(invalid_fragment.verify(graph).is_err());
+
+        let split_source = hierarchy
+            .projection_audit
+            .original_edge_portal_splits
+            .iter()
+            .position(|splits| *splits > 0)
+            .unwrap();
+        let mut invalid_split = hierarchy.clone();
+        invalid_split.projection_audit.original_edge_portal_splits[split_source] += 1;
+        assert!(invalid_split.verify(graph).is_err());
+
+        let mut invalid_metric = hierarchy.clone();
+        invalid_metric.metrics.source_projection_materializations += 1;
+        assert!(invalid_metric.verify(graph).is_err());
+    }
+
+    fn assert_projection_charging_counts(audit: &super::An19ProjectionAudit, expected: [u64; 7]) {
+        assert_eq!(audit.source_projection_materializations, expected[0]);
+        assert_eq!(
+            audit.maximum_original_edge_materialization_occurrences,
+            expected[1]
+        );
+        assert_eq!(audit.portal_fragment_materializations, expected[2]);
+        assert_eq!(
+            audit.maximum_original_edge_portal_fragment_occurrences,
+            expected[3]
+        );
+        assert_eq!(audit.source_portal_splits, expected[4]);
+        assert_eq!(audit.maximum_original_edge_portal_splits, expected[5]);
+        assert_eq!(audit.provenance_free_portal_splits, expected[6]);
     }
 
     #[test]
@@ -7931,6 +8241,7 @@ mod tests {
         assert_eq!(metrics.recursion_calls, 46);
         assert_eq!(metrics.partition_recursion_calls, 46);
         assert_eq!(metrics.maximum_partition_depth, 8);
+        assert_projection_charging_counts(&projection_audit, [4_533, 17, 61, 16, 27, 2, 22]);
         assert!(projection_audit.maximum_original_edge_segment_occurrences > logarithmic_levels);
         projection_audit
             .verify(graph.edge_count(), &metrics)
@@ -8301,22 +8612,14 @@ mod tests {
     fn compact_rational_hierarchy_recurses_with_scale_independent_counters() {
         use super::An19HierarchicalLsst;
 
-        let make_path = |scale: i128| {
-            let edges = (0..499)
-                .map(|index| SourceWeightedEdge {
-                    first: FlowNodeId(index),
-                    second: FlowNodeId(index + 1),
-                    length: ExactRatio::new(scale * i128::try_from(2 + index % 2).unwrap(), 1)
-                        .unwrap(),
-                    weight: ExactRatio::new(1, 1).unwrap(),
-                })
-                .collect();
-            SourceDynamicGraph::new(500, edges, 10_000).unwrap()
-        };
-        let small = make_path(1);
-        let large = make_path(1_000);
+        let small = alternating_path_graph(1);
+        let large = alternating_path_graph(1_000);
         let small_hierarchy = An19HierarchicalLsst::construct(&small, FlowNodeId(0)).unwrap();
         let large_hierarchy = An19HierarchicalLsst::construct(&large, FlowNodeId(0)).unwrap();
+        assert_projection_charging_counts(
+            &small_hierarchy.projection_audit,
+            [4_181, 16, 45, 12, 22, 1, 10],
+        );
         small_hierarchy.verify(&small).unwrap();
         large_hierarchy.verify(&large).unwrap();
         assert_eq!(small_hierarchy.tree_edges, large_hierarchy.tree_edges);
@@ -8388,6 +8691,7 @@ mod tests {
             .maximum_symbolic_source_label_classes += 1;
         assert!(invalid_symbolic_audit.verify(&small).is_err());
         assert_scale_audit_mutations_rejected(&small_hierarchy, &small);
+        assert_projection_charging_mutations_rejected(&small_hierarchy, &small);
         let mut invalid_queue = small_hierarchy.clone();
         invalid_queue.metrics.monotone_queue_pops =
             invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);
