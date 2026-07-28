@@ -57,6 +57,10 @@ REQUIRED_V08_ARTIFACTS = (
     "results/path-tree-witnesses/report.json",
 )
 REQUIRED_V09_ARTIFACTS = ("results/v0.9-polygon-differential.json",)
+REQUIRED_AN19_EVENT_ARTIFACTS = (
+    "results/an19-event-adversarial.json",
+    "results/an19-event-adversarial.md",
+)
 REQUIRED_V10_ARTIFACTS = (
     "results/v1.0-polygon-differential-3x3.json",
     "results/v1.0-polygon-differential-4x4.json",
@@ -148,7 +152,7 @@ def check_an19_status_docs() -> None:
             "AN19 logarithmic reduced-class conversion",
             "Refuted",
             "AN19 exact reduced-event ordering replacement",
-            "Blocked / not found in cited source",
+            "Implemented semantics / proof blocked",
         ),
     }
     contents = {}
@@ -330,6 +334,49 @@ def main() -> None:
     if "v1.3" not in paper_tables or "v1.3" not in experiments:
         fail("generated evidence does not contain a v1.3 section")
     generated_tables = set(manifest.get("generated_tables", []))
+    for relative in REQUIRED_AN19_EVENT_ARTIFACTS:
+        if not (ROOT / relative).is_file():
+            fail(f"missing generated AN19 event evidence: {relative}")
+        if relative not in generated_tables:
+            fail(f"manifest omits generated AN19 event evidence: {relative}")
+    an19_events = json.loads(
+        (ROOT / "results/an19-event-adversarial.json").read_text(encoding="utf-8")
+    )
+    assert_reachable(an19_events.get("commit_sha", ""), head, "AN19 event evidence")
+    expected_families = {
+        "many_reduced_costs_few_source_lengths",
+        "repeated_portal_splitting",
+        "full_depth_persistence",
+        "all_equal_reduced_keys",
+        "all_distinct_reduced_keys",
+        "alternating_partition_contraction",
+        "highway_halving_reorder",
+        "virtual_real_mixed_segments",
+    }
+    cases = an19_events.get("cases", [])
+    if {case.get("input_family") for case in cases} != expected_families:
+        fail("AN19 event evidence does not cover all adversarial families")
+    if not cases or not all(case.get("oracle_agreement") is True for case in cases):
+        fail("AN19 event evidence contains an Oracle disagreement")
+    status = an19_events.get("runtime_status", {})
+    for key in (
+        "semantics_implemented",
+        "exact_oracle_verified",
+        "differential_verified",
+        "trace_complete",
+    ):
+        if status.get(key) is not True:
+            fail(f"AN19 event evidence has incomplete implementation status: {key}")
+    for key in (
+        "local_event_bound_proved",
+        "global_amortization_proved",
+        "priority_queue_bound_proved",
+        "an19_runtime_verified",
+    ):
+        if status.get(key) is not False:
+            fail(f"AN19 event evidence overclaims proof status: {key}")
+    if an19_events.get("naive_reduced_class_conversion_survived") is not False:
+        fail("AN19 adversarial evidence does not retain the reduced-class witness")
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
             fail(f"missing generated v0.8 evidence: {relative}")

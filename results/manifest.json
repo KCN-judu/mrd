@@ -1497,6 +1497,8 @@
     "results/v1.2-external-oracle.json",
     "results/path-tree-witnesses/index.json",
     "results/path-tree-witnesses/report.json",
+    "results/an19-event-adversarial.json",
+    "results/an19-event-adversarial.md",
     "results/v0.6-clean-complete-bipartite-compact.csv",
     "results/v0.6-clean-complete-bipartite-compact-summary.json",
     "results/v0.6-clean-complete-bipartite-compact.md"
