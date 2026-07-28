@@ -1452,6 +1452,53 @@ struct ProjectionSplitUpdate {
     offset: ExactRatio,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct ProjectionIncidentScans {
+    active_internal: u64,
+    active_boundary: u64,
+    inactive: u64,
+}
+
+impl ProjectionIncidentScans {
+    fn observe(
+        &mut self,
+        edge: &AugmentedAn19Edge,
+        cluster: &BTreeSet<FlowNodeId>,
+    ) -> Result<bool, An19PetalError> {
+        if !edge.active {
+            self.inactive = checked_metric_sum(self.inactive, 1)?;
+            return Ok(false);
+        }
+        if !cluster.contains(&edge.first) || !cluster.contains(&edge.second) {
+            self.active_boundary = checked_metric_sum(self.active_boundary, 1)?;
+            return Ok(false);
+        }
+        self.active_internal = checked_metric_sum(self.active_internal, 1)?;
+        Ok(true)
+    }
+
+    fn record(self, metrics: &mut An19HierarchyMetrics) -> Result<(), An19PetalError> {
+        metrics.projection_active_internal_incident_scans = checked_metric_sum(
+            metrics.projection_active_internal_incident_scans,
+            self.active_internal,
+        )?;
+        metrics.projection_active_boundary_incident_scans = checked_metric_sum(
+            metrics.projection_active_boundary_incident_scans,
+            self.active_boundary,
+        )?;
+        metrics.projection_inactive_incident_scans =
+            checked_metric_sum(metrics.projection_inactive_incident_scans, self.inactive)?;
+        let total = checked_metric_sum(
+            checked_metric_sum(self.active_internal, self.active_boundary)?,
+            self.inactive,
+        )?;
+        metrics.projection_incident_scans =
+            checked_metric_sum(metrics.projection_incident_scans, total)?;
+        metrics.workspace_edge_scans = checked_metric_sum(metrics.workspace_edge_scans, total)?;
+        Ok(())
+    }
+}
+
 impl AugmentedAn19Graph {
     /// Copies an exact source graph into a stable-edge hierarchy workspace.
     ///
@@ -1750,6 +1797,8 @@ impl AugmentedAn19Graph {
         {
             return Ok(projection);
         }
+        metrics.projection_materializations =
+            checked_metric_sum(metrics.projection_materializations, 1)?;
         let local_nodes = u64::try_from(cluster.len()).map_err(|_| An19PetalError::Overflow)?;
         metrics.projected_node_slots =
             checked_metric_sum(metrics.projected_node_slots, local_nodes)?;
@@ -1766,22 +1815,19 @@ impl AugmentedAn19Graph {
         let mut length_class_counts = BTreeMap::new();
         let mut symbolic_source_classes = BTreeSet::new();
         let mut symbolic_virtual_classes = BTreeSet::new();
+        let mut incident_scans = ProjectionIncidentScans::default();
         let mut bound = 1_i128;
         for vertex in cluster {
             let incident = self
                 .incident_edges
                 .get(vertex.0)
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
-            add_workspace_edge_scans(metrics, incident.len(), 1)?;
             for stable in incident {
                 let edge = self
                     .edges
                     .get(*stable)
                     .ok_or(An19PetalError::InvalidAugmentedGraph)?;
-                if !edge.active
-                    || !cluster.contains(&edge.first)
-                    || !cluster.contains(&edge.second)
-                    || *vertex != edge.first.min(edge.second)
+                if !incident_scans.observe(edge, cluster)? || *vertex != edge.first.min(edge.second)
                 {
                     continue;
                 }
@@ -1818,6 +1864,7 @@ impl AugmentedAn19Graph {
                 });
             }
         }
+        incident_scans.record(metrics)?;
         let graph = SourceDynamicGraph::new(cluster.len(), edges, bound)
             .map_err(|_| An19PetalError::InvalidAugmentedGraph)?;
         let dense_root_sources = dense_to_augmented
@@ -2604,11 +2651,16 @@ pub struct An19HierarchyMetrics {
     pub base_cases: u64,
     pub projection_calls: u64,
     pub projection_cache_hits: u64,
+    pub projection_materializations: u64,
     pub projection_incremental_splits: u64,
     pub projected_node_slots: u64,
     pub maximum_projection_nodes: u64,
     pub projected_edge_slots: u64,
     pub maximum_projection_edges: u64,
+    pub projection_incident_scans: u64,
+    pub projection_active_internal_incident_scans: u64,
+    pub projection_active_boundary_incident_scans: u64,
+    pub projection_inactive_incident_scans: u64,
     pub projection_length_class_sum: u64,
     pub maximum_projection_length_classes: u64,
     pub maximum_symbolic_source_label_classes: u64,
@@ -2667,6 +2719,16 @@ fn source_materialization_charge(scales: u64) -> Result<u64, An19PetalError> {
         .checked_mul(AN19_PROJECTION_MATERIALIZATIONS_PER_SCALE)
         .and_then(|value| value.checked_add(1))
         .ok_or(An19PetalError::Overflow)
+}
+
+fn projection_incident_scan_total(metrics: &An19HierarchyMetrics) -> Result<u64, An19PetalError> {
+    checked_metric_sum(
+        checked_metric_sum(
+            metrics.projection_active_internal_incident_scans,
+            metrics.projection_active_boundary_incident_scans,
+        )?,
+        metrics.projection_inactive_incident_scans,
+    )
 }
 
 fn source_scale_participation_bound(logarithmic_levels: u64) -> Result<u64, An19PetalError> {
@@ -2771,6 +2833,24 @@ impl An19WorkCertificate {
             An19LengthMode::RoundedPowerOfTwo,
             metrics,
         )?;
+        let scale_charge = source_materialization_charge(self.source_scale_participation_bound)?;
+        // Each source, virtual leaf, or split creates one active segment
+        // lineage; an active or inactive segment has two incident references.
+        let active_segment_lineages = u64::try_from(graph.edge_count())
+            .map_err(|_| An19PetalError::Overflow)?
+            .checked_add(metrics.virtual_leaves)
+            .and_then(|value| value.checked_add(metrics.portal_splits))
+            .ok_or(An19PetalError::Overflow)?;
+        let boundary_scan_bound = active_segment_lineages
+            .checked_mul(2)
+            .and_then(|value| value.checked_mul(scale_charge))
+            .ok_or(An19PetalError::Overflow)?;
+        let inactive_scan_bound = metrics
+            .portal_splits
+            .checked_mul(2)
+            .and_then(|value| value.checked_mul(scale_charge))
+            .ok_or(An19PetalError::Overflow)?;
+        let classified_projection_scans = projection_incident_scan_total(metrics)?;
         if *self != rebuilt
             || self.oracle_fallbacks != 0
             || self.numeric_length_expansions != 0
@@ -2793,7 +2873,25 @@ impl An19WorkCertificate {
             || metrics.maximum_partition_depth >= self.source_scale_participation_bound
             || metrics.projection_calls < metrics.recursion_calls
             || metrics.projection_cache_hits > metrics.projection_calls
+            || checked_metric_sum(
+                metrics.projection_cache_hits,
+                metrics.projection_materializations,
+            )? != metrics.projection_calls
             || metrics.projection_incremental_splits > metrics.portal_splits
+            || metrics.projection_active_internal_incident_scans
+                != metrics
+                    .projected_edge_slots
+                    .checked_mul(2)
+                    .ok_or(An19PetalError::Overflow)?
+            || metrics.projected_node_slots
+                > checked_metric_sum(
+                    metrics.projected_edge_slots,
+                    metrics.projection_materializations,
+                )?
+            || metrics.projection_active_boundary_incident_scans > boundary_scan_bound
+            || metrics.projection_inactive_incident_scans > inactive_scan_bound
+            || classified_projection_scans != metrics.projection_incident_scans
+            || metrics.projection_incident_scans > metrics.workspace_edge_scans
             || metrics.maximum_source_scale_participations > self.source_scale_participation_bound
             || metrics.maximum_source_scale_participations
                 > metrics
@@ -6846,6 +6944,30 @@ mod tests {
         let mut invalid_metric = hierarchy.clone();
         invalid_metric.metrics.source_projection_materializations += 1;
         assert!(invalid_metric.verify(graph).is_err());
+
+        let mut invalid_builds = hierarchy.clone();
+        invalid_builds.metrics.projection_materializations += 1;
+        assert!(invalid_builds.verify(graph).is_err());
+
+        let mut invalid_internal = hierarchy.clone();
+        invalid_internal
+            .metrics
+            .projection_active_internal_incident_scans += 1;
+        assert!(invalid_internal.verify(graph).is_err());
+
+        let mut invalid_boundary = hierarchy.clone();
+        invalid_boundary
+            .metrics
+            .projection_active_boundary_incident_scans += 1;
+        assert!(invalid_boundary.verify(graph).is_err());
+
+        let mut invalid_inactive = hierarchy.clone();
+        invalid_inactive.metrics.projection_inactive_incident_scans += 1;
+        assert!(invalid_inactive.verify(graph).is_err());
+
+        let mut invalid_incident_total = hierarchy.clone();
+        invalid_incident_total.metrics.projection_incident_scans += 1;
+        assert!(invalid_incident_total.verify(graph).is_err());
     }
 
     fn assert_projection_charging_counts(audit: &super::An19ProjectionAudit, expected: [u64; 7]) {
@@ -6862,6 +6984,28 @@ mod tests {
         assert_eq!(audit.source_portal_splits, expected[4]);
         assert_eq!(audit.maximum_original_edge_portal_splits, expected[5]);
         assert_eq!(audit.provenance_free_portal_splits, expected[6]);
+    }
+
+    fn assert_projection_scan_counts(metrics: &super::An19HierarchyMetrics, expected: [u64; 9]) {
+        assert_eq!(metrics.projection_calls, expected[0]);
+        assert_eq!(metrics.projection_cache_hits, expected[1]);
+        assert_eq!(metrics.projection_materializations, expected[2]);
+        assert_eq!(metrics.projected_node_slots, expected[3]);
+        assert_eq!(metrics.projected_edge_slots, expected[4]);
+        assert_eq!(
+            metrics.projection_active_internal_incident_scans,
+            expected[5]
+        );
+        assert_eq!(
+            metrics.projection_active_boundary_incident_scans,
+            expected[6]
+        );
+        assert_eq!(metrics.projection_inactive_incident_scans, expected[7]);
+        assert_eq!(metrics.workspace_edge_scans, expected[8]);
+        assert_eq!(
+            metrics.projection_incident_scans,
+            expected[5] + expected[6] + expected[7]
+        );
     }
 
     #[test]
@@ -8242,6 +8386,10 @@ mod tests {
         assert_eq!(metrics.partition_recursion_calls, 46);
         assert_eq!(metrics.maximum_partition_depth, 8);
         assert_projection_charging_counts(&projection_audit, [4_533, 17, 61, 16, 27, 2, 22]);
+        assert_projection_scan_counts(
+            &metrics,
+            [165, 83, 82, 6_056, 5_974, 11_948, 172, 332, 18_290],
+        );
         assert!(projection_audit.maximum_original_edge_segment_occurrences > logarithmic_levels);
         projection_audit
             .verify(graph.edge_count(), &metrics)
@@ -8619,6 +8767,10 @@ mod tests {
         assert_projection_charging_counts(
             &small_hierarchy.projection_audit,
             [4_181, 16, 45, 12, 22, 1, 10],
+        );
+        assert_projection_scan_counts(
+            &small_hierarchy.metrics,
+            [118, 55, 63, 4_319, 4_256, 8_512, 113, 203, 16_043],
         );
         small_hierarchy.verify(&small).unwrap();
         large_hierarchy.verify(&large).unwrap();
