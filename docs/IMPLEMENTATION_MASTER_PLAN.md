@@ -8,7 +8,7 @@
 - Current phase state: blocked
 - Last completed phase: P8
 - Last pushed SHA: 09ea2bb5355c60d156dafd1cfd1f00e70fcb0751
-- Plan last updated: 2026-07-28T12:25:47Z
+- Plan last updated: 2026-07-28T12:41:56Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -533,7 +533,7 @@ P9.3 is split into the following source-gated subphases:
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
    `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
    `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`, `bc61592`,
-   `14e9abb`.** The Appendix B.3
+   `14e9abb`, `8d68d59`.** The Appendix B.3
    heavy-light auxiliary tree, branch-free root closure, exact congestion
    permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
@@ -571,7 +571,7 @@ P9.3 is split into the following source-gated subphases:
    - **P9.3.2d state: blocked. Implementation SHAs: `3bb0400`, `839cb5c`,
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
      `27d5773`, `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`,
-     `bc61592`, `14e9abb`.** The exact
+     `bc61592`, `14e9abb`, `8d68d59`.** The exact
      arbitrary-rational Figure 6 selector derives parametric directed
      membership events and is differentially equal to the unit cone-union
      baseline. A stable-ID augmented workspace now supports exact rational edge
@@ -633,11 +633,20 @@ P9.3 is split into the following source-gated subphases:
      maximum active projection length classes remains 16, so this is a
      constant-factor/materialization improvement rather than the missing
      source asymptotic proof.
+     `8d68d59` extends that cache through portal splits. It queues exact stable
+     split deltas and, once old readers release the snapshot, replaces the
+     projected edge in place, appends the second segment and portal node, and
+     updates an exact length-class multiset in `O(log m)`. A retained reader
+     forces a full rebuild. Shape auditing observes cached active edge/class
+     maxima without charging a full materialization. The 500-node fixture has
+     83 cache hits and 39 incremental splits; materialized projected edge
+     occurrences fall from 12,274 to 5,974 and workspace scans from 31,498 to
+     18,290. The corrected active-class maximum remains 16, and a source edge
+     still has 33 materialized occurrences versus 9 logarithmic levels.
      Unblock only with an authoritative corrected construction or a separately
      proved exact event-order data structure meeting the rational-input bound;
-     then eliminate or structurally charge repeated fixed-cluster projections
-     and prevent portal-segment lengths from becoming queue classes before
-     adding per-edge recursive-scale certificates. `An19AmortizationMode`
+     then prevent portal-segment lengths from becoming queue classes and add
+     per-edge recursive-scale certificates. `An19AmortizationMode`
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
@@ -785,4 +794,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | blocked | aabe7fc | pending | pending | 09ea2bb | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | P9.3.2d source event-order interface is unresolved |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
-| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb | pending | c12180f | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source projection audit, fixed first-target path reuse, and mutation-aware unchanged-cluster projection caching; retained 162-class event counterexample and observed 16-class portal projection prevent a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction plus incremental projection updates through portal splits and per-edge recursion proof remain |
+| P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59 | pending | e9919f3 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source projection audit, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; retained 162-class event counterexample and observed 16 active portal classes prevent a false source-runtime claim | 2026-07-28T02:48:00Z | pending | authoritative exact AN19 event-order reduction, symbolic portal labels that avoid queue-class multiplication, and per-edge recursion proof remain |
