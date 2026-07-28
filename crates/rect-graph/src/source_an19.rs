@@ -2704,6 +2704,11 @@ pub struct An19HierarchyMetrics {
     pub event_edge_touches: u64,
     pub volume_queries: u64,
     pub workspace_edge_scans: u64,
+    pub radius_edge_scans: u64,
+    pub contraction_input_edge_scans: u64,
+    pub contraction_retained_edge_scans: u64,
+    pub contraction_recovery_edge_scans: u64,
+    pub final_recovery_edge_scans: u64,
     pub tree_audit_work_units: u64,
 }
 
@@ -2729,6 +2734,65 @@ fn projection_incident_scan_total(metrics: &An19HierarchyMetrics) -> Result<u64,
         )?,
         metrics.projection_inactive_incident_scans,
     )
+}
+
+fn nonprojection_workspace_scan_total(
+    metrics: &An19HierarchyMetrics,
+) -> Result<u64, An19PetalError> {
+    [
+        metrics.radius_edge_scans,
+        metrics.contraction_input_edge_scans,
+        metrics.contraction_retained_edge_scans,
+        metrics.contraction_recovery_edge_scans,
+        metrics.final_recovery_edge_scans,
+    ]
+    .into_iter()
+    .try_fold(0_u64, checked_metric_sum)
+}
+
+fn final_recovery_edge_scan_total(
+    graph: &SourceDynamicGraph,
+    metrics: &An19HierarchyMetrics,
+) -> Result<u64, An19PetalError> {
+    let stable_edges = u64::try_from(graph.edge_count())
+        .map_err(|_| An19PetalError::Overflow)?
+        .checked_add(metrics.virtual_leaves)
+        .and_then(|value| value.checked_add(metrics.portal_splits.checked_mul(2)?))
+        .ok_or(An19PetalError::Overflow)?;
+    let selected_edges = u64::try_from(graph.node_count())
+        .map_err(|_| An19PetalError::Overflow)?
+        .checked_add(metrics.virtual_leaves)
+        .and_then(|value| value.checked_add(metrics.portal_splits))
+        .and_then(|value| value.checked_sub(1))
+        .ok_or(An19PetalError::Overflow)?;
+    stable_edges
+        .checked_mul(2)
+        .and_then(|value| value.checked_add(selected_edges))
+        .ok_or(An19PetalError::Overflow)
+}
+
+fn projection_incident_scan_bounds(
+    graph: &SourceDynamicGraph,
+    metrics: &An19HierarchyMetrics,
+    scale_charge: u64,
+) -> Result<(u64, u64), An19PetalError> {
+    // Each source, virtual leaf, or split creates one active segment lineage;
+    // an active or inactive segment has two incident references.
+    let active_lineages = u64::try_from(graph.edge_count())
+        .map_err(|_| An19PetalError::Overflow)?
+        .checked_add(metrics.virtual_leaves)
+        .and_then(|value| value.checked_add(metrics.portal_splits))
+        .ok_or(An19PetalError::Overflow)?;
+    let boundary = active_lineages
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(scale_charge))
+        .ok_or(An19PetalError::Overflow)?;
+    let inactive = metrics
+        .portal_splits
+        .checked_mul(2)
+        .and_then(|value| value.checked_mul(scale_charge))
+        .ok_or(An19PetalError::Overflow)?;
+    Ok((boundary, inactive))
 }
 
 fn source_scale_participation_bound(logarithmic_levels: u64) -> Result<u64, An19PetalError> {
@@ -2834,22 +2898,8 @@ impl An19WorkCertificate {
             metrics,
         )?;
         let scale_charge = source_materialization_charge(self.source_scale_participation_bound)?;
-        // Each source, virtual leaf, or split creates one active segment
-        // lineage; an active or inactive segment has two incident references.
-        let active_segment_lineages = u64::try_from(graph.edge_count())
-            .map_err(|_| An19PetalError::Overflow)?
-            .checked_add(metrics.virtual_leaves)
-            .and_then(|value| value.checked_add(metrics.portal_splits))
-            .ok_or(An19PetalError::Overflow)?;
-        let boundary_scan_bound = active_segment_lineages
-            .checked_mul(2)
-            .and_then(|value| value.checked_mul(scale_charge))
-            .ok_or(An19PetalError::Overflow)?;
-        let inactive_scan_bound = metrics
-            .portal_splits
-            .checked_mul(2)
-            .and_then(|value| value.checked_mul(scale_charge))
-            .ok_or(An19PetalError::Overflow)?;
+        let (boundary_scan_bound, inactive_scan_bound) =
+            projection_incident_scan_bounds(graph, metrics, scale_charge)?;
         let classified_projection_scans = projection_incident_scan_total(metrics)?;
         if *self != rebuilt
             || self.oracle_fallbacks != 0
@@ -2892,6 +2942,13 @@ impl An19WorkCertificate {
             || metrics.projection_inactive_incident_scans > inactive_scan_bound
             || classified_projection_scans != metrics.projection_incident_scans
             || metrics.projection_incident_scans > metrics.workspace_edge_scans
+            || nonprojection_workspace_scan_total(metrics)?
+                != metrics
+                    .workspace_edge_scans
+                    .checked_sub(metrics.projection_incident_scans)
+                    .ok_or(An19PetalError::InvalidWorkCertificate)?
+            || metrics.contraction_retained_edge_scans != metrics.quotient_edges
+            || metrics.final_recovery_edge_scans != final_recovery_edge_scan_total(graph, metrics)?
             || metrics.maximum_source_scale_participations > self.source_scale_participation_bound
             || metrics.maximum_source_scale_participations
                 > metrics
@@ -2993,6 +3050,11 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.event_edge_touches,
         metrics.volume_queries,
         metrics.workspace_edge_scans,
+        metrics.radius_edge_scans,
+        metrics.contraction_input_edge_scans,
+        metrics.contraction_retained_edge_scans,
+        metrics.contraction_recovery_edge_scans,
+        metrics.final_recovery_edge_scans,
         metrics.tree_audit_work_units,
     ]
     .into_iter()
@@ -3234,8 +3296,18 @@ impl An19HierarchicalLsst {
             &mut metrics,
             &mut projection_audit,
         )?;
-        add_workspace_edge_scans(&mut metrics, workspace.edges.len(), 2)?;
-        add_workspace_edge_scans(&mut metrics, selected.len(), 1)?;
+        add_workspace_edge_scans(
+            &mut metrics,
+            WorkspaceScanClass::FinalRecovery,
+            workspace.edges.len(),
+            2,
+        )?;
+        add_workspace_edge_scans(
+            &mut metrics,
+            WorkspaceScanClass::FinalRecovery,
+            selected.len(),
+            1,
+        )?;
         let tree_edges = workspace.recover_original_tree(&selected)?;
         metrics.tree_audit_work_units = tree_audit_work_units(graph)?
             .checked_mul(2)
@@ -3386,6 +3458,59 @@ impl An19HierarchicalLsst {
             .copied()
             .max()
             .unwrap_or(0);
+        let rebuilt_radius_edge_scans =
+            self.radius_certificates
+                .iter()
+                .try_fold(0_u64, |total, certificate| {
+                    checked_metric_sum(
+                        total,
+                        u64::try_from(certificate.edges.len())
+                            .map_err(|_| An19PetalError::Overflow)?
+                            .checked_mul(2)
+                            .ok_or(An19PetalError::Overflow)?,
+                    )
+                })?;
+        let rebuilt_contraction_input_edge_scans = if self.work_certificate.compact_weighted_input {
+            self.radius_certificates
+                .iter()
+                .filter(|certificate| !certificate.base_case)
+                .try_fold(0_u64, |total, certificate| {
+                    checked_metric_sum(
+                        total,
+                        u64::try_from(certificate.edges.len())
+                            .map_err(|_| An19PetalError::Overflow)?,
+                    )
+                })?
+        } else {
+            0
+        };
+        let rebuilt_contraction_recovery_edge_scans = self
+            .radius_certificates
+            .iter()
+            .filter(|certificate| certificate.contraction_threshold.is_some())
+            .try_fold(0_u64, |total, certificate| {
+                let components = certificate
+                    .contraction_component_of
+                    .iter()
+                    .map(|(_, component)| *component)
+                    .collect::<BTreeSet<_>>()
+                    .len();
+                let quotient_tree_edges = components
+                    .checked_sub(1)
+                    .ok_or(An19PetalError::InvalidContraction)?;
+                checked_metric_sum(
+                    total,
+                    u64::try_from(certificate.contracted_edge_count)
+                        .map_err(|_| An19PetalError::Overflow)?
+                        .checked_add(
+                            u64::try_from(quotient_tree_edges)
+                                .map_err(|_| An19PetalError::Overflow)?
+                                .checked_mul(2)
+                                .ok_or(An19PetalError::Overflow)?,
+                        )
+                        .ok_or(An19PetalError::Overflow)?,
+                )
+            })?;
         if u64::try_from(contraction_calls).map_err(|_| An19PetalError::Overflow)?
             != self.metrics.contraction_calls
             || u64::try_from(contracted_edges).map_err(|_| An19PetalError::Overflow)?
@@ -3402,6 +3527,10 @@ impl An19HierarchicalLsst {
             || rebuilt_source_scale_total != self.metrics.source_scale_participations
             || rebuilt_source_scale_maximum != self.metrics.maximum_source_scale_participations
             || rebuilt_source_scale_scans != self.metrics.source_scale_attribution_scans
+            || rebuilt_radius_edge_scans != self.metrics.radius_edge_scans
+            || rebuilt_contraction_input_edge_scans != self.metrics.contraction_input_edge_scans
+            || rebuilt_contraction_recovery_edge_scans
+                != self.metrics.contraction_recovery_edge_scans
         {
             return Err(An19PetalError::InvalidRadiusCertificate);
         }
@@ -3443,7 +3572,12 @@ fn hierarchical_petal_decomposition(
     projection_audit.record_scale_sources(&projection, !same_scale_contraction, metrics)?;
     let paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
-    add_workspace_edge_scans(metrics, projection.graph().edge_count(), 2)?;
+    add_workspace_edge_scans(
+        metrics,
+        WorkspaceScanClass::Radius,
+        projection.graph().edge_count(),
+        2,
+    )?;
     let local_cluster = projection.local_nodes(&cluster)?;
     let local_center = projection.local_node(center)?;
     let threshold = hierarchy_base_threshold(original_node_count)?
@@ -3481,7 +3615,12 @@ fn hierarchical_petal_decomposition(
         return hierarchy_shortest_path_tree(&projection, &cluster, center, &paths);
     }
     if !workspace.unit_input {
-        add_workspace_edge_scans(metrics, projection.graph().edge_count(), 1)?;
+        add_workspace_edge_scans(
+            metrics,
+            WorkspaceScanClass::ContractionInput,
+            projection.graph().edge_count(),
+            1,
+        )?;
         let contraction = An19ShortEdgeContraction::build_with_radius(
             projection.graph(),
             &local_cluster,
@@ -3616,7 +3755,12 @@ fn hierarchy_contracted_tree(
     metrics: &mut An19HierarchyMetrics,
     projection_audit: &mut An19ProjectionAudit,
 ) -> Result<BTreeSet<usize>, An19PetalError> {
-    add_workspace_edge_scans(metrics, contraction.retained_edges.len(), 1)?;
+    add_workspace_edge_scans(
+        metrics,
+        WorkspaceScanClass::ContractionRetained,
+        contraction.retained_edges.len(),
+        1,
+    )?;
     let mut quotient_edges = Vec::new();
     let mut quotient_to_dense = Vec::new();
     let mut quotient_root_sources = Vec::new();
@@ -3712,8 +3856,18 @@ fn hierarchy_contracted_tree(
                 .ok_or(An19PetalError::InvalidContraction)
         })
         .collect::<Result<BTreeSet<_>, _>>()?;
-    add_workspace_edge_scans(metrics, contraction.contracted_edges.len(), 1)?;
-    add_workspace_edge_scans(metrics, dense_tree.len(), 2)?;
+    add_workspace_edge_scans(
+        metrics,
+        WorkspaceScanClass::ContractionRecovery,
+        contraction.contracted_edges.len(),
+        1,
+    )?;
+    add_workspace_edge_scans(
+        metrics,
+        WorkspaceScanClass::ContractionRecovery,
+        dense_tree.len(),
+        2,
+    )?;
     contraction
         .expand_quotient_tree(projection.graph(), &dense_tree)?
         .iter()
@@ -4321,8 +4475,18 @@ fn hierarchy_projection(
     workspace.project_cluster(cluster, metrics, projection_audit)
 }
 
+#[derive(Clone, Copy)]
+enum WorkspaceScanClass {
+    Radius,
+    ContractionInput,
+    ContractionRetained,
+    ContractionRecovery,
+    FinalRecovery,
+}
+
 fn add_workspace_edge_scans(
     metrics: &mut An19HierarchyMetrics,
+    class: WorkspaceScanClass,
     edge_count: usize,
     multiplier: u64,
 ) -> Result<(), An19PetalError> {
@@ -4330,6 +4494,14 @@ fn add_workspace_edge_scans(
         .map_err(|_| An19PetalError::Overflow)?
         .checked_mul(multiplier)
         .ok_or(An19PetalError::Overflow)?;
+    let classified = match class {
+        WorkspaceScanClass::Radius => &mut metrics.radius_edge_scans,
+        WorkspaceScanClass::ContractionInput => &mut metrics.contraction_input_edge_scans,
+        WorkspaceScanClass::ContractionRetained => &mut metrics.contraction_retained_edge_scans,
+        WorkspaceScanClass::ContractionRecovery => &mut metrics.contraction_recovery_edge_scans,
+        WorkspaceScanClass::FinalRecovery => &mut metrics.final_recovery_edge_scans,
+    };
+    *classified = checked_metric_sum(*classified, scans)?;
     metrics.workspace_edge_scans = checked_metric_sum(metrics.workspace_edge_scans, scans)?;
     Ok(())
 }
@@ -6970,6 +7142,23 @@ mod tests {
         assert!(invalid_incident_total.verify(graph).is_err());
     }
 
+    fn assert_workspace_scan_mutations_rejected(
+        hierarchy: &super::An19HierarchicalLsst,
+        graph: &SourceDynamicGraph,
+    ) {
+        let mutate = |field: fn(&mut super::An19HierarchyMetrics) -> &mut u64| {
+            let mut invalid = hierarchy.clone();
+            *field(&mut invalid.metrics) += 1;
+            invalid.metrics.workspace_edge_scans += 1;
+            assert!(invalid.verify(graph).is_err());
+        };
+        mutate(|metrics| &mut metrics.radius_edge_scans);
+        mutate(|metrics| &mut metrics.contraction_input_edge_scans);
+        mutate(|metrics| &mut metrics.contraction_retained_edge_scans);
+        mutate(|metrics| &mut metrics.contraction_recovery_edge_scans);
+        mutate(|metrics| &mut metrics.final_recovery_edge_scans);
+    }
+
     fn assert_projection_charging_counts(audit: &super::An19ProjectionAudit, expected: [u64; 7]) {
         assert_eq!(audit.source_projection_materializations, expected[0]);
         assert_eq!(
@@ -6986,7 +7175,7 @@ mod tests {
         assert_eq!(audit.provenance_free_portal_splits, expected[6]);
     }
 
-    fn assert_projection_scan_counts(metrics: &super::An19HierarchyMetrics, expected: [u64; 9]) {
+    fn assert_projection_scan_counts(metrics: &super::An19HierarchyMetrics, expected: [u64; 14]) {
         assert_eq!(metrics.projection_calls, expected[0]);
         assert_eq!(metrics.projection_cache_hits, expected[1]);
         assert_eq!(metrics.projection_materializations, expected[2]);
@@ -7006,6 +7195,19 @@ mod tests {
             metrics.projection_incident_scans,
             expected[5] + expected[6] + expected[7]
         );
+        assert_eq!(metrics.radius_edge_scans, expected[9]);
+        assert_eq!(metrics.contraction_input_edge_scans, expected[10]);
+        assert_eq!(metrics.contraction_retained_edge_scans, expected[11]);
+        assert_eq!(metrics.contraction_recovery_edge_scans, expected[12]);
+        assert_eq!(metrics.final_recovery_edge_scans, expected[13]);
+    }
+
+    fn assert_workspace_scan_counts(metrics: &super::An19HierarchyMetrics, expected: [u64; 5]) {
+        assert_eq!(metrics.radius_edge_scans, expected[0]);
+        assert_eq!(metrics.contraction_input_edge_scans, expected[1]);
+        assert_eq!(metrics.contraction_retained_edge_scans, expected[2]);
+        assert_eq!(metrics.contraction_recovery_edge_scans, expected[3]);
+        assert_eq!(metrics.final_recovery_edge_scans, expected[4]);
     }
 
     #[test]
@@ -8388,7 +8590,9 @@ mod tests {
         assert_projection_charging_counts(&projection_audit, [4_533, 17, 61, 16, 27, 2, 22]);
         assert_projection_scan_counts(
             &metrics,
-            [165, 83, 82, 6_056, 5_974, 11_948, 172, 332, 18_290],
+            [
+                165, 83, 82, 6_056, 5_974, 11_948, 172, 332, 18_290, 5_838, 0, 0, 0, 0,
+            ],
         );
         assert!(projection_audit.maximum_original_edge_segment_occurrences > logarithmic_levels);
         projection_audit
@@ -8727,6 +8931,7 @@ mod tests {
         );
         assert_eq!(small_hierarchy.metrics.contracted_edges, 2);
         assert_eq!(small_hierarchy.metrics.quotient_edges, 2);
+        assert_workspace_scan_counts(&small_hierarchy.metrics, [12, 4, 2, 4, 11]);
         assert!(
             small_hierarchy
                 .projection_audit
@@ -8738,6 +8943,7 @@ mod tests {
             small_hierarchy.projection_audit,
             large_hierarchy.projection_audit
         );
+        assert_workspace_scan_mutations_rejected(&small_hierarchy, &small);
         assert_eq!(small_hierarchy.total_weight, oracle.total_weight);
         assert!(
             small_hierarchy
@@ -8770,7 +8976,9 @@ mod tests {
         );
         assert_projection_scan_counts(
             &small_hierarchy.metrics,
-            [118, 55, 63, 4_319, 4_256, 8_512, 113, 203, 16_043],
+            [
+                118, 55, 63, 4_319, 4_256, 8_512, 113, 203, 16_043, 4_032, 1_496, 0, 0, 1_687,
+            ],
         );
         small_hierarchy.verify(&small).unwrap();
         large_hierarchy.verify(&large).unwrap();
@@ -8844,6 +9052,7 @@ mod tests {
         assert!(invalid_symbolic_audit.verify(&small).is_err());
         assert_scale_audit_mutations_rejected(&small_hierarchy, &small);
         assert_projection_charging_mutations_rejected(&small_hierarchy, &small);
+        assert_workspace_scan_mutations_rejected(&small_hierarchy, &small);
         let mut invalid_queue = small_hierarchy.clone();
         invalid_queue.metrics.monotone_queue_pops =
             invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);
