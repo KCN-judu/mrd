@@ -464,6 +464,32 @@ implementation/local statuses, three false global/PQ/runtime statuses, every
 local-bound formula, and the retained Family A reduced-class witness. No
 downstream runtime-dependent phase was started.
 
+### Local-event-proof closeout audit
+
+The local proof started from synchronized SHA `0dba080` and closes only the
+fixed-snapshot cardinality substatus. The pre-closeout implementation HEAD was
+`b4358a9`. The complete mandatory audit passed:
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git status --short` | 0 | clean; branch ahead only by intended local-proof commits |
+| `git diff --check` | 0 | clean |
+| `cargo fmt --all -- --check` | 0 | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo test --workspace` | 0 | 254 passed, 3 existing ignored, 13 suites, 407.52 s |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | release workspace current |
+| `python3 tools/check_release_consistency.py` | 0 | all 62 Oracle/reduced certificates and conservative status boundaries verified |
+| bounded event CLI twice | 0 | stable JSON SHA-256 `53782128`; Markdown SHA-256 `6ae987a5` |
+| paper-table generator twice | 0 | stable scope SHA-256 `539d98ed`; paper SHA-256 `031edcd4`; manifest SHA-256 `7eada86b` |
+
+No ignored test, production fallback, source-runtime mode, credential, private
+key, or absolute local path was added. The priority queue still uses exact
+linear minimum scans and can perform quadratically many comparisons in its
+certified item count, so this closeout does not change the P9.3.2d hard blocker
+or permit P9.3.3.
+
 ## Runtime acceptance audit
 
 | Issue | Observed | Source requirement | Current acceptance |
