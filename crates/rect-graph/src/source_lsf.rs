@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use thiserror::Error;
 
 use crate::{
-    ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate, SourceUpdateBatch,
-    SourceWeightedEdge,
+    ExactRatio, FlowNodeId, LsfPiece, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
+    SourceUpdateBatch, SourceWeightedEdge,
 };
 
 type RootedOrder = (Vec<Option<usize>>, Vec<usize>, Vec<usize>);
@@ -35,6 +35,89 @@ pub struct GlobalStretchCertificate {
     pub auxiliary_levels: usize,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TreeDecompositionAudit {
+    pub boundary: BTreeSet<FlowNodeId>,
+    pub piece_count: usize,
+    pub total_weight: ExactRatio,
+    pub per_piece_weight_limit: ExactRatio,
+    pub maximum_piece_weight: ExactRatio,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WeightedCopyExpansion {
+    pub graph: SourceDynamicGraph,
+    pub copy_to_original: Vec<SourceEdgeId>,
+    pub original_to_copies: Vec<Vec<SourceEdgeId>>,
+    pub total_original_weight: ExactRatio,
+}
+
+impl WeightedCopyExpansion {
+    /// Applies the exact weighted-to-uniform reduction from Lemma 5.4.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the graph has no active edge, a copy count or
+    /// exact ratio overflows, or the proved `|E(G_v)| <= 2m` bound fails.
+    pub fn build(graph: &SourceDynamicGraph) -> Result<Self, SourceLsfConstructionError> {
+        let active = (0..graph.edge_count())
+            .filter_map(|index| {
+                graph
+                    .edge(SourceEdgeId(index))
+                    .map(|edge| (SourceEdgeId(index), edge))
+            })
+            .collect::<Vec<_>>();
+        if active.is_empty() {
+            return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+        }
+        let mut total_original_weight = ratio(0)?;
+        for (_, edge) in &active {
+            total_original_weight = total_original_weight
+                .checked_add(edge.weight)
+                .map_err(map_ratio)?;
+        }
+        let m = i128::try_from(active.len()).map_err(|_| SourceLsfConstructionError::Overflow)?;
+        let inverse_total = total_original_weight.reciprocal().map_err(map_ratio)?;
+        let mut copies = Vec::new();
+        let mut copy_to_original = Vec::new();
+        let mut original_to_copies = vec![Vec::new(); graph.edge_count()];
+        for (original, edge) in active {
+            let scaled = edge
+                .weight
+                .checked_mul_integer(m)
+                .and_then(|value| value.checked_mul(inverse_total))
+                .map_err(map_ratio)?;
+            let count = ceil_positive_ratio(scaled)?;
+            for _ in 0..count {
+                let id = SourceEdgeId(copies.len());
+                copies.push(SourceWeightedEdge {
+                    first: edge.first,
+                    second: edge.second,
+                    length: edge.length,
+                    weight: ratio(1)?,
+                });
+                copy_to_original.push(original);
+                original_to_copies[original.0].push(id);
+            }
+        }
+        let maximum_copies = active_copy_limit(m)?;
+        if copies.len() > maximum_copies {
+            return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+        }
+        Ok(Self {
+            graph: SourceDynamicGraph::new(
+                graph.node_count(),
+                copies,
+                graph.maximum_abs_coordinate().max(1),
+            )
+            .map_err(|_| SourceLsfConstructionError::InvalidWeightedExpansion)?,
+            copy_to_original,
+            original_to_copies,
+            total_original_weight,
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct DynamicLsfCoreMetrics {
     pub batches: u64,
@@ -63,6 +146,51 @@ struct BatchRootInputs {
 }
 
 impl DynamicLsfCore {
+    /// Initializes from a verified ST03/ST04 decomposition and explicit
+    /// large-stretch threshold, matching the terminal selection in the proof
+    /// of Lemma 5.4.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the decomposition, threshold, source tree, or
+    /// resulting dynamic core cannot be certified.
+    pub fn new_from_decomposition(
+        graph: SourceDynamicGraph,
+        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        tree_root: FlowNodeId,
+        pieces: &[LsfPiece],
+        reduction_k: usize,
+        piece_count_limit: usize,
+        large_stretch_threshold: ExactRatio,
+    ) -> Result<(Self, TreeDecompositionAudit), SourceLsfConstructionError> {
+        if !large_stretch_threshold.is_positive() {
+            return Err(SourceLsfConstructionError::InvalidStretch);
+        }
+        let tree_edges = tree_edges.into_iter().collect::<Vec<_>>();
+        let tree = BranchFreeTree::new(&graph, tree_edges.iter().copied(), tree_root)?;
+        let decomposition =
+            tree.audit_tree_decomposition(&graph, pieces, reduction_k, piece_count_limit)?;
+        let order = tree.congestion_order(&graph)?;
+        let global = tree.global_stretch_overestimates(&graph, &order.ordered_tree_edges)?;
+        let mut terminals = decomposition.boundary.iter().copied().collect::<Vec<_>>();
+        for (index, stretch) in global.stretch_overestimates.iter().copied().enumerate() {
+            let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+                continue;
+            };
+            if stretch
+                .at_least(large_stretch_threshold)
+                .map_err(map_ratio)?
+            {
+                terminals.extend([edge.first, edge.second]);
+            }
+        }
+        if terminals.is_empty() {
+            terminals.push(tree_root);
+        }
+        let core = Self::new(graph, tree_edges, tree_root, terminals)?;
+        Ok((core, decomposition))
+    }
+
     /// Initializes the fixed-tree dynamic LSF core from seed terminals.
     ///
     /// # Errors
@@ -450,6 +578,92 @@ impl BranchFreeTree {
         })
     }
 
+    /// Verifies the ST03/ST04 tree-decomposition certificate delegated by
+    /// Lemma B.7, including its explicit constant-40 weight bound.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error unless pieces are connected edge-disjoint subtrees
+    /// covering `T`, their shared boundary is branch-free, their count is
+    /// within the supplied explicit limit, and every adjacent non-boundary
+    /// weight is at most `40 ||w||_1 k / m`.
+    pub fn audit_tree_decomposition(
+        &self,
+        graph: &SourceDynamicGraph,
+        pieces: &[LsfPiece],
+        reduction_k: usize,
+        piece_count_limit: usize,
+    ) -> Result<TreeDecompositionAudit, SourceLsfConstructionError> {
+        if pieces.is_empty()
+            || pieces.len() > piece_count_limit
+            || reduction_k == 0
+            || graph.edge_count() == 0
+        {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let mut memberships = vec![0_usize; self.parent.len()];
+        let mut assigned = BTreeSet::new();
+        for piece in pieces {
+            verify_decomposition_piece(self, piece)?;
+            for vertex in &piece.vertices {
+                memberships[vertex.0] = memberships[vertex.0]
+                    .checked_add(1)
+                    .ok_or(SourceLsfConstructionError::Overflow)?;
+            }
+            for id in &piece.forest_edges {
+                if !assigned.insert(*id) {
+                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                }
+            }
+        }
+        if assigned != self.tree_edges || memberships.contains(&0) {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let boundary = memberships
+            .iter()
+            .enumerate()
+            .filter(|(_, count)| **count > 1)
+            .map(|(node, _)| FlowNodeId(node))
+            .collect::<BTreeSet<_>>();
+        if !self.is_branch_free(&boundary) {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        let zero = ratio(0)?;
+        let mut total_weight = zero;
+        for index in 0..graph.edge_count() {
+            if let Some(edge) = graph.edge(SourceEdgeId(index)) {
+                total_weight = total_weight.checked_add(edge.weight).map_err(map_ratio)?;
+            }
+        }
+        let multiplier = i128::try_from(reduction_k)
+            .map_err(|_| SourceLsfConstructionError::Overflow)?
+            .checked_mul(40)
+            .ok_or(SourceLsfConstructionError::Overflow)?;
+        let edge_count =
+            i128::try_from(graph.edge_count()).map_err(|_| SourceLsfConstructionError::Overflow)?;
+        let per_piece_weight_limit = total_weight
+            .checked_mul_integer(multiplier)
+            .and_then(|value| value.checked_mul(ExactRatio::new(1, edge_count)?))
+            .map_err(map_ratio)?;
+        let mut maximum_piece_weight = zero;
+        for piece in pieces {
+            let weight = adjacent_nonboundary_weight(graph, piece, &boundary)?;
+            if !per_piece_weight_limit.at_least(weight).map_err(map_ratio)? {
+                return Err(SourceLsfConstructionError::InvalidDecomposition);
+            }
+            if weight.at_least(maximum_piece_weight).map_err(map_ratio)? {
+                maximum_piece_weight = weight;
+            }
+        }
+        Ok(TreeDecompositionAudit {
+            boundary,
+            piece_count: pieces.len(),
+            total_weight,
+            per_piece_weight_limit,
+            maximum_piece_weight,
+        })
+    }
+
     /// Recomputes a current ancestor-closed forest and proves every active
     /// exact stretch is bounded by the fixed Equation (56) vector.
     ///
@@ -603,6 +817,73 @@ fn batch_root_inputs(
     })
 }
 
+fn verify_decomposition_piece(
+    tree: &BranchFreeTree,
+    piece: &LsfPiece,
+) -> Result<(), SourceLsfConstructionError> {
+    if piece.vertices.is_empty()
+        || piece
+            .vertices
+            .iter()
+            .any(|vertex| vertex.0 >= tree.parent.len())
+        || piece.forest_edges.len().checked_add(1) != Some(piece.vertices.len())
+    {
+        return Err(SourceLsfConstructionError::InvalidDecomposition);
+    }
+    let mut adjacency = BTreeMap::<usize, Vec<usize>>::new();
+    for id in &piece.forest_edges {
+        let (first, second, _) = tree
+            .tree_edge_data
+            .get(id)
+            .ok_or(SourceLsfConstructionError::InvalidDecomposition)?;
+        if !piece.vertices.contains(&FlowNodeId(*first))
+            || !piece.vertices.contains(&FlowNodeId(*second))
+        {
+            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        }
+        adjacency.entry(*first).or_default().push(*second);
+        adjacency.entry(*second).or_default().push(*first);
+    }
+    let start = piece
+        .vertices
+        .first()
+        .ok_or(SourceLsfConstructionError::InvalidDecomposition)?
+        .0;
+    let mut seen = BTreeSet::from([start]);
+    let mut queue = VecDeque::from([start]);
+    while let Some(node) = queue.pop_front() {
+        for next in adjacency.get(&node).into_iter().flatten() {
+            if seen.insert(*next) {
+                queue.push_back(*next);
+            }
+        }
+    }
+    if seen != piece.vertices.iter().map(|vertex| vertex.0).collect() {
+        return Err(SourceLsfConstructionError::InvalidDecomposition);
+    }
+    Ok(())
+}
+
+fn adjacent_nonboundary_weight(
+    graph: &SourceDynamicGraph,
+    piece: &LsfPiece,
+    boundary: &BTreeSet<FlowNodeId>,
+) -> Result<ExactRatio, SourceLsfConstructionError> {
+    let mut weight = ratio(0)?;
+    for index in 0..graph.edge_count() {
+        let Some(edge) = graph.edge(SourceEdgeId(index)) else {
+            continue;
+        };
+        let adjacent_nonboundary = [edge.first, edge.second]
+            .into_iter()
+            .any(|vertex| piece.vertices.contains(&vertex) && !boundary.contains(&vertex));
+        if adjacent_nonboundary {
+            weight = weight.checked_add(edge.weight).map_err(map_ratio)?;
+        }
+    }
+    Ok(weight)
+}
+
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum SourceLsfConstructionError {
     #[error("tree edges do not form a rooted spanning tree")]
@@ -615,6 +896,10 @@ pub enum SourceLsfConstructionError {
     InvalidPermutation,
     #[error("global stretch certificate is invalid")]
     InvalidStretch,
+    #[error("ST03/ST04 tree decomposition certificate is invalid")]
+    InvalidDecomposition,
+    #[error("weighted-copy expansion is invalid")]
+    InvalidWeightedExpansion,
     #[error("dynamic LSF update is invalid")]
     InvalidUpdate,
     #[error("updated rooted forest is not a subset of the previous forest")]
@@ -893,13 +1178,38 @@ fn map_ratio(_: crate::StableMinRatioError) -> SourceLsfConstructionError {
     SourceLsfConstructionError::Overflow
 }
 
+fn ceil_positive_ratio(value: ExactRatio) -> Result<usize, SourceLsfConstructionError> {
+    if !value.is_positive() {
+        return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+    }
+    let adjusted = value
+        .numerator()
+        .checked_add(
+            value
+                .denominator()
+                .checked_sub(1)
+                .ok_or(SourceLsfConstructionError::Overflow)?,
+        )
+        .ok_or(SourceLsfConstructionError::Overflow)?;
+    usize::try_from(adjusted / value.denominator())
+        .map_err(|_| SourceLsfConstructionError::Overflow)
+}
+
+fn active_copy_limit(m: i128) -> Result<usize, SourceLsfConstructionError> {
+    usize::try_from(
+        m.checked_mul(2)
+            .ok_or(SourceLsfConstructionError::Overflow)?,
+    )
+    .map_err(|_| SourceLsfConstructionError::Overflow)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{BranchFreeTree, DynamicLsfCore};
+    use super::{BranchFreeTree, DynamicLsfCore, WeightedCopyExpansion};
     use crate::{
-        ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
+        ExactRatio, FlowNodeId, LsfPiece, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
         SourceUpdateBatch, SourceWeightedEdge,
     };
 
@@ -943,6 +1253,37 @@ mod tests {
             .unwrap();
         assert!(tree.is_branch_free(&roots));
         let order = tree.congestion_order(&graph).unwrap();
+        let decomposition = tree
+            .audit_tree_decomposition(
+                &graph,
+                &[
+                    LsfPiece {
+                        vertices: BTreeSet::from([FlowNodeId(0), FlowNodeId(1)]),
+                        forest_edges: BTreeSet::from([SourceEdgeId(0)]),
+                    },
+                    LsfPiece {
+                        vertices: BTreeSet::from([
+                            FlowNodeId(1),
+                            FlowNodeId(2),
+                            FlowNodeId(3),
+                            FlowNodeId(4),
+                        ]),
+                        forest_edges: BTreeSet::from([
+                            SourceEdgeId(1),
+                            SourceEdgeId(2),
+                            SourceEdgeId(3),
+                        ]),
+                    },
+                ],
+                1,
+                2,
+            )
+            .unwrap();
+        assert_eq!(decomposition.boundary, BTreeSet::from([FlowNodeId(1)]));
+        assert_eq!(
+            decomposition.maximum_piece_weight,
+            ExactRatio::new(4, 1).unwrap()
+        );
         let global = tree
             .global_stretch_overestimates(&graph, &order.ordered_tree_edges)
             .unwrap();
@@ -1025,5 +1366,56 @@ mod tests {
         assert_eq!(core.metrics().batches, 3);
         assert!(core.metrics().root_additions > 0);
         assert!(core.metrics().stretch_checks > 0);
+    }
+
+    #[test]
+    fn initializes_terminals_from_verified_decomposition() {
+        let graph =
+            SourceDynamicGraph::new(3, vec![edge(0, 1, 1), edge(1, 2, 1), edge(0, 2, 2)], 8)
+                .unwrap();
+        let pieces = vec![
+            LsfPiece {
+                vertices: BTreeSet::from([FlowNodeId(0), FlowNodeId(1)]),
+                forest_edges: BTreeSet::from([SourceEdgeId(0)]),
+            },
+            LsfPiece {
+                vertices: BTreeSet::from([FlowNodeId(1), FlowNodeId(2)]),
+                forest_edges: BTreeSet::from([SourceEdgeId(1)]),
+            },
+        ];
+        let (core, audit) = DynamicLsfCore::new_from_decomposition(
+            graph,
+            [SourceEdgeId(0), SourceEdgeId(1)],
+            FlowNodeId(0),
+            &pieces,
+            1,
+            2,
+            ExactRatio::new(100, 1).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(audit.boundary, BTreeSet::from([FlowNodeId(1)]));
+        assert!(core.roots().contains(&FlowNodeId(1)));
+        assert!(core.tree.is_branch_free(core.roots()));
+    }
+
+    #[test]
+    fn expands_weighted_edges_to_at_most_twice_the_active_edges() {
+        let mut edges = vec![edge(0, 1, 1), edge(1, 2, 1), edge(0, 2, 1)];
+        edges[0].weight = ExactRatio::new(1, 1).unwrap();
+        edges[1].weight = ExactRatio::new(2, 1).unwrap();
+        edges[2].weight = ExactRatio::new(3, 1).unwrap();
+        let graph = SourceDynamicGraph::new(3, edges, 8).unwrap();
+        let expansion = WeightedCopyExpansion::build(&graph).unwrap();
+        assert_eq!(
+            expansion.total_original_weight,
+            ExactRatio::new(6, 1).unwrap()
+        );
+        assert_eq!(expansion.graph.edge_count(), 4);
+        assert_eq!(expansion.original_to_copies[0].len(), 1);
+        assert_eq!(expansion.original_to_copies[1].len(), 1);
+        assert_eq!(expansion.original_to_copies[2].len(), 2);
+        assert!(
+            expansion.graph.edge(SourceEdgeId(0)).unwrap().weight == ExactRatio::new(1, 1).unwrap()
+        );
     }
 }

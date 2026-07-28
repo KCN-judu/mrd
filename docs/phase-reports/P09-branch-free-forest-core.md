@@ -34,6 +34,15 @@ can close.
   graph endpoint changes. A vertex split adds `u upward T_H` and an isolated
   `u_NEW` root exactly as Appendix A.1 specifies, while moved graph edges are
   checked against the unchanged global stretch certificate.
+- Verifies a delegated ST03/ST04 decomposition: connected edge-disjoint pieces
+  cover the tree, shared vertices form a branch-free boundary, piece count is
+  explicitly bounded, and adjacent non-boundary weight satisfies the exact
+  published constant `40 ||w||_1 k / m`.
+- Initializes terminals from the certified decomposition boundary and every
+  edge above an explicit large-stretch threshold before taking `T_H` closure.
+- Constructs the weighted-copy graph `G_v` with
+  `ceil(m v_e / ||v||_1)` unit-weight copies per active edge, exact copy maps,
+  retained lengths, and a checked total of at most `2m` copies.
 - Verifies the monotonicity required by Lemma 5.4: enlarging the ancestor-closed
   root set produces a forest edge subset.
 
@@ -48,7 +57,9 @@ certificate after the root set changes. A separate dynamic fixture inserts an
 edge, deletes an original tree edge, proves forest subset monotonicity after
 both batches, and verifies the deleted tree edge is absent. The same trace
 splits an endpoint, moves the inserted edge to the new vertex, checks the new
-isolated root, and preserves its unit stretch certificate.
+isolated root, and preserves its unit stretch certificate. Additional fixtures
+validate a two-piece branch-free decomposition and a `1,2,3` weighted graph
+whose copy multiplicities are `1,1,2`.
 
 ## Audit
 
@@ -60,5 +71,7 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 | `cargo fmt --all -- --check` | 0 | clean |
 | `cargo clippy -p rect-graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
 
-Lemma B.7 decomposition and the source static low-stretch-tree constructor are
-still open. No complete Lemma 5.4 or runtime claim is made by this partial core.
+The externally delegated ST03/ST04 decomposition algorithm and AN19 static
+low-stretch-tree constructor are still open; their candidate outputs now have
+strong exact verifiers. No complete Lemma 5.4 or runtime claim is made by this
+partial core.

@@ -163,6 +163,11 @@ impl SourceDynamicGraph {
     }
 
     #[must_use]
+    pub const fn maximum_abs_coordinate(&self) -> i128 {
+        self.maximum_abs_coordinate
+    }
+
+    #[must_use]
     pub fn edge(&self, id: SourceEdgeId) -> Option<&SourceWeightedEdge> {
         self.edges
             .get(id.0)
