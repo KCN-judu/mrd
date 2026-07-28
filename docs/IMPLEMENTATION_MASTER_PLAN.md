@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: ffb371ff085d161ca4ae7136a4e64a896de1f5b3
-- Plan last updated: 2026-07-27T23:36:48Z
+- Last pushed SHA: 44d50d46f25b2a493630481916be3589b6f3188e
+- Plan last updated: 2026-07-28T00:05:39Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -480,12 +480,16 @@ paper's Theorem 4.6 interface by tracing its delegated CKLPPS22 Theorem 4.3
 potential-reduction method. This subphase is further split so numerical
 correctness cannot be inferred from an end-to-end test alone:
 
-1. P9.2.1 implements bounded-word dyadic interval arithmetic with explicit
-   precision, outward rounding, overflow/word-size accounting, and certified
-   enclosures for `log(x)` and `x^-alpha` on the checked positive domain.
-2. P9.2.2 evaluates Equation (9) and Definition 4.2 lengths/gradients with
-   certified error intervals; every approximation must prove the factor-two
-   length and scaled-gradient error hypotheses used by Theorem 4.3.
+1. **P9.2.1 state: complete. Implementation SHA: `44d50d4`.** Bounded-word
+   dyadic interval arithmetic now has explicit precision, outward rounding,
+   overflow/word-size accounting, and certified enclosures for `log(x)` and
+   `x^-alpha` on the checked positive domain. The full audit and mathematical
+   error bounds are in
+   `docs/phase-reports/P09-fixed-point-arithmetic.md`.
+2. **P9.2.2 state: in_progress. Start SHA: `44d50d4`.** Evaluate Equation (9)
+   and Definition 4.2 lengths/gradients with certified error intervals; every
+   approximation must prove the factor-two length and scaled-gradient error
+   hypotheses used by Theorem 4.3.
 3. P9.2.3 implements and certifies Lemma 4.4 updates, including circulation,
    step size, strict-interior, potential-decrease, iteration, coordinate-update,
    and Detect accounting.
@@ -627,3 +631,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P7 | complete | 9f12445 | 3184ad5, 4e8326c, 21fbbd9 | 237d55b | 237d55b | `docs/phase-reports/P07-exact-circulation-refinement.md` | exact bounded-flow differential; zero disagreements | 2026-07-27T15:48:41Z | 2026-07-27T16:23:23Z | supersedes the stale pre-closeout P7 row above |
 | P8 | complete | 237d55b | 37088c9, bc09a0f, a70e783, 749536c, 200bcc8, 32d7b49 | 32d7b49 | 32d7b49 | `docs/phase-reports/P08-1-stable-min-ratio-contract.md` through `P08-6-dynamic-min-ratio-audit.md` | checked baseline contracts and exact Oracles only | 2026-07-27T16:24:35Z | 2026-07-27T17:02:26Z | source-grade constructions deferred to P9.3--P9.4 |
 | P9 | in_progress | 32d7b49 | 0abf2a1, d1cefdd, 48250f5, 959ed00, 4e66be4, ffb371f | pending | ffb371f | `docs/phase-reports/P09-integration-gate-audit.md` | exact P9.1 Oracles; no almost-linear backend | 2026-07-27T17:02:52Z | pending | P9.2--P9.6 source gates remain |
+| P9.2.1 | complete | d1c7a3b | 44d50d4 | 44d50d4 | 44d50d4 | `docs/phase-reports/P09-fixed-point-arithmetic.md` | certified dyadic `log`, `exp`, and negative-power intervals; 191 workspace tests passed | 2026-07-27T23:36:48Z | 2026-07-28T00:05:39Z | Equation (9) integration continues in P9.2.2 |
