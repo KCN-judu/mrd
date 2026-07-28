@@ -7,8 +7,8 @@
 - Current phase: P9
 - Current phase state: in_progress
 - Last completed phase: P8
-- Last pushed SHA: b268b0a74cc417f1fc1ed3dd66b1f147ed04d45d
-- Plan last updated: 2026-07-28T03:51:00Z
+- Last pushed SHA: 37cd061b8aed6c8e5ff0380ff82fbc5d4c201cd7
+- Plan last updated: 2026-07-28T04:10:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -529,13 +529,15 @@ P9.3 is split into the following source-gated subphases:
    overestimates, embeddings, encoded recourse, and quasipolynomial bounds are
    audited in `docs/phase-reports/P09-source-structure-contracts.md`.
 2. **P9.3.2 state: in_progress. Start SHA: `6e96916`; implementation SHAs:
-   `9ac15b5`, `d0629c1`, `a9456e9`.** The Appendix B.3 heavy-light auxiliary tree, branch-free root
+   `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`.** The Appendix B.3 heavy-light auxiliary tree, branch-free root
    closure, exact congestion permutation, and decremental `F_T(R,pi)` core are
    implemented. Equation (56)'s fixed global stretch vector is independently
    recomputed across every auxiliary-depth prefix and certified after root-set
    changes. Insertion/deletion batches now add endpoint ancestor closures,
    enforce decremental forest recourse, assign inserted stretch one, and rerun
-   active-edge certificates. Evidence is in
+   active-edge certificates. Appendix A.1 vertex splits preserve the abstract
+   tree topology, add the old endpoint closure and an isolated new root, and
+   retain the global stretch proof. Evidence is in
    `docs/phase-reports/P09-branch-free-forest-core.md`. Continue Lemma 5.4's
    initial tree/forest construction,
    edge-disjoint pieces, boundary/volume certificate, deletion/insertion and
@@ -684,4 +686,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.2.4 | complete | ab6fb10 | 5719917, 82ac962, aabe7fc | pending | pending | `docs/phase-reports/P09-initial-termination-recovery.md` | lower-bound normalization, Appendix B.1 augmentation, Lemma 4.11 perturbation, additive-half/KP15/P7 recovery; full workspace audit passed | 2026-07-28T01:26:00Z | 2026-07-28T02:12:00Z | none |
 | P9.3 | in_progress | aabe7fc | pending | pending | pending | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | none |
 | P9.3.1 | complete | 22e8371 | 6e96916 | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T02:48:00Z | none |
-| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9 | pending | pending | `docs/phase-reports/P09-branch-free-forest-core.md` | branch-free auxiliary tree, exact congestion/global stretch, and insertion/deletion batch integration; Lemma B.7 and vertex splits remain | 2026-07-28T02:48:00Z | pending | none |
+| P9.3.2 | in_progress | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c | pending | pending | `docs/phase-reports/P09-branch-free-forest-core.md` | branch-free tree, exact global stretch, all edge updates, and isolated-root vertex splits; Lemma B.7/static LSST remain | 2026-07-28T02:48:00Z | pending | none |
