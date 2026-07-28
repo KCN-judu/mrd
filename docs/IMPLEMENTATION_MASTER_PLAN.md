@@ -600,7 +600,17 @@ P9.3 is split into the following source-gated subphases:
      The complete 2019 SIAM journal text (DOI `10.1137/17M1115575`, final
      Section 6, pp. 245--246) has now been inspected and repeats the same jump
      from original power-of-two lengths to improved Dijkstra on the reduced
-     graph without bounding its distinct reduced costs. Recursive projections
+     graph without bounding its distinct reduced costs. A read-only external
+     source search completed on 2026-07-28 UTC checked the Crossref work,
+     relation, and Unixref records; exact-title Crossref and DBLP results;
+     OpenAlex's published-version record, both author catalogs, and all 18
+     indexed citing works; and a focused DOI search for an erratum, correction,
+     or supplement. It found only the 2012 STOC and 2019 SIAM versions and no
+     authoritative correction, supplement, clarification, revised manuscript,
+     or later proof of the exact conversion. Rejected and rate-limited requests
+     are coverage limitations rather than negative evidence. The complete
+     query ledger is persisted in
+     `docs/phase-reports/P09-an19-static-lsst-source-map.md`. Recursive projections
      now densely remap every augmented cluster to exactly `|X|` local node
      slots while preserving original IDs in paths, portals, contraction, and
      radius certificates; local projection slot totals and maxima are counted.

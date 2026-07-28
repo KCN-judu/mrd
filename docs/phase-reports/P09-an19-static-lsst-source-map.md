@@ -413,6 +413,31 @@ proved exact rational event-order data structure with work counters matching
 the theorem; comparison sorting or an unstated bounded-integer assumption is
 not sufficient.
 
+## External authoritative-source search ledger
+
+The following read-only search was completed on 2026-07-28 UTC after the final
+SIAM PDF became available locally. Failed or rate-limited requests are recorded
+only as coverage limitations, not as evidence that a source does not exist.
+
+| Surface | Query or record | Result relevant to P9.3.2d |
+| --- | --- | --- |
+| Local SIAM version of record | PDF metadata, rendered title page, and extracted complete text | Confirms the 22-page 2019 SIAM article, authors, pages 227--248, and DOI `10.1137/17M1115575`; no supplement or corrected event-order argument appears in the document |
+| Crossref work and Unixref records | DOI `10.1137/17M1115575` | The deposited record identifies only the journal article and version-of-record PDF; its relation set is empty and contains no correction, erratum, or supplement relation |
+| Crossref title search | Exact article title, publication dates from 2012 onward | Returns the 2012 STOC paper and 2019 SIAM article as the matching versions; no corrected article or supplement is identified |
+| DBLP title search | Exact article title | Returns exactly the 2012 STOC and 2019 SIAM records |
+| OpenAlex article record | Work `W2924819758` | Identifies one published version, no repository full text, no retraction, and 18 citing works; no correction or replacement version is linked |
+| OpenAlex citation graph | All 18 works citing `W2924819758` | No citing title is an erratum, corrigendum, correction, or proof of the exact reduced-event conversion; the citations are applications or later metric/flow work |
+| OpenAlex author/title searches | Ittai Abraham and Ofer Neiman works matching `petal` | Both catalogs identify the 2012 and 2019 versions and no later corrected petal-decomposition paper; an unrelated corrigendum in Neiman's catalog concerns a different paper |
+| Focused web search | Exact DOI with `erratum`, `correction`, and `supplement` | No relevant result was returned |
+| SIAM landing page and Semantic Scholar API | Direct article lookups | Automated access was respectively rejected and rate-limited; these attempts add no negative evidence |
+
+No formal correction, author clarification, supplement, revised manuscript, or
+later paper proving the exact conversion was found. This is a bounded search
+result, not a proof of nonexistence. It leaves the exact reduced-event lemma
+unchanged and P9.3.2d blocked. Unblocking still requires an authoritative
+corrected construction or an independently proved replacement satisfying the
+exact rational event-order and `O(m log n log log n)` work obligations.
+
 ## Repository-wide blocker consistency audit
 
 The documentation audit started from clean, synchronized local and remote HEAD
