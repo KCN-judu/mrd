@@ -1963,6 +1963,7 @@ pub struct An19HierarchyMetrics {
     pub virtual_leaves: u64,
     pub highway_edges_halved: u64,
     pub highway_edges_reused: u64,
+    pub fixed_path_reuses: u64,
     pub shortest_path_runs: u64,
     pub edge_relaxations: u64,
     pub shortest_heap_pushes: u64,
@@ -2141,6 +2142,7 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.virtual_leaves,
         metrics.highway_edges_halved,
         metrics.highway_edges_reused,
+        metrics.fixed_path_reuses,
         metrics.shortest_path_runs,
         metrics.edge_relaxations,
         metrics.shortest_heap_pushes,
@@ -2802,8 +2804,9 @@ fn petal_decomposition(
         target,
         target_distance,
         r0,
+        &projection,
+        &paths,
         metrics,
-        projection_audit,
     )?;
     let first_budget = delta
         .checked_mul(ratio(1, 4)?)
@@ -2877,19 +2880,14 @@ fn hierarchy_first_target(
     target: FlowNodeId,
     target_distance: ExactRatio,
     r0: ExactRatio,
+    projection: &AugmentedProjection,
+    paths: &HierarchyShortestPaths,
     metrics: &mut An19HierarchyMetrics,
-    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<FlowNodeId, An19PetalError> {
     if !ratio_less(target_distance, r0)? {
-        return ensure_vertex_at_distance(
-            workspace,
-            cluster,
-            remaining,
-            center,
-            target,
-            r0,
-            metrics,
-            projection_audit,
+        metrics.fixed_path_reuses = checked_metric_sum(metrics.fixed_path_reuses, 1)?;
+        return ensure_vertex_at_distance_from_paths(
+            workspace, cluster, remaining, center, target, r0, projection, paths, metrics,
         );
     }
     let mut extension = r0
@@ -3104,7 +3102,32 @@ fn ensure_vertex_at_distance(
 ) -> Result<FlowNodeId, An19PetalError> {
     let projection = hierarchy_projection(workspace, fixed_cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, fixed_cluster, center, metrics)?;
-    let path = recover_hierarchy_path(center, target, &paths)?;
+    ensure_vertex_at_distance_from_paths(
+        workspace,
+        fixed_cluster,
+        remaining,
+        center,
+        target,
+        distance,
+        &projection,
+        &paths,
+        metrics,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ensure_vertex_at_distance_from_paths(
+    workspace: &mut AugmentedAn19Graph,
+    fixed_cluster: &mut BTreeSet<FlowNodeId>,
+    remaining: &mut BTreeSet<FlowNodeId>,
+    center: FlowNodeId,
+    target: FlowNodeId,
+    distance: ExactRatio,
+    projection: &AugmentedProjection,
+    paths: &HierarchyShortestPaths,
+    metrics: &mut An19HierarchyMetrics,
+) -> Result<FlowNodeId, An19PetalError> {
+    let path = recover_hierarchy_path(center, target, paths)?;
     let mut traversed = ratio(0, 1)?;
     if distance == traversed {
         return Ok(center);
@@ -6999,6 +7022,7 @@ mod tests {
         assert!(metrics.recursion_calls > 1);
         assert!(metrics.petals > 0);
         assert!(metrics.portal_splits > 0);
+        assert!(metrics.fixed_path_reuses > 0);
         assert!(projection_audit.provenance_free_segment_occurrences > 0);
         assert!(projection_audit.maximum_projection_length_classes > 1);
         assert!(
