@@ -338,15 +338,15 @@ not sufficient.
 | `git diff --check` | 0 | <0.01 s | clean |
 | `cargo test -p rect-graph source_an19::tests::` | 0 | 0.64 s | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; symbolic labels, recursive scales, source materializations, source/virtual splits, and descendant fragments survive valid hierarchy operations and uniform scaling while mutations are rejected |
 | `cargo test -p rect-graph` | 0 | 1.99 s | 102 tests passed; projection charging preserves hierarchy, contraction, recovery, active-class, source-counter, symbolic-label, and recursive-scale certificates |
-| `cargo fmt --all -- --check` | 0 | 0.33 s | clean |
-| `python3 tools/check_biclique_bound.py` | 0 | 0.08 s | bound check passed |
-| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | 4.02 s | no warnings |
-| `cargo test --workspace` | 0 | 410.21 s | 247 passed and 3 existing release-scale campaigns ignored across 13 suites |
-| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 2.66 s | 7 package documentation sets generated without warnings |
-| `cargo build --workspace --release` | 0 | 14.98 s | 6 crates compiled successfully |
-| `python3 tools/check_release_consistency.py` | 0 | 2.29 s | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
-| `git diff 2f5e34b..HEAD -G '#\[ignore' --stat` | 0 | <0.01 s | no ignored test changed; the same 3 documented release-scale campaigns remain ignored |
-| `git diff 2f5e34b..HEAD -- results` | 0 | <0.01 s | no stale or regenerated release evidence changed |
+| `cargo fmt --all -- --check` | 0 | 0.40 s | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | 0.13 s | bound check passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | 4.22 s | no warnings |
+| `cargo test --workspace` | 0 | 421.41 s | 247 passed and 3 existing release-scale campaigns ignored across 13 suites |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 2.84 s | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | 16.77 s | 6 crates compiled successfully |
+| `python3 tools/check_release_consistency.py` | 0 | 2.66 s | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
+| `git diff 2ee099f..HEAD -G '#\[ignore' --stat` | 0 | <0.01 s | no ignored test changed; the same 3 documented release-scale campaigns remain ignored |
+| `git diff 2ee099f..HEAD -- results` | 0 | <0.01 s | no stale or regenerated release evidence changed |
 | changed-line credential, local-path, fallback, and source-runtime mode scans | 0 | <0.01 s | no credentials, local absolute paths, fallback activation, `SourceMonotone`, or `StructuralSourceBound` selection added |
 
 The fixtures cover an exact path petal and Figure 6 window, rejection of a
