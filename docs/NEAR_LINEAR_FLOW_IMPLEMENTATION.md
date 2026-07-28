@@ -23,7 +23,7 @@ to apply compact min-ratio-cycle updates.
 | Lemma 4.1 (KP15) | Deterministically round a feasible fractional integral-capacity min-cost flow in `O(m log m)` without increasing cost | `rect-graph::min_cost::rounding` | exact feasible/cost-preserving differential against a rational oracle |
 | Definitions 4.2--4.5 | Exact incidence matrix, signed circulations, positive lengths, gradients, hidden stable witness, `Update`/`Query`/`Detect` semantics | `rect-graph::min_ratio_cycle` | P8.1 checked contract ledger: conservation, positivity, valid-pair, factor-two stability, and replay invariant tests; no dynamic cycle query claim |
 | Theorem 4.6 of the primary source, encapsulating CKLPPS22 Theorem 4.3 | IPM reduction, additive-half fractional target, quasipolynomial capacity/cost domain, total update/detect accounting | `rect-graph::interior_point` | certified fixed-point Equation (9), checked approximation bounds, potential decrease, update/detect accounting, and recovery tests |
-| Lemma 5.4 | Dynamic low-stretch rooted forest with decremental forest edges, vertex splits, stretch upper bounds, recourse | `rect-graph::rooted_forest` | P8.2 exact rooted-forest baseline: deletion/split preconditions, static Definition 5.3 certificate recomputation, root-path trace, and recourse counters; no Lemma 5.4 bound claim |
+| Lemma 5.4 | Dynamic low-stretch rooted forest with decremental forest edges, vertex splits, stretch upper bounds, recourse | `rect-graph::rooted_forest`, `rect-graph::source_an19` | P8.2 forest contracts and P9.3.2 AN19 hierarchy/workspace counters are implemented and empirically audited; the reduced-event conversion needed for the AN19 runtime is not established by the checked SIAM source, so P9.3.2d is blocked and no Lemma 5.4 bound is claimed |
 | Lemma 5.5 | Deterministic multiplicative-weights collection of low-stretch forests | `rect-graph::lsf_mwu` | P8.4 deterministic exact reweighting baseline: weighted Kruskal candidates, per-edge average-stretch certificates, and deterministic-order tests; no Lemma 5.5 bound claim |
 | Definitions 5.6--5.8, Theorem 5.1 | d-level tree chain, shifted single branch, compact cycle representation, hidden-stability data structure | `rect-graph::dynamic_min_ratio` | P8.5/P8.6 exact compact-cycle decode, P7 conservation comparison, replay/work counters, and explicit unsupported-operation rejection; no Theorem 5.1 query or bound claim |
 | Theorem 8.2 | Decremental sparse spanner with short low-congestion embeddings under deletions and vertex splits | `rect-graph::decremental_spanner` | P8.3 simple-undirected certificate verifier: explicit embedding paths, congestion, deletion/split validity, and recourse; no Theorem 8.2 construction or bound claim |
@@ -55,7 +55,18 @@ The source map is complete for P6. P7 must implement only the superlinear exact
 circulation and rounding Oracle first; P8 must split the dynamic structures
 into source-backed subphases before claiming their amortized guarantees.
 
-## Next action
+## Current P9.3.2d source blocker
+
+The formal SIAM version of Abraham--Neiman, *Using Petal-Decompositions to
+Build a Low Stretch Spanning Tree*, SIAM J. Comput. 48(2), 2019, pp. 227--248,
+DOI `10.1137/17M1115575`, has been obtained and checked. It does not establish
+the conversion from the implementation's exact reduced costs
+`ell(u,v) + d(x,u) - d(x,v)` to an explicitly bounded ordered set of
+reduced-event equivalence classes. Workspace scan counting and finite tests are
+complete implementation evidence, but they do not prove this asymptotic
+obligation. P9.3.2d and every dependent P9 milestone remain blocked.
+
+## Historical P6 next action
 
 Retrieve and archive the exact cited predecessor versions, especially CKLPPS22
 for the IPM/data-structure interface, KP15 Section 4 for deterministic

@@ -324,6 +324,19 @@ does not add a separate experimental population: 0 grids and components were
 claimed for the unimplemented backends, hence 0 solved, skipped, timed out, or
 disagreed results for them.
 
+The P9 AN19 implementation audit is a separate non-benchmark status record.
+At `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7`, the complete workspace suite
+reported 247 passed and 3 existing ignored tests; workspace scan classes,
+counter invariants, scaling checks, and mutation regressions were internally
+consistent. Local and remote HEAD were clean and equal. These finite results
+validate the implemented accounting contract only.
+
+The formal SIAM paper (DOI `10.1137/17M1115575`) was source-checked but does
+not provide the reduced-event ordering/counting conversion required to bound
+the exact costs `ell(u,v) + d(x,u) - d(x,v)`. The AN19 asymptotic runtime and
+P9.3.2d therefore remain blocked; no experimental population is treated as a
+proof of that bound.
+
 ## v0.4 indexed completion evidence
 
 The v0.4 campaign keeps the v0.3 populations unchanged and compares the two

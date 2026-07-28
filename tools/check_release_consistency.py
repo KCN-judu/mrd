@@ -106,6 +106,68 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
+def check_an19_status_docs() -> None:
+    required = {
+        "README.md": ("P9.3.2d is a hard blocker", "10.1137/17M1115575"),
+        "docs/KNOWN_LIMITATIONS.md": (
+            "blocks P9.3.2d",
+            "empirical counts do not close the proof",
+        ),
+        "docs/ALGORITHMS.md": (
+            "P9.3.2d hard blocker",
+            "tests do not verify the asymptotic runtime",
+        ),
+        "docs/EXPERIMENTS.md": (
+            "247 passed and 3 existing ignored",
+            "no experimental population is treated as a",
+            "proof of that bound",
+        ),
+        "docs/TESTING.md": (
+            "P9 AN19 QA boundary",
+            "does not validate AN19's asymptotic runtime",
+        ),
+        "docs/REFERENCES.md": (
+            "10.1137/17M1115575",
+            "runtime chain therefore remains unverified",
+        ),
+        "docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md": (
+            "Current P9.3.2d source blocker",
+            "every dependent P9 milestone remain blocked",
+        ),
+        "docs/IMPLEMENTATION_MASTER_PLAN.md": (
+            "P9.3.2d state: blocked. Hard blocker",
+            "ell(u,v) + d(x,u) - d(x,v)",
+        ),
+        "docs/phase-reports/P09-an19-static-lsst-source-map.md": (
+            "Exact unresolved proof obligation",
+            "finite differential tests cannot substitute for the lemma",
+        ),
+        "results/paper-tables.md": (
+            "AN19 reduced-event conversion lemma",
+            "Blocked / not found in cited source",
+        ),
+    }
+    contents = {}
+    for relative, fragments in required.items():
+        text = (ROOT / relative).read_text(encoding="utf-8")
+        contents[relative] = text
+        for fragment in fragments:
+            if fragment not in text:
+                fail(f"AN19 status documentation omits {fragment!r}: {relative}")
+    forbidden = (
+        "an19 runtime verified",
+        "p9.3.2d state: complete",
+        "p9.3.2d is complete",
+        "siam paper proves the reduced-event",
+        "workspace scans close the theoretical proof",
+    )
+    for relative, text in contents.items():
+        normalized = text.lower()
+        for phrase in forbidden:
+            if phrase in normalized:
+                fail(f"AN19 status documentation overclaims {phrase!r}: {relative}")
+
+
 def assert_defaults(
     value: dict, label: str, expected_defaults: dict[str, str] = EXPECTED_DEFAULTS
 ) -> None:
@@ -386,6 +448,7 @@ def main() -> None:
         report = json.loads((ROOT / relative).read_text())
         if report.get("disagreements", 0) != 0:
             fail(f"v1.1 report has disagreements: {relative}")
+    check_an19_status_docs()
     check_p1_baseline()
     print(f"release consistency: {VERSION} {TAG} -> {peeled}")
     print(f"reachable manifest commits: {len(commits)}")

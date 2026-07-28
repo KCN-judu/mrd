@@ -74,6 +74,12 @@
 - Dinic and highest-label push-relabel are practical exact max-flow backends.
   The deterministic almost-linear theoretical flow algorithm cited by the paper
   is intentionally not implemented.
+- The AN19 hierarchy's workspace scans, counters, invariants, and finite
+  differential/regression tests are implemented and audited. The formal SIAM
+  journal source (DOI `10.1137/17M1115575`) was checked but does not establish
+  the required ordering/counting conversion for exact reduced costs
+  `ell(u,v) + d(x,u) - d(x,v)`. This missing lemma blocks P9.3.2d and the AN19
+  asymptotic runtime chain; empirical counts do not close the proof.
 - The exact-cover oracle is exponential and intended for small components. The
   verification harness defaults to a 40-cell cutoff.
 - JSON colors are compared as exact `serde_json::Value` values. SVG output is a

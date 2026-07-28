@@ -2,12 +2,14 @@
 
 ## Status
 
-P9.3.2 remains in progress. This report covers the completed Appendix B.3 tree
+P9.3.2d is blocked. This report covers the completed Appendix B.3 tree
 core, full ST04 decomposition, global stretch overestimates, weighted-copy
-reduction, and dynamic batch integration. The AN19 petal constructor, weighted
-symbolic portals, hierarchical stretch proof, and source-shaped runtime
-counters mapped in `P09-an19-static-lsst-source-map.md` remain required before
-Lemma 5.4 can close.
+reduction, and dynamic batch integration. The AN19 petal constructor,
+weighted symbolic portals, hierarchy certificates, and complete workspace
+scan ledger are implemented and empirically audited. The formal SIAM source
+does not establish the reduced-event ordering/counting conversion mapped in
+`P09-an19-static-lsst-source-map.md`; therefore the AN19 runtime and Lemma 5.4
+remain unverified.
 
 ## Implemented source mechanics
 
@@ -97,6 +99,7 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 | `cargo build --workspace --release` | 0 | 6 crates compiled successfully |
 | `python3 tools/check_release_consistency.py` | 0 | 10 runs, 499220 grid comparisons, 174767 polygon rows/components, and 27228 CP-SAT components verified |
 
-The AN19 static low-stretch-tree constructor remains open. Its candidate output
-already has strong exact tree/stretch verifiers. No complete Lemma 5.4 or
-runtime claim is made by this partial core.
+The implemented AN19 candidate output has exact tree/stretch and workspace-scan
+verifiers. Those implementation checks do not prove the missing reduced-event
+class bound. P9.3.2d remains a hard blocker; no complete Lemma 5.4 or runtime
+claim is made by this partial core.

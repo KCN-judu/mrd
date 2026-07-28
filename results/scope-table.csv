@@ -8,7 +8,12 @@ polygon completion,horizontal then vertical simple chords,"incremental completio
 polygon structural validation,ordinary rectilinear domain,OrthogonalSweepValidator with quadratic Oracle,accepted and negative-category differential,deterministic integer event ordering
 compact biclique partition,O(q log^4 q) for d=4,constructive Theorem 8 recursion,yes,edge multiplicity audited exactly once
 practical Dinic backend,replaceable exact flow,implemented,yes,integral flow and residual cut
-almost-linear theoretical flow backend,used asymptotically,not implemented,no,citation-only complexity component
+workspace scan-count audit,implementation accounting prerequisite,Complete,247 passed; 3 existing ignored,counters and invariants are internally consistent at 8f9ab06; this is not an asymptotic proof
+formal SIAM AN19 source identification,"Abraham--Neiman, SIAM J. Comput. 48(2), DOI 10.1137/17M1115575",Complete,source checked,the reduced-event conversion was not found in the cited source
+AN19 reduced-event conversion lemma,required for the local P9.3.2d runtime chain,Blocked / not found in cited source,not provable by finite tests,"must bound and order equivalence classes of ell(u,v) + d(x,u) - d(x,v)"
+AN19 runtime verification,O(m log n log log n),Blocked,no,workspace scans do not close the missing mathematical reduction
+P9.3.2d,AN19 static LSST prerequisite for Lemma 5.4,Hard blocker,implementation side only,dependent P9 phases are not started and forbidden until resolved
+almost-linear theoretical flow backend,used asymptotically,not implemented,no,citation-only complexity component; blocked downstream of P9.3.2d
 explicit rectangle output,constructive completion,implemented,yes,cell-exact validation
 machine-checkable certificates,not an artifact requirement,implemented,yes,"matching, partition, flow, cut, and rectangles"
 clean hole-free eligibility,Definition 9.1,integer grid classifier with loop identities,yes,component and chord-mass census; ornaments remain out of model

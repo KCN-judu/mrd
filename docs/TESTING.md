@@ -29,6 +29,20 @@ The workspace test suite includes:
 - deterministic random families through the CLI: Bernoulli masks, random walks,
   rectangle unions, combs, checkerboards, and rings/corridors.
 
+## P9 AN19 QA boundary
+
+The audit at `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7` completed with 247
+tests passed and 3 existing ignored tests. It verifies workspace scan counting,
+implementation counters and invariants, exact hierarchy certificates,
+scaling, and mutation rejection. The local and remote branch were clean and
+equal at that SHA.
+
+This QA evidence does not validate AN19's asymptotic runtime. The formal SIAM
+source, DOI `10.1137/17M1115575`, does not supply the reduced-event
+ordering/counting conversion required by P9.3.2d. That mathematical obligation
+is blocked independently of the green test suite, and downstream P9 phases may
+not start.
+
 Run larger exhaustive and random campaigns with:
 
 ```bash

@@ -212,6 +212,21 @@ not implement the source's formal-boundary features, indexed completion does
 not claim the full classical completion bound, and the practical Dinic backend
 is not the cited almost-linear theoretical flow algorithm.
 
+### P9 AN19 status
+
+At repository state `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7`,
+workspace scan counting, implementation-side invariants, and differential and
+regression tests are complete and internally consistent; the full workspace
+result is 247 passed with 3 existing ignored tests, and local and remote HEAD
+were clean and equal. This is implementation evidence, not an asymptotic
+runtime proof.
+
+The formal SIAM version of Abraham--Neiman, DOI `10.1137/17M1115575`, was
+obtained and checked. It does not establish the reduced-event
+ordering/counting conversion required by the local AN19 proof plan.
+Consequently, the reduced-event class bound and AN19 runtime remain unproved,
+P9.3.2d is a hard blocker, and dependent P9 phases must not start.
+
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;
 see `docs/GEOMETRIC_COMPLETION.md` for the deterministic policy and exact

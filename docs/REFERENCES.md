@@ -75,3 +75,14 @@
    stability, dynamic cycle structure, or almost-linear bound. The permanent
    practical maximum-flow backends (`DinicBackend` and `PushRelabelBackend`)
    remain independent of this baseline.
+
+9. Ittai Abraham and Ofer Neiman, "Using Petal-Decompositions to Build a Low
+   Stretch Spanning Tree," *SIAM Journal on Computing* 48(2), 2019,
+   pp. 227--248. DOI: 10.1137/17M1115575.
+
+   `rect-graph::source_an19` implements and audits hierarchy mechanics,
+   tree/stretch certificates, source/work counters, and the complete workspace
+   scan ledger. The formal SIAM text was checked, but it does not establish the
+   reduced-event ordering/counting conversion required by P9.3.2d. The AN19
+   runtime chain therefore remains unverified; finite tests and observed event
+   counts are not attributed to the paper as a proof.
