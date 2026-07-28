@@ -2147,6 +2147,10 @@ pub struct An19ProjectionAudit {
     pub maximum_symbolic_source_label_classes: u64,
     pub maximum_symbolic_virtual_label_classes: u64,
     pub maximum_original_edge_segment_occurrences: u64,
+    pub original_edge_scale_occurrences: Vec<u64>,
+    pub maximum_original_edge_scale_occurrences: u64,
+    scale_observations: u64,
+    source_last_scale_observation: Vec<u64>,
 }
 
 impl An19ProjectionAudit {
@@ -2161,7 +2165,52 @@ impl An19ProjectionAudit {
             maximum_symbolic_source_label_classes: 0,
             maximum_symbolic_virtual_label_classes: 0,
             maximum_original_edge_segment_occurrences: 0,
+            original_edge_scale_occurrences: vec![0; original_edge_count],
+            maximum_original_edge_scale_occurrences: 0,
+            scale_observations: 0,
+            source_last_scale_observation: vec![0; original_edge_count],
         }
+    }
+
+    fn record_scale_sources(
+        &mut self,
+        projection: &AugmentedProjection,
+        new_partition_scale: bool,
+        metrics: &mut An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        if !new_partition_scale {
+            return Ok(());
+        }
+        self.scale_observations = checked_metric_sum(self.scale_observations, 1)?;
+        metrics.source_scale_attribution_scans = checked_metric_sum(
+            metrics.source_scale_attribution_scans,
+            u64::try_from(projection.dense_root_sources.len())
+                .map_err(|_| An19PetalError::Overflow)?,
+        )?;
+        for source in projection.dense_root_sources.iter().copied().flatten() {
+            let last_observation = self
+                .source_last_scale_observation
+                .get_mut(source.0)
+                .ok_or(An19PetalError::InvalidWorkCertificate)?;
+            if *last_observation == self.scale_observations {
+                continue;
+            }
+            *last_observation = self.scale_observations;
+            let occurrences = self
+                .original_edge_scale_occurrences
+                .get_mut(source.0)
+                .ok_or(An19PetalError::InvalidWorkCertificate)?;
+            *occurrences = checked_metric_sum(*occurrences, 1)?;
+            self.maximum_original_edge_scale_occurrences = self
+                .maximum_original_edge_scale_occurrences
+                .max(*occurrences);
+            metrics.source_scale_participations =
+                checked_metric_sum(metrics.source_scale_participations, 1)?;
+            metrics.maximum_source_scale_participations = metrics
+                .maximum_source_scale_participations
+                .max(*occurrences);
+        }
+        Ok(())
     }
 
     fn record(
@@ -2311,7 +2360,20 @@ impl An19ProjectionAudit {
             .copied()
             .max()
             .unwrap_or(0);
+        let scale_occurrences = self
+            .original_edge_scale_occurrences
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let maximum_scale_occurrences = self
+            .original_edge_scale_occurrences
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
         if self.original_edge_segment_occurrences.len() != original_edge_count
+            || self.original_edge_scale_occurrences.len() != original_edge_count
+            || self.source_last_scale_observation.len() != original_edge_count
+            || self.scale_observations != metrics.partition_recursion_calls
             || checked_metric_sum(
                 original_occurrences,
                 self.provenance_free_segment_occurrences,
@@ -2329,6 +2391,10 @@ impl An19ProjectionAudit {
             || self.maximum_projection_length_classes > self.maximum_projection_edges
             || self.maximum_symbolic_source_label_classes > self.maximum_projection_edges
             || self.maximum_symbolic_virtual_label_classes > self.maximum_projection_edges
+            || scale_occurrences != metrics.source_scale_participations
+            || maximum_scale_occurrences != self.maximum_original_edge_scale_occurrences
+            || self.maximum_original_edge_scale_occurrences
+                != metrics.maximum_source_scale_participations
         {
             return Err(An19PetalError::InvalidWorkCertificate);
         }
@@ -2339,6 +2405,8 @@ impl An19ProjectionAudit {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct An19HierarchyMetrics {
     pub recursion_calls: u64,
+    pub partition_recursion_calls: u64,
+    pub maximum_partition_depth: u64,
     pub base_cases: u64,
     pub projection_calls: u64,
     pub projection_cache_hits: u64,
@@ -2351,6 +2419,9 @@ pub struct An19HierarchyMetrics {
     pub maximum_projection_length_classes: u64,
     pub maximum_symbolic_source_label_classes: u64,
     pub maximum_symbolic_virtual_label_classes: u64,
+    pub source_scale_participations: u64,
+    pub maximum_source_scale_participations: u64,
+    pub source_scale_attribution_scans: u64,
     pub contraction_calls: u64,
     pub contracted_edges: u64,
     pub quotient_edges: u64,
@@ -2386,6 +2457,17 @@ pub struct An19HierarchyMetrics {
 
 const AN19_WORK_BOUND_FACTOR: u64 = 1_024;
 
+fn source_scale_participation_bound(logarithmic_levels: u64) -> Result<u64, An19PetalError> {
+    // AN19 Section 6 gives an active radius ratio of at most 2*n^2, while
+    // Claims 5--6 shrink child radii by 3/4 and (3/4)^3 < 1/2. This is a
+    // checked necessary gate for augmented runs; portal-fragment charging is
+    // audited separately before the structural runtime claim can be enabled.
+    logarithmic_levels
+        .checked_mul(6)
+        .and_then(|value| value.checked_add(4))
+        .ok_or(An19PetalError::Overflow)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum An19ProjectionMode {
     ClusterLocal,
@@ -2416,6 +2498,7 @@ pub struct An19WorkCertificate {
     pub input_edges: usize,
     pub logarithmic_levels: u64,
     pub iterated_logarithmic_levels: u64,
+    pub source_scale_participation_bound: u64,
     pub observed_work_units: u64,
     pub maximum_work_units: u64,
     pub oracle_fallbacks: u64,
@@ -2438,6 +2521,8 @@ impl An19WorkCertificate {
             u64::from(usize::BITS - graph.node_count().saturating_sub(1).leading_zeros());
         let iterated_logarithmic_levels = u64::try_from(ceil_log_log(graph.node_count()))
             .map_err(|_| An19PetalError::Overflow)?;
+        let source_scale_participation_bound =
+            source_scale_participation_bound(logarithmic_levels)?;
         let maximum_work_units = AN19_WORK_BOUND_FACTOR
             .checked_mul(
                 u64::try_from(graph.edge_count().max(1)).map_err(|_| An19PetalError::Overflow)?,
@@ -2450,6 +2535,7 @@ impl An19WorkCertificate {
             input_edges: graph.edge_count(),
             logarithmic_levels,
             iterated_logarithmic_levels,
+            source_scale_participation_bound,
             observed_work_units: hierarchy_work_units(metrics)?,
             maximum_work_units,
             oracle_fallbacks: 0,
@@ -2490,9 +2576,19 @@ impl An19WorkCertificate {
             || metrics.event_heap_pushes != metrics.event_heap_pops
             || metrics.shortest_heap_pushes != metrics.shortest_heap_pops
             || metrics.monotone_queue_pushes != metrics.monotone_queue_pops
+            || checked_metric_sum(metrics.partition_recursion_calls, metrics.contraction_calls)?
+                != metrics.recursion_calls
+            || metrics.maximum_partition_depth >= self.source_scale_participation_bound
             || metrics.projection_calls < metrics.recursion_calls
             || metrics.projection_cache_hits > metrics.projection_calls
             || metrics.projection_incremental_splits > metrics.portal_splits
+            || metrics.maximum_source_scale_participations > self.source_scale_participation_bound
+            || metrics.maximum_source_scale_participations
+                > metrics
+                    .maximum_partition_depth
+                    .checked_add(1)
+                    .ok_or(An19PetalError::Overflow)?
+            || metrics.source_scale_participations > metrics.source_scale_attribution_scans
             || metrics.maximum_projection_nodes == 0
             || metrics.maximum_projection_nodes > metrics.projected_node_slots
             || metrics.directed_region_runs
@@ -2527,6 +2623,7 @@ impl An19WorkCertificate {
 fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19PetalError> {
     [
         metrics.recursion_calls,
+        metrics.partition_recursion_calls,
         metrics.base_cases,
         metrics.projection_calls,
         metrics.projection_cache_hits,
@@ -2534,6 +2631,8 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.projected_node_slots,
         metrics.projected_edge_slots,
         metrics.projection_length_class_sum,
+        metrics.source_scale_participations,
+        metrics.source_scale_attribution_scans,
         metrics.contraction_calls,
         metrics.contracted_edges,
         metrics.quotient_edges,
@@ -2577,11 +2676,15 @@ pub struct An19RadiusEdge {
     pub first: FlowNodeId,
     pub second: FlowNodeId,
     pub length: ExactRatio,
+    pub root_source: Option<SourceEdgeId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct An19RadiusCertificate {
     pub original_node_count: usize,
+    pub recursion_parent: Option<usize>,
+    pub partition_depth: u64,
+    pub same_scale_contraction: bool,
     pub cluster_size: usize,
     pub base_vertex_limit: usize,
     pub center: FlowNodeId,
@@ -2794,6 +2897,9 @@ impl An19HierarchicalLsst {
             root,
             root,
             graph.node_count(),
+            None,
+            0,
+            false,
             &mut radius_certificates,
             &mut metrics,
             &mut projection_audit,
@@ -2831,6 +2937,7 @@ impl An19HierarchicalLsst {
     /// Returns an error when the recovered original edge set is not a tree,
     /// its exact weighted stretch differs, or a recursive radius witness is
     /// invalid.
+    #[allow(clippy::too_many_lines)]
     pub fn verify(&self, graph: &SourceDynamicGraph) -> Result<(), An19PetalError> {
         let (weighted_stretch, total_weight) =
             audit_original_tree_stretch(graph, &self.tree_edges)?;
@@ -2850,11 +2957,84 @@ impl An19HierarchicalLsst {
             .projection_audit
             .original_edge_segment_occurrences
             .contains(&0)
+            || self
+                .projection_audit
+                .original_edge_scale_occurrences
+                .contains(&0)
         {
             return Err(An19PetalError::InvalidWorkCertificate);
         }
-        for certificate in &self.radius_certificates {
+        let mut partition_calls = 0_u64;
+        let mut same_scale_contractions = 0_u64;
+        let mut maximum_partition_depth = 0_u64;
+        let mut scale_observation = 0_u64;
+        let mut source_last_observation = vec![0_u64; graph.edge_count()];
+        let mut rebuilt_source_scale_occurrences = vec![0_u64; graph.edge_count()];
+        let mut rebuilt_source_scale_scans = 0_u64;
+        for (index, certificate) in self.radius_certificates.iter().enumerate() {
             certificate.verify()?;
+            if certificate.same_scale_contraction {
+                same_scale_contractions = checked_metric_sum(same_scale_contractions, 1)?;
+            } else {
+                partition_calls = checked_metric_sum(partition_calls, 1)?;
+                maximum_partition_depth = maximum_partition_depth.max(certificate.partition_depth);
+                scale_observation = checked_metric_sum(scale_observation, 1)?;
+                rebuilt_source_scale_scans = checked_metric_sum(
+                    rebuilt_source_scale_scans,
+                    u64::try_from(certificate.edges.len()).map_err(|_| An19PetalError::Overflow)?,
+                )?;
+                for edge in &certificate.edges {
+                    let Some(source) = edge.root_source else {
+                        continue;
+                    };
+                    let last_observation = source_last_observation
+                        .get_mut(source.0)
+                        .ok_or(An19PetalError::InvalidWorkCertificate)?;
+                    if *last_observation == scale_observation {
+                        continue;
+                    }
+                    *last_observation = scale_observation;
+                    let occurrences = rebuilt_source_scale_occurrences
+                        .get_mut(source.0)
+                        .ok_or(An19PetalError::InvalidWorkCertificate)?;
+                    *occurrences = checked_metric_sum(*occurrences, 1)?;
+                }
+            }
+            match (index, certificate.recursion_parent) {
+                (0, None)
+                    if certificate.partition_depth == 0 && !certificate.same_scale_contraction => {}
+                (0, _) | (_, None) => {
+                    return Err(An19PetalError::InvalidRadiusCertificate);
+                }
+                (_, Some(parent_index)) => {
+                    let parent = self
+                        .radius_certificates
+                        .get(parent_index)
+                        .filter(|_| parent_index < index)
+                        .ok_or(An19PetalError::InvalidRadiusCertificate)?;
+                    if certificate.same_scale_contraction {
+                        if parent.contraction_threshold.is_none()
+                            || certificate.partition_depth != parent.partition_depth
+                        {
+                            return Err(An19PetalError::InvalidRadiusCertificate);
+                        }
+                    } else {
+                        let expected_depth = parent
+                            .partition_depth
+                            .checked_add(1)
+                            .ok_or(An19PetalError::Overflow)?;
+                        let maximum_child_radius = parent
+                            .radius
+                            .checked_mul(ratio(3, 4)?)
+                            .map_err(|_| An19PetalError::Overflow)?;
+                        if certificate.partition_depth != expected_depth
+                            || ratio_less(maximum_child_radius, certificate.radius)?
+                        {
+                            return Err(An19PetalError::InvalidRadiusCertificate);
+                        }
+                    }
+                }
+            }
         }
         let contraction_calls = self
             .radius_certificates
@@ -2868,10 +3048,30 @@ impl An19HierarchicalLsst {
                 total.checked_add(certificate.contracted_edge_count)
             })
             .ok_or(An19PetalError::Overflow)?;
+        let rebuilt_source_scale_total = rebuilt_source_scale_occurrences
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let rebuilt_source_scale_maximum = rebuilt_source_scale_occurrences
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
         if u64::try_from(contraction_calls).map_err(|_| An19PetalError::Overflow)?
             != self.metrics.contraction_calls
             || u64::try_from(contracted_edges).map_err(|_| An19PetalError::Overflow)?
                 != self.metrics.contracted_edges
+            || same_scale_contractions != self.metrics.contraction_calls
+            || partition_calls != self.metrics.partition_recursion_calls
+            || maximum_partition_depth != self.metrics.maximum_partition_depth
+            || rebuilt_source_scale_occurrences
+                != self.projection_audit.original_edge_scale_occurrences
+            || rebuilt_source_scale_maximum
+                != self
+                    .projection_audit
+                    .maximum_original_edge_scale_occurrences
+            || rebuilt_source_scale_total != self.metrics.source_scale_participations
+            || rebuilt_source_scale_maximum != self.metrics.maximum_source_scale_participations
+            || rebuilt_source_scale_scans != self.metrics.source_scale_attribution_scans
         {
             return Err(An19PetalError::InvalidRadiusCertificate);
         }
@@ -2893,6 +3093,9 @@ fn hierarchical_petal_decomposition(
     center: FlowNodeId,
     target: FlowNodeId,
     original_node_count: usize,
+    recursion_parent: Option<usize>,
+    partition_depth: u64,
+    same_scale_contraction: bool,
     radius_certificates: &mut Vec<An19RadiusCertificate>,
     metrics: &mut An19HierarchyMetrics,
     projection_audit: &mut An19ProjectionAudit,
@@ -2901,7 +3104,13 @@ fn hierarchical_petal_decomposition(
         .recursion_calls
         .checked_add(1)
         .ok_or(An19PetalError::Overflow)?;
+    if !same_scale_contraction {
+        metrics.partition_recursion_calls =
+            checked_metric_sum(metrics.partition_recursion_calls, 1)?;
+        metrics.maximum_partition_depth = metrics.maximum_partition_depth.max(partition_depth);
+    }
     let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
+    projection_audit.record_scale_sources(&projection, !same_scale_contraction, metrics)?;
     let paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
     add_workspace_edge_scans(metrics, projection.graph().edge_count(), 2)?;
@@ -2918,9 +3127,13 @@ fn hierarchical_petal_decomposition(
         || threshold
             .at_least(radius)
             .map_err(|_| An19PetalError::Overflow)?;
+    let certificate_index = radius_certificates.len();
     radius_certificates.push(build_radius_certificate(
         &projection,
         original_node_count,
+        recursion_parent,
+        partition_depth,
+        same_scale_contraction,
         &cluster,
         center,
         target,
@@ -2960,6 +3173,8 @@ fn hierarchical_petal_decomposition(
                 center,
                 target,
                 original_node_count,
+                certificate_index,
+                partition_depth,
                 radius_certificates,
                 metrics,
                 projection_audit,
@@ -2993,6 +3208,11 @@ fn hierarchical_petal_decomposition(
             piece.center,
             piece.target,
             original_node_count,
+            Some(certificate_index),
+            partition_depth
+                .checked_add(1)
+                .ok_or(An19PetalError::Overflow)?,
+            false,
             radius_certificates,
             metrics,
             projection_audit,
@@ -3016,6 +3236,11 @@ fn hierarchical_petal_decomposition(
         center,
         stigma_target,
         original_node_count,
+        Some(certificate_index),
+        partition_depth
+            .checked_add(1)
+            .ok_or(An19PetalError::Overflow)?,
+        false,
         radius_certificates,
         metrics,
         projection_audit,
@@ -3055,6 +3280,8 @@ fn hierarchy_contracted_tree(
     center: FlowNodeId,
     target: FlowNodeId,
     original_node_count: usize,
+    recursion_parent: usize,
+    partition_depth: u64,
     radius_certificates: &mut Vec<An19RadiusCertificate>,
     metrics: &mut An19HierarchyMetrics,
     projection_audit: &mut An19ProjectionAudit,
@@ -3138,6 +3365,9 @@ fn hierarchy_contracted_tree(
         quotient_center,
         quotient_target,
         original_node_count,
+        Some(recursion_parent),
+        partition_depth,
+        true,
         radius_certificates,
         metrics,
         projection_audit,
@@ -3776,6 +4006,9 @@ fn hierarchy_radius(
 fn build_radius_certificate(
     projection: &AugmentedProjection,
     original_node_count: usize,
+    recursion_parent: Option<usize>,
+    partition_depth: u64,
+    same_scale_contraction: bool,
     cluster: &BTreeSet<FlowNodeId>,
     center: FlowNodeId,
     target: FlowNodeId,
@@ -3806,10 +4039,14 @@ fn build_radius_certificate(
             first: projection.augmented_node(edge.first)?,
             second: projection.augmented_node(edge.second)?,
             length: edge.length,
+            root_source: projection.root_source(SourceEdgeId(index))?,
         });
     }
     let certificate = An19RadiusCertificate {
         original_node_count,
+        recursion_parent,
+        partition_depth,
+        same_scale_contraction,
         cluster_size: cluster.len(),
         base_vertex_limit,
         center,
@@ -6266,6 +6503,57 @@ mod tests {
         }
     }
 
+    fn assert_contraction_recursion_mutations_rejected(
+        hierarchy: &super::An19HierarchicalLsst,
+        graph: &SourceDynamicGraph,
+    ) {
+        let mut invalid_parent = hierarchy.clone();
+        invalid_parent
+            .radius_certificates
+            .iter_mut()
+            .find(|certificate| certificate.same_scale_contraction)
+            .unwrap()
+            .recursion_parent = None;
+        assert!(invalid_parent.verify(graph).is_err());
+
+        let mut invalid_scale = hierarchy.clone();
+        invalid_scale
+            .radius_certificates
+            .iter_mut()
+            .find(|certificate| certificate.same_scale_contraction)
+            .unwrap()
+            .partition_depth += 1;
+        assert!(invalid_scale.verify(graph).is_err());
+    }
+
+    fn assert_scale_audit_mutations_rejected(
+        hierarchy: &super::An19HierarchicalLsst,
+        graph: &SourceDynamicGraph,
+    ) {
+        let mut invalid_audit = hierarchy.clone();
+        invalid_audit
+            .projection_audit
+            .original_edge_scale_occurrences[0] += 1;
+        assert!(invalid_audit.verify(graph).is_err());
+
+        let mut invalid_root = hierarchy.clone();
+        invalid_root
+            .radius_certificates
+            .iter_mut()
+            .filter(|certificate| !certificate.same_scale_contraction)
+            .flat_map(|certificate| certificate.edges.iter_mut())
+            .find(|edge| edge.root_source.is_some())
+            .unwrap()
+            .root_source = Some(SourceEdgeId(graph.edge_count()));
+        assert!(invalid_root.verify(graph).is_err());
+
+        let mut invalid_bound = hierarchy.clone();
+        invalid_bound
+            .work_certificate
+            .source_scale_participation_bound += 1;
+        assert!(invalid_bound.verify(graph).is_err());
+    }
+
     #[test]
     fn constructs_exact_path_petal_and_radius_window() {
         let graph = path_graph(10);
@@ -7597,6 +7885,9 @@ mod tests {
             FlowNodeId(0),
             FlowNodeId(499),
             500,
+            None,
+            0,
+            false,
             &mut certificates,
             &mut metrics,
             &mut projection_audit,
@@ -7619,6 +7910,27 @@ mod tests {
         assert!(projection_audit.maximum_symbolic_source_label_classes > 0);
         let logarithmic_levels =
             u64::from(usize::BITS - graph.node_count().saturating_sub(1).leading_zeros());
+        assert_eq!(
+            projection_audit.maximum_original_edge_scale_occurrences,
+            logarithmic_levels
+        );
+        assert_eq!(
+            projection_audit.maximum_original_edge_scale_occurrences,
+            metrics.maximum_source_scale_participations
+        );
+        assert_eq!(
+            projection_audit
+                .original_edge_scale_occurrences
+                .iter()
+                .copied()
+                .sum::<u64>(),
+            metrics.source_scale_participations
+        );
+        assert_eq!(metrics.source_scale_participations, 2_256);
+        assert_eq!(metrics.source_scale_attribution_scans, 2_919);
+        assert_eq!(metrics.recursion_calls, 46);
+        assert_eq!(metrics.partition_recursion_calls, 46);
+        assert_eq!(metrics.maximum_partition_depth, 8);
         assert!(projection_audit.maximum_original_edge_segment_occurrences > logarithmic_levels);
         projection_audit
             .verify(graph.edge_count(), &metrics)
@@ -7649,6 +7961,15 @@ mod tests {
         );
         assert!(hierarchy.metrics.recursion_calls > 1);
         assert!(hierarchy.metrics.petals > 0);
+        assert_eq!(hierarchy.metrics.maximum_partition_depth, 9);
+        let mut invalid_parent = hierarchy.clone();
+        invalid_parent
+            .radius_certificates
+            .iter_mut()
+            .find(|certificate| certificate.partition_depth >= 2)
+            .unwrap()
+            .recursion_parent = Some(0);
+        assert!(invalid_parent.verify(&graph).is_err());
     }
 
     #[test]
@@ -7847,7 +8168,7 @@ mod tests {
 
     #[test]
     fn power_of_two_rounding_is_scale_relative_and_within_factor_two() {
-        use super::round_length_to_power_of_two;
+        use super::{round_length_to_power_of_two, source_scale_participation_bound};
 
         let base = ExactRatio::new(2, 3).unwrap();
         let length = ExactRatio::new(3, 2).unwrap();
@@ -7869,6 +8190,9 @@ mod tests {
             .unwrap(),
             rounded.checked_mul_integer(1_000).unwrap()
         );
+        assert_eq!(source_scale_participation_bound(0).unwrap(), 4);
+        assert_eq!(source_scale_participation_bound(9).unwrap(), 58);
+        assert!(source_scale_participation_bound(u64::MAX).is_err());
     }
 
     #[test]
@@ -7931,6 +8255,17 @@ mod tests {
         );
         assert_eq!(small_hierarchy.metrics, large_hierarchy.metrics);
         assert_eq!(small_hierarchy.metrics.contraction_calls, 1);
+        assert_eq!(small_hierarchy.metrics.recursion_calls, 2);
+        assert_eq!(small_hierarchy.metrics.partition_recursion_calls, 1);
+        assert_eq!(small_hierarchy.metrics.maximum_partition_depth, 0);
+        assert_eq!(
+            small_hierarchy
+                .radius_certificates
+                .iter()
+                .filter(|certificate| certificate.same_scale_contraction)
+                .count(),
+            1
+        );
         assert_eq!(small_hierarchy.metrics.contracted_edges, 2);
         assert_eq!(small_hierarchy.metrics.quotient_edges, 2);
         assert!(
@@ -7959,6 +8294,7 @@ mod tests {
             .unwrap()
             .contraction_threshold = Some(ExactRatio::new(1, 1).unwrap());
         assert!(invalid.verify(&small).is_err());
+        assert_contraction_recursion_mutations_rejected(&small_hierarchy, &small);
     }
 
     #[test]
@@ -8002,6 +8338,22 @@ mod tests {
         assert!(small_hierarchy.metrics.maximum_length_classes > 0);
         assert!(small_hierarchy.metrics.projected_edge_slots > 0);
         assert!(small_hierarchy.metrics.projection_length_class_sum > 0);
+        assert!(small_hierarchy.metrics.source_scale_participations > 0);
+        assert_eq!(small_hierarchy.metrics.source_scale_participations, 1_983);
+        assert_eq!(
+            small_hierarchy.metrics.maximum_source_scale_participations,
+            7
+        );
+        assert_eq!(
+            small_hierarchy.metrics.source_scale_attribution_scans,
+            2_016
+        );
+        assert!(
+            small_hierarchy.metrics.maximum_source_scale_participations
+                <= small_hierarchy
+                    .work_certificate
+                    .source_scale_participation_bound
+        );
         assert_eq!(
             small_hierarchy.metrics.maximum_projection_length_classes,
             small_hierarchy
@@ -8035,6 +8387,7 @@ mod tests {
             .projection_audit
             .maximum_symbolic_source_label_classes += 1;
         assert!(invalid_symbolic_audit.verify(&small).is_err());
+        assert_scale_audit_mutations_rejected(&small_hierarchy, &small);
         let mut invalid_queue = small_hierarchy.clone();
         invalid_queue.metrics.monotone_queue_pops =
             invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);
