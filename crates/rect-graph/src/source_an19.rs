@@ -1370,6 +1370,9 @@ pub struct AugmentedAn19Edge {
     second: FlowNodeId,
     length: ExactRatio,
     provenance: Option<OriginalEdgeInterval>,
+    /// Top-level input edge charged by the runtime audit, independent of the
+    /// current quotient workspace's local recovery provenance.
+    root_source: Option<SourceEdgeId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1382,6 +1385,7 @@ pub struct OriginalEdgeInterval {
 pub struct AugmentedProjection {
     graph: SourceDynamicGraph,
     dense_to_augmented: Vec<usize>,
+    dense_root_sources: Vec<Option<SourceEdgeId>>,
     local_to_augmented_node: Vec<FlowNodeId>,
     augmented_to_local_node: BTreeMap<FlowNodeId, FlowNodeId>,
 }
@@ -1401,6 +1405,20 @@ impl AugmentedAn19Graph {
         graph: &SourceDynamicGraph,
         length_mode: An19LengthMode,
     ) -> Result<Self, An19PetalError> {
+        let root_sources = (0..graph.edge_count())
+            .map(|index| Some(SourceEdgeId(index)))
+            .collect::<Vec<_>>();
+        Self::from_source_with_root_sources(graph, length_mode, &root_sources)
+    }
+
+    fn from_source_with_root_sources(
+        graph: &SourceDynamicGraph,
+        length_mode: An19LengthMode,
+        root_sources: &[Option<SourceEdgeId>],
+    ) -> Result<Self, An19PetalError> {
+        if root_sources.len() != graph.edge_count() {
+            return Err(An19PetalError::InvalidAugmentedGraph);
+        }
         let mut edges = Vec::new();
         let mut incident_edges = vec![Vec::new(); graph.node_count()];
         let mut original_endpoints = Vec::new();
@@ -1416,7 +1434,7 @@ impl AugmentedAn19Graph {
                 Ok::<_, An19PetalError>(if replace { Some(edge.length) } else { minimum })
             })?
             .ok_or(An19PetalError::InvalidAugmentedGraph)?;
-        for index in 0..graph.edge_count() {
+        for (index, root_source) in root_sources.iter().copied().enumerate() {
             let edge = graph
                 .edge(SourceEdgeId(index))
                 .ok_or(An19PetalError::InvalidAugmentedGraph)?;
@@ -1440,6 +1458,7 @@ impl AugmentedAn19Graph {
                     first_position: ratio(0, 1)?,
                     second_position: edge.length,
                 }),
+                root_source,
             });
             incident_edges[edge.first.0].push(stable);
             incident_edges[edge.second.0].push(stable);
@@ -1484,6 +1503,7 @@ impl AugmentedAn19Graph {
             second: vertex,
             length,
             provenance: None,
+            root_source: None,
         });
         self.incident_edges[attached_to.0].push(edge);
         self.incident_edges[vertex.0].push(edge);
@@ -1538,6 +1558,7 @@ impl AugmentedAn19Graph {
             second: vertex,
             length: offset,
             provenance: from_provenance,
+            root_source: edge.root_source,
         });
         self.incident_edges[from.0].push(from_edge);
         self.incident_edges[vertex.0].push(from_edge);
@@ -1549,6 +1570,7 @@ impl AugmentedAn19Graph {
             second: toward,
             length: remainder,
             provenance: toward_provenance,
+            root_source: edge.root_source,
         });
         self.incident_edges[vertex.0].push(toward_edge);
         self.incident_edges[toward.0].push(toward_edge);
@@ -1559,6 +1581,7 @@ impl AugmentedAn19Graph {
         &self,
         cluster: &BTreeSet<FlowNodeId>,
         metrics: &mut An19HierarchyMetrics,
+        projection_audit: &mut An19ProjectionAudit,
     ) -> Result<AugmentedProjection, An19PetalError> {
         metrics.projection_calls = checked_metric_sum(metrics.projection_calls, 1)?;
         let local_nodes = u64::try_from(cluster.len()).map_err(|_| An19PetalError::Overflow)?;
@@ -1615,12 +1638,19 @@ impl AugmentedAn19Graph {
         }
         let graph = SourceDynamicGraph::new(cluster.len(), edges, bound)
             .map_err(|_| An19PetalError::InvalidAugmentedGraph)?;
-        Ok(AugmentedProjection {
+        let dense_root_sources = dense_to_augmented
+            .iter()
+            .map(|stable| self.edges[*stable].root_source)
+            .collect::<Vec<_>>();
+        let projection = AugmentedProjection {
             graph,
             dense_to_augmented,
+            dense_root_sources,
             local_to_augmented_node,
             augmented_to_local_node,
-        })
+        };
+        projection_audit.record(&projection, metrics)?;
+        Ok(projection)
     }
 
     /// Builds the dense active graph consumed by exact Figure 6 operations.
@@ -1661,9 +1691,14 @@ impl AugmentedAn19Graph {
         }
         let graph = SourceDynamicGraph::new(self.node_count, edges, bound)
             .map_err(|_| An19PetalError::InvalidAugmentedGraph)?;
+        let dense_root_sources = dense_to_augmented
+            .iter()
+            .map(|stable| self.edges[*stable].root_source)
+            .collect();
         Ok(AugmentedProjection {
             graph,
             dense_to_augmented,
+            dense_root_sources,
             local_to_augmented_node,
             augmented_to_local_node,
         })
@@ -1756,6 +1791,13 @@ impl AugmentedProjection {
         &self.dense_to_augmented
     }
 
+    fn root_source(&self, dense: SourceEdgeId) -> Result<Option<SourceEdgeId>, An19PetalError> {
+        self.dense_root_sources
+            .get(dense.0)
+            .copied()
+            .ok_or(An19PetalError::InvalidAugmentedGraph)
+    }
+
     fn local_node(&self, augmented: FlowNodeId) -> Result<FlowNodeId, An19PetalError> {
         self.augmented_to_local_node
             .get(&augmented)
@@ -1781,6 +1823,127 @@ impl AugmentedProjection {
     }
 }
 
+/// Exact observed projection work grouped by top-level input edge.
+///
+/// This audit exposes segment multiplication and active length classes. It
+/// does not by itself prove AN19's logarithmic per-edge participation bound.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct An19ProjectionAudit {
+    pub original_edge_segment_occurrences: Vec<u64>,
+    pub provenance_free_segment_occurrences: u64,
+    pub projected_edge_occurrences: u64,
+    pub maximum_projection_edges: u64,
+    pub total_projection_length_classes: u64,
+    pub maximum_projection_length_classes: u64,
+    pub maximum_original_edge_segment_occurrences: u64,
+}
+
+impl An19ProjectionAudit {
+    fn new(original_edge_count: usize) -> Self {
+        Self {
+            original_edge_segment_occurrences: vec![0; original_edge_count],
+            provenance_free_segment_occurrences: 0,
+            projected_edge_occurrences: 0,
+            maximum_projection_edges: 0,
+            total_projection_length_classes: 0,
+            maximum_projection_length_classes: 0,
+            maximum_original_edge_segment_occurrences: 0,
+        }
+    }
+
+    fn record(
+        &mut self,
+        projection: &AugmentedProjection,
+        metrics: &mut An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        if projection.dense_root_sources.len() != projection.graph.edge_count() {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
+        let edge_count =
+            u64::try_from(projection.graph.edge_count()).map_err(|_| An19PetalError::Overflow)?;
+        self.projected_edge_occurrences =
+            checked_metric_sum(self.projected_edge_occurrences, edge_count)?;
+        self.maximum_projection_edges = self.maximum_projection_edges.max(edge_count);
+        metrics.projected_edge_slots =
+            checked_metric_sum(metrics.projected_edge_slots, edge_count)?;
+        metrics.maximum_projection_edges = metrics.maximum_projection_edges.max(edge_count);
+        let mut length_classes = BTreeSet::new();
+        for index in 0..projection.graph.edge_count() {
+            let edge = projection
+                .graph
+                .edge(SourceEdgeId(index))
+                .ok_or(An19PetalError::InvalidAugmentedGraph)?;
+            length_classes.insert((edge.length.numerator(), edge.length.denominator()));
+            match projection.root_source(SourceEdgeId(index))? {
+                Some(root) => {
+                    let occurrences = self
+                        .original_edge_segment_occurrences
+                        .get_mut(root.0)
+                        .ok_or(An19PetalError::InvalidWorkCertificate)?;
+                    *occurrences = checked_metric_sum(*occurrences, 1)?;
+                    self.maximum_original_edge_segment_occurrences = self
+                        .maximum_original_edge_segment_occurrences
+                        .max(*occurrences);
+                }
+                None => {
+                    self.provenance_free_segment_occurrences =
+                        checked_metric_sum(self.provenance_free_segment_occurrences, 1)?;
+                }
+            }
+        }
+        let class_count =
+            u64::try_from(length_classes.len()).map_err(|_| An19PetalError::Overflow)?;
+        self.total_projection_length_classes =
+            checked_metric_sum(self.total_projection_length_classes, class_count)?;
+        self.maximum_projection_length_classes =
+            self.maximum_projection_length_classes.max(class_count);
+        metrics.projection_length_class_sum =
+            checked_metric_sum(metrics.projection_length_class_sum, class_count)?;
+        metrics.maximum_projection_length_classes =
+            metrics.maximum_projection_length_classes.max(class_count);
+        Ok(())
+    }
+
+    /// Recomputes aggregate projection relationships and cross-checks metrics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a missing or out-of-range root attribution,
+    /// inconsistent segment totals, or mismatched projection metrics.
+    pub fn verify(
+        &self,
+        original_edge_count: usize,
+        metrics: &An19HierarchyMetrics,
+    ) -> Result<(), An19PetalError> {
+        let original_occurrences = self
+            .original_edge_segment_occurrences
+            .iter()
+            .try_fold(0_u64, |total, value| checked_metric_sum(total, *value))?;
+        let maximum = self
+            .original_edge_segment_occurrences
+            .iter()
+            .copied()
+            .max()
+            .unwrap_or(0);
+        if self.original_edge_segment_occurrences.len() != original_edge_count
+            || checked_metric_sum(
+                original_occurrences,
+                self.provenance_free_segment_occurrences,
+            )? != self.projected_edge_occurrences
+            || maximum != self.maximum_original_edge_segment_occurrences
+            || self.projected_edge_occurrences != metrics.projected_edge_slots
+            || self.maximum_projection_edges != metrics.maximum_projection_edges
+            || self.total_projection_length_classes != metrics.projection_length_class_sum
+            || self.maximum_projection_length_classes != metrics.maximum_projection_length_classes
+            || self.total_projection_length_classes > self.projected_edge_occurrences
+            || self.maximum_projection_length_classes > self.maximum_projection_edges
+        {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct An19HierarchyMetrics {
     pub recursion_calls: u64,
@@ -1788,6 +1951,10 @@ pub struct An19HierarchyMetrics {
     pub projection_calls: u64,
     pub projected_node_slots: u64,
     pub maximum_projection_nodes: u64,
+    pub projected_edge_slots: u64,
+    pub maximum_projection_edges: u64,
+    pub projection_length_class_sum: u64,
+    pub maximum_projection_length_classes: u64,
     pub contraction_calls: u64,
     pub contracted_edges: u64,
     pub quotient_edges: u64,
@@ -1964,6 +2131,8 @@ fn hierarchy_work_units(metrics: &An19HierarchyMetrics) -> Result<u64, An19Petal
         metrics.base_cases,
         metrics.projection_calls,
         metrics.projected_node_slots,
+        metrics.projected_edge_slots,
+        metrics.projection_length_class_sum,
         metrics.contraction_calls,
         metrics.contracted_edges,
         metrics.quotient_edges,
@@ -2191,6 +2360,7 @@ pub struct An19HierarchicalLsst {
     pub total_weight: ExactRatio,
     pub radius_certificates: Vec<An19RadiusCertificate>,
     pub metrics: An19HierarchyMetrics,
+    pub projection_audit: An19ProjectionAudit,
     pub work_certificate: An19WorkCertificate,
 }
 
@@ -2215,6 +2385,7 @@ impl An19HierarchicalLsst {
             .collect::<BTreeSet<_>>();
         let mut metrics = An19HierarchyMetrics::default();
         let mut radius_certificates = Vec::new();
+        let mut projection_audit = An19ProjectionAudit::new(graph.edge_count());
         let selected = hierarchical_petal_decomposition(
             &mut workspace,
             cluster,
@@ -2223,6 +2394,7 @@ impl An19HierarchicalLsst {
             graph.node_count(),
             &mut radius_certificates,
             &mut metrics,
+            &mut projection_audit,
         )?;
         add_workspace_edge_scans(&mut metrics, workspace.edges.len(), 2)?;
         add_workspace_edge_scans(&mut metrics, selected.len(), 1)?;
@@ -2243,6 +2415,7 @@ impl An19HierarchicalLsst {
             total_weight,
             radius_certificates,
             metrics,
+            projection_audit,
             work_certificate,
         };
         result.verify(graph)?;
@@ -2269,6 +2442,15 @@ impl An19HierarchicalLsst {
             return Err(An19PetalError::InvalidRadiusCertificate);
         }
         self.work_certificate.verify(graph, &self.metrics)?;
+        self.projection_audit
+            .verify(graph.edge_count(), &self.metrics)?;
+        if self
+            .projection_audit
+            .original_edge_segment_occurrences
+            .contains(&0)
+        {
+            return Err(An19PetalError::InvalidWorkCertificate);
+        }
         for certificate in &self.radius_certificates {
             certificate.verify()?;
         }
@@ -2302,7 +2484,7 @@ struct An19HierarchyPiece {
     connection_edge: usize,
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn hierarchical_petal_decomposition(
     workspace: &mut AugmentedAn19Graph,
     cluster: BTreeSet<FlowNodeId>,
@@ -2311,12 +2493,13 @@ fn hierarchical_petal_decomposition(
     original_node_count: usize,
     radius_certificates: &mut Vec<An19RadiusCertificate>,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<BTreeSet<usize>, An19PetalError> {
     metrics.recursion_calls = metrics
         .recursion_calls
         .checked_add(1)
         .ok_or(An19PetalError::Overflow)?;
-    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
     let radius = hierarchy_radius(&cluster, &paths)?;
     add_workspace_edge_scans(metrics, projection.graph().edge_count(), 2)?;
@@ -2377,12 +2560,20 @@ fn hierarchical_petal_decomposition(
                 original_node_count,
                 radius_certificates,
                 metrics,
+                projection_audit,
             );
         }
     }
 
-    let (mut stigma, pieces, stigma_target) =
-        petal_decomposition(workspace, cluster, center, target, radius, metrics)?;
+    let (mut stigma, pieces, stigma_target) = petal_decomposition(
+        workspace,
+        cluster,
+        center,
+        target,
+        radius,
+        metrics,
+        projection_audit,
+    )?;
     let mut selected = BTreeSet::new();
     for piece in pieces {
         halve_highway(
@@ -2391,6 +2582,7 @@ fn hierarchical_petal_decomposition(
             piece.center,
             piece.target,
             metrics,
+            projection_audit,
         )?;
         let subtree = hierarchical_petal_decomposition(
             workspace,
@@ -2400,13 +2592,21 @@ fn hierarchical_petal_decomposition(
             original_node_count,
             radius_certificates,
             metrics,
+            projection_audit,
         )?;
         selected.extend(subtree);
         if !selected.insert(piece.connection_edge) {
             return Err(An19PetalError::InvalidAugmentedGraph);
         }
     }
-    halve_highway(workspace, &stigma, center, stigma_target, metrics)?;
+    halve_highway(
+        workspace,
+        &stigma,
+        center,
+        stigma_target,
+        metrics,
+        projection_audit,
+    )?;
     let stigma_tree = hierarchical_petal_decomposition(
         workspace,
         std::mem::take(&mut stigma),
@@ -2415,6 +2615,7 @@ fn hierarchical_petal_decomposition(
         original_node_count,
         radius_certificates,
         metrics,
+        projection_audit,
     )?;
     selected.extend(stigma_tree);
     Ok(selected)
@@ -2444,7 +2645,7 @@ fn attach_contraction_certificate(
     certificate.verify()
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn hierarchy_contracted_tree(
     projection: &AugmentedProjection,
     contraction: &An19ShortEdgeContraction,
@@ -2453,10 +2654,12 @@ fn hierarchy_contracted_tree(
     original_node_count: usize,
     radius_certificates: &mut Vec<An19RadiusCertificate>,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<BTreeSet<usize>, An19PetalError> {
     add_workspace_edge_scans(metrics, contraction.retained_edges.len(), 1)?;
     let mut quotient_edges = Vec::new();
     let mut quotient_to_dense = Vec::new();
+    let mut quotient_root_sources = Vec::new();
     let mut bound = 1_i128;
     for dense in &contraction.retained_edges {
         let edge = projection
@@ -2490,11 +2693,16 @@ fn hierarchy_contracted_tree(
             weight: edge.weight,
         });
         quotient_to_dense.push(*dense);
+        quotient_root_sources.push(projection.root_source(*dense)?);
     }
     let quotient_graph =
         SourceDynamicGraph::new(contraction.components.len(), quotient_edges, bound)
             .map_err(|_| An19PetalError::InvalidContraction)?;
-    let mut quotient_workspace = AugmentedAn19Graph::from_source(&quotient_graph)?;
+    let mut quotient_workspace = AugmentedAn19Graph::from_source_with_root_sources(
+        &quotient_graph,
+        An19LengthMode::ExactRational,
+        &quotient_root_sources,
+    )?;
     let quotient_cluster = (0..contraction.components.len())
         .map(FlowNodeId)
         .collect::<BTreeSet<_>>();
@@ -2526,6 +2734,7 @@ fn hierarchy_contracted_tree(
         original_node_count,
         radius_certificates,
         metrics,
+        projection_audit,
     )?;
     let quotient_tree = quotient_workspace.recover_original_tree(&quotient_selected)?;
     let dense_tree = quotient_tree
@@ -2572,13 +2781,14 @@ fn petal_decomposition(
     target: FlowNodeId,
     delta: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<(BTreeSet<FlowNodeId>, Vec<An19HierarchyPiece>, FlowNodeId), An19PetalError> {
     let half = ratio(1, 2)?;
     let r0 = delta
         .checked_mul(half)
         .map_err(|_| An19PetalError::Overflow)?;
     let mut remaining = cluster.clone();
-    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
     let target_distance = *paths
         .distances
@@ -2593,6 +2803,7 @@ fn petal_decomposition(
         target_distance,
         r0,
         metrics,
+        projection_audit,
     )?;
     let first_budget = delta
         .checked_mul(ratio(1, 4)?)
@@ -2605,13 +2816,14 @@ fn petal_decomposition(
         first_target,
         first_budget,
         metrics,
+        projection_audit,
     )?;
     let stigma_target = connection_predecessor(workspace, first.connection_edge, first.center)?;
     let mut pieces = vec![first];
     let later_budget = delta
         .checked_mul(ratio(1, 8)?)
         .map_err(|_| An19PetalError::Overflow)?;
-    let projection = hierarchy_projection(workspace, &cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
     let fixed_paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
     loop {
         let mut outside = None;
@@ -2636,6 +2848,7 @@ fn petal_decomposition(
             outside,
             r0,
             metrics,
+            projection_audit,
         )?;
         let piece = create_hierarchy_petal(
             workspace,
@@ -2645,6 +2858,7 @@ fn petal_decomposition(
             next_target,
             later_budget,
             metrics,
+            projection_audit,
         )?;
         pieces.push(piece);
     }
@@ -2664,10 +2878,18 @@ fn hierarchy_first_target(
     target_distance: ExactRatio,
     r0: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<FlowNodeId, An19PetalError> {
     if !ratio_less(target_distance, r0)? {
         return ensure_vertex_at_distance(
-            workspace, cluster, remaining, center, target, r0, metrics,
+            workspace,
+            cluster,
+            remaining,
+            center,
+            target,
+            r0,
+            metrics,
+            projection_audit,
         );
     }
     let mut extension = r0
@@ -2697,6 +2919,7 @@ fn hierarchy_first_target(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_hierarchy_petal(
     workspace: &mut AugmentedAn19Graph,
     fixed_cluster: &mut BTreeSet<FlowNodeId>,
@@ -2705,8 +2928,9 @@ fn create_hierarchy_petal(
     target: FlowNodeId,
     budget: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<An19HierarchyPiece, An19PetalError> {
-    let projection = hierarchy_projection(workspace, fixed_cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, fixed_cluster, metrics, projection_audit)?;
     let local_cluster = projection.local_nodes(fixed_cluster)?;
     let local_remaining = projection.local_nodes(remaining)?;
     let local_center = projection.local_node(center)?;
@@ -2867,6 +3091,7 @@ fn add_petal_metrics(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ensure_vertex_at_distance(
     workspace: &mut AugmentedAn19Graph,
     fixed_cluster: &mut BTreeSet<FlowNodeId>,
@@ -2875,8 +3100,9 @@ fn ensure_vertex_at_distance(
     target: FlowNodeId,
     distance: ExactRatio,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<FlowNodeId, An19PetalError> {
-    let projection = hierarchy_projection(workspace, fixed_cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, fixed_cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, fixed_cluster, center, metrics)?;
     let path = recover_hierarchy_path(center, target, &paths)?;
     let mut traversed = ratio(0, 1)?;
@@ -2946,8 +3172,9 @@ fn halve_highway(
     center: FlowNodeId,
     target: FlowNodeId,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<(), An19PetalError> {
-    let projection = hierarchy_projection(workspace, cluster, metrics)?;
+    let projection = hierarchy_projection(workspace, cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, cluster, center, metrics)?;
     let path = recover_hierarchy_path(center, target, &paths)?;
     for dense in path.edges {
@@ -3063,8 +3290,9 @@ fn hierarchy_projection(
     workspace: &AugmentedAn19Graph,
     cluster: &BTreeSet<FlowNodeId>,
     metrics: &mut An19HierarchyMetrics,
+    projection_audit: &mut An19ProjectionAudit,
 ) -> Result<AugmentedProjection, An19PetalError> {
-    workspace.project_cluster(cluster, metrics)
+    workspace.project_cluster(cluster, metrics, projection_audit)
 }
 
 fn add_workspace_edge_scans(
@@ -5948,18 +6176,20 @@ mod tests {
 
     #[test]
     fn hierarchy_highway_reuse_preserves_the_original_half_length() {
-        use super::{An19HierarchyMetrics, AugmentedAn19Graph, halve_highway};
+        use super::{An19HierarchyMetrics, An19ProjectionAudit, AugmentedAn19Graph, halve_highway};
 
         let graph = path_graph(2);
         let mut workspace = AugmentedAn19Graph::from_source(&graph).unwrap();
         let cluster = BTreeSet::from([FlowNodeId(0), FlowNodeId(1)]);
         let mut metrics = An19HierarchyMetrics::default();
+        let mut projection_audit = An19ProjectionAudit::new(graph.edge_count());
         halve_highway(
             &mut workspace,
             &cluster,
             FlowNodeId(0),
             FlowNodeId(1),
             &mut metrics,
+            &mut projection_audit,
         )
         .unwrap();
         let half = ExactRatio::new(1, 2).unwrap();
@@ -5970,6 +6200,7 @@ mod tests {
             FlowNodeId(0),
             FlowNodeId(1),
             &mut metrics,
+            &mut projection_audit,
         )
         .unwrap();
         assert_eq!(workspace.edges[0].length, half);
@@ -6535,6 +6766,14 @@ mod tests {
                 second_position: ExactRatio::new(0, 1).unwrap(),
             })
         );
+        assert_eq!(
+            augmented.edges[from_edge].root_source,
+            Some(SourceEdgeId(0))
+        );
+        assert_eq!(
+            augmented.edges[toward_edge].root_source,
+            Some(SourceEdgeId(0))
+        );
         let projection = augmented.project().unwrap();
         assert_eq!(projection.graph.node_count(), 4);
         assert_eq!(
@@ -6556,7 +6795,7 @@ mod tests {
 
     #[test]
     fn cluster_projection_uses_dense_local_node_slots() {
-        use super::{An19HierarchyMetrics, AugmentedAn19Graph};
+        use super::{An19HierarchyMetrics, An19ProjectionAudit, AugmentedAn19Graph};
 
         let graph = SourceDynamicGraph::new(
             8,
@@ -6567,7 +6806,10 @@ mod tests {
         let augmented = AugmentedAn19Graph::from_source(&graph).unwrap();
         let cluster = BTreeSet::from([FlowNodeId(5), FlowNodeId(6), FlowNodeId(7)]);
         let mut metrics = An19HierarchyMetrics::default();
-        let projection = augmented.project_cluster(&cluster, &mut metrics).unwrap();
+        let mut audit = An19ProjectionAudit::new(graph.edge_count());
+        let projection = augmented
+            .project_cluster(&cluster, &mut metrics, &mut audit)
+            .unwrap();
 
         assert_eq!(projection.graph().node_count(), cluster.len());
         assert_eq!(
@@ -6595,6 +6837,50 @@ mod tests {
         assert_eq!(metrics.projection_calls, 1);
         assert_eq!(metrics.projected_node_slots, 3);
         assert_eq!(metrics.maximum_projection_nodes, 3);
+        assert_eq!(metrics.projected_edge_slots, 2);
+        assert_eq!(metrics.maximum_projection_edges, 2);
+        assert_eq!(metrics.projection_length_class_sum, 1);
+        assert_eq!(metrics.maximum_projection_length_classes, 1);
+        assert_eq!(audit.original_edge_segment_occurrences, vec![0, 1, 1]);
+        assert_eq!(audit.provenance_free_segment_occurrences, 0);
+        assert_eq!(audit.projected_edge_occurrences, 2);
+        assert_eq!(audit.maximum_projection_edges, 2);
+        assert_eq!(audit.total_projection_length_classes, 1);
+        assert_eq!(audit.maximum_projection_length_classes, 1);
+        assert_eq!(audit.maximum_original_edge_segment_occurrences, 1);
+        audit.verify(graph.edge_count(), &metrics).unwrap();
+    }
+
+    #[test]
+    fn quotient_projection_retains_root_sources_through_splits() {
+        use super::{
+            An19HierarchyMetrics, An19LengthMode, An19ProjectionAudit, AugmentedAn19Graph,
+        };
+
+        let graph =
+            SourceDynamicGraph::new(3, vec![test_edge(0, 1, 1), test_edge(1, 2, 1)], 8).unwrap();
+        let mut augmented = AugmentedAn19Graph::from_source_with_root_sources(
+            &graph,
+            An19LengthMode::ExactRational,
+            &[Some(SourceEdgeId(4)), None],
+        )
+        .unwrap();
+        let (portal, _, _) = augmented
+            .split_edge(0, FlowNodeId(0), ExactRatio::new(1, 2).unwrap())
+            .unwrap();
+        let cluster = BTreeSet::from([FlowNodeId(0), FlowNodeId(1), FlowNodeId(2), portal]);
+        let mut metrics = An19HierarchyMetrics::default();
+        let mut audit = An19ProjectionAudit::new(5);
+        augmented
+            .project_cluster(&cluster, &mut metrics, &mut audit)
+            .unwrap();
+
+        assert_eq!(audit.original_edge_segment_occurrences, vec![0, 0, 0, 0, 2]);
+        assert_eq!(audit.provenance_free_segment_occurrences, 1);
+        assert_eq!(audit.projected_edge_occurrences, 3);
+        assert_eq!(audit.maximum_projection_edges, 3);
+        assert_eq!(audit.maximum_original_edge_segment_occurrences, 2);
+        audit.verify(5, &metrics).unwrap();
     }
 
     #[test]
@@ -6686,13 +6972,17 @@ mod tests {
 
     #[test]
     fn hierarchical_recursion_without_a_virtual_first_target_recovers_original_edges() {
-        use super::{An19HierarchyMetrics, AugmentedAn19Graph, hierarchical_petal_decomposition};
+        use super::{
+            An19HierarchyMetrics, An19ProjectionAudit, AugmentedAn19Graph,
+            hierarchical_petal_decomposition,
+        };
 
         let graph = path_graph(500);
         let mut workspace = AugmentedAn19Graph::from_source(&graph).unwrap();
         let cluster = (0..500).map(FlowNodeId).collect::<BTreeSet<_>>();
         let mut certificates = Vec::new();
         let mut metrics = An19HierarchyMetrics::default();
+        let mut projection_audit = An19ProjectionAudit::new(graph.edge_count());
         let selected = hierarchical_petal_decomposition(
             &mut workspace,
             cluster,
@@ -6701,6 +6991,7 @@ mod tests {
             500,
             &mut certificates,
             &mut metrics,
+            &mut projection_audit,
         )
         .unwrap();
         let recovered = workspace.recover_original_tree(&selected).unwrap();
@@ -6708,6 +6999,14 @@ mod tests {
         assert!(metrics.recursion_calls > 1);
         assert!(metrics.petals > 0);
         assert!(metrics.portal_splits > 0);
+        assert!(projection_audit.provenance_free_segment_occurrences > 0);
+        assert!(projection_audit.maximum_projection_length_classes > 1);
+        assert!(
+            projection_audit.maximum_original_edge_segment_occurrences > metrics.recursion_calls
+        );
+        projection_audit
+            .verify(graph.edge_count(), &metrics)
+            .unwrap();
         assert!(
             certificates
                 .iter()
@@ -6726,6 +7025,12 @@ mod tests {
             (0..499).map(crate::SourceEdgeId).collect()
         );
         assert!(hierarchy.metrics.virtual_leaves > 0);
+        assert!(
+            hierarchy
+                .projection_audit
+                .provenance_free_segment_occurrences
+                > 0
+        );
         assert!(hierarchy.metrics.recursion_calls > 1);
         assert!(hierarchy.metrics.petals > 0);
     }
@@ -6806,6 +7111,10 @@ mod tests {
             );
             assert_eq!(small_hierarchy.metrics, large_hierarchy.metrics);
             assert_eq!(
+                small_hierarchy.projection_audit,
+                large_hierarchy.projection_audit
+            );
+            assert_eq!(
                 small_hierarchy.work_certificate,
                 large_hierarchy.work_certificate
             );
@@ -6875,6 +7184,10 @@ mod tests {
         assert_eq!(
             small_hierarchy.work_certificate,
             large_hierarchy.work_certificate
+        );
+        assert_eq!(
+            small_hierarchy.projection_audit,
+            large_hierarchy.projection_audit
         );
         assert_eq!(small_hierarchy.work_certificate.oracle_fallbacks, 0);
         assert_eq!(
@@ -6988,6 +7301,17 @@ mod tests {
         assert_eq!(small_hierarchy.metrics.contraction_calls, 1);
         assert_eq!(small_hierarchy.metrics.contracted_edges, 2);
         assert_eq!(small_hierarchy.metrics.quotient_edges, 2);
+        assert!(
+            small_hierarchy
+                .projection_audit
+                .original_edge_segment_occurrences
+                .iter()
+                .all(|occurrences| *occurrences > 0)
+        );
+        assert_eq!(
+            small_hierarchy.projection_audit,
+            large_hierarchy.projection_audit
+        );
         assert_eq!(small_hierarchy.total_weight, oracle.total_weight);
         assert!(
             small_hierarchy
@@ -7044,6 +7368,14 @@ mod tests {
             small_hierarchy.metrics.monotone_queue_pops
         );
         assert!(small_hierarchy.metrics.maximum_length_classes > 0);
+        assert!(small_hierarchy.metrics.projected_edge_slots > 0);
+        assert!(small_hierarchy.metrics.projection_length_class_sum > 0);
+        assert_eq!(
+            small_hierarchy.metrics.maximum_projection_length_classes,
+            small_hierarchy
+                .projection_audit
+                .maximum_projection_length_classes
+        );
         assert!(
             small_hierarchy.work_certificate.observed_work_units
                 <= small_hierarchy.work_certificate.maximum_work_units
@@ -7061,6 +7393,11 @@ mod tests {
         invalid_projection.work_certificate.amortization_mode =
             super::An19AmortizationMode::StructuralSourceBound;
         assert!(invalid_projection.verify(&small).is_err());
+        let mut invalid_audit = small_hierarchy.clone();
+        invalid_audit
+            .projection_audit
+            .original_edge_segment_occurrences[0] += 1;
+        assert!(invalid_audit.verify(&small).is_err());
         let mut invalid_queue = small_hierarchy.clone();
         invalid_queue.metrics.monotone_queue_pops =
             invalid_queue.metrics.monotone_queue_pops.saturating_sub(1);
