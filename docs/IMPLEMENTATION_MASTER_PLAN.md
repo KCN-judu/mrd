@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.5
+- Current phase: P9.3.6
 - Current phase state: in_progress
-- Last completed phase: P9.3.4e
-- Last pushed SHA: 4f02a244d322a54d46ca202a9a784c4f11cd6078
-- Plan last updated: 2026-07-29T18:24:15Z
+- Last completed phase: P9.3.5
+- Last pushed SHA: 35e4c8b4cd2c6705e07c39b816602ab9651b2751
+- Plan last updated: 2026-07-29T18:41:34Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -888,21 +888,31 @@ P9.3 is split into the following source-gated subphases:
        audit. This is limited to the certified one-level, one-component finite
        domain. General loops, Theorem 8.6 pruning, and Theorem 8.1 bounds remain
        unimplemented and unclaimed.
-5. **P9.3.5 state: in_progress. Start gate: P9.3.4 implementation audit
-   passed.** Implement Theorem 8.2's deletion/vertex-split reduction, batch
-   encoding, sparsity, spanner recourse, re-embedding sets, and
-   initialization/update accounting. It is split before coding into:
-   - **P9.3.5a state: in_progress.** Model source-shaped deletion/split batches,
-     smaller-side encodings, stable provenance, and replayable update traces.
-   - **P9.3.5b state: planned. Start gate: P9.3.5a semantic tests pass.**
-     Integrate the P9.3.4 finite `Sparsify` replay into a finite decremental
-     update path with explicit selected-edge, re-embedding, and recourse sets.
-   - **P9.3.5c state: planned. Start gate: P9.3.5b differential tests pass.**
-     Add independent certificate replay, greedy-rebuild Oracle comparison,
-     update accounting, and complete audit. General Theorem 8.2 sparsity,
-     recourse, and runtime bounds remain unclaimed without matching proofs.
+5. **P9.3.5 state: complete. Start gate: P9.3.4 implementation audit
+   passed. Implementation SHAs: `1d18dee`, `7282e92`, `9d7bed7`.** The finite
+   implementation of Theorem 8.2's deletion/vertex-split reduction records
+   exact batch encodings, stable selected-edge recourse, re-embedding sets,
+   and initialization/update accounting. Its evidence is
+   `docs/phase-reports/P09-3-5-dynamic-sparsify.md`. It is split into:
+   - **P9.3.5a state: complete. Implementation SHA: `1d18dee`.**
+     `source_spanner::dynamic::batch` models source-shaped deletion/split
+     batches, smaller-side encodings, stable provenance, and replayable traces.
+   - **P9.3.5b state: complete. Implementation SHA: `7282e92`.**
+     `source_spanner::dynamic::rebuild` integrates the P9.3.4 finite
+     `Sparsify` replay into an immutable decremental update path. It maps every
+     relative Algorithm 4 edge back to its stable source ID and derives
+     selected-edge addition, removal, and path-level re-embedding sets.
+   - **P9.3.5c state: complete. Implementation SHA: `9d7bed7`.**
+     Stable-ID certificate replay and exact cumulative update accounting are
+     checked independently of construction. `dynamic::oracle` exhaustively
+     rebuilds a canonical greedy bounded-path certificate, and a differential
+     update test verifies both implementations on the same active source edge
+     set without requiring identical selected subgraphs. General Theorem 8.2
+     sparsity, recourse, and runtime bounds remain unclaimed without matching
+     proofs.
    Retain the greedy-rebuild spanner as an Oracle only.
-6. **P9.3.6 state: planned. Start gate: P9.3.5 implementation audit passed.**
+6. **P9.3.6 state: in_progress. Start gate: P9.3.5 implementation audit
+   passed.**
    Implement Theorem 1.2/Section 9's fully dynamic
    low-stretch spanning tree for bounded integral lengths, including contracted
    forests, embedded spanners, insertions/deletions, worst-case update work,
@@ -1080,3 +1090,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4e2 | complete | e396484 | 08a854c | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite `W -> J` bounded path loop with congestion threshold, deletions, and unembedded-edge trace | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | no general expander-pruning or iteration-bound claim |
 | P9.3.4e3 | complete | e396484 | 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite direct `J -> W`, image, composed embedding, and exact audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | direct branch only for the complete finite witness |
 | P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
+| P9.3.5 | complete | e396484 | 1d18dee, 7282e92, 9d7bed7 | pending closeout | pending | `docs/phase-reports/P09-3-5-dynamic-sparsify.md` | source-shaped deletion/split batches, finite Algorithm 4 rebuild, stable-ID recourse, independent greedy Oracle, and exact update accounting | 2026-07-29T18:24:15Z | 2026-07-29T18:41:34Z | finite one-level connected domain only; no general Theorem 8.2 sparsity, recourse, or runtime claim |
