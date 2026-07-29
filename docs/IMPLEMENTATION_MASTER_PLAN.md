@@ -4,10 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.4d
+- Current phase: P9.5
 - Current phase state: in_progress
-- Last completed phase: P9.4c
-- Last pushed SHA: 6264cb838200d312944d17960b687bb2988d4138
+- Last completed phase: P9.4
+- Last pushed SHA: de4df98b27b0bde1ba84d30914f9c3a49bbc766c
 - Plan last updated: 2026-07-29T20:15:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -980,7 +980,9 @@ P9.3 is split into the following source-gated subphases:
 
 ### P9.4 - Source-grade dynamic minimum-ratio cycle
 
-**State:** in_progress. **Start gate:** P9.3.7 implementation and semantic audits passed.
+**State:** complete as finite-domain semantic infrastructure.** The P9.4a-d
+evidence is summarized in `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md`.
+No Theorem 5.1 approximation or runtime claim is unlocked.
 Implement the
 deterministic paper's Theorem 5.1, including the complete tree chain, shifted
 branches, dynamic sparsification, link-cut
@@ -1047,7 +1049,7 @@ amortized bound or unlock the `AlmostLinear` name.
 
 ### P9.5 - Integrated exact flow backend
 
-**State:** planned. **Start gate:** P9.4 implementation and exact differential
+**State:** in_progress. **Start gate:** P9.4 finite-domain semantic and exact differential
 audits passed. Introduce a clearly named experimental source-shaped backend
 and integrate the IPM, dynamic query, additive-half
 termination, deterministic rounding, and exact recovery without invoking
