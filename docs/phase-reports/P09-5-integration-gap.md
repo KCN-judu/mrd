@@ -39,6 +39,16 @@ normalized network, then restores original lower bounds and objective offset.
 The focused lower-bound fixture includes a fixed edge, a negative lower bound,
 and artificial root arcs; all are checked without a reference recovery path.
 
+Commit `6179f22` removes an implicit residual-cycle Oracle from this recovery
+boundary. `source_flow` now uses a narrow exact feasibility-and-objective
+validator after the additive-half certificate and exact snapshot-optimum
+equality establish optimality. Augmentation and lower-bound restoration use
+corresponding feasibility-only maps, while the permanent full optimality
+validators remain available for reference code. The static audit now rejects a
+direct optimality-validator call from production `source_flow`; a regression
+test demonstrates that feasibility validation does not itself claim
+optimality.
+
 P9.5 remains open. Source candidate selection, MRD compressed-network
 differential evidence, and an end-to-end no-fallback audit are still absent.
 `Backend::require_complete()` therefore continues to reject execution and
@@ -52,5 +62,14 @@ claim.
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
+| `python3 tools/check_biclique_bound.py` | 0 | compact-biclique bound accepted |
+| `python3 tools/check_source_min_ratio_audit.py` | 0 | source minimum-ratio no-fallback boundary accepted |
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
 | `cargo test -p graph source_flow` | 0 | 8 focused tests passed, including augmented and lower-bound recovery |
+| `cargo test -p graph` | 0 | 164 graph tests passed, including feasibility-versus-optimality regression |
+| `cargo clippy -p graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
+| `cargo test --workspace` | 0 | workspace suite passed |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | documentation built without warnings |
+| `cargo build --workspace --release` | 0 | six crates built in release mode |
+| `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
