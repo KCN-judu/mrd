@@ -7,3 +7,4 @@
 pub mod chain;
 pub mod cycle;
 pub mod model;
+pub mod query;

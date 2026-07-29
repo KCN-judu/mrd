@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.4b
+- Current phase: P9.4c
 - Current phase state: in_progress
-- Last completed phase: P9.4a
-- Last pushed SHA: 58bb52b8074a8d7c23ce620b539e147a1ed2b3ba
-- Plan last updated: 2026-07-29T20:04:45Z
+- Last completed phase: P9.4b
+- Last pushed SHA: 6debef761ce970c990dc1700bd7e804f132a63ab
+- Plan last updated: 2026-07-29T20:15:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1024,7 +1024,7 @@ amortized bound or unlock the `AlmostLinear` name.
    decoding only; query, approximation, dynamic-update, link-cut, and runtime
    claims remain for later subphases.
 3. **P9.4c - Hidden-stability approximate-query contract and differential
-   harness. State: planned.** Bind the checked Definition 4.2--4.5 stability
+   harness. State: in_progress.** Bind the checked Definition 4.2--4.5 stability
    state to the source-shaped chain through an explicit query input/output and
    certificate. Keep the witness hidden from query output, use exact arithmetic
    throughout, and differentially compare bounded fixtures with the permanent
