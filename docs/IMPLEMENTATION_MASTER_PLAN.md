@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.4c
+- Current phase: P9.3.4d
 - Current phase state: complete
-- Last completed phase: P9.3.4c
-- Last pushed SHA: 64ce6f44e928564fac214b8b8960cc13999c0183
-- Plan last updated: 2026-07-29T17:49:14Z
+- Last completed phase: P9.3.4d
+- Last pushed SHA: d5bb65dbecf504ef1cafc97de8fc9895b854cd35
+- Plan last updated: 2026-07-29T18:02:38Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -846,9 +846,28 @@ P9.3 is split into the following source-gated subphases:
      all stored fields. Multi-level and general instances reject instead of
      claiming a generic CGLNPS20 construction or runtime bound. Evidence is
      `docs/phase-reports/P09-3-4c-expander-decomposition.md`.
-   - **P9.3.4d state: planned. Start gate: P9.3.4c audit passed.** Implement
-     the deterministic Theorem 8.6 decremental expander path structure,
-     monotone pruned set, deletion trace, and bounded simple-path certificates.
+   - **P9.3.4d state: complete. Implementation SHAs: `d5d80cc`,
+     `f097cd4`, `838a321`.** `source_spanner::decremental` provides exact
+     immutable deletion snapshots, a monotone isolated-vertex pruned set,
+     replayable traces, stable-ID bounded BFS paths, and an independently
+     enumerated simple-path certificate. This constrained model does not claim
+     the general Theorem 8.6 pruning rule or decremental bounds. Evidence is
+     `docs/phase-reports/P09-3-4d-decremental-expander-paths.md`. It was split
+     before coding into:
+     - **P9.3.4d1 state: complete. Implementation SHA: `d5d80cc`.**
+       `source_spanner::decremental::state` models an immutable deletion state,
+       stable edge identifiers, a recomputable monotone isolated-vertex pruned
+       set, and the complete accepted/rejected deletion trace.
+     - **P9.3.4d2 state: complete. Implementation SHA: `f097cd4`.**
+       `source_spanner::decremental::query` runs a separate stable-edge-ID BFS
+       over a verified snapshot, returns a bounded explicit path, and rejects
+       pruned or unsupported endpoints without an Oracle fallback.
+     - **P9.3.4d3 state: complete. Implementation SHA: `838a321`.**
+       `source_spanner::decremental::certificate` independently enumerates and
+       validates bounded simple paths, recomputes deletion-trace semantics, and
+       rejects differential disagreement. General Theorem 8.6 construction and
+       its decremental bounds stay unclaimed unless a source-backed proof and
+       matching counters are added.
    - **P9.3.4e state: planned. Start gate: P9.3.4d audit passed.** Integrate
      Algorithm 4's witness graph, both thresholded embedding loops, image
      subgraph, composed embedding, and exact Theorem 8.1 certificates. Only
@@ -1030,3 +1049,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4b | complete | a71dcee | 77878a8, cc54c10 | pending closeout | pending | `docs/phase-reports/P09-3-4b-witness-expander.md` | finite-domain complete witness, exact degree sandwich, exhaustive cut-expansion certificate, explicit domain rejection, and full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | general CGLNPS20 construction intentionally not claimed; Theorem 8.5-8.6 and Algorithm 4 remain |
 | P9.3.4c | in_progress | 64ce6f4 | pending | pending | 64ce6f4 | pending | deterministic edge-disjoint expander decomposition with exact layer certificates | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4c | complete | 64ce6f4 | f9dd410, bce0f14 | pending closeout | pending | `docs/phase-reports/P09-3-4c-expander-decomposition.md` | finite-domain one-level decomposition with explicit component, exact edge partition, degree-floor, and exhaustive expansion certificates; full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:49:14Z | general/multi-level CGLNPS20 construction and its runtime are intentionally not claimed; Theorem 8.6 and Algorithm 4 remain |
+| P9.3.4d1 | complete | d5bb65d | d5d80cc | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | immutable deletion state, monotone isolated-vertex prune set, and replayable accepted/rejected deletion trace | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | not the source expander-cut pruning rule |
+| P9.3.4d2 | complete | d5bb65d | f097cd4 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | stable-ID BFS path response with hop-bound and pruned-endpoint outcomes | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | no source decremental work/depth claim |
+| P9.3.4d3 | complete | d5bb65d | 838a321 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | independent enumerating simple-path differential certificate and mutation regression | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | Oracle is verification-only and exponential in the worst case |
+| P9.3.4d | complete | d5bb65d | d5d80cc, f097cd4, 838a321 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | exact decremental-path semantics, trace, production BFS, and independent bounded certificate; full-workspace audit | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | general Theorem 8.6 construction and bounds intentionally unclaimed; Algorithm 4 remains |
