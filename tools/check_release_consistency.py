@@ -240,7 +240,7 @@ def assert_implementation_defaults() -> None:
         fail("PolygonSolveOptions default implementation is missing")
     for expected in (
         "geometry_backend: PolygonGeometryBackend::Indexed",
-        "validation_backend: PolygonValidationBackend::OrthogonalSweep",
+        "validation_backend: polygon::Backend::Experiment",
         "chord_backend: PolygonChordBackend::SoltanGorpinevichSweep",
         "completion_backend: PolygonCompletionBackend::IndexedFrontier",
         "cut_index_backend: PolygonCutIndexBackend::DynamicStabbing",
@@ -560,7 +560,7 @@ def main() -> None:
         "IndexedPolygonPairwiseEnumerator",
         "SoltanGorpinevichSweepEnumerator",
         "IndexedPolygonCompletion",
-        "OrthogonalSweepValidator",
+        "polygon::experiment::Validator",
         "PreparedPolygonContext",
     ):
         if required not in algorithms:

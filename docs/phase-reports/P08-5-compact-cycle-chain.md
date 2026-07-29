@@ -4,9 +4,9 @@
 
 P8.5 adds `rect-graph::dynamic_min_ratio`. `CompactCycle` encodes signed
 off-tree edges and signed tree-path segments, then decodes them through P7's
-exact circulation validator. `ShiftedTreeChain` deterministically implements
+exact circulation validator. `dynamic_min_ratio::experiment::TreeChain` deterministically implements
 the shift/reset and rebuild/reset trace of Definitions 5.9--5.10. The
-`DynamicMinRatioReplay` composition delegates `Update`, `Query`, and `Detect`
+`dynamic_min_ratio::experiment::Replay` composition delegates `Update`, `Query`, and `Detect`
 to the P8.1 stable ledger.
 
 This is a checked replay baseline. It does not construct core graphs or

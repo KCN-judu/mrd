@@ -38,10 +38,10 @@ look up occupied cells.
 The unique tree path between the two endpoint regions is the set of fixed
 orientation chords whose arcs separate the two boundary sectors. By the disk
 arc separation lemma, this is exactly the set of geometric crossing chords.
-Production gap labeling uses `BoundaryGapLabelBackend::EventSweep`: starts are
+Production gap labeling uses `GapBackend::Experiment`: starts are
 processed outer-to-inner, end events are popped before labeling the gap at the
 end coordinate, and every push/pop must match the active stack. The preserved
-`ReferenceNested` backend performs the old gap-by-interval membership scan for
+`GapBackend::Oracle` backend performs the old gap-by-interval membership scan for
 differential testing. Event diagnostics record zero membership tests and one
 push/pop per interval; the reference records its exact `n * |T|` test count.
 

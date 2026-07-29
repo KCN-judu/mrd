@@ -6,7 +6,7 @@ P4 replaces repeated recursive coordinate sorting in the Cardinal--Yuditsky
 Theorem 8 construction with four initial coordinate orders, stable child
 filtering, and reusable recursion scratch buffers. The historical recursive
 sort implementation remains the permanent reference backend. The acceptance
-contract is exact canonical `BicliquePartition` equality, not merely an equal
+contract is exact canonical `biclique::Partition` equality, not merely an equal
 matching value: downstream selected chords, cuts, covers, and rectangles use
 the audited partition path.
 

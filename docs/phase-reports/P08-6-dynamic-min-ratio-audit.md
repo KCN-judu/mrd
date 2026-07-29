@@ -2,7 +2,7 @@
 
 ## Contract
 
-P8.6 adds `DynamicMinRatioAudit`, the integration boundary for P8.1 through
+P8.6 adds `dynamic_min_ratio::experiment::Audit`, the integration boundary for P8.1 through
 P8.5. It retains the checked stable replay, validates every submitted compact
 cycle through P7's exact circulation Oracle, and records exact counts for
 cycle checks and rejected operations. Insertion, directed-edge, and arbitrary

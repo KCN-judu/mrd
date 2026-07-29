@@ -241,7 +241,7 @@ inactive and partial selections, and independently proves acyclicity and
 connectivity on the original endpoints. This is the representation substrate
 for Figures 4--5, not their completed recursive composition.
 
-`source_an19::hierarchy::Lsst` now completes Figures 4--5 on the exact unit-length
+`source_an19::experiment::hierarchy::Lsst` now completes Figures 4--5 on the exact unit-length
 source domain. It constructs the source's imaginary first path with at most
 `O(n)` virtual unit segments, creates later `Delta/2` targets and petal portals
 at exact rational points, recursively halves each highway edge once, joins
@@ -399,12 +399,12 @@ remain unselected and `source_runtime_verified()` remains false.
 
 Commits `7ea13da`, `28f9ff7`, `6c8cfac`, `98bb615`, `5e771d8`,
 `a25ac08`, `d4dda8f`, and `02c8385` isolate and certify the fixed-projection event
-contract from the existing hierarchy production path. `source_an19::event::engine::Exact` uses
+contract from the existing hierarchy production path. `source_an19::oracle::event::Engine` uses
 definition-level exact threshold and Figure 6 selection logic.
-`source_an19::event::engine::Reduced` independently runs the integral-normalized exact
+`source_an19::experiment::event::Engine` independently runs the integral-normalized exact
 reduced costs `2(ell(u,v) + d(x,u) - d(x,v))`, records each insertion, pop,
 replacement, tie, and stale item, and rejects disagreement with the existing
-source-shaped threshold path rather than falling back. `source_an19::event::engine::Proved`
+source-shaped threshold path rather than falling back. `source_an19::event::backend::Unavailable`
 remains unavailable and returns an explicit error.
 
 The canonical trace contains projection/recursion identity, stable source and
@@ -440,7 +440,7 @@ not carry this implementation certificate. Across the 31 release cases, the
 largest observed total is 473 and the largest conservative bound is 1,112.
 This is an `O((n+m) log(n+m))` practical implementation bound, not the missing
 source-equivalent `O(m+n log log n)` proof.
-`source_an19::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
+`source_an19::experiment::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
 mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
 false.
 
@@ -517,7 +517,7 @@ The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. The source-edge audit exposes where
 work accumulates but does not convert the observed totals into an asymptotic
 bound. It is not accepted as a proof. P9.3.2d is `blocked`,
-`source_an19::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
+`source_an19::experiment::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
 production runtime or full Lemma 5.4 completion is claimed.
 
 ## Persisted source blocker

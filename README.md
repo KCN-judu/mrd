@@ -228,7 +228,7 @@ Consequently, the reduced-event class bound and AN19 runtime remain unproved,
 P9.3.2d is a hard blocker, and dependent P9 phases must not start.
 
 The AN19-shaped all-radii event engine is now implemented behind a replaceable
-interface with exact rational ordering, a definition-level `source_an19::event::engine::Exact`,
+interface with exact rational ordering, a definition-level `source_an19::oracle::event::Engine`,
 canonical semantic and queue traces, and six empirical charge maps. A bounded
 A--H campaign differentially agrees on all 31 fixed snapshots in
 `results/an19-event-adversarial.json`. This establishes source-shaped semantics

@@ -2,7 +2,7 @@
 
 ## Scope
 
-`DynamicMinRatioReplay` previously exposed only coordinate replay operations.
+`dynamic_min_ratio::experiment::Replay` previously exposed only coordinate replay operations.
 This subphase adds a deterministic exact query over the current checked stable
 ledger: it enumerates signed simple cycles, returns the least exact
 gradient/length ratio, and records query and candidate totals.

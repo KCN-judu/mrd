@@ -101,7 +101,7 @@ impl Partition {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] when a cross-side coordinate equality or a
+    /// Returns [`enum@Error`] when a cross-side coordinate equality or a
     /// non-decreasing recursive subproblem violates the source construction.
     pub fn comparability_theorem_8(embedding: &DominanceEmbedding) -> Result<Self, Error> {
         Ok(experiment::construct(embedding)?.partition)
@@ -111,7 +111,7 @@ impl Partition {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] for source-assumption failures, a backend
+    /// Returns [`enum@Error`] for source-assumption failures, a backend
     /// partition disagreement, or invalid production structural counters.
     pub fn comparability_theorem_8_audited(
         embedding: &DominanceEmbedding,
@@ -148,7 +148,7 @@ impl Partition {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] for duplicate IDs, invalid endpoints, a
+    /// Returns [`enum@Error`] for duplicate IDs, invalid endpoints, a
     /// non-biclique block, omitted edges, fabricated edges, or duplicates.
     pub fn verify_exact_partition(&self, graph: &BipartiteGraph) -> Result<(), Error> {
         self.verify_structure(graph.left_size(), graph.right_size())?;
@@ -188,7 +188,7 @@ impl Partition {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] for empty sides, duplicate vertex IDs, or
+    /// Returns [`enum@Error`] for empty sides, duplicate vertex IDs, or
     /// endpoints outside the declared chord families.
     pub fn verify_structure(
         &self,
@@ -244,7 +244,7 @@ impl Partition {
     ///
     /// # Errors
     ///
-    /// Returns [`Error`] when a block is structurally invalid or fails
+    /// Returns [`enum@Error`] when a block is structurally invalid or fails
     /// strict coordinate separation.
     pub fn verify_dominance_blocks(&self, embedding: &DominanceEmbedding) -> Result<(), Error> {
         self.verify_structure(embedding.horizontal.len(), embedding.vertical.len())?;

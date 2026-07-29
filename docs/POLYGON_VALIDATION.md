@@ -4,10 +4,10 @@ The v0.9 validator remains a readable exact reference implementation. It audits
 each loop with an explicit `O(n^2)` segment-pair pass; this is deliberately not
 described as a sweep-line algorithm.
 
-v1.0 adds `OrthogonalSweepValidator`, which is the production default. It uses
+v1.0 adds `polygon::experiment::Validator`, which is the production default. It uses
 deterministic exact integer events and the prepared orthogonal edge index.
 Accepted normalized polygons and broad negative error categories are compared
-against `ReferenceQuadraticValidator`; the committed negative campaign also
+against `polygon::oracle::Validator`; the committed negative campaign also
 requires deterministic first-failure agreement for its fixtures.
 
 The structured error surface distinguishes non-axis-aligned and zero-length

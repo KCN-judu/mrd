@@ -263,7 +263,7 @@ release: `v1.6.0-presorted-biclique-construction`.
 **Acceptance:** complete. Implementation commits `85c1083`, `bfa5a94`,
 `4cf8250`, `9238066`, and `f5c387e` preserve the recursive-sort construction
 as a permanent reference backend and make the presorted construction the
-production path. `BicliqueConstructionMetrics` proves four initial production
+production path. `biclique::Metrics` proves four initial production
 sorts and zero recursive sorts. The audited construction requires canonical
 partition equality and equal emitted occurrences before downstream flow is
 used. P4 evidence is recorded in
@@ -580,7 +580,7 @@ P9.3 is split into the following source-gated subphases:
 
      | Substatus | State | Acceptance evidence |
      | --- | --- | --- |
-     | P9.3.2d-impl: AN19-shaped exact event engine | complete | isolated `source_an19::event::engine::Reduced`; exact reduced costs; no numeric expansion, Oracle fallback, or unproved merging |
+     | P9.3.2d-impl: AN19-shaped exact event engine | complete | isolated `source_an19::experiment::event::Engine`; exact reduced costs; no numeric expansion, Oracle fallback, or unproved merging |
      | P9.3.2d-oracle: explicit exact event Oracle | complete | independent repeated-shortest-path thresholds and definition-level Figure 6 selection |
      | P9.3.2d-trace: canonical event and charge trace | complete | exact rational semantic/queue records, structural generations, state transitions, and six charge maps |
      | P9.3.2d-differential: exact semantic agreement | complete | 31 bounded A--H snapshots agree on normalized order, radius, membership, edge partitions, path, and stopping certificate |
@@ -776,7 +776,7 @@ P9.3 is split into the following source-gated subphases:
      proved exact event-order data structure meeting the rational-input bound;
      that structure must preserve exact event order while consuming the
      symbolic labels. The implementation must charge the exact all-radii event
-     work before selecting a structural amortization mode. `source_an19::hierarchy::AmortizationMode`
+     work before selecting a structural amortization mode. `source_an19::experiment::hierarchy::AmortizationMode`
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
