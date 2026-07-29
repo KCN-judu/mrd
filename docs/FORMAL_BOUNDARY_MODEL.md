@@ -123,7 +123,7 @@ measure two; a non-isolated vertex has measure one exactly when at least one
 inner angle is `3pi/2` or `2pi`. This handles straight-through vertices, segment
 endpoints, L-, T-, and four-way incidences without a degree-based shortcut.
 
-`FormalRectilinearPolygon::effective_chords_pairwise()` is the permanent exact
+`formal_polygon::oracle::effective_chords()` is the permanent exact
 Definition 7 Oracle. It considers every aligned pair of positive-measure formal
 vertices and checks all four source clauses directly:
 

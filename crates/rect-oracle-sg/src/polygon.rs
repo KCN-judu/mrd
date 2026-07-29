@@ -3418,10 +3418,11 @@ mod tests {
                     vertex.point
                 );
             }
-            let formal_chords = formal.effective_chords_pairwise().unwrap();
+            let formal_chords =
+                rect_core::formal_polygon::oracle::effective_chords(&formal).unwrap();
             assert_eq!(formal_chords.horizontal, ordinary.horizontal);
             assert_eq!(formal_chords.vertical, ordinary.vertical);
-            let source = formal.effective_chords_source().unwrap();
+            let source = rect_core::formal_polygon::experiment::effective_chords(&formal).unwrap();
             let sweep = SoltanGorpinevichSweepEnumerator
                 .enumerate(formal.region())
                 .unwrap();

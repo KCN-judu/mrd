@@ -79,7 +79,7 @@ struct ConflictSolutions {
 pub fn analyze_formal_admissible_family(
     polygon: &FormalRectilinearPolygon,
 ) -> Result<FormalAdmissibleAnalysis, FormalAdmissibleError> {
-    let families = polygon.effective_chords_source()?.families;
+    let families = rect_core::formal_polygon::experiment::effective_chords(polygon)?.families;
     let transformation = FormalStep2Transformation::new(&families)?;
     let ConflictSolutions {
         graph: explicit_conflict_graph,
