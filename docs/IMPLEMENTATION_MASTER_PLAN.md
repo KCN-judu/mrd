@@ -1024,12 +1024,16 @@ amortized bound or unlock the `AlmostLinear` name.
    decoding only; query, approximation, dynamic-update, link-cut, and runtime
    claims remain for later subphases.
 3. **P9.4c - Hidden-stability approximate-query contract and differential
-   harness. State: in_progress.** Bind the checked Definition 4.2--4.5 stability
+   harness. State: complete. Implementation SHA: `0e2a423`.** Bind the checked Definition 4.2--4.5 stability
    state to the source-shaped chain through an explicit query input/output and
    certificate. Keep the witness hidden from query output, use exact arithmetic
    throughout, and differentially compare bounded fixtures with the permanent
    exact cycle Oracle. Report semantic agreement separately from any
-   approximation or runtime proof.
+   approximation or runtime proof. `source_min_ratio::query::decode_candidate`
+   now exposes only decoded arcs and a coordinate count from an already checked
+   ledger; the witness remains private. Evidence:
+   `docs/phase-reports/P09-4c-hidden-stability-query.md`. No approximate-query,
+   dynamic-update, link-cut, Theorem 5.1, or runtime claim is made.
 4. **P9.4d - Update/query/detect execution, accounting, and audit. State:
    planned.** Add explicit dynamic sparsification and link-cut execution
    adapters, then record update/query/detect transitions, compact-cycle
