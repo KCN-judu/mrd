@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-use super::{certificate, engine, trace};
+use super::{backend, certificate, trace};
 use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, source_an19::petal::Error};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -198,7 +198,7 @@ impl RuntimeStatus {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Run {
-    pub engine: engine::Kind,
+    pub engine: backend::Kind,
     pub selected_radius: Ratio,
     pub selected_vertices: Vec<usize>,
     pub internal_edge_ids: Vec<usize>,

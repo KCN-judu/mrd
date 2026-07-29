@@ -6,10 +6,10 @@ use crate::{
     CertifiedFixedPoint, ExactRatio, FixedPointConfig, FlowNodeId, SourceDynamicGraph, SourceEdgeId,
 };
 
-use super::projection;
+use super::experiment::projection;
 
 #[cfg(test)]
-use super::hierarchy;
+use super::experiment::hierarchy;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PetalMetrics {

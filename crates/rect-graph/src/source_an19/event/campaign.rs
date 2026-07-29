@@ -2,16 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use super::{
-    engine::Reduced,
-    model::{
-        ChargeAnalysis, Context, Count, HierarchyMetrics, Problem, Ratio, Run, RuntimeStatus,
-        Segment,
-    },
+use super::model::{
+    ChargeAnalysis, Context, Count, HierarchyMetrics, Problem, Ratio, Run, RuntimeStatus, Segment,
 };
 use crate::{
     ExactRatio, FlowNodeId, SourceDynamicGraph, SourceWeightedEdge,
-    source_an19::petal::{Error, ratio},
+    source_an19::{
+        experiment,
+        petal::{Error, ratio},
+    },
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -118,7 +117,7 @@ impl Campaign {
                     .enumerate()
                 {
                     let problem = owned.as_problem();
-                    let (oracle, reduced) = Reduced::run_differential(&problem)?;
+                    let (oracle, reduced) = experiment::event::Engine::run_differential(&problem)?;
                     if !oracle.semantically_agrees(&reduced) {
                         return Err(Error::InvalidEventTrace);
                     }
@@ -329,8 +328,8 @@ fn count_map_to_vec(counts: BTreeMap<String, u64>) -> Vec<Count> {
         .collect()
 }
 
-pub(super) struct OwnedEventProblem {
-    pub(super) graph: SourceDynamicGraph,
+pub(in crate::source_an19) struct OwnedEventProblem {
+    pub(in crate::source_an19) graph: SourceDynamicGraph,
     cluster: BTreeSet<FlowNodeId>,
     remaining: BTreeSet<FlowNodeId>,
     center: FlowNodeId,
@@ -341,7 +340,7 @@ pub(super) struct OwnedEventProblem {
 }
 
 impl OwnedEventProblem {
-    pub(super) fn as_problem(&self) -> Problem<'_> {
+    pub(in crate::source_an19) fn as_problem(&self) -> Problem<'_> {
         Problem {
             graph: &self.graph,
             cluster: &self.cluster,
@@ -355,7 +354,7 @@ impl OwnedEventProblem {
     }
 }
 
-pub(super) fn adversarial_problems(
+pub(in crate::source_an19) fn adversarial_problems(
     family: Family,
     requested_size: usize,
 ) -> Result<Vec<OwnedEventProblem>, Error> {
@@ -403,7 +402,7 @@ pub(super) fn adversarial_problems(
     }
 }
 
-pub(super) fn path_problem(
+pub(in crate::source_an19) fn path_problem(
     nodes: usize,
     family: Family,
     logical_depth: u64,

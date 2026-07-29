@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    engine::Kind,
+    backend::Kind,
     model::{Problem, Run, SnapshotMetrics},
     queue, trace,
 };
@@ -194,13 +194,13 @@ pub(super) fn verify_local_event_bound(run: &Run) -> Result<(), Error> {
 
 pub(super) fn verify_practical_queue_bound(run: &Run) -> Result<(), Error> {
     let Some(certificate) = run.practical_queue_bound else {
-        return if run.engine == Kind::Exact {
+        return if run.engine == Kind::Oracle {
             Ok(())
         } else {
             Err(Error::InvalidEventTrace)
         };
     };
-    if run.engine != Kind::Reduced {
+    if run.engine != Kind::Experiment {
         return Err(Error::InvalidEventTrace);
     }
     let expected_height = if certificate.queue_insertion_count <= 1 {

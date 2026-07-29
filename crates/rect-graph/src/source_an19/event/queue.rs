@@ -1,39 +1,39 @@
-use super::{engine::ArcWitness, trace::StaleReason};
+use super::{execution::ArcWitness, trace::StaleReason};
 use crate::{ExactRatio, FlowNodeId, source_an19::petal::Error};
 
 use super::super::petal::ratio_less;
 
 #[derive(Clone)]
-pub(super) struct Item {
-    pub(super) distance: ExactRatio,
-    pub(super) vertex: FlowNodeId,
-    pub(super) insertion_sequence: u64,
-    pub(super) predecessor: Option<ArcWitness>,
+pub(in crate::source_an19) struct Item {
+    pub(in crate::source_an19) distance: ExactRatio,
+    pub(in crate::source_an19) vertex: FlowNodeId,
+    pub(in crate::source_an19) insertion_sequence: u64,
+    pub(in crate::source_an19) predecessor: Option<ArcWitness>,
 }
 
 #[derive(Clone)]
-pub(super) struct Observation {
-    pub(super) item: Item,
-    pub(super) pop_sequence: Option<u64>,
-    pub(super) stale_reason: Option<StaleReason>,
-    pub(super) insertion: bool,
+pub(in crate::source_an19) struct Observation {
+    pub(in crate::source_an19) item: Item,
+    pub(in crate::source_an19) pop_sequence: Option<u64>,
+    pub(in crate::source_an19) stale_reason: Option<StaleReason>,
+    pub(in crate::source_an19) insertion: bool,
 }
 
 #[derive(Default)]
-pub(super) struct Statistics {
-    pub(super) inserted: u64,
-    pub(super) popped: u64,
-    pub(super) stale: u64,
-    pub(super) comparisons: u64,
-    pub(super) heap_push_comparisons: u64,
-    pub(super) heap_pop_comparisons: u64,
-    pub(super) relaxation_label_comparisons: u64,
-    pub(super) replacements: u64,
-    pub(super) equal_key_ties: u64,
-    pub(super) maximum_size: u64,
+pub(in crate::source_an19) struct Statistics {
+    pub(in crate::source_an19) inserted: u64,
+    pub(in crate::source_an19) popped: u64,
+    pub(in crate::source_an19) stale: u64,
+    pub(in crate::source_an19) comparisons: u64,
+    pub(in crate::source_an19) heap_push_comparisons: u64,
+    pub(in crate::source_an19) heap_pop_comparisons: u64,
+    pub(in crate::source_an19) relaxation_label_comparisons: u64,
+    pub(in crate::source_an19) replacements: u64,
+    pub(in crate::source_an19) equal_key_ties: u64,
+    pub(in crate::source_an19) maximum_size: u64,
 }
 
-pub(super) fn push(
+pub(in crate::source_an19) fn push(
     heap: &mut Vec<Item>,
     item: Item,
     statistics: &mut Statistics,
@@ -51,7 +51,7 @@ pub(super) fn push(
     Ok(())
 }
 
-pub(super) fn pop(
+pub(in crate::source_an19) fn pop(
     heap: &mut Vec<Item>,
     statistics: &mut Statistics,
 ) -> Result<Option<Item>, Error> {
@@ -85,7 +85,7 @@ pub(super) fn pop(
     Ok(Some(minimum))
 }
 
-pub(super) fn less(
+pub(in crate::source_an19) fn less(
     first: &Item,
     second: &Item,
     statistics: &mut Statistics,

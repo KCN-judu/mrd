@@ -6,8 +6,10 @@ use std::{
 
 use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge};
 
-use super::{
-    hierarchy::{LengthMode, Metrics as HierarchyMetrics, source_materialization_charge},
+use super::super::{
+    experiment::hierarchy::{
+        LengthMode, Metrics as HierarchyMetrics, source_materialization_charge,
+    },
     petal::{
         DisjointSet, Error, HighwaySegment, PetalMetrics, all_cluster_connected, all_connected,
         checked_metric_sum, intervals_overlap, ratio, ratio_less, round_length_to_power_of_two,
@@ -199,7 +201,7 @@ impl ShortEdgeContraction {
         Self::build_with_radius(graph, cluster, center, radius, graph.node_count())
     }
 
-    pub(super) fn build_with_radius(
+    pub(in crate::source_an19) fn build_with_radius(
         graph: &SourceDynamicGraph,
         cluster: &BTreeSet<FlowNodeId>,
         center: FlowNodeId,
@@ -321,35 +323,35 @@ impl ShortEdgeContraction {
 
 #[derive(Clone, Debug)]
 pub struct Graph {
-    pub(super) original_node_count: usize,
-    pub(super) original_endpoints: Vec<(FlowNodeId, FlowNodeId)>,
-    pub(super) unit_input: bool,
-    pub(super) length_mode: LengthMode,
-    pub(super) node_count: usize,
-    pub(super) edges: Vec<Edge>,
-    pub(super) incident_edges: Vec<Vec<usize>>,
+    pub(in crate::source_an19) original_node_count: usize,
+    pub(in crate::source_an19) original_endpoints: Vec<(FlowNodeId, FlowNodeId)>,
+    pub(in crate::source_an19) unit_input: bool,
+    pub(in crate::source_an19) length_mode: LengthMode,
+    pub(in crate::source_an19) node_count: usize,
+    pub(in crate::source_an19) edges: Vec<Edge>,
+    pub(in crate::source_an19) incident_edges: Vec<Vec<usize>>,
     projection_cache: RefCell<Option<CachedSnapshot>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Edge {
-    pub(super) active: bool,
-    pub(super) halved: bool,
-    pub(super) first: FlowNodeId,
-    pub(super) second: FlowNodeId,
-    pub(super) length: ExactRatio,
-    pub(super) provenance: Option<OriginalInterval>,
+    pub(in crate::source_an19) active: bool,
+    pub(in crate::source_an19) halved: bool,
+    pub(in crate::source_an19) first: FlowNodeId,
+    pub(in crate::source_an19) second: FlowNodeId,
+    pub(in crate::source_an19) length: ExactRatio,
+    pub(in crate::source_an19) provenance: Option<OriginalInterval>,
     /// Top-level input edge charged by the runtime audit, independent of the
     /// current quotient workspace's local recovery provenance.
-    pub(super) root_source: Option<SourceEdgeId>,
-    pub(super) unsplit_length: ExactRatio,
+    pub(in crate::source_an19) root_source: Option<SourceEdgeId>,
+    pub(in crate::source_an19) unsplit_length: ExactRatio,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OriginalInterval {
-    pub(super) edge: SourceEdgeId,
-    pub(super) first_position: ExactRatio,
-    pub(super) second_position: ExactRatio,
+    pub(in crate::source_an19) edge: SourceEdgeId,
+    pub(in crate::source_an19) first_position: ExactRatio,
+    pub(in crate::source_an19) second_position: ExactRatio,
 }
 
 /// Symbolic source label retained when an augmented edge is split at portals.
@@ -365,7 +367,7 @@ pub struct SymbolicLengthLabel {
 }
 
 impl SymbolicLengthLabel {
-    pub(super) fn effective_length(self) -> Result<ExactRatio, Error> {
+    pub(in crate::source_an19) fn effective_length(self) -> Result<ExactRatio, Error> {
         if self.halved {
             self.unsplit_length
                 .checked_mul(ratio(1, 2)?)
@@ -377,7 +379,7 @@ impl SymbolicLengthLabel {
 }
 
 impl Edge {
-    pub(super) fn symbolic_length_label(&self) -> SymbolicLengthLabel {
+    pub(in crate::source_an19) fn symbolic_length_label(&self) -> SymbolicLengthLabel {
         SymbolicLengthLabel {
             root_source: self.root_source,
             unsplit_length: self.unsplit_length,
@@ -388,15 +390,15 @@ impl Edge {
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
-    pub(super) graph: SourceDynamicGraph,
-    pub(super) dense_to_augmented: Vec<usize>,
-    pub(super) dense_root_sources: Vec<Option<SourceEdgeId>>,
-    pub(super) dense_symbolic_labels: Vec<SymbolicLengthLabel>,
-    pub(super) length_class_counts: BTreeMap<(i128, i128), usize>,
-    pub(super) symbolic_source_classes: BTreeSet<(i128, i128)>,
-    pub(super) symbolic_virtual_classes: BTreeSet<(i128, i128)>,
-    pub(super) local_to_augmented_node: Vec<FlowNodeId>,
-    pub(super) augmented_to_local_node: BTreeMap<FlowNodeId, FlowNodeId>,
+    pub(in crate::source_an19) graph: SourceDynamicGraph,
+    pub(in crate::source_an19) dense_to_augmented: Vec<usize>,
+    pub(in crate::source_an19) dense_root_sources: Vec<Option<SourceEdgeId>>,
+    pub(in crate::source_an19) dense_symbolic_labels: Vec<SymbolicLengthLabel>,
+    pub(in crate::source_an19) length_class_counts: BTreeMap<(i128, i128), usize>,
+    pub(in crate::source_an19) symbolic_source_classes: BTreeSet<(i128, i128)>,
+    pub(in crate::source_an19) symbolic_virtual_classes: BTreeSet<(i128, i128)>,
+    pub(in crate::source_an19) local_to_augmented_node: Vec<FlowNodeId>,
+    pub(in crate::source_an19) augmented_to_local_node: BTreeMap<FlowNodeId, FlowNodeId>,
 }
 
 #[derive(Clone, Debug)]
@@ -424,7 +426,7 @@ struct IncidentScans {
 }
 
 impl IncidentScans {
-    pub(super) fn observe(
+    pub(in crate::source_an19) fn observe(
         &mut self,
         edge: &Edge,
         cluster: &BTreeSet<FlowNodeId>,
@@ -441,7 +443,10 @@ impl IncidentScans {
         Ok(true)
     }
 
-    pub(super) fn record(self, metrics: &mut HierarchyMetrics) -> Result<(), Error> {
+    pub(in crate::source_an19) fn record(
+        self,
+        metrics: &mut HierarchyMetrics,
+    ) -> Result<(), Error> {
         metrics.projection_active_internal_incident_scans = checked_metric_sum(
             metrics.projection_active_internal_incident_scans,
             self.active_internal,
@@ -474,7 +479,7 @@ impl Graph {
         Self::from_source_with_length_mode(graph, LengthMode::ExactRational)
     }
 
-    pub(super) fn from_source_with_length_mode(
+    pub(in crate::source_an19) fn from_source_with_length_mode(
         graph: &SourceDynamicGraph,
         length_mode: LengthMode,
     ) -> Result<Self, Error> {
@@ -484,7 +489,7 @@ impl Graph {
         Self::from_source_with_root_sources_and_labels(graph, length_mode, &root_sources, None)
     }
 
-    pub(super) fn from_source_with_inherited_labels(
+    pub(in crate::source_an19) fn from_source_with_inherited_labels(
         graph: &SourceDynamicGraph,
         length_mode: LengthMode,
         root_sources: &[Option<SourceEdgeId>],
@@ -498,7 +503,7 @@ impl Graph {
         )
     }
 
-    pub(super) fn from_source_with_root_sources_and_labels(
+    pub(in crate::source_an19) fn from_source_with_root_sources_and_labels(
         graph: &SourceDynamicGraph,
         length_mode: LengthMode,
         root_sources: &[Option<SourceEdgeId>],
@@ -579,7 +584,7 @@ impl Graph {
         })
     }
 
-    pub(super) fn invalidate_projection_cache(&mut self) {
+    pub(in crate::source_an19) fn invalidate_projection_cache(&mut self) {
         self.projection_cache.get_mut().take();
     }
 
@@ -709,7 +714,7 @@ impl Graph {
         Ok((vertex, from_edge, toward_edge))
     }
 
-    pub(super) fn reuse_cluster_projection(
+    pub(in crate::source_an19) fn reuse_cluster_projection(
         &self,
         cluster: &BTreeSet<FlowNodeId>,
         metrics: &mut HierarchyMetrics,
@@ -743,7 +748,7 @@ impl Graph {
         Ok(Some(projection))
     }
 
-    pub(super) fn project_cluster(
+    pub(in crate::source_an19) fn project_cluster(
         &self,
         cluster: &BTreeSet<FlowNodeId>,
         metrics: &mut HierarchyMetrics,
@@ -1094,35 +1099,47 @@ impl Snapshot {
         &self.dense_to_augmented
     }
 
-    pub(super) fn root_source(&self, dense: SourceEdgeId) -> Result<Option<SourceEdgeId>, Error> {
+    pub(in crate::source_an19) fn root_source(
+        &self,
+        dense: SourceEdgeId,
+    ) -> Result<Option<SourceEdgeId>, Error> {
         self.dense_root_sources
             .get(dense.0)
             .copied()
             .ok_or(Error::InvalidAugmentedGraph)
     }
 
-    pub(super) fn symbolic_label(&self, dense: SourceEdgeId) -> Result<SymbolicLengthLabel, Error> {
+    pub(in crate::source_an19) fn symbolic_label(
+        &self,
+        dense: SourceEdgeId,
+    ) -> Result<SymbolicLengthLabel, Error> {
         self.dense_symbolic_labels
             .get(dense.0)
             .copied()
             .ok_or(Error::InvalidAugmentedGraph)
     }
 
-    pub(super) fn local_node(&self, augmented: FlowNodeId) -> Result<FlowNodeId, Error> {
+    pub(in crate::source_an19) fn local_node(
+        &self,
+        augmented: FlowNodeId,
+    ) -> Result<FlowNodeId, Error> {
         self.augmented_to_local_node
             .get(&augmented)
             .copied()
             .ok_or(Error::InvalidAugmentedGraph)
     }
 
-    pub(super) fn augmented_node(&self, local: FlowNodeId) -> Result<FlowNodeId, Error> {
+    pub(in crate::source_an19) fn augmented_node(
+        &self,
+        local: FlowNodeId,
+    ) -> Result<FlowNodeId, Error> {
         self.local_to_augmented_node
             .get(local.0)
             .copied()
             .ok_or(Error::InvalidAugmentedGraph)
     }
 
-    pub(super) fn local_nodes(
+    pub(in crate::source_an19) fn local_nodes(
         &self,
         augmented: &BTreeSet<FlowNodeId>,
     ) -> Result<BTreeSet<FlowNodeId>, Error> {
@@ -1167,7 +1184,7 @@ pub struct Audit {
 }
 
 impl Audit {
-    pub(super) fn new(original_edge_count: usize) -> Self {
+    pub(in crate::source_an19) fn new(original_edge_count: usize) -> Self {
         Self {
             original_edge_segment_occurrences: vec![0; original_edge_count],
             original_edge_materialization_occurrences: vec![0; original_edge_count],
@@ -1195,7 +1212,7 @@ impl Audit {
         }
     }
 
-    pub(super) fn record_portal_split(
+    pub(in crate::source_an19) fn record_portal_split(
         &mut self,
         root_source: Option<SourceEdgeId>,
         metrics: &mut HierarchyMetrics,
@@ -1219,7 +1236,7 @@ impl Audit {
         Ok(())
     }
 
-    pub(super) fn record_scale_sources(
+    pub(in crate::source_an19) fn record_scale_sources(
         &mut self,
         projection: &Snapshot,
         new_partition_scale: bool,
@@ -1259,7 +1276,7 @@ impl Audit {
         Ok(())
     }
 
-    pub(super) fn record_source_materializations(
+    pub(in crate::source_an19) fn record_source_materializations(
         &mut self,
         source_segment_counts: Vec<u64>,
         metrics: &mut HierarchyMetrics,
@@ -1304,7 +1321,7 @@ impl Audit {
         Ok(())
     }
 
-    pub(super) fn record(
+    pub(in crate::source_an19) fn record(
         &mut self,
         projection: &Snapshot,
         metrics: &mut HierarchyMetrics,
@@ -1401,7 +1418,7 @@ impl Audit {
         Ok(())
     }
 
-    pub(super) fn observe_projection_shape(
+    pub(in crate::source_an19) fn observe_projection_shape(
         &mut self,
         projection: &Snapshot,
         metrics: &mut HierarchyMetrics,
@@ -1435,7 +1452,7 @@ impl Audit {
         Ok(())
     }
 
-    pub(super) fn verify_structural_charges(
+    pub(in crate::source_an19) fn verify_structural_charges(
         &self,
         metrics: &HierarchyMetrics,
     ) -> Result<(), Error> {
@@ -1458,7 +1475,7 @@ impl Audit {
         self.verify_structural_virtual_charges(metrics)
     }
 
-    pub(super) fn verify_structural_virtual_charges(
+    pub(in crate::source_an19) fn verify_structural_virtual_charges(
         &self,
         metrics: &HierarchyMetrics,
     ) -> Result<(), Error> {

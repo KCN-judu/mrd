@@ -5,14 +5,12 @@ use std::{
 
 use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge};
 
-use super::{
-    petal::{
-        DisjointSet, Error, HierarchyShortestPaths, PathPoint, PetalMetrics, WeightedPetal,
-        all_connected, ceil_log_log, checked_metric_sum, fast_shortest_paths, ratio, ratio_less,
-        recover_hierarchy_path,
-    },
-    projection,
+use super::super::petal::{
+    DisjointSet, Error, HierarchyShortestPaths, PathPoint, PetalMetrics, WeightedPetal,
+    all_connected, ceil_log_log, checked_metric_sum, fast_shortest_paths, ratio, ratio_less,
+    recover_hierarchy_path,
 };
+use super::projection;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Metrics {
@@ -86,7 +84,7 @@ pub struct Metrics {
 const AN19_WORK_BOUND_FACTOR: u64 = 1_024;
 const AN19_PROJECTION_MATERIALIZATIONS_PER_SCALE: u64 = 4;
 
-pub(super) fn source_materialization_charge(scales: u64) -> Result<u64, Error> {
+pub(in crate::source_an19) fn source_materialization_charge(scales: u64) -> Result<u64, Error> {
     // A source segment can enter one full projection at the recursive call,
     // one after the optional imaginary-path mutation, one while preparing its
     // child highway, and one after a same-scale quotient mutation. Cache hits
@@ -164,7 +162,9 @@ fn projection_incident_scan_bounds(
     Ok((boundary, inactive))
 }
 
-pub(super) fn source_scale_participation_bound(logarithmic_levels: u64) -> Result<u64, Error> {
+pub(in crate::source_an19) fn source_scale_participation_bound(
+    logarithmic_levels: u64,
+) -> Result<u64, Error> {
     // AN19 Section 6 gives an active radius ratio of at most 2*n^2, while
     // Claims 5--6 shrink child radii by 3/4 and (3/4)^3 < 1/2. This is a
     // checked necessary gate for augmented runs; portal-fragment charging is
@@ -894,7 +894,7 @@ struct Piece {
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-pub(super) fn hierarchical_petal_decomposition(
+pub(in crate::source_an19) fn hierarchical_petal_decomposition(
     workspace: &mut projection::Graph,
     cluster: BTreeSet<FlowNodeId>,
     center: FlowNodeId,
@@ -1652,7 +1652,7 @@ fn connection_predecessor(
     }
 }
 
-pub(super) fn halve_highway(
+pub(in crate::source_an19) fn halve_highway(
     workspace: &mut projection::Graph,
     cluster: &BTreeSet<FlowNodeId>,
     center: FlowNodeId,

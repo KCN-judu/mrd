@@ -3,10 +3,11 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    backend::{Backend, Kind as EngineKind},
     certificate,
-    engine::{Engine, Exact, Kind as EngineKind, Reduced},
     model::{Problem, Ratio, Run},
 };
+use crate::source_an19::{experiment, oracle};
 use crate::{
     ExactRatio,
     source_an19::petal::{Error, ratio_less},
@@ -192,8 +193,8 @@ impl Run {
     /// [`Error::InvalidEventTrace`] when the rerun differs.
     pub fn verify_against(&self, problem: &Problem<'_>) -> Result<(), Error> {
         let expected = match self.engine {
-            EngineKind::Exact => Exact.run(problem)?,
-            EngineKind::Reduced => Reduced.run(problem)?,
+            EngineKind::Oracle => oracle::event::Engine.run(problem)?,
+            EngineKind::Experiment => experiment::event::Engine.run(problem)?,
             EngineKind::ProvedUnavailable => {
                 return Err(Error::UnprovedEventEngine);
             }
