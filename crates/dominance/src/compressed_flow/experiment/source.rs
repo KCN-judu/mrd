@@ -356,8 +356,11 @@ mod tests {
     use crate::{
         biclique::{Block, Partition},
         compressed_flow::oracle,
+        embedding::DominanceEmbedding,
     };
-    use mrd_domain::BicliqueId;
+    use mrd_domain::{
+        BicliqueId, HorizontalChord, HorizontalChordId, VerticalChord, VerticalChordId,
+    };
 
     fn two_by_two_partition() -> (BipartiteGraph, Partition) {
         let mut graph = BipartiteGraph::new(2, 2);
@@ -393,6 +396,36 @@ mod tests {
         for (left, right) in &recovered.matching {
             assert!(graph.edges().any(|edge| edge == (*left, *right)));
         }
+        for (left, right) in graph.edges() {
+            assert!(recovered.vertex_cover.left[left] || recovered.vertex_cover.right[right]);
+        }
+    }
+
+    #[test]
+    fn differentially_recovers_an_mrd_chord_graph() {
+        let horizontal = [
+            HorizontalChord::new(HorizontalChordId(0), 0, 4, 0).unwrap(),
+            HorizontalChord::new(HorizontalChordId(1), 1, 2, 3).unwrap(),
+            HorizontalChord::new(HorizontalChordId(2), -2, 1, 1).unwrap(),
+        ];
+        let vertical = [
+            VerticalChord::new(VerticalChordId(0), 0, -1, 2).unwrap(),
+            VerticalChord::new(VerticalChordId(1), 2, 0, 4).unwrap(),
+            VerticalChord::new(VerticalChordId(2), 4, 0, 1).unwrap(),
+        ];
+        let embedding = DominanceEmbedding::new(&horizontal, &vertical).unwrap();
+        let graph = embedding.explicit_graph().unwrap();
+        let partition = Partition::comparability_theorem_8(&embedding).unwrap();
+        partition.verify_exact_partition(&graph).unwrap();
+        partition.verify_dominance_blocks(&embedding).unwrap();
+
+        let circulation = Circulation::from_partition(3, 3, &partition).unwrap();
+        let terminal = graph::min_cost::experiment::solve(circulation.network()).unwrap();
+        let recovered = circulation.recover_certified(&terminal).unwrap();
+        let reference = oracle::audit(&graph, &partition).unwrap();
+
+        assert_eq!(recovered.flow_value, reference.matching_size);
+        assert_eq!(recovered.vertex_cover.size, reference.matching_size);
         for (left, right) in graph.edges() {
             assert!(recovered.vertex_cover.left[left] || recovered.vertex_cover.right[right]);
         }
