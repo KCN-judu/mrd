@@ -13,10 +13,9 @@ use rect_dominance::{
 };
 use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
-    GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonChordEnumerationMetrics, PolygonCompletionResult, SoltanGorpinevichSweepEnumerator,
-    SweepCertificate, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
-    polygon_sparse, validate_polygon_dissection,
+    IndexedPolygonCompletion, PolygonChordEnumerationMetrics, PolygonCompletionResult,
+    SweepCertificate, classify_clean_polygon, polygon as sg_polygon, polygon_arrangement,
+    polygon_cut_index, polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -167,20 +166,20 @@ pub fn verify_polygon(
                 message: error.to_string(),
             },
         )?;
-    let reference_families = GeneralPolygonPairwiseEnumerator
+    let reference_families = sg_polygon::chord::oracle::Pairwise
         .enumerate_prepared(&reference_prepared)
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "reference-pairwise",
             message: error.to_string(),
         })?;
-    let indexed_families = IndexedPolygonPairwiseEnumerator
+    let indexed_families = sg_polygon::chord::oracle::Indexed
         .enumerate_prepared(&indexed_prepared)
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "indexed-pairwise",
             message: error.to_string(),
         })?
         .families;
-    let sweep_result = SoltanGorpinevichSweepEnumerator
+    let sweep_result = sg_polygon::chord::experiment::Sweep
         .enumerate_prepared(&indexed_prepared)
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "sg-sweep",
@@ -845,7 +844,7 @@ mod tests {
         counts.supported_components += 1;
         let geometry = analyze_geometry_with(component, &GridInteriorRunEnumerator)
             .map_err(|error| error.to_string())?;
-        let polygon_families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
+        let polygon_families = rect_oracle_sg::polygon::chord::oracle::Pairwise
             .enumerate(&polygon)
             .map_err(|error| error.to_string())?;
         if geometry.horizontal_chords != polygon_families.horizontal

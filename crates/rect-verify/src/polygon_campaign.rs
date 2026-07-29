@@ -13,9 +13,8 @@ use rect_dominance::{
     PolygonCompletionBackend, PolygonSolveOptions, VerificationMode, solve_polygon_with_options,
 };
 use rect_oracle_sg::{
-    EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    IndexedPolygonPairwiseEnumerator, PolygonValidationError, SoltanGorpinevichSweepEnumerator,
-    VerticalCutSegment, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
+    EffectiveChordEndpointIndex, HorizontalCutSegment, PolygonValidationError, VerticalCutSegment,
+    classify_clean_polygon, polygon as sg_polygon, polygon_arrangement, polygon_cut_index,
     polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
@@ -1061,13 +1060,13 @@ fn compare_polygon_backends(
             None,
         ));
     }
-    let reference_chords = GeneralPolygonPairwiseEnumerator
+    let reference_chords = sg_polygon::chord::oracle::Pairwise
         .enumerate_prepared_with_metrics(&reference_prepared)
         .map_err(|error| (error.to_string(), None, None, None))?;
-    let indexed_chords = IndexedPolygonPairwiseEnumerator
+    let indexed_chords = sg_polygon::chord::oracle::Indexed
         .enumerate_prepared(&indexed_prepared)
         .map_err(|error| (error.to_string(), None, None, None))?;
-    let sweep_chords = SoltanGorpinevichSweepEnumerator
+    let sweep_chords = sg_polygon::chord::experiment::Sweep
         .enumerate_prepared(&indexed_prepared)
         .map_err(|error| (error.to_string(), None, None, None))?;
     if reference_chords.families.horizontal != indexed_chords.families.horizontal

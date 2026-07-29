@@ -11,8 +11,8 @@
   construction and incremental indexed completion. The sweep's `O(n log n + q)`
   claim is limited to the accepted ordinary-loop model; it does not implement
   the source's formal-boundary ornaments, isolated points, or degenerate-hole
-  merge/delete cases. `ReferencePolygonPairwiseEnumerator` and
-  `IndexedPolygonPairwiseEnumerator` remain exact reference backends.
+  merge/delete cases. `chord::oracle::Pairwise` and
+  `chord::oracle::Indexed` remain exact reference backends.
 - CompactOnly enumerates effective chords with the exact grid-specialized
   `GridInteriorRunEnumerator`; the aligned-reflex pair implementation remains
   the differential reference. This does not implement the paper's general

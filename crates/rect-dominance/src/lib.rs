@@ -30,12 +30,11 @@ use rect_core::{
 use rect_graph::{DinicBackend, FlowBackendKind, MaxFlowBackend, hopcroft_karp};
 use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
-    EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
-    GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
-    IndexedPolygonPairwiseEnumerator, PolygonSgError, ReferencePairwiseEnumerator,
-    ReferenceRescanCompletion, SgError, SoltanGorpinevichSweepEnumerator,
-    analyze_prepared_geometry, audit_sweep_provenance, classify_clean_polygon,
-    complete_with_prepared_backend, polygon_arrangement, polygon_cut_index, polygon_sparse,
+    EffectiveChordEndpointIndex, EffectiveChordEnumerator, GridInteriorRunEnumerator,
+    IndexedFrontierCompletion, IndexedPolygonCompletion, PolygonSgError,
+    ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError, analyze_prepared_geometry,
+    audit_sweep_provenance, classify_clean_polygon, complete_with_prepared_backend,
+    polygon as sg_polygon, polygon_arrangement, polygon_cut_index, polygon_sparse,
     validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
@@ -265,9 +264,9 @@ pub fn solve_polygon_with_options(
     let (families, chord_metrics, sweep_certificate) = match options.verification_mode {
         VerificationMode::FullyAudited => {
             let reference =
-                GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
-            let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
-            let sweep = SoltanGorpinevichSweepEnumerator.enumerate_prepared(&prepared)?;
+                sg_polygon::chord::oracle::Pairwise.enumerate_prepared_with_metrics(&prepared)?;
+            let indexed = sg_polygon::chord::oracle::Indexed.enumerate_prepared(&prepared)?;
+            let sweep = sg_polygon::chord::experiment::Sweep.enumerate_prepared(&prepared)?;
             audit_sweep_provenance(&prepared, &sweep)?;
             if reference.families.horizontal != indexed.families.horizontal
                 || reference.families.vertical != indexed.families.vertical
@@ -290,16 +289,16 @@ pub fn solve_polygon_with_options(
         }
         VerificationMode::CompactOnly => match options.chord_backend {
             PolygonChordBackend::ReferencePairwise => {
-                let reference =
-                    GeneralPolygonPairwiseEnumerator.enumerate_prepared_with_metrics(&prepared)?;
+                let reference = sg_polygon::chord::oracle::Pairwise
+                    .enumerate_prepared_with_metrics(&prepared)?;
                 (reference.families, Some(reference.metrics), None)
             }
             PolygonChordBackend::IndexedPairwise => {
-                let indexed = IndexedPolygonPairwiseEnumerator.enumerate_prepared(&prepared)?;
+                let indexed = sg_polygon::chord::oracle::Indexed.enumerate_prepared(&prepared)?;
                 (indexed.families, Some(indexed.metrics), None)
             }
             PolygonChordBackend::SoltanGorpinevichSweep => {
-                let sweep = SoltanGorpinevichSweepEnumerator.enumerate_prepared(&prepared)?;
+                let sweep = sg_polygon::chord::experiment::Sweep.enumerate_prepared(&prepared)?;
                 (sweep.families, Some(sweep.metrics), sweep.sweep_certificate)
             }
         },
@@ -2535,14 +2534,14 @@ mod polygon_tests {
                 };
                 let geometry =
                     analyze_geometry_with(&component, &GridInteriorRunEnumerator).unwrap();
-                let polygon_families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
+                let polygon_families = rect_oracle_sg::polygon::chord::oracle::Pairwise
                     .enumerate(&polygon)
                     .unwrap();
                 let polygon_prepared = PreparedPolygonContext::new(&polygon).unwrap();
-                let indexed_families = rect_oracle_sg::IndexedPolygonPairwiseEnumerator
+                let indexed_families = rect_oracle_sg::polygon::chord::oracle::Indexed
                     .enumerate_prepared(&polygon_prepared)
                     .unwrap();
-                let sweep_families = rect_oracle_sg::SoltanGorpinevichSweepEnumerator
+                let sweep_families = rect_oracle_sg::polygon::chord::experiment::Sweep
                     .enumerate_prepared(&polygon_prepared)
                     .unwrap();
                 assert_eq!(geometry.horizontal_chords, polygon_families.horizontal);

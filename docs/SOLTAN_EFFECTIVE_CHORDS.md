@@ -17,8 +17,8 @@ filter. It does not establish condition (2), the endpoint provenance in (3),
 or the unique orthogonal elementary-segment requirement in (4).
 
 The grid pairwise implementation remains the independent unit-cell Oracle.
-`GeneralPolygonPairwiseEnumerator` is the preserved `O(r^2 n)` polygon Oracle.
-`IndexedPolygonPairwiseEnumerator` groups only equal-coordinate reflex vertices,
+`chord::oracle::Pairwise` is the preserved `O(r^2 n)` polygon Oracle.
+`chord::oracle::Indexed` groups only equal-coordinate reflex vertices,
 uses `OrthogonalEdgeIndex` for collinear overlap and boundary event reporting,
 and applies the same four Definition 7 conditions. Its intermediate complexity
 uses aligned candidate count `C`; it is not the paper's full `O(n log n)` sweep.
@@ -26,7 +26,7 @@ Any complete chord-set disagreement is a correctness failure and blocks the
 indexed default.
 
 For the accepted ordinary-loop model, v1.1 adds
-`SoltanGorpinevichSweepEnumerator`. It uses the source-backed specialization
+`chord::experiment::Sweep`. It uses the source-backed specialization
 that a Definition 7 chord is the first boundary hit of the unique
 strict-interior axis ray from a reflex vertex, provided that hit is reflex.
 Its axis-generic status sweep does not call these pairwise predicates during

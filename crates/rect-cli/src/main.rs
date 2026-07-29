@@ -2630,7 +2630,7 @@ mod tests {
                 Some("sg-sweep")
             );
             if name == "scaled-complete-bipartite.json" {
-                let families = rect_oracle_sg::GeneralPolygonPairwiseEnumerator
+                let families = rect_oracle_sg::polygon::chord::oracle::Pairwise
                     .enumerate(&polygon)
                     .unwrap();
                 assert_eq!(families.horizontal.len(), 4);

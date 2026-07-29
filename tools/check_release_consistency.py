@@ -557,8 +557,8 @@ def main() -> None:
     if "GridInteriorRunEnumerator" not in algorithms or "BoundaryIndex" not in algorithms:
         fail("algorithm documentation does not name the indexed production path")
     for required in (
-        "IndexedPolygonPairwiseEnumerator",
-        "SoltanGorpinevichSweepEnumerator",
+        "chord::oracle::Indexed",
+        "chord::experiment::Sweep",
         "IndexedPolygonCompletion",
         "polygon::experiment::Validator",
         "PreparedPolygonContext",

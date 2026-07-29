@@ -2,8 +2,8 @@
 
 Every production polygon backend is compared with two preserved pairwise
 Oracles before a default is changed. v1.1 compares
-`ReferencePolygonPairwiseEnumerator`, `IndexedPolygonPairwiseEnumerator`, and
-`SoltanGorpinevichSweepEnumerator`. Equality is structural, not only an optimum
+`chord::oracle::Pairwise`, `chord::oracle::Indexed`, and
+`chord::experiment::Sweep`. Equality is structural, not only an optimum
 count:
 
 - normalized polygon and reflex vertices;

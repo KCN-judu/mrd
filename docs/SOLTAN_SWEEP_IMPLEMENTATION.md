@@ -97,7 +97,7 @@ above.
 
 ## Axis-generic event sweep
 
-`SoltanGorpinevichSweepEnumerator` uses one `SweepAxis` implementation twice.
+`chord::experiment::Sweep` uses one `SweepAxis` implementation twice.
 For `Horizontal`, the scan coordinate is `y`, status objects are vertical
 boundary elementary segments keyed by `x`, and queries emit horizontal chords.
 For `Vertical`, swap `x/y` and horizontal/vertical throughout. No copied

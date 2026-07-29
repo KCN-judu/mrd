@@ -18,12 +18,12 @@ ray shooting use closed intervals. Open segment reporting returns only reported
 edge identities; Definition 7 still performs the endpoint and subinterval
 conditions exactly.
 
-`IndexedPolygonPairwiseEnumerator` is an aligned-reflex pair algorithm, not
+`chord::oracle::Indexed` is an aligned-reflex pair algorithm, not
 the paper's general Soltan--Gorpinevich `O(n log n)` sweep. Its useful
 intermediate bound is `O(n log n + C polylog n + Z)`, where `C` is the number of
 equal-coordinate reflex pairs and `Z` is the number of reported boundary
 events. It remains a permanent differential Oracle. v1.1 production instead
-uses `SoltanGorpinevichSweepEnumerator`; see
+uses `chord::experiment::Sweep`; see
 `docs/SOLTAN_SWEEP_IMPLEMENTATION.md` for the ordinary-loop specialization,
 event ordering, and source limitations.
 
