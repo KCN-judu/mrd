@@ -4,10 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.4
-- Current phase state: in_progress
-- Last completed phase: P9.3.3
-- Last pushed SHA: 41be08c7bd5eb522ef07b87ede40145b6a73cb48
+- Current phase: P9.3.4a
+- Current phase state: complete
+- Last completed phase: P9.3.4a
+- Last pushed SHA: 91a3e3cfbe54b132c86f4fa351394fc2141cc527
 - Plan last updated: 2026-07-29T17:01:06Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -823,11 +823,13 @@ P9.3 is split into the following source-gated subphases:
    on three separately delegated constructions and its composition guarantee
    cannot be inferred from an internal spanner certificate alone:
 
-   - **P9.3.4a state: in_progress.** Model unweighted simple `H'` and `J`,
-     the supplied `Pi(J -> H')`, `J~ subset J`, and composed `Pi(J -> H') o
-     Pi(J -> J~)` exactly. Add a bounded enumerating simple-path Oracle and
-     certificates for subgraph membership, path length, edge/vertex congestion,
-     maximum degree, and composition; no expander or sparsity claim.
+   - **P9.3.4a state: complete. Implementation SHA: `e0b7bc1`.**
+     `source_spanner::{model,oracle}` now models unweighted simple `H'` and
+     `J`, selected `J~ subset J`, direct and composed embeddings, and exact
+     path-length, edge/vertex-congestion, maximum-degree, and size audits. A
+     bounded enumerating simple-path Oracle remains isolated. Evidence is in
+     `docs/phase-reports/P09-3-4a-static-embedding-contract.md`; no expander,
+     sparsity, or Theorem 8.1 bound is claimed.
    - **P9.3.4b state: planned. Start gate: P9.3.4a audit passed.** Implement
      and certify Theorem 8.4's deterministic bounded-degree witness expander,
      including its checked expansion witness or an explicit source-domain
@@ -1014,3 +1016,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.3 | complete | c2edf16 | 038f762 | pending closeout | pending | `docs/phase-reports/P09-3-3-mwu-forest-collection.md` | exact `k`-forest weighted-copy/AN19/LSF collection, envelope certificate, rational MWU proof, mutation and full-workspace audit | 2026-07-29T16:29:53Z | 2026-07-29T17:01:06Z | `O(log^7 n)` and AN19 runtime remain unclaimed pending the uniform envelope and deferred P9.3.2d proof debt |
 | P9.3.4 | in_progress | 41be08c | pending | pending | 41be08c | pending | deterministic static spanner-with-embedding primitive | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4a | in_progress | 41be08c | pending | pending | 41be08c | pending | exact static embedding-composition contracts and bounded simple-path Oracle | 2026-07-29T17:01:06Z | pending | none |
+| P9.3.4a | complete | 91a3e3c | e0b7bc1 | pending closeout | pending | `docs/phase-reports/P09-3-4a-static-embedding-contract.md` | exact graph/subgraph/direct-and-composed embedding audits and isolated bounded simple-path Oracle | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | Theorem 8.4 witness expander, Theorem 8.5 decomposition, Theorem 8.6 paths, and Algorithm 4 remain |
