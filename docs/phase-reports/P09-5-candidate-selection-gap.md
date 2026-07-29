@@ -2,11 +2,12 @@
 
 ## Status
 
-**State: blocked.** This report records the P9.5a semantic construction that
-is still absent at baseline `d11cb3f`. It is independent of the P9.3.2d AN19
-runtime proof debt: P9.3.2d remains deferred to low-priority P9.6a after the
-complete source-shaped flow backend exists. P9.5a instead blocks the backend
-from selecting the next exact source-shaped IPM direction.
+**State: blocked.** Commit `91132c4` closes the provenance substep of P9.5a,
+but the source-defined compact-candidate selector is still absent. P9.5a is
+independent of the P9.3.2d AN19 runtime proof debt: P9.3.2d remains deferred to
+low-priority P9.6a after the complete source-shaped flow backend exists. P9.5a
+instead blocks the backend from selecting the next exact source-shaped IPM
+direction.
 
 ## Audit evidence
 
@@ -15,6 +16,7 @@ The audited production boundary has the following deliberate shape:
 | Module | Implemented responsibility | Deliberate absence |
 | --- | --- | --- |
 | `graph::min_ratio_cycle::StableMinRatioLedger` | checks stable-witness validity, update quality, exact coordinate queries, and Detect accounting | neither `StableEdge` nor the consumed `StableWitness` input carries a compact-cycle selection or source-arc provenance |
+| `graph::source_min_ratio::input` | validates exact caller-supplied gradient/length/tree-weight vectors, assigns stable source-edge/circulation-arc provenance, and materializes `SourceDynamicGraph` with matching `ArcBindings` | does not infer an exact approximation from a snapshot interval, construct a tree chain, or choose a candidate |
 | `graph::source_min_ratio::model` and `chain` | represent validated immutable source-tree branches and deterministic shifts | no constructor derives a tree-chain from a live IPM snapshot |
 | `graph::source_min_ratio::cycle` | decodes a supplied compact cycle through selected branches and checked arc bindings | no candidate generation or score computation |
 | `graph::source_min_ratio::query` | validates a supplied compact candidate against a checked ledger | no minimum-ratio selection query |
@@ -24,10 +26,12 @@ The audited production boundary has the following deliberate shape:
 `StableMinRatioLedger::edges()` intentionally exposes only the checked
 coordinates used by an independent audit. `StableWitness` is consumed during
 ledger construction; the retained stability floors are not a direction witness
-and do not identify a compact cycle. The public source graph, tree chain, and
-circulation bindings use different stable-ID domains. No current API relates
-those domains to each other or to the live gradient and length vectors in
-`CertifiedIpmSnapshot`.
+and do not identify a compact cycle. `input::Input` now supplies the exact
+source-edge/circulation-arc correspondence and materializes the matching graph
+and bindings in one checked operation. It deliberately takes caller-supplied
+exact approximation vectors rather than deriving a rational point from
+`CertifiedIpmSnapshot` intervals. Tree-branch, embedding, and candidate IDs
+are still unconnected to that provenance.
 
 The existing `dynamic_min_ratio` and min-cost cycle implementations can
 enumerate candidates, but they are reference Oracles. The P9.5 source-flow
@@ -39,13 +43,14 @@ These references remain valid only for bounded test differentials.
 ## Required construction
 
 P9.5a must add a source-shaped selector with an explicit input/output
-certificate. Given a live certified IPM snapshot, it must:
+certificate. The stable IPM/source/arc projection is complete; the remaining
+work must:
 
-1. build and validate a source dynamic graph with stable correspondence to the
-   snapshot's circulation coordinates;
-2. build or maintain the source tree-chain, selected shifts, and arc bindings
-   with the same provenance;
-3. invoke a source-defined candidate-selection operation that returns one
+1. attach a tree-chain, selected shifts, and source core/spanner embeddings to
+   the materialized graph with the same provenance;
+2. maintain the fundamental spanner cycles for rejected core edges and the
+   fundamental tree cycles at the terminal level;
+3. invoke the source-defined exact-quality heap operation that returns one
    compact cycle without returning the stability-witness input;
 4. decode the candidate and certify its full exact direction against the
    snapshot's current approximate gradients, lengths, and `kappa`; and
@@ -55,6 +60,22 @@ certificate. Given a live certified IPM snapshot, it must:
 The construction must make all ID mappings explicit. A conversion based only on
 ledger index, a tree branch's storage slot, or matching endpoint pairs is not
 sufficient: those values do not establish live residual-coordinate provenance.
+
+## Primary-source basis
+
+The primary source is van den Brand et al., arXiv:2309.16629v1. Algorithm 1,
+Section 5.4, `FindCycle()` returns the best exact-ratio fundamental spanner or
+terminal-level tree cycle. The proof of Lemma 5.11 specifies the candidate
+population: rejected core edges produce fundamental spanner cycles, terminal
+edges produce fundamental tree cycles, known embeddings permit their quality
+to be updated, and a heap returns the best one. Appendix A.3, Definition A.1
+and Lemma A.2 define the associated fundamental chain cycles and relate
+their quality to the hidden witness.
+
+Accordingly, a production selector may not replace these maintained candidates
+with simple-cycle enumeration. The completed provenance bridge is necessary but
+not sufficient: it must feed the source tree-chain/embedding maintenance and
+the exact-quality heap described above.
 
 ## Rejected shortcuts
 
@@ -69,7 +90,8 @@ sufficient: those values do not establish live residual-coordinate provenance.
 
 ## Audit
 
-The documentation and static-boundary audit passed at baseline `d11cb3f`:
+The static boundary and complete workspace audit passed for implementation SHA
+`91132c4`:
 
 | Command | Exit | Result |
 | --- | ---: | --- |
@@ -84,18 +106,17 @@ The documentation and static-boundary audit passed at baseline `d11cb3f`:
 | `cargo build --workspace --release` | 0 | release build accepted |
 | `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
 
-No production code or generated result file changed. The report records the
-interface evidence needed to resume this construction without depending on a
-previous session's memory.
+The production change is limited to exact input provenance and its tests. It
+does not add a selector, a runtime claim, or a generated result file.
 
 ## Next action
 
-Find or construct the missing source-level mapping and query semantics before
-adding any selector API. The design must identify the exact source operation
-that selects a compact candidate, its required maintained data, and the
-certificate that connects it to the current `CertifiedIpmSnapshot`. Only then
-may P9.5 connect it to `Step::from_compact_candidate`, run the full
-no-fallback differential campaign, and enable `Backend::require_complete()`.
+Implement the source-maintained tree chain and its core/spanner embeddings over
+the materialized `Input`, then maintain the fundamental spanner/tree candidates
+and the exact-quality heap stated in Algorithm 1 and the proof of Lemma 5.11.
+The result must carry an exact certificate into `Step::from_compact_candidate`.
+Only then may P9.5 run the full no-fallback differential campaign and enable
+`Backend::require_complete()`.
 
 P9.6a remains after that chain is complete. It is the separate low-priority
 task to prove or replace the AN19 reduced-event ordering and hierarchy-wide

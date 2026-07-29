@@ -32,6 +32,16 @@ arc occurrences into a complete exact direction vector and revalidates its
 circulation. This binds compact source-tree semantics to the P9.5 step input
 without selecting a candidate or using an enumerating cycle implementation.
 
+Commit `91132c4` supplies the first P9.5a input bridge before any tree chain is
+chosen. `source_min_ratio::input::Input` accepts exact caller-supplied IPM
+gradient and length vectors plus independent positive structural tree weights,
+validates stable `SourceEdgeId <-> CirculationArcId` provenance, then
+materializes `SourceDynamicGraph` and its `ArcBindings` together. The compact
+decode test proves that provenance survives one supplied chain. It neither
+derives exact approximations from snapshot intervals nor constructs the source
+tree chain, core/spanner embeddings, candidate heap, or Lemma 4.4 quality
+certificate; P9.5a therefore remains blocked on selection semantics.
+
 Commit `8d7975b` adds source-flow terminal recovery through both initial-point
 augmentation and lower-bound normalization. It first recovers the augmented
 integral circulation, rejects any surviving artificial arc, restores the
@@ -87,24 +97,26 @@ claim.
 
 ## P9.5a candidate-selection audit
 
-The focused audit at `d11cb3f` establishes that the missing selector is a
-concrete semantic construction, not a license to reuse an Oracle and not the
-deferred P9.3.2d runtime proof debt.
+The focused audit began at `d11cb3f`; implementation SHA `91132c4` closes its
+provenance row only. The missing selector remains a concrete semantic
+construction, not a license to reuse an Oracle and not the deferred P9.3.2d
+runtime proof debt.
 
 | Observed boundary | Evidence | Consequence |
 | --- | --- | --- |
 | `StableMinRatioLedger` | Its public `edges()` slice contains only anonymous `StableEdge` coordinates; `StableWitness` is consumed at construction and only checked stability floors are retained. | Neither coordinate identity nor the witness input identifies a `source_min_ratio::cycle::Cycle`. |
+| `source_min_ratio::input::Input` | It validates caller-supplied exact current coordinates and constructs an orientation-preserving source-edge/circulation-arc binding with the source graph. | Stable arc provenance is now available; it still does not create a tree chain, embeddings, a candidate set, or a selection certificate. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
 | `source_flow::iteration::Step::from_compact_candidate` | It decodes a caller-supplied compact cycle into a full exact circulation direction. | It cannot initialize an IPM iteration without a selected candidate and current approximation certificate. |
 | Permanent references | `dynamic_min_ratio` and the min-cost cycle paths enumerate candidates; the P9.5 source-flow audit rejects `dynamic_min_ratio`, `min_cost::oracle`, and `min_cost::experiment`. | They may remain test Oracles but cannot become the production selector. |
 
-The missing P9.5a construction must do all of the following from the live
-`CertifiedIpmSnapshot` and the source dynamic structures:
+The missing P9.5a construction must do all of the following using the completed
+exact input projection and source dynamic structures:
 
-1. Construct stable provenance from live IPM coordinates to source graph edges,
-   circulation arcs, tree-chain branches, and compact-cycle segments.
-2. Maintain or construct the source tree-chain and its shifts for that live
+1. Extend the stable source graph/circulation-arc provenance to tree-chain
+   branches, embeddings, and compact-cycle segments.
+2. Maintain or construct the source tree-chain and its shifts for that
    graph, including valid `ArcBindings` for every selected segment.
 3. Produce one compact candidate from the source dynamic query semantics and
    certify that its decoded full direction has the current approximation
