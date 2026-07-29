@@ -97,6 +97,14 @@ impl State {
     }
 
     #[must_use]
+    pub fn active_edges(&self) -> BTreeSet<EdgeId> {
+        (0..self.graph.edge_count())
+            .map(EdgeId)
+            .filter(|edge| !self.deleted.contains(edge))
+            .collect()
+    }
+
+    #[must_use]
     pub const fn pruned(&self) -> &BTreeSet<FlowNodeId> {
         &self.pruned
     }
