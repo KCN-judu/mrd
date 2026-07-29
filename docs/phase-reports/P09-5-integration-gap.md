@@ -85,6 +85,42 @@ separate low-priority debt: it does not block these semantic integration tasks,
 but must be closed in P9.6a before an `AlmostLinear` name or AN19 runtime
 claim.
 
+## P9.5a candidate-selection audit
+
+The focused audit at `d11cb3f` establishes that the missing selector is a
+concrete semantic construction, not a license to reuse an Oracle and not the
+deferred P9.3.2d runtime proof debt.
+
+| Observed boundary | Evidence | Consequence |
+| --- | --- | --- |
+| `StableMinRatioLedger` | Its public `edges()` slice contains only anonymous `StableEdge` coordinates; `StableWitness` is consumed at construction and only checked stability floors are retained. | Neither coordinate identity nor the witness input identifies a `source_min_ratio::cycle::Cycle`. |
+| `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
+| `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
+| `source_flow::iteration::Step::from_compact_candidate` | It decodes a caller-supplied compact cycle into a full exact circulation direction. | It cannot initialize an IPM iteration without a selected candidate and current approximation certificate. |
+| Permanent references | `dynamic_min_ratio` and the min-cost cycle paths enumerate candidates; the P9.5 source-flow audit rejects `dynamic_min_ratio`, `min_cost::oracle`, and `min_cost::experiment`. | They may remain test Oracles but cannot become the production selector. |
+
+The missing P9.5a construction must do all of the following from the live
+`CertifiedIpmSnapshot` and the source dynamic structures:
+
+1. Construct stable provenance from live IPM coordinates to source graph edges,
+   circulation arcs, tree-chain branches, and compact-cycle segments.
+2. Maintain or construct the source tree-chain and its shifts for that live
+   graph, including valid `ArcBindings` for every selected segment.
+3. Produce one compact candidate from the source dynamic query semantics and
+   certify that its decoded full direction has the current approximation
+   gradients, lengths, and `kappa` required by the Lemma 4.4 transition.
+4. Keep the stability-witness input out of the query result, retain exact
+   arithmetic, and reject rather than fall back when the source construction is
+   unavailable.
+
+This audit did not expose `StableWitness`, add a heuristic selector, enumerate
+fundamental cycles, or import `dynamic_min_ratio`. Those routes would only make
+the existing test path look complete while leaving the P9.5 production semantic
+contract unimplemented. P9.5 therefore remains `in_progress`; P9.5a blocks the
+complete backend and P9.6 remains gated on its completion. P9.3.2d remains the
+separate, low-priority P9.6a proof debt after the complete flow-solver chain is
+available.
+
 ## Incremental audit
 
 | Command | Exit | Result |

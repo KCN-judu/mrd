@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: 40bb2f1
-- Plan last updated: 2026-07-29T21:37:34Z
+- Last pushed SHA: d11cb3f
+- Plan last updated: 2026-07-29T21:44:27Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1059,6 +1059,26 @@ networks. The complete solver may exist before the deferred P9.3.2d proof debt
 is resolved, but it must not be named `AlmostLinear` and must report
 `an19_runtime_verified: false` until all source complexity assumptions pass.
 
+**P9.5a - Source compact-candidate selection construction. State: blocked.**
+P9.4 currently provides immutable source-tree snapshots, compact-cycle decoding,
+and a checked hidden-stability ledger, but no construction that maps a live
+`CertifiedIpmSnapshot` to a selected source compact cycle. In particular,
+`StableMinRatioLedger::edges()` exposes anonymous ledger coordinates, not a
+source-edge/circulation-arc provenance map; its validated stability-witness
+input is not a cycle-selection witness; and `source_min_ratio::execution::Executor` implements
+only supplied `Update`/`Query`/`Detect` transitions. Selecting by enumerating
+cycles, importing `dynamic_min_ratio`, or exposing the hidden witness would
+change this contract and violate the no-fallback boundary. The required
+construction must build the live source graph, tree-chain and arc bindings;
+relate its coordinates to the certified IPM gradients and lengths; and return a
+compact candidate with the exact approximation/quality certificate required by
+the next Lemma 4.4 update. Evidence and the next action are recorded in
+`docs/phase-reports/P09-5-candidate-selection-gap.md`. This blocks completion
+of the P9.5 backend, not P9.3.2d's deferred P9.6a proof debt. P9.5 remains
+`in_progress` for its already independent semantic/differential evidence, but
+`Backend::require_complete()` must continue to reject execution until P9.5a is
+implemented and audited.
+
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
 legacy recovery paths, and certify the non-Oracle additive-half termination
@@ -1285,5 +1305,6 @@ and AN19 runtime claims.
 | P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
 | P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
 | P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
-| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1 | pending | 8d7975b | `docs/phase-reports/P09-5-integration-gap.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, and compressed-circulation recovery differentials through a formal-polygon rectangle completion | 2026-07-29T20:25:33Z | pending | source candidate selection, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, and compressed-circulation recovery differentials through a formal-polygon rectangle completion | 2026-07-29T20:25:33Z | pending | source candidate selection, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5a | blocked | d11cb3f | none | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md` | audited source compact-candidate selection boundary; no production code added | 2026-07-29T21:44:27Z | pending | no source construction maps the live IPM snapshot and ledger coordinates to a selected compact cycle with a current update certificate; reference-cycle enumeration remains forbidden |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
