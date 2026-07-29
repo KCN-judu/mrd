@@ -6,7 +6,7 @@ use std::path::Path;
 
 use rect_core::{ColorGrid, Diagnostics, DissectionResult, SvgOverlay, render_dissection_svg};
 use rect_dominance::{
-    PathTreeOrientation, RegionDualBackend,
+    PathTreeOrientation, RegionBackend,
     path_tree::build_oriented_path_tree_partition_with_backend_and_options,
 };
 use rect_oracle_sg::{
@@ -191,9 +191,9 @@ pub fn search_path_tree_witnesses(
                     certificate.clone(),
                     orientation,
                     false,
-                    RegionDualBackend::BoundaryLaminar,
+                    RegionBackend::Experiment,
                     Some(&geometry.endpoint_index),
-                    rect_dominance::BoundaryGapLabelBackend::EventSweep,
+                    rect_dominance::GapBackend::Experiment,
                 )
                 .ok()
                 .and_then(|partition| {
@@ -317,9 +317,9 @@ pub fn search_path_tree_witnesses(
                     canonical_certificate.clone(),
                     orientation,
                     false,
-                    RegionDualBackend::BoundaryLaminar,
+                    RegionBackend::Experiment,
                     Some(&canonical_geometry.endpoint_index),
-                    rect_dominance::BoundaryGapLabelBackend::EventSweep,
+                    rect_dominance::GapBackend::Experiment,
                 )
                 .ok()
                 .and_then(|partition| {
@@ -811,9 +811,9 @@ fn witness_predicate(
             certificate.clone(),
             orientation,
             false,
-            RegionDualBackend::BoundaryLaminar,
+            RegionBackend::Experiment,
             Some(&geometry.endpoint_index),
-            rect_dominance::BoundaryGapLabelBackend::EventSweep,
+            rect_dominance::GapBackend::Experiment,
         ) else {
             return false;
         };
@@ -1012,9 +1012,9 @@ fn family_metrics(component: &rect_core::GridComponent<bool>) -> Option<FamilyMe
             certificate.clone(),
             orientation,
             false,
-            RegionDualBackend::BoundaryLaminar,
+            RegionBackend::Experiment,
             Some(&geometry.endpoint_index),
-            rect_dominance::BoundaryGapLabelBackend::EventSweep,
+            rect_dominance::GapBackend::Experiment,
         ) else {
             continue;
         };

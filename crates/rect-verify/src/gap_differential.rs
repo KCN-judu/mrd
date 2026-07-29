@@ -5,8 +5,8 @@ use std::fmt::Write;
 
 use rect_core::{ColorGrid, GridComponent, validate_dissection};
 use rect_dominance::{
-    BoundaryGapLabelBackend, ChordEnumerator, ConflictRepresentationBackend, PathTreeOrientation,
-    PathTreeOrientationPolicy, RegionDualBackend, VerificationMode,
+    ChordEnumerator, ConflictRepresentationBackend, GapBackend, PathTreeOrientation,
+    PathTreeOrientationPolicy, RegionBackend, VerificationMode,
     path_tree::build_oriented_path_tree_partition_with_backend_and_options,
     solve_with_representation_and_path_tree_options,
 };
@@ -269,9 +269,9 @@ fn compare_clean_component(
             certificate.clone(),
             orientation,
             false,
-            RegionDualBackend::BoundaryLaminar,
+            RegionBackend::Experiment,
             Some(&geometry.endpoint_index),
-            BoundaryGapLabelBackend::ReferenceNested,
+            GapBackend::Oracle,
         );
         let event = build_oriented_path_tree_partition_with_backend_and_options(
             &geometry.prepared,
@@ -281,9 +281,9 @@ fn compare_clean_component(
             certificate.clone(),
             orientation,
             false,
-            RegionDualBackend::BoundaryLaminar,
+            RegionBackend::Experiment,
             Some(&geometry.endpoint_index),
-            BoundaryGapLabelBackend::EventSweep,
+            GapBackend::Experiment,
         );
         let (reference, event) = match (reference, event) {
             (Ok(reference), Ok(event)) => (reference, event),
@@ -344,9 +344,9 @@ fn compare_clean_component(
         ConflictRepresentationBackend::CleanHoleFreePathTree,
         ChordEnumerator::GridInteriorRuns,
         CompletionBackendKind::IndexedFrontier,
-        RegionDualBackend::BoundaryLaminar,
+        RegionBackend::Experiment,
         PathTreeOrientationPolicy::BuildBothExact,
-        BoundaryGapLabelBackend::ReferenceNested,
+        GapBackend::Oracle,
     );
     let event_result = solve_with_representation_and_path_tree_options(
         component,
@@ -354,9 +354,9 @@ fn compare_clean_component(
         ConflictRepresentationBackend::CleanHoleFreePathTree,
         ChordEnumerator::GridInteriorRuns,
         CompletionBackendKind::IndexedFrontier,
-        RegionDualBackend::BoundaryLaminar,
+        RegionBackend::Experiment,
         PathTreeOrientationPolicy::BuildBothExact,
-        BoundaryGapLabelBackend::EventSweep,
+        GapBackend::Experiment,
     );
     match (reference_result, event_result) {
         (Ok(reference), Ok(event)) => {
@@ -372,9 +372,9 @@ fn compare_clean_component(
                 differences.push("final rectangles".to_owned());
             }
             if reference.diagnostics.boundary_gap_label_backend.as_deref()
-                != Some(BoundaryGapLabelBackend::ReferenceNested.name())
+                != Some(GapBackend::Oracle.name())
                 || event.diagnostics.boundary_gap_label_backend.as_deref()
-                    != Some(BoundaryGapLabelBackend::EventSweep.name())
+                    != Some(GapBackend::Experiment.name())
             {
                 differences.push("solver backend diagnostic".to_owned());
             }

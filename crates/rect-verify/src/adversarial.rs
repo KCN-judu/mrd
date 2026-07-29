@@ -815,7 +815,7 @@ mod tests {
                             certificate.clone(),
                             orientation,
                             false,
-                            rect_dominance::RegionDualBackend::BoundaryLaminar,
+                            rect_dominance::RegionBackend::Experiment,
                         )
                     else {
                         continue;
@@ -875,7 +875,7 @@ mod tests {
                         &geometry.vertical_chords,
                         certificate.clone(),
                         false,
-                        rect_dominance::RegionDualBackend::BoundaryLaminar,
+                        rect_dominance::RegionBackend::Experiment,
                         orientation,
                     )
                     .unwrap();

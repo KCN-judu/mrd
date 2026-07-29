@@ -16,9 +16,7 @@ use std::time::Instant;
 use biclique::{Error, Partition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
-pub use path_tree::{
-    BoundaryGapLabelBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionDualBackend,
-};
+pub use path_tree::{GapBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionBackend};
 use path_tree::{
     PathTreeError, build_best_path_tree_partition_with_backend, build_boundary_path_tree_partition,
     build_path_tree_partition_with_orientation_policy_and_options,
@@ -343,7 +341,7 @@ pub fn solve_polygon_with_options(
                 clean_certificate.clone(),
                 PathTreeOrientation::VerticalTreeHorizontalPaths,
                 Some(&endpoint_index),
-                BoundaryGapLabelBackend::EventSweep,
+                GapBackend::Experiment,
             )?;
             let horizontal = build_boundary_path_tree_partition(
                 boundary,
@@ -352,7 +350,7 @@ pub fn solve_polygon_with_options(
                 clean_certificate.clone(),
                 PathTreeOrientation::HorizontalTreeVerticalPaths,
                 Some(&endpoint_index),
-                BoundaryGapLabelBackend::EventSweep,
+                GapBackend::Experiment,
             )?;
             let selected = if vertical.biclique_partition.total_vertex_occurrences()
                 <= horizontal.biclique_partition.total_vertex_occurrences()
@@ -918,8 +916,8 @@ pub fn solve_with_representation<C>(
         enumerator,
         completion_backend,
         match mode {
-            VerificationMode::FullyAudited => RegionDualBackend::ReferenceAreaFloodFill,
-            VerificationMode::CompactOnly => RegionDualBackend::BoundaryLaminar,
+            VerificationMode::FullyAudited => RegionBackend::Oracle,
+            VerificationMode::CompactOnly => RegionBackend::Experiment,
         },
     )
 }
@@ -936,7 +934,7 @@ pub fn solve_with_representation_and_region_dual<C>(
     representation: ConflictRepresentationBackend,
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
+    region_dual: RegionBackend,
 ) -> Result<DissectionResult, DominanceError> {
     solve_with_representation_and_region_dual_and_orientation_policy(
         component,
@@ -961,7 +959,7 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
     representation: ConflictRepresentationBackend,
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
+    region_dual: RegionBackend,
     orientation_policy: PathTreeOrientationPolicy,
 ) -> Result<DissectionResult, DominanceError> {
     solve_with_representation_and_path_tree_options(
@@ -972,14 +970,14 @@ pub fn solve_with_representation_and_region_dual_and_orientation_policy<C>(
         completion_backend,
         region_dual,
         orientation_policy,
-        BoundaryGapLabelBackend::EventSweep,
+        GapBackend::Experiment,
     )
 }
 
 /// Solver entry point with explicit path-tree construction backends.
 ///
 /// This is primarily intended for differential verification. Existing public
-/// wrappers retain the production [`BoundaryGapLabelBackend::EventSweep`]
+/// wrappers retain the production [`GapBackend::Experiment`]
 /// default.
 ///
 /// # Errors
@@ -993,9 +991,9 @@ pub fn solve_with_representation_and_path_tree_options<C>(
     representation: ConflictRepresentationBackend,
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
+    region_dual: RegionBackend,
     orientation_policy: PathTreeOrientationPolicy,
-    gap_backend: BoundaryGapLabelBackend,
+    gap_backend: GapBackend,
 ) -> Result<DissectionResult, DominanceError> {
     match representation {
         ConflictRepresentationBackend::GeneralDominance4D => {
@@ -1072,9 +1070,9 @@ const fn default_orientation_policy(mode: VerificationMode) -> PathTreeOrientati
 struct PathTreeSolveOptions {
     mode: VerificationMode,
     completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
+    region_dual: RegionBackend,
     orientation_policy: PathTreeOrientationPolicy,
-    gap_backend: BoundaryGapLabelBackend,
+    gap_backend: GapBackend,
 }
 
 const fn ceil_log2(value: usize) -> usize {
@@ -1817,9 +1815,9 @@ fn solve_path_tree_dispatch<C>(
     mode: VerificationMode,
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
-    region_dual: RegionDualBackend,
+    region_dual: RegionBackend,
     orientation_policy: PathTreeOrientationPolicy,
-    gap_backend: BoundaryGapLabelBackend,
+    gap_backend: GapBackend,
 ) -> Result<DissectionResult, DominanceError> {
     let geometry = match enumerator {
         ChordEnumerator::ReferencePairwise => {
@@ -1898,7 +1896,7 @@ fn solve_path_tree_with_geometry<C>(
             &geometry.vertical_chords,
             certificate.clone(),
             false,
-            RegionDualBackend::BoundaryLaminar,
+            RegionBackend::Experiment,
         )?;
         boundary_partition
             .biclique_partition
@@ -2171,12 +2169,10 @@ fn solve_path_tree_with_geometry<C>(
                 compact_structure_check_called: true,
                 full_tree_path_edge_lists_materialized: mode == VerificationMode::FullyAudited,
                 per_path_bfs_called: mode == VerificationMode::FullyAudited,
-                area_flood_fill_dual_built: region_dual
-                    == RegionDualBackend::ReferenceAreaFloodFill,
-                unit_chord_cuts_materialized: region_dual
-                    == RegionDualBackend::ReferenceAreaFloodFill,
+                area_flood_fill_dual_built: region_dual == RegionBackend::Oracle,
+                unit_chord_cuts_materialized: region_dual == RegionBackend::Oracle,
                 prepared_occupancy_transposed: mode == VerificationMode::FullyAudited
-                    && region_dual == RegionDualBackend::ReferenceAreaFloodFill,
+                    && region_dual == RegionBackend::Oracle,
                 ..ExecutionTrace::default()
             },
             effective_chord_enumerator: Some("prepared-path-tree-input".to_owned()),
@@ -2245,30 +2241,26 @@ fn solve_path_tree_with_geometry<C>(
                             Vec<(path_tree::DualRegionId, rect_core::VerticalChordId)>,
                         >(),
             ),
-            dual_unit_cut_count: Some(
-                if region_dual == RegionDualBackend::ReferenceAreaFloodFill {
-                    geometry
-                        .vertical_chords
-                        .iter()
-                        .filter_map(|chord| usize::try_from(chord.top() - chord.bottom()).ok())
-                        .sum()
-                } else {
-                    0
-                },
-            ),
-            dual_area_cell_visits: Some(
-                if region_dual == RegionDualBackend::ReferenceAreaFloodFill {
-                    geometry
-                        .prepared
-                        .occupancy
-                        .iter()
-                        .filter(|&&occupied| occupied)
-                        .count()
-                } else {
-                    0
-                },
-            ),
-            dual_interval_count: Some(if region_dual == RegionDualBackend::BoundaryLaminar {
+            dual_unit_cut_count: Some(if region_dual == RegionBackend::Oracle {
+                geometry
+                    .vertical_chords
+                    .iter()
+                    .filter_map(|chord| usize::try_from(chord.top() - chord.bottom()).ok())
+                    .sum()
+            } else {
+                0
+            }),
+            dual_area_cell_visits: Some(if region_dual == RegionBackend::Oracle {
+                geometry
+                    .prepared
+                    .occupancy
+                    .iter()
+                    .filter(|&&occupied| occupied)
+                    .count()
+            } else {
+                0
+            }),
+            dual_interval_count: Some(if region_dual == RegionBackend::Experiment {
                 path_tree.path_tree.tree.edges.len()
             } else {
                 0

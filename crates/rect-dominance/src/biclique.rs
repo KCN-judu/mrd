@@ -19,6 +19,7 @@ pub struct Block {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Partition {
+    #[serde(rename = "bicliques")]
     pub blocks: Vec<Block>,
 }
 

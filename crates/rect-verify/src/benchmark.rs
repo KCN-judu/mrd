@@ -291,7 +291,7 @@ pub fn clean_boundary_differential_4x4(
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
             );
             let general = solve_with_representation_and_region_dual(
                 &component,
@@ -299,7 +299,7 @@ pub fn clean_boundary_differential_4x4(
                 ConflictRepresentationBackend::GeneralDominance4D,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
             );
             match (path, general) {
                 (Ok(path), Ok(general)) => {
@@ -418,7 +418,7 @@ fn append_orientation_audit_component<C>(
         &geometry.vertical_chords,
         certificate.clone(),
         false,
-        rect_dominance::RegionDualBackend::BoundaryLaminar,
+        rect_dominance::RegionBackend::Experiment,
         rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
     );
     let build_both_construction_microseconds = build_both_started.elapsed().as_micros();
@@ -430,7 +430,7 @@ fn append_orientation_audit_component<C>(
         &geometry.vertical_chords,
         certificate,
         false,
-        rect_dominance::RegionDualBackend::BoundaryLaminar,
+        rect_dominance::RegionBackend::Experiment,
         rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
     );
     let bound_construction_microseconds = bound_started.elapsed().as_micros();
@@ -678,7 +678,7 @@ pub fn benchmark_path_tree_dual_differential(
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
                 rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
             );
             let area = solve_with_representation_and_region_dual_and_orientation_policy(
@@ -687,7 +687,7 @@ pub fn benchmark_path_tree_dual_differential(
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::ReferenceAreaFloodFill,
+                rect_dominance::RegionBackend::Oracle,
                 rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
             );
             let q = geometry.horizontal_chords.len() + geometry.vertical_chords.len();
@@ -767,7 +767,7 @@ pub fn benchmark_auto_fallback(context: BenchmarkContext) -> BenchmarkReport {
                 ConflictRepresentationBackend::Auto,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
                 rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
             );
             rows.push(match result {
@@ -2095,7 +2095,7 @@ pub fn benchmark_path_tree_geometry_families(
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
                 rect_dominance::PathTreeOrientationPolicy::BuildBothExact,
             );
             let bound = solve_with_representation_and_region_dual_and_orientation_policy(
@@ -2104,7 +2104,7 @@ pub fn benchmark_path_tree_geometry_families(
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
                 rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
             );
             let (status, message, diagnostics) = match (build_both, bound) {
@@ -2519,7 +2519,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                 ConflictRepresentationBackend::CleanHoleFreePathTree,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
                 rect_dominance::PathTreeOrientationPolicy::BoundEstimate,
             );
             let general = solve_with_representation_and_region_dual(
@@ -2528,7 +2528,7 @@ pub fn benchmark_path_tree_vs_4d(context: BenchmarkContext, sizes: &[usize]) -> 
                 ConflictRepresentationBackend::GeneralDominance4D,
                 ChordEnumerator::GridInteriorRuns,
                 CompletionBackendKind::IndexedFrontier,
-                rect_dominance::RegionDualBackend::BoundaryLaminar,
+                rect_dominance::RegionBackend::Experiment,
             );
             let (path, general) = match (path, general) {
                 (Ok(path), Ok(general)) => (path, general),

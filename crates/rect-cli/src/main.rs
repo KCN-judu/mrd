@@ -15,7 +15,7 @@ use rect_core::{
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
     PolygonArrangementBackend, PolygonChordBackend, PolygonCompletionBackend, PolygonSolveOptions,
-    RegionDualBackend, VerificationMode, complete_formal_polygon, solve_polygon_with_options,
+    RegionBackend, VerificationMode, complete_formal_polygon, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_graph::source_an19::event::campaign::{Campaign, Family};
@@ -1699,7 +1699,7 @@ fn solve_component<C>(
                     chord_enumerator.unwrap_or(ChordEnumeratorArg::ReferencePairwise),
                 ),
                 completion_backend.unwrap_or(CompletionBackendKind::ReferenceRescan),
-                region_dual.map_or(RegionDualBackend::ReferenceAreaFloodFill, region_dual_kind),
+                region_dual.map_or(RegionBackend::Oracle, region_dual_kind),
                 path_tree_orientation.map_or(
                     PathTreeOrientationPolicy::BuildBothExact,
                     path_tree_orientation_kind,
@@ -1716,7 +1716,7 @@ fn solve_component<C>(
                     chord_enumerator.unwrap_or(ChordEnumeratorArg::GridInteriorRuns),
                 ),
                 completion_backend.unwrap_or(CompletionBackendKind::IndexedFrontier),
-                region_dual.map_or(RegionDualBackend::BoundaryLaminar, region_dual_kind),
+                region_dual.map_or(RegionBackend::Experiment, region_dual_kind),
                 path_tree_orientation.map_or(
                     PathTreeOrientationPolicy::BuildBothExact,
                     path_tree_orientation_kind,
@@ -1825,10 +1825,10 @@ const fn representation_kind(representation: RepresentationArg) -> ConflictRepre
     }
 }
 
-const fn region_dual_kind(backend: RegionDualArg) -> RegionDualBackend {
+const fn region_dual_kind(backend: RegionDualArg) -> RegionBackend {
     match backend {
-        RegionDualArg::ReferenceArea => RegionDualBackend::ReferenceAreaFloodFill,
-        RegionDualArg::BoundaryLaminar => RegionDualBackend::BoundaryLaminar,
+        RegionDualArg::ReferenceArea => RegionBackend::Oracle,
+        RegionDualArg::BoundaryLaminar => RegionBackend::Experiment,
     }
 }
 
