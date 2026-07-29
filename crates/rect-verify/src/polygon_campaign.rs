@@ -14,8 +14,7 @@ use rect_dominance::{
 };
 use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    PolygonValidationError, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
+    IndexedPolygonPairwiseEnumerator, PolygonValidationError, SoltanGorpinevichSweepEnumerator,
     VerticalCutSegment, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
     polygon_sparse, validate_polygon_dissection,
 };
@@ -1192,14 +1191,14 @@ fn compare_polygon_backends(
                 Ok(selected.into_iter().collect::<BTreeSet<_>>())
             })
             .map_err(|error| (error, None, None, None))?;
-    let reference_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+    let reference_subdivision = polygon_sparse::subdivision::Graph::with_backend(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
         polygon_sparse::subdivision::Backend::Oracle,
     )
     .map_err(|error| (error.to_string(), None, None, None))?;
-    let sweep_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+    let sweep_subdivision = polygon_sparse::subdivision::Graph::with_backend(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
@@ -1415,9 +1414,8 @@ fn solve_geometry_variants(
     String,
 > {
     let mut dense_options = sweep_options();
-    dense_options.recovery_backend = PolygonRecoveryBackend::DenseCoordinateArrangement;
-    dense_options.dissection_validator_backend =
-        PolygonDissectionValidatorBackend::DenseArrangement;
+    dense_options.recovery_backend = polygon_sparse::recovery::Backend::Oracle;
+    dense_options.dissection_validator_backend = polygon_sparse::validation::Backend::Oracle;
     let dense = solve_polygon_with_options(polygon, dense_options)
         .map_err(|error| format!("dense geometry solve failed: {error}"))?;
 
@@ -1429,7 +1427,7 @@ fn solve_geometry_variants(
         .map_err(|error| format!("reference sparse geometry solve failed: {error}"))?;
 
     let mut auto_options = sweep_options();
-    auto_options.recovery_backend = PolygonRecoveryBackend::Auto;
+    auto_options.recovery_backend = polygon_sparse::recovery::Backend::Auto;
     let auto = solve_polygon_with_options(polygon, auto_options)
         .map_err(|error| format!("auto recovery solve failed: {error}"))?;
     Ok((dense, reference_sparse, auto))
@@ -1452,8 +1450,8 @@ const fn reference_options() -> PolygonSolveOptions {
         chord_backend: PolygonChordBackend::ReferencePairwise,
         completion_backend: PolygonCompletionBackend::CoordinateReference,
         cut_index_backend: polygon_cut_index::Backend::Oracle,
-        recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
-        dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
+        recovery_backend: polygon_sparse::recovery::Backend::Oracle,
+        dissection_validator_backend: polygon_sparse::validation::Backend::Oracle,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Oracle,
         sparse_validator_backend: polygon_sparse::validator::Backend::Oracle,
         arrangement_backend: PolygonArrangementBackend::Reference,
@@ -1469,8 +1467,8 @@ const fn indexed_options() -> PolygonSolveOptions {
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
         cut_index_backend: polygon_cut_index::Backend::Experiment,
-        recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
-        dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+        recovery_backend: polygon_sparse::recovery::Backend::Experiment,
+        dissection_validator_backend: polygon_sparse::validation::Backend::Experiment,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
         sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
         arrangement_backend: PolygonArrangementBackend::Indexed,

@@ -45,7 +45,7 @@ cuts, and canonical rectangles.
 ## v1.2 sparse production path
 
 The CompactOnly default is now `polygon_cut_index::experiment::Index` plus
-`SparseOrthogonalSubdivision` plus `polygon_sparse::validator::Validator`. It preserves the
+`polygon_sparse::subdivision::Graph` plus `polygon_sparse::validator::Validator`. It preserves the
 policy above but does not build a coordinate Cartesian product.  The line-map
 cut index and `polygon_arrangement::Arrangement` are permanent dense/reference
 oracles.  See [POLYGON_COMPLETION_COORDINATE_CLOSURE.md](POLYGON_COMPLETION_COORDINATE_CLOSURE.md),

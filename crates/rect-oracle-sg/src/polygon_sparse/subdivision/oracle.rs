@@ -4,18 +4,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use rect_core::Point;
 
-use super::super::{
-    Segment, SparseSubdivisionMetrics, initial_split_coordinates, record_intersection,
-};
 use super::Backend;
+use super::graph::{Metrics, Segment, initial_split_coordinates, record_intersection};
 
-pub(super) fn split(
-    segments: &[Segment],
-) -> (
-    Vec<BTreeSet<i64>>,
-    BTreeSet<Point>,
-    SparseSubdivisionMetrics,
-) {
+pub(super) fn split(segments: &[Segment]) -> (Vec<BTreeSet<i64>>, BTreeSet<Point>, Metrics) {
     let mut split_coordinates = initial_split_coordinates(segments);
     let mut junctions = BTreeSet::new();
     let mut vertical_by_x = BTreeMap::<i64, Vec<usize>>::new();
@@ -27,12 +19,12 @@ pub(super) fn split(
             vertical_by_x.entry(segment.line()).or_default().push(id);
         }
     }
-    let mut metrics = SparseSubdivisionMetrics {
+    let mut metrics = Metrics {
         builder_backend: Backend::Oracle.name().to_owned(),
         input_segment_count: segments.len(),
         horizontal_segment_count: horizontal_ids.len(),
         vertical_segment_count: segments.len() - horizontal_ids.len(),
-        ..SparseSubdivisionMetrics::default()
+        ..Metrics::default()
     };
     for horizontal_id in horizontal_ids {
         let horizontal = segments[horizontal_id];

@@ -1,6 +1,6 @@
 # Sparse Polygon Subdivision
 
-`SparseOrthogonalSubdivision` replaces coordinate-cell recovery for the
+`polygon_sparse::subdivision::Graph` replaces coordinate-cell recovery for the
 CompactOnly polygon path.  It receives normalized boundary segments and the
 final canonical horizontal and vertical cuts, then:
 

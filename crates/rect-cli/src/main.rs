@@ -19,10 +19,7 @@ use rect_dominance::{
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
 use rect_graph::source_an19::event::campaign::{Campaign, Family};
-use rect_oracle_sg::{
-    CompletionBackendKind, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    polygon_cut_index, polygon_sparse,
-};
+use rect_oracle_sg::{CompletionBackendKind, polygon_cut_index, polygon_sparse};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -1521,8 +1518,8 @@ fn solve_command(
                     recovery_backend: polygon_recovery.map_or_else(
                         || {
                             polygon_arrangement
-                                .map_or(PolygonRecoveryBackend::SparseSubdivision, |_| {
-                                    PolygonRecoveryBackend::DenseCoordinateArrangement
+                                .map_or(polygon_sparse::recovery::Backend::Experiment, |_| {
+                                    polygon_sparse::recovery::Backend::Oracle
                                 })
                         },
                         polygon_recovery_kind,
@@ -1530,8 +1527,8 @@ fn solve_command(
                     dissection_validator_backend: polygon_dissection_validator.map_or_else(
                         || {
                             polygon_arrangement
-                                .map_or(PolygonDissectionValidatorBackend::SparseSlab, |_| {
-                                    PolygonDissectionValidatorBackend::DenseArrangement
+                                .map_or(polygon_sparse::validation::Backend::Experiment, |_| {
+                                    polygon_sparse::validation::Backend::Oracle
                                 })
                         },
                         polygon_dissection_validator_kind,
@@ -1775,22 +1772,24 @@ const fn polygon_cut_index_kind(backend: PolygonCutIndexArg) -> polygon_cut_inde
     }
 }
 
-const fn polygon_recovery_kind(backend: PolygonRecoveryArg) -> PolygonRecoveryBackend {
+const fn polygon_recovery_kind(backend: PolygonRecoveryArg) -> polygon_sparse::recovery::Backend {
     match backend {
-        PolygonRecoveryArg::DenseArrangement => PolygonRecoveryBackend::DenseCoordinateArrangement,
-        PolygonRecoveryArg::SparseSubdivision => PolygonRecoveryBackend::SparseSubdivision,
-        PolygonRecoveryArg::Auto => PolygonRecoveryBackend::Auto,
+        PolygonRecoveryArg::DenseArrangement => polygon_sparse::recovery::Backend::Oracle,
+        PolygonRecoveryArg::SparseSubdivision => polygon_sparse::recovery::Backend::Experiment,
+        PolygonRecoveryArg::Auto => polygon_sparse::recovery::Backend::Auto,
     }
 }
 
 const fn polygon_dissection_validator_kind(
     backend: PolygonDissectionValidatorArg,
-) -> PolygonDissectionValidatorBackend {
+) -> polygon_sparse::validation::Backend {
     match backend {
         PolygonDissectionValidatorArg::DenseArrangement => {
-            PolygonDissectionValidatorBackend::DenseArrangement
+            polygon_sparse::validation::Backend::Oracle
         }
-        PolygonDissectionValidatorArg::SparseSlab => PolygonDissectionValidatorBackend::SparseSlab,
+        PolygonDissectionValidatorArg::SparseSlab => {
+            polygon_sparse::validation::Backend::Experiment
+        }
     }
 }
 

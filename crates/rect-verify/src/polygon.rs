@@ -14,8 +14,7 @@ use rect_dominance::{
 use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonDissectionValidatorBackend,
-    PolygonRecoveryBackend, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
+    PolygonChordEnumerationMetrics, PolygonCompletionResult, SoltanGorpinevichSweepEnumerator,
     SweepCertificate, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
     polygon_sparse, validate_polygon_dissection,
 };
@@ -208,8 +207,8 @@ pub fn verify_polygon(
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
         cut_index_backend: polygon_cut_index::Backend::Experiment,
-        recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
-        dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+        recovery_backend: polygon_sparse::recovery::Backend::Experiment,
+        dissection_validator_backend: polygon_sparse::validation::Backend::Experiment,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
         sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
         arrangement_backend: PolygonArrangementBackend::Indexed,
@@ -290,8 +289,8 @@ pub fn verify_polygon(
             &selected_horizontal,
             &selected_vertical,
             polygon_cut_index::Backend::Oracle,
-            PolygonRecoveryBackend::DenseCoordinateArrangement,
-            PolygonDissectionValidatorBackend::DenseArrangement,
+            polygon_sparse::recovery::Backend::Oracle,
+            polygon_sparse::validation::Backend::Oracle,
         )
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "line-map-dense",
@@ -305,8 +304,8 @@ pub fn verify_polygon(
             &selected_horizontal,
             &selected_vertical,
             polygon_cut_index::Backend::Experiment,
-            PolygonRecoveryBackend::DenseCoordinateArrangement,
-            PolygonDissectionValidatorBackend::DenseArrangement,
+            polygon_sparse::recovery::Backend::Oracle,
+            polygon_sparse::validation::Backend::Oracle,
         )
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "dynamic-dense",
@@ -320,8 +319,8 @@ pub fn verify_polygon(
             &selected_horizontal,
             &selected_vertical,
             polygon_cut_index::Backend::Experiment,
-            PolygonRecoveryBackend::SparseSubdivision,
-            PolygonDissectionValidatorBackend::SparseSlab,
+            polygon_sparse::recovery::Backend::Experiment,
+            polygon_sparse::validation::Backend::Experiment,
         )
         .map_err(|error| PolygonVerificationError::Backend {
             backend: "indexed-frontier",
@@ -345,7 +344,7 @@ pub fn verify_polygon(
                 backend: "indexed-arrangement",
                 message: error.to_string(),
             })?;
-    let reference_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+    let reference_subdivision = polygon_sparse::subdivision::Graph::with_backend(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
@@ -355,7 +354,7 @@ pub fn verify_polygon(
         backend: "reference-range-scan-subdivision",
         message: error.to_string(),
     })?;
-    let sweep_subdivision = SparseOrthogonalSubdivision::new_with_backend(
+    let sweep_subdivision = polygon_sparse::subdivision::Graph::with_backend(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,

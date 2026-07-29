@@ -4,10 +4,8 @@ use std::collections::BTreeSet;
 
 use rect_core::Point;
 
-use super::super::{
-    Segment, SparseSubdivisionMetrics, initial_split_coordinates, record_intersection,
-};
 use super::Backend;
+use super::graph::{Metrics, Segment, initial_split_coordinates, record_intersection};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum EventKind {
@@ -16,13 +14,7 @@ enum EventKind {
     HorizontalEnd,
 }
 
-pub(super) fn split(
-    segments: &[Segment],
-) -> (
-    Vec<BTreeSet<i64>>,
-    BTreeSet<Point>,
-    SparseSubdivisionMetrics,
-) {
+pub(super) fn split(segments: &[Segment]) -> (Vec<BTreeSet<i64>>, BTreeSet<Point>, Metrics) {
     let mut split_coordinates = initial_split_coordinates(segments);
     let mut junctions = BTreeSet::new();
     let mut events = Vec::with_capacity(segments.len().saturating_mul(2));
@@ -38,13 +30,13 @@ pub(super) fn split(
     }
     events.sort_unstable();
     let mut active = BTreeSet::<(i64, usize)>::new();
-    let mut metrics = SparseSubdivisionMetrics {
+    let mut metrics = Metrics {
         builder_backend: Backend::Experiment.name().to_owned(),
         input_segment_count: segments.len(),
         horizontal_segment_count: horizontal_count,
         vertical_segment_count: segments.len() - horizontal_count,
         sweep_event_count: events.len(),
-        ..SparseSubdivisionMetrics::default()
+        ..Metrics::default()
     };
     for (x, kind, id) in events {
         let segment = segments[id];

@@ -32,11 +32,11 @@ use rect_oracle_sg::{
     CompletionBackendKind, CompletionMetrics, CoordinateCompressedCompletion,
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
     GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
-    IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    PolygonSgError, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, audit_sweep_provenance,
-    classify_clean_polygon, complete_with_prepared_backend, polygon_arrangement, polygon_cut_index,
-    polygon_sparse, validate_polygon_dissection_count,
+    IndexedPolygonPairwiseEnumerator, PolygonSgError, ReferencePairwiseEnumerator,
+    ReferenceRescanCompletion, SgError, SoltanGorpinevichSweepEnumerator,
+    analyze_prepared_geometry, audit_sweep_provenance, classify_clean_polygon,
+    complete_with_prepared_backend, polygon_arrangement, polygon_cut_index, polygon_sparse,
+    validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -167,8 +167,8 @@ pub struct PolygonSolveOptions {
     pub chord_backend: PolygonChordBackend,
     pub completion_backend: PolygonCompletionBackend,
     pub cut_index_backend: polygon_cut_index::Backend,
-    pub recovery_backend: PolygonRecoveryBackend,
-    pub dissection_validator_backend: PolygonDissectionValidatorBackend,
+    pub recovery_backend: polygon_sparse::recovery::Backend,
+    pub dissection_validator_backend: polygon_sparse::validation::Backend,
     pub subdivision_builder_backend: polygon_sparse::subdivision::Backend,
     pub sparse_validator_backend: polygon_sparse::validator::Backend,
     /// Legacy dense/reference arrangement selector retained for old callers.
@@ -185,8 +185,8 @@ impl Default for PolygonSolveOptions {
             chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
             completion_backend: PolygonCompletionBackend::IndexedFrontier,
             cut_index_backend: polygon_cut_index::Backend::Experiment,
-            recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
-            dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
+            recovery_backend: polygon_sparse::recovery::Backend::Experiment,
+            dissection_validator_backend: polygon_sparse::validation::Backend::Experiment,
             subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
             sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
             arrangement_backend: PolygonArrangementBackend::Indexed,
@@ -523,8 +523,7 @@ pub fn solve_polygon_with_options(
     let dense_arrangement_used = options.verification_mode == VerificationMode::FullyAudited
         || options.completion_backend == PolygonCompletionBackend::CoordinateReference
         || completion.metrics.selected_recovery_backend == "dense-arrangement"
-        || options.dissection_validator_backend
-            == PolygonDissectionValidatorBackend::DenseArrangement;
+        || options.dissection_validator_backend == polygon_sparse::validation::Backend::Oracle;
     Ok(PolygonDissectionResult {
         optimum_rectangle_count,
         rectangles: completion.rectangles,

@@ -5,10 +5,14 @@ use std::collections::BTreeSet;
 use rect_core::Point;
 use serde::{Deserialize, Serialize};
 
-use super::{Segment, SparseSubdivisionMetrics};
-
 pub mod experiment;
+mod graph;
 pub mod oracle;
+
+use graph::Segment;
+pub use graph::{
+    AtomicSegment, Face, FaceId, Graph, HalfEdge, HalfEdgeId, Metrics, Vertex, VertexId,
+};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Backend {
@@ -31,14 +35,7 @@ impl Backend {
     }
 }
 
-pub(super) fn split(
-    backend: Backend,
-    segments: &[Segment],
-) -> (
-    Vec<BTreeSet<i64>>,
-    BTreeSet<Point>,
-    SparseSubdivisionMetrics,
-) {
+fn split(backend: Backend, segments: &[Segment]) -> (Vec<BTreeSet<i64>>, BTreeSet<Point>, Metrics) {
     match backend {
         Backend::Oracle => oracle::split(segments),
         Backend::Experiment => experiment::split(segments),
