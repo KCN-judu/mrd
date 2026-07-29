@@ -10,6 +10,7 @@ MODULES = {
     "root": ROOT / "crates/graph/src/source_flow.rs",
     "recovery": ROOT / "crates/graph/src/source_flow/recovery.rs",
     "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
+    "compressed": ROOT / "crates/dominance/src/compressed_flow/experiment/source.rs",
 }
 REQUIRED = {
     "root": (
@@ -31,12 +32,18 @@ REQUIRED = {
         "pub fn apply",
         "IpmDetectLedger",
     ),
+    "compressed": (
+        "pub struct Circulation",
+        "pub fn recover_certified",
+        "verify_feasible_solution",
+    ),
 }
 FORBIDDEN = (
     "Dinic",
     "PushRelabel",
     "FlowBackendKind",
     "min_cost::oracle",
+    "min_cost::experiment",
     "round_fractional_costed",
     "recover_additive_half",
     "recover_isolation_perturbed",

@@ -3,6 +3,8 @@ use graph::{FlowNetwork, FlowNodeId, MaxFlowBackend, VertexCover};
 use super::{Error, Solution};
 use crate::biclique::Partition;
 
+pub mod source;
+
 /// Runs an exact flow on the biclique-compressed network and recovers a cover.
 ///
 /// Outer arcs have unit capacity. Internal arcs use
