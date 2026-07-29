@@ -32,13 +32,20 @@ arc occurrences into a complete exact direction vector and revalidates its
 circulation. This binds compact source-tree semantics to the P9.5 step input
 without selecting a candidate or using an enumerating cycle implementation.
 
-P9.5 remains open. Source candidate selection, lower-bound and augmentation
-recovery integration, MRD compressed-network differential evidence, and an
-end-to-end no-fallback audit are still absent. `Backend::require_complete()`
-therefore continues to reject execution and `an19_runtime_verified` remains
-false. P9.3.2d's missing AN19 proof is a separate low-priority debt: it does
-not block these semantic integration tasks, but must be closed in P9.6a before
-an `AlmostLinear` name or AN19 runtime claim.
+Commit `8d7975b` adds source-flow terminal recovery through both initial-point
+augmentation and lower-bound normalization. It first recovers the augmented
+integral circulation, rejects any surviving artificial arc, restores the
+normalized network, then restores original lower bounds and objective offset.
+The focused lower-bound fixture includes a fixed edge, a negative lower bound,
+and artificial root arcs; all are checked without a reference recovery path.
+
+P9.5 remains open. Source candidate selection, MRD compressed-network
+differential evidence, and an end-to-end no-fallback audit are still absent.
+`Backend::require_complete()` therefore continues to reject execution and
+`an19_runtime_verified` remains false. P9.3.2d's missing AN19 proof is a
+separate low-priority debt: it does not block these semantic integration tasks,
+but must be closed in P9.6a before an `AlmostLinear` name or AN19 runtime
+claim.
 
 ## Incremental audit
 
@@ -46,4 +53,4 @@ an `AlmostLinear` name or AN19 runtime claim.
 | --- | ---: | --- |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
-| `cargo test -p graph source_flow` | 0 | 6 focused tests passed, including compact-cycle direction conversion |
+| `cargo test -p graph source_flow` | 0 | 8 focused tests passed, including augmented and lower-bound recovery |
