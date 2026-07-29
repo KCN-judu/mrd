@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::mem::size_of;
 use std::time::Instant;
 
-use biclique::{BicliqueError, BicliquePartition};
+use biclique::{Error, Partition};
 use compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use embedding::{DominanceEmbedding, EmbeddingError};
 pub use path_tree::{
@@ -312,12 +312,8 @@ pub fn solve_polygon_with_options(
     let geometry_at = Instant::now();
     let embedding = DominanceEmbedding::new(&families.horizontal, &families.vertical)?;
     let four_d_construction = match options.verification_mode {
-        VerificationMode::FullyAudited => {
-            BicliquePartition::comparability_theorem_8_audited(&embedding)?
-        }
-        VerificationMode::CompactOnly => {
-            BicliquePartition::comparability_theorem_8_presorted(&embedding)?
-        }
+        VerificationMode::FullyAudited => Partition::comparability_theorem_8_audited(&embedding)?,
+        VerificationMode::CompactOnly => biclique::experiment::construct(&embedding)?,
     };
     let four_d_partition = four_d_construction.partition;
     four_d_partition.verify_dominance_blocks(&embedding)?;
@@ -787,7 +783,7 @@ pub fn solve_polygon_with_options(
             vertical_chord_count: families.vertical.len(),
             total_chord_count,
             explicit_conflict_edge_count: None,
-            biclique_count: selected_partition.bicliques.len(),
+            biclique_count: selected_partition.blocks.len(),
             biclique_total_vertex_occurrences: selected_partition.total_vertex_occurrences(),
             compressed_network_vertex_count: selected_flow.network_vertex_count,
             compressed_network_arc_count: selected_flow.network_arc_count,
@@ -1266,10 +1262,8 @@ fn solve_fully_audited_with_backend<C, E: EffectiveChordEnumerator, B: MaxFlowBa
     let embedding_at = Instant::now();
 
     let partition = match mode {
-        DominanceMode::ExplicitEdges => BicliquePartition::from_explicit_edges(&dominance_graph),
-        DominanceMode::Compact => {
-            BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition
-        }
+        DominanceMode::ExplicitEdges => Partition::from_explicit_edges(&dominance_graph),
+        DominanceMode::Compact => Partition::comparability_theorem_8_audited(&embedding)?.partition,
     };
     partition.verify_exact_partition(&dominance_graph)?;
     let biclique_certificate = partition.certificate(&dominance_graph);
@@ -1370,7 +1364,7 @@ fn solve_fully_audited_with_backend<C, E: EffectiveChordEnumerator, B: MaxFlowBa
                 explicit_edge_count as u128,
                 (horizontal_count as u128) * (vertical_count as u128),
             ),
-            biclique_count: partition.bicliques.len(),
+            biclique_count: partition.blocks.len(),
             biclique_total_vertex_occurrences: biclique_total_size,
             biclique_size_per_chord: ExactRatio::new(
                 biclique_total_size as u128,
@@ -1504,7 +1498,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     let embedding =
         DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
     let embedding_at = Instant::now();
-    let partition = BicliquePartition::comparability_theorem_8_presorted(&embedding)?.partition;
+    let partition = biclique::experiment::construct(&embedding)?.partition;
     partition.verify_dominance_blocks(&embedding)?;
     let bicliques_at = Instant::now();
     let flow_solution = solve_biclique_flow(
@@ -1594,7 +1588,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     );
     owned_allocation_estimates.insert(
         "biclique_vectors".to_owned(),
-        partition.bicliques.len() * size_of::<biclique::Biclique>()
+        partition.blocks.len() * size_of::<biclique::Block>()
             + biclique_total_size * size_of::<usize>(),
     );
     owned_allocation_estimates.insert(
@@ -1604,7 +1598,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     owned_allocation_estimates.insert(
         "certificate_payload".to_owned(),
         total_chord_count * size_of::<embedding::DominancePoint>()
-            + partition.bicliques.len() * size_of::<biclique::Biclique>()
+            + partition.blocks.len() * size_of::<biclique::Block>()
             + biclique_total_size * size_of::<usize>()
             + (flow_solution.flow.source_side.len()
                 + flow_solution.vertex_cover.left.len()
@@ -1674,7 +1668,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
             total_chord_count,
             explicit_conflict_edge_count: None,
             conflict_edge_density: None,
-            biclique_count: partition.bicliques.len(),
+            biclique_count: partition.blocks.len(),
             biclique_total_vertex_occurrences: biclique_total_size,
             biclique_size_per_chord: ExactRatio::new(
                 biclique_total_size as u128,
@@ -1920,7 +1914,7 @@ fn solve_path_tree_with_geometry<C>(
             DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
         embedding
             .assert_pairwise_equivalence(&geometry.horizontal_chords, &geometry.vertical_chords)?;
-        let four_d = BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition;
+        let four_d = Partition::comparability_theorem_8_audited(&embedding)?.partition;
         four_d.verify_exact_partition(&graph)?;
         four_d_sigma = Some(four_d.total_vertex_occurrences());
         audited_matching_size = Some(hopcroft_karp(&graph).size);
@@ -2037,14 +2031,14 @@ fn solve_path_tree_with_geometry<C>(
         if path_tree.orientation == path_tree::PathTreeOrientation::VerticalTreeHorizontalPaths {
             path_tree
                 .biclique_partition
-                .bicliques
+                .blocks
                 .iter()
                 .map(|biclique| biclique.right.len())
                 .sum()
         } else {
             path_tree
                 .biclique_partition
-                .bicliques
+                .blocks
                 .iter()
                 .map(|biclique| biclique.left.len())
                 .sum()
@@ -2116,11 +2110,11 @@ fn solve_path_tree_with_geometry<C>(
     );
     owned_allocation_estimates.insert(
         "canonical_segment_nodes".to_owned(),
-        path_tree.canonical_segment_node_count * size_of::<biclique::Biclique>(),
+        path_tree.canonical_segment_node_count * size_of::<biclique::Block>(),
     );
     owned_allocation_estimates.insert(
         "biclique_vectors".to_owned(),
-        path_tree.biclique_partition.bicliques.len() * size_of::<biclique::Biclique>()
+        path_tree.biclique_partition.blocks.len() * size_of::<biclique::Block>()
             + sigma * size_of::<usize>(),
     );
     owned_allocation_estimates.insert(
@@ -2145,7 +2139,7 @@ fn solve_path_tree_with_geometry<C>(
             vertical_chord_count: geometry.vertical_chords.len(),
             total_chord_count,
             explicit_conflict_edge_count: audited_edge_count,
-            biclique_count: path_tree.biclique_partition.bicliques.len(),
+            biclique_count: path_tree.biclique_partition.blocks.len(),
             biclique_total_vertex_occurrences: sigma,
             biclique_size_per_chord: ExactRatio::new(sigma as u128, total_chord_count as u128),
             compressed_network_vertex_count: flow_solution.network_vertex_count,
@@ -2348,7 +2342,7 @@ pub enum DominanceError {
     #[error(transparent)]
     Embedding(#[from] EmbeddingError),
     #[error(transparent)]
-    Biclique(#[from] BicliqueError),
+    Block(#[from] Error),
     #[error(transparent)]
     CompressedFlow(#[from] CompressedFlowError),
     #[error(transparent)]

@@ -4,7 +4,7 @@ use rect_graph::{
 };
 use thiserror::Error;
 
-use crate::biclique::BicliquePartition;
+use crate::biclique::Partition;
 
 #[derive(Clone, Debug)]
 pub struct CompressedFlowSolution {
@@ -33,7 +33,7 @@ pub struct CompressedFlowParity {
 /// a matching/flow/cover cardinality disagrees.
 pub fn audit_biclique_flow_parity(
     graph: &BipartiteGraph,
-    partition: &BicliquePartition,
+    partition: &Partition,
 ) -> Result<CompressedFlowParity, CompressedFlowError> {
     partition
         .verify_exact_partition(graph)
@@ -85,14 +85,14 @@ pub fn audit_biclique_flow_parity(
 pub fn solve_biclique_flow(
     horizontal_count: usize,
     vertical_count: usize,
-    partition: &BicliquePartition,
+    partition: &Partition,
     backend: &impl MaxFlowBackend,
 ) -> Result<CompressedFlowSolution, CompressedFlowError> {
     let layout = build_network(horizontal_count, vertical_count, partition)?;
     let flow = backend.max_flow_min_cut(&layout.network, layout.source, layout.sink)?;
 
     let mut internal_cut_arc_count = 0;
-    for (biclique_index, biclique) in partition.bicliques.iter().enumerate() {
+    for (biclique_index, biclique) in partition.blocks.iter().enumerate() {
         let biclique_node = layout.biclique_nodes[biclique_index];
         for &left in &biclique.left {
             if flow.source_side[layout.horizontal_nodes[left].0]
@@ -158,22 +158,22 @@ struct NetworkLayout {
 fn build_network(
     horizontal_count: usize,
     vertical_count: usize,
-    partition: &BicliquePartition,
+    partition: &Partition,
 ) -> Result<NetworkLayout, CompressedFlowError> {
     let node_count = 2_usize
         .checked_add(horizontal_count)
-        .and_then(|value| value.checked_add(partition.bicliques.len()))
+        .and_then(|value| value.checked_add(partition.blocks.len()))
         .and_then(|value| value.checked_add(vertical_count))
         .ok_or(CompressedFlowError::NetworkSizeOverflow)?;
     let source = FlowNodeId(0);
     let horizontal_start = 1;
     let biclique_start = horizontal_start + horizontal_count;
-    let vertical_start = biclique_start + partition.bicliques.len();
+    let vertical_start = biclique_start + partition.blocks.len();
     let sink = FlowNodeId(node_count - 1);
     let horizontal_nodes = (0..horizontal_count)
         .map(|index| FlowNodeId(horizontal_start + index))
         .collect::<Vec<_>>();
-    let biclique_nodes = (0..partition.bicliques.len())
+    let biclique_nodes = (0..partition.blocks.len())
         .map(|index| FlowNodeId(biclique_start + index))
         .collect::<Vec<_>>();
     let vertical_nodes = (0..vertical_count)
@@ -188,7 +188,7 @@ fn build_network(
     for &node in &horizontal_nodes {
         network.add_arc(source, node, 1)?;
     }
-    for (index, biclique) in partition.bicliques.iter().enumerate() {
+    for (index, biclique) in partition.blocks.iter().enumerate() {
         let biclique_node = biclique_nodes[index];
         for &left in &biclique.left {
             let node = *horizontal_nodes
@@ -243,7 +243,7 @@ pub enum CompressedFlowError {
 mod tests {
     use rect_graph::{BipartiteGraph, DinicBackend, PushRelabelBackend, hopcroft_karp};
 
-    use crate::biclique::BicliquePartition;
+    use crate::biclique::Partition;
 
     use super::{audit_biclique_flow_parity, solve_biclique_flow};
 
@@ -253,7 +253,7 @@ mod tests {
         for (left, right) in [(0, 0), (0, 1), (1, 1), (2, 1), (2, 2)] {
             graph.add_edge(left, right).unwrap();
         }
-        let partition = BicliquePartition::from_explicit_edges(&graph);
+        let partition = Partition::from_explicit_edges(&graph);
         let flow = solve_biclique_flow(3, 3, &partition, &DinicBackend).unwrap();
         let value = usize::try_from(flow.flow.value).unwrap();
         assert_eq!(value, hopcroft_karp(&graph).size);
@@ -275,7 +275,7 @@ mod tests {
         for (left, right) in [(0, 0), (0, 2), (1, 1), (1, 2), (2, 1), (2, 3), (3, 0)] {
             graph.add_edge(left, right).unwrap();
         }
-        let partition = BicliquePartition::from_explicit_edges(&graph);
+        let partition = Partition::from_explicit_edges(&graph);
         let dinic = solve_biclique_flow(4, 4, &partition, &DinicBackend).unwrap();
         let push_relabel = solve_biclique_flow(4, 4, &partition, &PushRelabelBackend).unwrap();
         assert_eq!(push_relabel.flow.value, dinic.flow.value);
@@ -292,7 +292,7 @@ mod tests {
                     graph.add_edge(*left, *right).unwrap();
                 }
             }
-            let partition = BicliquePartition::from_explicit_edges(&graph);
+            let partition = Partition::from_explicit_edges(&graph);
             let parity = audit_biclique_flow_parity(&graph, &partition).unwrap();
             assert_eq!(parity.matching_size, hopcroft_karp(&graph).size);
         }

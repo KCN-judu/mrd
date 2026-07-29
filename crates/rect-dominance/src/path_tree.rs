@@ -20,7 +20,7 @@ use rect_oracle_sg::{CleanHoleFreeCertificate, EffectiveChordEndpointIndex};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::biclique::{Biclique, BicliquePartition};
+use crate::biclique::{Block, Partition};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct DualRegionId(pub usize);
@@ -102,7 +102,7 @@ pub struct PathTreePartition {
     #[serde(default)]
     pub compact_paths: Vec<CompactTreePath>,
     pub hld: HeavyLightDecomposition,
-    pub biclique_partition: BicliquePartition,
+    pub biclique_partition: Partition,
     pub total_path_edge_incidences: usize,
     pub canonical_segment_node_count: usize,
 }
@@ -155,7 +155,7 @@ impl PathTreeOrientationPolicy {
 pub struct OrientedPathTreePartition {
     pub orientation: PathTreeOrientation,
     pub path_tree: PathTreePartition,
-    pub biclique_partition: BicliquePartition,
+    pub biclique_partition: Partition,
     pub total_path_edge_incidences: usize,
     pub canonical_segment_node_count: usize,
     pub dual_region_count: usize,
@@ -1515,7 +1515,7 @@ fn build_partition_from_compact_paths(
             .map(|edge| edge.0)
             .collect::<Vec<_>>();
         if !left.is_empty() && !right.is_empty() {
-            bicliques.push(Biclique {
+            bicliques.push(Block {
                 id: rect_core::BicliqueId(bicliques.len()),
                 left,
                 right,
@@ -1530,7 +1530,7 @@ fn build_partition_from_compact_paths(
         hld,
         canonical_segment_node_count: bicliques.len(),
         total_path_edge_incidences,
-        biclique_partition: BicliquePartition { bicliques },
+        biclique_partition: Partition { blocks: bicliques },
     })
 }
 
@@ -1556,15 +1556,15 @@ fn build_horizontal_axis_view_partition_with_options(
     };
     let mut partition =
         build_partition_from_compact_paths(certificate, tree, compact_paths, Vec::new())?;
-    let bicliques = std::mem::take(&mut partition.biclique_partition.bicliques)
+    let bicliques = std::mem::take(&mut partition.biclique_partition.blocks)
         .into_iter()
-        .map(|biclique| Biclique {
+        .map(|biclique| Block {
             id: biclique.id,
             left: biclique.right,
             right: biclique.left,
         })
         .collect();
-    let biclique_partition = BicliquePartition { bicliques };
+    let biclique_partition = Partition { blocks: bicliques };
     partition.biclique_partition = biclique_partition.clone();
     Ok(OrientedPathTreePartition {
         orientation: PathTreeOrientation::HorizontalTreeVerticalPaths,
@@ -1835,15 +1835,15 @@ pub fn build_oriented_path_tree_partition_with_backend_and_options(
                 )?
             };
             let mut transposed = transposed;
-            let bicliques = std::mem::take(&mut transposed.biclique_partition.bicliques)
+            let bicliques = std::mem::take(&mut transposed.biclique_partition.blocks)
                 .into_iter()
-                .map(|biclique| Biclique {
+                .map(|biclique| Block {
                     id: biclique.id,
                     left: biclique.right,
                     right: biclique.left,
                 })
                 .collect();
-            let biclique_partition = BicliquePartition { bicliques };
+            let biclique_partition = Partition { blocks: bicliques };
             transposed.biclique_partition = biclique_partition.clone();
             Ok(OrientedPathTreePartition {
                 orientation,
@@ -2121,7 +2121,7 @@ impl PathTreePartition {
             })
             .collect::<BTreeSet<_>>();
         let mut multiplicities = BTreeMap::<(usize, usize), usize>::new();
-        for biclique in &self.biclique_partition.bicliques {
+        for biclique in &self.biclique_partition.blocks {
             for &left in &biclique.left {
                 for &right in &biclique.right {
                     *multiplicities.entry((left, right)).or_default() += 1;
@@ -2542,9 +2542,9 @@ mod tests {
                     RegionDualBackend::ReferenceAreaFloodFill,
                 )
                 .unwrap();
-                let normalize = |partition: &super::BicliquePartition| {
+                let normalize = |partition: &super::Partition| {
                     let mut rows = partition
-                        .bicliques
+                        .blocks
                         .iter()
                         .map(|biclique| (biclique.left.clone(), biclique.right.clone()))
                         .collect::<Vec<_>>();

@@ -45,7 +45,7 @@ pub struct PathTreeWitness {
     pub dual_tree: rect_dominance::path_tree::RegionDualTree,
     pub compact_paths: Vec<rect_dominance::path_tree::CompactTreePath>,
     pub hld: rect_dominance::path_tree::HeavyLightDecomposition,
-    pub biclique_partition: rect_dominance::biclique::BicliquePartition,
+    pub biclique_partition: rect_dominance::biclique::Partition,
     pub diagnostics: BTreeMap<String, usize>,
 }
 

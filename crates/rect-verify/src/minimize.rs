@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use rect_core::{ColorGrid, Diagnostics, DissectionResult, SvgOverlay, render_dissection_svg};
 use rect_dominance::{
-    DominanceMode, VerificationMode, biclique::BicliquePartition, embedding::DominanceEmbedding,
+    DominanceMode, VerificationMode, biclique::Partition, embedding::DominanceEmbedding,
 };
 use serde_json::{Value, json};
 use thiserror::Error;
@@ -114,7 +114,7 @@ fn collect_biclique_audits(fixture: &GridFixture) -> Result<Value, MinimizeError
             let graph = embedding
                 .explicit_graph()
                 .map_err(|error| error.to_string())?;
-            let partition = BicliquePartition::comparability_theorem_8_audited(&embedding)
+            let partition = Partition::comparability_theorem_8_audited(&embedding)
                 .map_err(|error| error.to_string())?
                 .partition;
             Ok::<Value, String>(json!(partition.audit(&graph, 256)))

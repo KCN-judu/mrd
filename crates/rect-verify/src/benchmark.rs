@@ -6,7 +6,7 @@ use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
 use rect_dominance::compressed_flow::solve_biclique_flow;
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
-    biclique::{BicliqueConstructionMetrics, BicliquePartition},
+    biclique::{Metrics, experiment, oracle},
     embedding::DominanceEmbedding,
     solve_with_representation_and_region_dual,
     solve_with_representation_and_region_dual_and_orientation_policy,
@@ -1033,7 +1033,7 @@ pub struct BenchmarkReport {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BicliqueConstructionBenchmarkRow {
+pub struct ConstructionBenchmarkRow {
     pub instance_name: String,
     pub family: String,
     pub parameters: BTreeMap<String, usize>,
@@ -1044,8 +1044,8 @@ pub struct BicliqueConstructionBenchmarkRow {
     pub total_vertex_occurrences: Option<usize>,
     pub reference_microseconds: Option<u128>,
     pub presorted_microseconds: Option<u128>,
-    pub reference_metrics: Option<BicliqueConstructionMetrics>,
-    pub presorted_metrics: Option<BicliqueConstructionMetrics>,
+    pub reference_metrics: Option<Metrics>,
+    pub presorted_metrics: Option<Metrics>,
     pub dinic_flow_microseconds: Option<u128>,
     pub push_relabel_flow_microseconds: Option<u128>,
     pub dinic_flow_value: Option<u64>,
@@ -1055,15 +1055,15 @@ pub struct BicliqueConstructionBenchmarkRow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BicliqueConstructionBenchmarkReport {
+pub struct ConstructionBenchmarkReport {
     pub metadata: BenchmarkMetadata,
     pub verified_count: usize,
     pub solver_error_count: usize,
     pub counterexample_count: usize,
-    pub rows: Vec<BicliqueConstructionBenchmarkRow>,
+    pub rows: Vec<ConstructionBenchmarkRow>,
 }
 
-impl BicliqueConstructionBenchmarkReport {
+impl ConstructionBenchmarkReport {
     #[must_use]
     pub fn verified(&self) -> bool {
         self.solver_error_count == 0 && self.counterexample_count == 0
@@ -1384,7 +1384,7 @@ pub fn benchmark_adversarial(context: BenchmarkContext) -> BenchmarkReport {
 pub fn benchmark_biclique_construction(
     context: BenchmarkContext,
     sizes: &[usize],
-) -> BicliqueConstructionBenchmarkReport {
+) -> ConstructionBenchmarkReport {
     let command = context.command.split_once(" benchmark").map_or_else(
         || context.command.clone(),
         |(_, suffix)| format!("rect-cli benchmark{suffix}"),
@@ -1399,7 +1399,7 @@ pub fn benchmark_biclique_construction(
         let components = match instance.foreground_components() {
             Ok(components) => components,
             Err(error) => {
-                rows.push(BicliqueConstructionBenchmarkRow {
+                rows.push(ConstructionBenchmarkRow {
                     instance_name: instance.name,
                     family: instance.family,
                     parameters: instance.parameters,
@@ -1432,7 +1432,7 @@ pub fn benchmark_biclique_construction(
             rows.push(row);
         }
     }
-    BicliqueConstructionBenchmarkReport {
+    ConstructionBenchmarkReport {
         metadata: BenchmarkMetadata {
             git_commit: context.git_commit,
             rustc_version: context.rustc_version,
@@ -1463,8 +1463,8 @@ fn benchmark_biclique_component<C>(
     family: &str,
     parameters: &BTreeMap<String, usize>,
     component: &GridComponent<C>,
-) -> BicliqueConstructionBenchmarkRow {
-    let mut row = BicliqueConstructionBenchmarkRow {
+) -> ConstructionBenchmarkRow {
+    let mut row = ConstructionBenchmarkRow {
         instance_name: instance_name.to_owned(),
         family: family.to_owned(),
         parameters: parameters.clone(),
@@ -1502,7 +1502,7 @@ fn benchmark_biclique_component<C>(
             }
         };
     let reference_started = Instant::now();
-    let reference = match BicliquePartition::comparability_theorem_8_reference(&embedding) {
+    let reference = match oracle::construct(&embedding) {
         Ok(construction) => construction,
         Err(error) => {
             row.message = Some(error.to_string());
@@ -1511,7 +1511,7 @@ fn benchmark_biclique_component<C>(
     };
     row.reference_microseconds = Some(reference_started.elapsed().as_micros());
     let presorted_started = Instant::now();
-    let presorted = match BicliquePartition::comparability_theorem_8_presorted(&embedding) {
+    let presorted = match experiment::construct(&embedding) {
         Ok(construction) => construction,
         Err(error) => {
             row.message = Some(error.to_string());
@@ -1519,7 +1519,7 @@ fn benchmark_biclique_component<C>(
         }
     };
     row.presorted_microseconds = Some(presorted_started.elapsed().as_micros());
-    row.block_count = Some(presorted.partition.bicliques.len());
+    row.block_count = Some(presorted.partition.blocks.len());
     row.total_vertex_occurrences = Some(presorted.partition.total_vertex_occurrences());
     row.reference_metrics = Some(reference.metrics.clone());
     row.presorted_metrics = Some(presorted.metrics.clone());

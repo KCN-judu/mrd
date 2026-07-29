@@ -8,7 +8,7 @@ use rect_graph::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::biclique::{BicliqueError, BicliquePartition};
+use crate::biclique::{Error, Partition};
 use crate::compressed_flow::{CompressedFlowError, solve_biclique_flow};
 use crate::embedding::{DominanceEmbedding, EmbeddingError};
 use rect_oracle_sg::{PolygonCompletionResult, PolygonSgError};
@@ -193,15 +193,14 @@ fn solve_conflict_oracles(
     let matching = hopcroft_karp(&graph);
     let vertex_cover = minimum_vertex_cover(&graph, &matching);
 
-    let explicit_partition = BicliquePartition::from_explicit_edges(&graph);
+    let explicit_partition = Partition::from_explicit_edges(&graph);
     let explicit_flow = solve_biclique_flow(
         families.horizontal.len(),
         families.vertical.len(),
         &explicit_partition,
         &DinicBackend,
     )?;
-    let compact_partition =
-        BicliquePartition::comparability_theorem_8_audited(&embedding)?.partition;
+    let compact_partition = Partition::comparability_theorem_8_audited(&embedding)?.partition;
     compact_partition.verify_exact_partition(&graph)?;
     compact_partition.verify_dominance_blocks(&embedding)?;
     let compact_flow = solve_biclique_flow(
@@ -444,7 +443,7 @@ pub enum FormalAdmissibleError {
     #[error(transparent)]
     Embedding(#[from] EmbeddingError),
     #[error(transparent)]
-    Biclique(#[from] BicliqueError),
+    Block(#[from] Error),
     #[error(transparent)]
     CompressedFlow(#[from] CompressedFlowError),
     #[error(transparent)]

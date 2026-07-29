@@ -349,7 +349,7 @@ enum SparseValidatorArg {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum BenchmarkSuiteArg {
     Adversarial,
-    BicliqueConstruction,
+    Construction,
     CleanCensus,
     CleanBoundaryDifferential,
     CleanCompleteBipartite,
@@ -1095,7 +1095,7 @@ fn benchmark_command(
     }
     let report = match suite {
         BenchmarkSuiteArg::Adversarial => rect_verify::benchmark::benchmark_adversarial(context),
-        BenchmarkSuiteArg::BicliqueConstruction => {
+        BenchmarkSuiteArg::Construction => {
             let report = rect_verify::benchmark::benchmark_biclique_construction(context, sizes);
             write_text(output, &report.to_csv())?;
             write_json(&report, Some(&output.with_extension("json")))?;
