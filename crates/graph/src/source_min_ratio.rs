@@ -7,5 +7,6 @@
 pub mod chain;
 pub mod cycle;
 pub mod execution;
+pub mod input;
 pub mod model;
 pub mod query;
