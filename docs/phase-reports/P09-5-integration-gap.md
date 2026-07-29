@@ -114,8 +114,9 @@ claim.
 ## P9.5a candidate-selection audit
 
 The focused audit began at `d11cb3f`; implementation SHA `91132c4` closes its
-provenance row and `0bf9d37` closes its supplied-candidate heap row. The
-missing live selector remains a concrete semantic
+provenance row, `0bf9d37` closes its supplied-candidate heap row, `abb77ac`
+closes its terminal-tree declaration row, and `5afa4c7` closes its
+terminal-only `Step` bridge. The missing live selector remains a concrete semantic
 construction, not a license to reuse an Oracle and not the deferred P9.3.2d
 runtime proof debt.
 
@@ -127,7 +128,7 @@ runtime proof debt.
 | `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings, cross-snapshot candidate maintenance, or `Step` certificate. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
-| `source_flow::iteration::Step::from_compact_candidate` | It decodes a caller-supplied compact cycle into a full exact circulation direction. | It cannot initialize an IPM iteration without a selected candidate and current approximation certificate. |
+| `source_flow::iteration::Step::from_terminal_candidate` | It checks that the caller's current coordinates exactly equal the immutable terminal `Input`, obtains the terminal declaration heap's best nonzero choice, and decodes it into a full exact circulation direction. | It cannot select core/spanner candidates or stand in for the complete maintained population. |
 | Permanent references | `dynamic_min_ratio` and the min-cost cycle paths enumerate candidates; the P9.5 source-flow audit rejects `dynamic_min_ratio`, `min_cost::oracle`, and `min_cost::experiment`. | They may remain test Oracles but cannot become the production selector. |
 
 The missing P9.5a construction must do all of the following using the completed
@@ -137,8 +138,10 @@ exact input projection and supplied-candidate heap:
    tree to core/spanner embeddings and their compact-cycle segments.
 2. Construct and update fundamental spanner declarations and maintain terminal
    declarations from that live source state for `candidate::Registry`.
-3. Certify its selected compact direction with the current approximation
-   gradients, lengths, and `kappa` required by the Lemma 4.4 transition.
+3. Extend the completed terminal-only coordinate check and `Step` bridge to
+   the complete maintained population, certifying the selected compact
+   direction with the current approximation gradients, lengths, and `kappa`
+   required by the Lemma 4.4 transition.
 4. Keep the stability-witness input out of the query result, retain exact
    arithmetic, and reject rather than fall back when the source construction is
    unavailable.
