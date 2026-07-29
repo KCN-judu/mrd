@@ -346,7 +346,11 @@ selected Figure 6 radius, vertex membership, edge partition, and stopping
 certificate. The activity records 781 semantic events and a maximum of 40
 distinct reduced costs in one snapshot. Every case includes exact
 numerator/denominator values, full Oracle and reduced traces, queue counters,
-and all six charge analyses.
+and all six charge analyses. Reduced runs additionally carry a fixed-snapshot
+stable-binary-heap certificate. It bounds the counted push, pop, and
+relaxation-label comparisons by `3 I ceil(log2(max(I,1))) + 2m`; the largest
+observed total is 473 and the largest conservative bound is 1,112. Oracle runs
+retain their independent explicit sort and carry no such certificate.
 
 Family A grows from 5 original length classes and 20 reduced costs at size 16
 to 6 classes and 40 reduced costs at size 32. This finite witness agrees with
@@ -361,8 +365,9 @@ The campaign sets `semantics_implemented`, `exact_oracle_verified`,
 `differential_verified`, `trace_complete`, and `local_event_bound_proved` to
 true. Every run reconstructs the structural bounds `3n + 4m + 2` for semantic
 events and `n + 2m + 2` for queue insertions/pops. It keeps global
-amortization, the priority-queue comparison bound, and AN19 runtime statuses
-false.
+amortization, the source-equivalent priority-queue comparison bound, and AN19
+runtime statuses false. The practical binary heap is only
+`O((n+m) log(n+m))` per snapshot and does not close those statuses.
 
 ## v0.4 indexed completion evidence
 

@@ -413,6 +413,48 @@ def main() -> None:
                 fail(f"AN19 {run_name} does not drain its exact event queue")
             if certificate.get("priority_queue_comparison_bound_included") is not False:
                 fail(f"AN19 {run_name} overclaims a priority-queue comparison bound")
+        if case.get("oracle_run", {}).get("practical_queue_bound") is not None:
+            fail("AN19 Oracle run falsely carries a reduced-engine heap certificate")
+        reduced_run = case.get("reduced_run", {})
+        practical = reduced_run.get("practical_queue_bound")
+        if not isinstance(practical, dict):
+            fail("AN19 reduced run omits its practical heap certificate")
+        insertions = practical.get("queue_insertion_count")
+        edges = practical.get("edge_count")
+        if not isinstance(insertions, int) or not isinstance(edges, int):
+            fail("AN19 practical heap certificate omits dimensions")
+        height = (max(insertions, 1) - 1).bit_length()
+        push_bound = insertions * height
+        pop_bound = 2 * insertions * height
+        label_bound = 2 * edges
+        total_bound = push_bound + pop_bound + label_bound
+        observed = (
+            practical.get("observed_push_comparisons", -1)
+            + practical.get("observed_pop_comparisons", -1)
+            + practical.get("observed_relaxation_label_comparisons", -1)
+        )
+        if (
+            practical.get("schema_version") != 1
+            or practical.get("strategy") != "stable_binary_min_heap"
+            or practical.get("proof_scope") != "reduced_engine_fixed_snapshot"
+            or practical.get("an19_priority_queue_target_proved") is not False
+            or practical.get("queue_pop_count") != insertions
+            or practical.get("heap_height_bound") != height
+            or practical.get("push_comparison_bound") != push_bound
+            or practical.get("pop_comparison_bound") != pop_bound
+            or practical.get("relaxation_label_comparison_bound") != label_bound
+            or practical.get("total_comparison_bound") != total_bound
+            or practical.get("observed_push_comparisons", total_bound + 1) > push_bound
+            or practical.get("observed_pop_comparisons", total_bound + 1) > pop_bound
+            or practical.get("observed_relaxation_label_comparisons", total_bound + 1)
+            > label_bound
+            or practical.get("observed_total_comparisons") != observed
+            or practical.get("observed_total_comparisons") > total_bound
+            or practical.get("observed_total_comparisons")
+            != reduced_run.get("metrics", {}).get("exact_comparison_count")
+            or practical.get("observed_total_comparisons") != case.get("exact_comparisons")
+        ):
+            fail("AN19 reduced run has an invalid practical heap certificate")
     for relative in REQUIRED_V08_ARTIFACTS:
         if not (ROOT / relative).is_file():
             fail(f"missing generated v0.8 evidence: {relative}")

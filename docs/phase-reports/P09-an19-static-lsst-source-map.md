@@ -398,7 +398,7 @@ remain unselected and `source_runtime_verified()` remains false.
 ## Exact all-radii event implementation evidence
 
 Commits `7ea13da`, `28f9ff7`, `6c8cfac`, `98bb615`, `5e771d8`,
-`a25ac08`, and `d4dda8f` isolate and certify the fixed-projection event
+`a25ac08`, `d4dda8f`, and `02c8385` isolate and certify the fixed-projection event
 contract from the existing hierarchy production path. `ExactEventOracle` uses
 definition-level exact threshold and Figure 6 selection logic.
 `An19ReducedEventEngine` independently runs the integral-normalized exact
@@ -431,6 +431,15 @@ each fixed snapshot has at most `3n + 4m + 2` semantic events and
 `n + 2m + 2` queue insertions/pops. The counterexample activity remains
 empirical/proof-discovery evidence. P9.3.2d-global-proof, -pq-proof, and
 -runtime remain blocked.
+The reduced engine now also uses a stable exact binary min-heap and carries an
+`An19PracticalQueueBoundCertificate`. For `I` insertions it reconstructs the
+fixed-snapshot comparison bound `3 I ceil(log2(max(I,1))) + 2m`, separates
+push, pop, and relaxation-label observations, and rejects strategy, scope, and
+formula mutations. Oracle runs retain their independent explicit sort and do
+not carry this implementation certificate. Across the 31 release cases, the
+largest observed total is 473 and the largest conservative bound is 1,112.
+This is an `O((n+m) log(n+m))` practical implementation bound, not the missing
+source-equivalent `O(m+n log log n)` proof.
 `An19AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
 mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
 false.
@@ -461,7 +470,8 @@ The full campaign result is `results/an19-event-adversarial.json` with its
 generated summary in `results/an19-event-adversarial.md`. The release checker
 also verifies all eight families, 31 cases, Oracle agreement, five true
 implementation/local statuses, three false global/PQ/runtime statuses, every
-local-bound formula, and the retained Family A reduced-class witness. No
+local-bound formula, every reduced-engine practical heap formula, absence of
+that certificate on Oracle runs, and the retained Family A reduced-class witness. No
 downstream runtime-dependent phase was started.
 
 ### Local-event-proof closeout audit

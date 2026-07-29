@@ -2599,15 +2599,20 @@ impl An19AdversarialCampaign {
                 self.naive_reduced_class_conversion_survived
             ),
             "- Fixed-snapshot event-cardinality bound proved: true".to_owned(),
+            "- Practical stable-binary-heap comparison bound certified: true".to_owned(),
             "- Priority-queue comparison bound proved: false".to_owned(),
             "- AN19 runtime verified: false".to_owned(),
             String::new(),
-            "| family | size | call | nodes | edges | original classes | reduced costs | event radii | events | comparisons | stale | Oracle |".to_owned(),
-            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |".to_owned(),
+            "| family | size | call | nodes | edges | original classes | reduced costs | event radii | events | comparisons | practical bound | stale | Oracle |".to_owned(),
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |".to_owned(),
         ];
         for case in &self.cases {
+            let practical_bound = case
+                .reduced_run
+                .practical_queue_bound
+                .map_or(0, |certificate| certificate.total_comparison_bound);
             output.push(format!(
-                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
                 case.input_family.name(),
                 case.size_parameter,
                 case.logical_call_index,
@@ -2618,13 +2623,14 @@ impl An19AdversarialCampaign {
                 case.distinct_event_radii,
                 case.total_events,
                 case.exact_comparisons,
+                practical_bound,
                 case.stale_events,
                 case.oracle_agreement,
             ));
         }
         output.extend([
             String::new(),
-            "Each run carries a verified fixed-snapshot certificate: semantic events are at most 3n + 4m + 2 and queue insertions/pops are at most n + 2m + 2. This proves event cardinality, not the current queue's exact-comparison time. The campaign establishes differential semantics on these finite fixtures; it does not prove hierarchy-wide amortization, the priority-queue comparison bound, or the AN19 runtime.".to_owned(),
+            "Each run carries a verified fixed-snapshot certificate: semantic events are at most 3n + 4m + 2 and queue insertions/pops are at most n + 2m + 2. Each reduced-engine run separately certifies the practical stable binary heap bound 3 I ceil(log2(max(I, 1))) + 2m on its counted heap and relaxation-label comparisons; Oracle runs do not carry that implementation certificate. This is an O((n+m) log(n+m)) practical bound, not the source-equivalent O(m+n log log n) priority-queue proof, hierarchy-wide amortization, or AN19 runtime.".to_owned(),
         ]);
         output.join("\n") + "\n"
     }

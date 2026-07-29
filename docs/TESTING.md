@@ -57,10 +57,12 @@ cargo run --release -p rect-cli -- an19-events \
 
 This covers exact Oracle/reduced agreement, canonical trace verification, the
 six charge maps, all A--H fixed-snapshot families, highway-halving key reorder,
-and the requested trace mutations. Green results set only the implementation,
-Oracle, differential, trace, and fixed-snapshot event-cardinality statuses.
-They do not validate the priority-queue comparison bound, global amortization,
-or AN19's asymptotic runtime. The proof and excluded work are documented in
+the requested trace mutations, and the reduced engine's stable-binary-heap
+comparison certificate. Green results set only the implementation, Oracle,
+differential, trace, fixed-snapshot event-cardinality, and practical heap-bound
+statuses. The `O((n+m) log(n+m))` practical bound does not validate the
+source-equivalent priority-queue bound, global amortization, or AN19's
+asymptotic runtime. The proof and excluded work are documented in
 `docs/AN19_LOCAL_EVENT_BOUND.md`.
 
 Run larger exhaustive and random campaigns with:
