@@ -450,6 +450,14 @@ impl CirculationNetwork {
         self.arcs.get(arc.0).map(|arc| (arc.capacity, arc.cost))
     }
 
+    /// Returns the immutable endpoints of one circulation arc.
+    #[must_use]
+    pub fn arc_endpoints(&self, arc: CirculationArcId) -> Option<(FlowNodeId, FlowNodeId)> {
+        self.arcs
+            .get(arc.0)
+            .map(|arc| (FlowNodeId(arc.from), FlowNodeId(arc.to)))
+    }
+
     /// Validates that signed arc occurrences form a nonempty circulation.
     ///
     /// # Errors

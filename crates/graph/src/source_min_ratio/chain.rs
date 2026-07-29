@@ -21,7 +21,7 @@ pub struct Shifts {
 }
 
 /// One branch selected by a valid [`Shifts`] state.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Selection {
     /// The logical level containing the selected branch.
     pub level: LevelId,

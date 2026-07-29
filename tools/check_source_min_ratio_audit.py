@@ -10,11 +10,13 @@ MODULES = {
     "root": ROOT / "crates/graph/src/source_min_ratio.rs",
     "model": ROOT / "crates/graph/src/source_min_ratio/model.rs",
     "chain": ROOT / "crates/graph/src/source_min_ratio/chain.rs",
+    "cycle": ROOT / "crates/graph/src/source_min_ratio/cycle.rs",
 }
 REQUIRED = {
     "root": ("pub mod chain", "pub mod model"),
     "model": ("struct BranchId", "struct Tree", "struct Level"),
     "chain": ("fn validate_tree", "pub fn initial_shifts", "pub fn shift"),
+    "cycle": ("struct ArcBindings", "pub fn decode", "validate_signed_circulation"),
 }
 FORBIDDEN = (
     "use crate::dynamic_min_ratio",
@@ -24,6 +26,7 @@ FORBIDDEN = (
     "source_lsst::oracle",
     "build_greedy",
     "simple_paths",
+    "enumerate_cycles",
 )
 
 

@@ -5,4 +5,5 @@
 //! baseline; it is intentionally not imported here.
 
 pub mod chain;
+pub mod cycle;
 pub mod model;
