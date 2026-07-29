@@ -8,6 +8,7 @@ pub mod bucket;
 pub mod chain;
 pub mod level;
 pub mod oracle;
+pub mod replay;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct SourceEdgeId(pub usize);
