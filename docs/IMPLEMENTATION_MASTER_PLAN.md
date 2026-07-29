@@ -1012,12 +1012,17 @@ amortized bound or unlock the `AlmostLinear` name.
    it does not implement a compact cycle, a hidden-stability query, link-cut
    updates, Theorem 5.1's approximation, or any amortized bound.
 
-2. **P9.4b - Compact cycle and exact certificate decoding. State: in_progress.**
+2. **P9.4b - Compact cycle and exact certificate decoding. State: complete. Implementation SHA: `70a80f5`.**
    Add a source-shaped compact cycle that references selected tree paths and
    off-tree arcs by stable IDs. Decode and validate it directly against the
    checked chain and circulation domain, with deterministic orientation and
    conservation certificates. The P7/P8 enumerators may compare results in
-   tests only and may not participate in production decoding.
+   tests only and may not participate in production decoding. `source_min_ratio::cycle`
+   now binds source edges to endpoint-identical circulation arcs, expands selected
+   tree paths directly, and validates the resulting signed circulation. Evidence:
+   `docs/phase-reports/P09-4b-compact-cycle-decoding.md`. This is finite exact
+   decoding only; query, approximation, dynamic-update, link-cut, and runtime
+   claims remain for later subphases.
 3. **P9.4c - Hidden-stability approximate-query contract and differential
    harness. State: planned.** Bind the checked Definition 4.2--4.5 stability
    state to the source-shaped chain through an explicit query input/output and
@@ -1207,4 +1212,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.6 | complete | 4714ee3 | 8a69733, a9ac727, 6985234, 4a3ad34 | pending closeout | pending | `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md` | finite Section 9.1 contraction, exact buckets, static terminal tree, immutable source update replay, recourse, and bounded Oracle differential | 2026-07-29T18:49:00Z | 2026-07-29T19:03:00Z | explicit finite integral connected domain; every replay rebuilds; no source Theorem 1.2 stretch or runtime claim |
 | P9.3.7 | complete | 6b3bb73 | 66d7920 | pending closeout | pending | `docs/phase-reports/P09-3-7-finite-tree-audit.md` | source trace, no-fallback static audit, adversarial immutable update history, exact weight/bound/certificate rejection evidence | 2026-07-29T19:03:00Z | 2026-07-29T19:45:43Z | finite-domain semantics only; P9.3.2d proof debt continues to prohibit AN19 complexity claims |
 | P9.4a | complete | ba3779e | 4ce313b | 58bb52b | 58bb52b | `docs/phase-reports/P09-4a-tree-chain-contract.md` | immutable multi-level source-tree chain, shifted branch selection, validation, and no-fallback static audit | 2026-07-29T20:01:28Z | 2026-07-29T20:04:45Z | finite-domain structural semantics only; no compact cycle, query, link-cut, or runtime claim |
-| P9.4b | in_progress | 58bb52b | pending | pending | 58bb52b | pending | compact cycle and deterministic source-tree decoding | 2026-07-29T20:04:45Z | pending | none |
+| P9.4b | complete | 58bb52b | 70a80f5 | pending closeout | pending | `docs/phase-reports/P09-4b-compact-cycle-decoding.md` | direct source-tree compact-cycle decoding and exact circulation certificate | 2026-07-29T20:04:45Z | 2026-07-29T20:12:57Z | finite semantics only; no query, update, approximation, or runtime claim |
