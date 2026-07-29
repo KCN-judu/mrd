@@ -4,6 +4,8 @@ use crate::ExactRatio;
 
 use super::model::{Edge, Error as ModelError, Graph};
 
+const MAX_EXHAUSTIVE_NODES: usize = 20;
+
 /// A finite domain in which every nontrivial cut can be checked exactly.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Domain {
@@ -33,8 +35,8 @@ pub fn complete(weights: &[ExactRatio], domain: Domain) -> Result<Witness, Error
     let node_count = weights.len();
     if node_count < 2
         || domain.maximum_nodes < 2
+        || domain.maximum_nodes > MAX_EXHAUSTIVE_NODES
         || node_count > domain.maximum_nodes
-        || node_count >= u64::BITS as usize
     {
         return Err(Error::OutsideCertifiedDomain);
     }
