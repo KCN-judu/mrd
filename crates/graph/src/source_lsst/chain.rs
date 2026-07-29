@@ -381,13 +381,14 @@ pub enum Error {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{Chain, Parameters};
+    use super::{Chain, Error, Parameters};
     use crate::{
         ExactRatio, FlowNodeId,
         source_lsf::oracle::Lsst as Oracle,
         source_lsst::{
             LsfPiece, LsfStructuralCertificate, SourceDynamicGraph, SourceEdgeId,
-            SourceWeightedEdge, bucket::Parameters as BucketParameters,
+            SourceWeightedEdge,
+            bucket::{Error as BucketError, Parameters as BucketParameters},
         },
         source_spanner::{
             dynamic::rebuild::Parameters as RebuildParameters, experiment::domain::ExhaustiveDomain,
@@ -395,10 +396,14 @@ mod tests {
     };
 
     fn edge(first: usize, second: usize) -> SourceWeightedEdge {
+        edge_with_length(first, second, ExactRatio::new(1, 1).unwrap())
+    }
+
+    fn edge_with_length(first: usize, second: usize, length: ExactRatio) -> SourceWeightedEdge {
         SourceWeightedEdge {
             first: FlowNodeId(first),
             second: FlowNodeId(second),
-            length: ExactRatio::new(1, 1).unwrap(),
+            length,
             weight: ExactRatio::new(1, 1).unwrap(),
         }
     }
@@ -480,5 +485,72 @@ mod tests {
         assert_eq!(chain.tree_edges, oracle.edges);
         assert_eq!(chain.tree_audit.weighted_stretch, oracle.weighted_stretch);
         chain.verify(&graph, &forest, parameters()).unwrap();
+    }
+
+    #[test]
+    fn rejects_finite_domain_violations_and_mutated_certificates() {
+        let nonintegral = SourceDynamicGraph::new(
+            2,
+            vec![edge_with_length(0, 1, ExactRatio::new(1, 2).unwrap())],
+            8,
+        )
+        .unwrap();
+        assert!(matches!(
+            Chain::build(&nonintegral, &forest(), parameters()),
+            Err(Error::NonintegralOrOutOfRangeLength)
+        ));
+
+        let out_of_range = SourceDynamicGraph::new(
+            2,
+            vec![edge_with_length(0, 1, ExactRatio::new(9, 1).unwrap())],
+            16,
+        )
+        .unwrap();
+        assert!(matches!(
+            Chain::build(&out_of_range, &forest(), parameters()),
+            Err(Error::NonintegralOrOutOfRangeLength)
+        ));
+
+        let bounded = SourceDynamicGraph::new(
+            4,
+            vec![
+                edge_with_length(0, 1, ExactRatio::new(4, 1).unwrap()),
+                edge_with_length(1, 2, ExactRatio::new(4, 1).unwrap()),
+                edge_with_length(2, 3, ExactRatio::new(4, 1).unwrap()),
+            ],
+            8,
+        )
+        .unwrap();
+        let mut narrow_buckets = parameters();
+        narrow_buckets.buckets.maximum_absolute_exponent = 2;
+        assert!(matches!(
+            Chain::build(&bounded, &forest(), narrow_buckets),
+            Err(Error::Bucket(BucketError::OutsideFiniteDomain))
+        ));
+
+        let parallel =
+            SourceDynamicGraph::new(4, vec![edge(0, 1), edge(1, 2), edge(1, 2), edge(2, 3)], 8)
+                .unwrap();
+        let mut parallel_forest = forest();
+        parallel_forest.stretch_overestimates = vec![
+            ExactRatio::new(2, 1).unwrap(),
+            ExactRatio::new(2, 1).unwrap(),
+            ExactRatio::new(2, 1).unwrap(),
+            ExactRatio::new(1, 1).unwrap(),
+        ];
+        parallel_forest.piece_volume_limit = 4;
+        assert!(matches!(
+            Chain::build(&parallel, &parallel_forest, parameters()),
+            Err(Error::Bucket(BucketError::Graph(_)))
+        ));
+
+        let graph = graph();
+        let forest = forest();
+        let mut corrupted = Chain::build(&graph, &forest, parameters()).unwrap();
+        corrupted.tree_audit.total_weight = ExactRatio::new(0, 1).unwrap();
+        assert!(matches!(
+            corrupted.verify(&graph, &forest, parameters()),
+            Err(Error::InvalidChain)
+        ));
     }
 }

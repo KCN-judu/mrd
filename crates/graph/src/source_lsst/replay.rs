@@ -254,6 +254,15 @@ mod tests {
         }
     }
 
+    fn weighted_edge(first: usize, second: usize, weight: i128) -> SourceWeightedEdge {
+        SourceWeightedEdge {
+            first: FlowNodeId(first),
+            second: FlowNodeId(second),
+            length: ExactRatio::new(1, 1).unwrap(),
+            weight: ExactRatio::new(weight, 1).unwrap(),
+        }
+    }
+
     fn parameters() -> Parameters {
         Parameters {
             chain: ChainParameters {
@@ -276,6 +285,21 @@ mod tests {
 
     fn triangle() -> SourceDynamicGraph {
         SourceDynamicGraph::new(3, vec![edge(0, 1), edge(1, 2), edge(0, 2)], 8).unwrap()
+    }
+
+    fn weighted_cycle() -> SourceDynamicGraph {
+        SourceDynamicGraph::new(
+            4,
+            vec![
+                weighted_edge(0, 1, 2),
+                weighted_edge(1, 2, 3),
+                weighted_edge(2, 3, 5),
+                weighted_edge(3, 0, 7),
+                weighted_edge(0, 2, 11),
+            ],
+            16,
+        )
+        .unwrap()
     }
 
     fn assert_oracle(state: &State) {
@@ -351,5 +375,82 @@ mod tests {
         assert_eq!(transition.next.history().len(), 1);
         assert_oracle(&transition.next);
         transition.next.verify().unwrap();
+    }
+
+    #[test]
+    fn replays_adversarial_weighted_history_with_stable_ids_and_counter_checks() {
+        let mut replay_parameters = parameters();
+        replay_parameters.batches_before_scheduled_rebuild = 2;
+        let initial = State::new(weighted_cycle(), replay_parameters).unwrap();
+
+        let inserted = initial
+            .apply(&SourceUpdateBatch {
+                updates: vec![SourceGraphUpdate::Insert(weighted_edge(1, 3, 13))],
+            })
+            .unwrap();
+        assert!(!inserted.scheduled_rebuild);
+        assert_oracle(&inserted.next);
+
+        let split = inserted
+            .next
+            .apply(&SourceUpdateBatch {
+                updates: vec![SourceGraphUpdate::SplitVertex {
+                    vertex: FlowNodeId(0),
+                    moved_edges: vec![SourceEdgeId(3)],
+                }],
+            })
+            .unwrap();
+        assert!(split.scheduled_rebuild);
+        assert_eq!(split.next.graph().node_count(), 5);
+        assert_oracle(&split.next);
+
+        let deleted = split
+            .next
+            .apply(&SourceUpdateBatch {
+                updates: vec![SourceGraphUpdate::Delete(SourceEdgeId(5))],
+            })
+            .unwrap();
+        let final_state = deleted.next;
+        assert!(!deleted.scheduled_rebuild);
+        assert_eq!(final_state.history().len(), 3);
+        assert_eq!(final_state.graph().metrics().update_batches, 3);
+        assert_eq!(final_state.graph().metrics().edge_insertions, 1);
+        assert_eq!(final_state.graph().metrics().edge_deletions, 1);
+        assert_eq!(final_state.graph().metrics().vertex_splits, 1);
+        assert_eq!(final_state.accounting.snapshots, 4);
+        assert_eq!(final_state.accounting.source_batches, 3);
+        assert_eq!(final_state.accounting.source_encoded_update_size, 3);
+        assert_eq!(final_state.accounting.full_snapshot_rebuilds, 3);
+        assert_eq!(final_state.accounting.scheduled_rebuilds, 1);
+        assert_eq!(final_state.accounting.maximum_tree_edges, 4);
+        assert_eq!(
+            final_state.chain.tree_audit.total_weight,
+            ExactRatio::new(28, 1).unwrap()
+        );
+        assert_eq!(final_state.chain.tree_edges.len(), 4);
+        assert!(
+            final_state
+                .chain
+                .tree_edges
+                .iter()
+                .all(|edge| final_state.graph().edge(*edge).is_some())
+        );
+        assert!(!final_state.chain.tree_edges.contains(&SourceEdgeId(5)));
+        assert_oracle(&final_state);
+        final_state.verify().unwrap();
+
+        let prior = final_state.clone();
+        assert!(
+            prior
+                .apply(&SourceUpdateBatch {
+                    updates: vec![SourceGraphUpdate::Delete(SourceEdgeId(5))],
+                })
+                .is_err()
+        );
+        assert_eq!(prior, final_state);
+
+        let mut corrupted = final_state.clone();
+        corrupted.accounting.full_snapshot_rebuilds += 1;
+        assert!(corrupted.verify().is_err());
     }
 }

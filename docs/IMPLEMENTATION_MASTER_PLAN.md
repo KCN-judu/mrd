@@ -953,7 +953,24 @@ P9.3 is split into the following source-gated subphases:
    passed.**
    Run source traceability, adversarial update,
    certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
-   close from static fixtures or asymptotic assertions alone.
+   close from static fixtures or asymptotic assertions alone. It is split into:
+   - **P9.3.7a state: in_progress.** Audit Section 9.1/Theorem 1.2
+     traceability for `source_lsst::{level,bucket,chain,replay}`. Verify the
+     production path has only the finite source-shaped contraction, bucket,
+     spanner-replay, and AN19 terminal-tree calls; enumerating LSST and direct
+     contraction Oracles must remain test-only and no legacy greedy or
+     simple-path fallback may be reachable.
+   - **P9.3.7b state: planned. Start gate: P9.3.7a production-path audit
+     passes.** Add deterministic adversarial immutable histories combining
+     insertion, smaller-side split, and deletion. Rebuild every snapshot,
+     preserve stable source IDs, compare bounded connected snapshots with the
+     exhaustive LSST Oracle, verify recourse/scheduled-rebuild accounting, and
+     prove rejected updates leave the prior immutable state unchanged.
+   - **P9.3.7c state: planned. Start gate: P9.3.7b differential passes.**
+     Exercise exact nonuniform positive weights, finite integral-length bounds,
+     counter/certificate mutation rejection, and all explicit unsupported
+     cases. Record every finite-domain limit; these checks cannot promote the
+     source stretch, recourse, or runtime bounds.
 
 ### P9.4 - Source-grade dynamic minimum-ratio cycle
 
