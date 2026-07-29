@@ -154,6 +154,7 @@ def check_an19_status_docs() -> None:
             "an19_runtime_verified: false",
             "P9.3.2d proof debt does not block P9.3.3 through P9.5",
             "`AlmostLinear` backend name",
+            "P9.6a - P9.3.2d proof-debt closure (low priority)",
             "at least `N/2-1` distinct forward reduced costs",
             "vertex-dependent subtraction `2 d(x,v)`",
         ),
@@ -171,9 +172,11 @@ def check_an19_status_docs() -> None:
             "AN19 logarithmic reduced-class conversion",
             "Refuted",
             "AN19 exact reduced-event ordering replacement",
-            "Implemented semantics / proof blocked",
+            "Implemented semantics / proof deferred",
             "AN19 fixed-snapshot event cardinality",
             "Proved",
+            "Faithful implementation complete",
+            "P9.3.3 through P9.5 may proceed",
         ),
     }
     contents = {}

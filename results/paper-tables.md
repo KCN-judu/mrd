@@ -231,9 +231,9 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | ordinary holes | supported | supported for grid-cell regions and boundary-native polygons | yes | rings, separated holes, and native two-hole fixture |
 | degenerate holes | formal model | unsupported | scope rejection | point, segment, and arbitrary formal holes excluded |
 | endpoint contacts | closed-chord conflicts | integer parity embedding | yes | pairwise geometry iff strict dominance |
-| effective chord enumeration | O(n log n) | GridInteriorRunEnumerator for grids; SoltanGorpinevichSweepEnumerator for accepted ordinary polygons | three-backend exact family differential | ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported |
+| effective chord enumeration | O(n log n) | grid::experiment::InteriorRuns for grids; chord::experiment::Sweep for accepted ordinary polygons | three-backend exact family differential | ordinary-loop sweep is O(n log n + q); formal-boundary source cases remain unsupported |
 | polygon completion | horizontal then vertical simple chords | incremental completion with dynamic stabbing, sparse face walk, and slab validation | exact cut and rectangle differential | no full classical O(n log n) completion claim |
-| polygon structural validation | ordinary rectilinear domain | OrthogonalSweepValidator with quadratic Oracle | accepted and negative-category differential | deterministic integer event ordering |
+| polygon structural validation | ordinary rectilinear domain | polygon::experiment::Validator with polygon::oracle::Validator | accepted and negative-category differential | deterministic integer event ordering |
 | compact biclique partition | O(q log^4 q) for d=4 | constructive Theorem 8 recursion | yes | edge multiplicity audited exactly once |
 | practical Dinic backend | replaceable exact flow | implemented | yes | integral flow and residual cut |
 | workspace scan-count audit | implementation accounting prerequisite | Complete | 247 passed; 3 existing ignored | counters and invariants are internally consistent at 8f9ab06; this is not an asymptotic proof |
@@ -241,10 +241,10 @@ The metadata above belongs to the historical v0.2 paper-table population. Later 
 | AN19 logarithmic reduced-class conversion | not established by the cited source | Refuted | parameterized regression plus algebraic proof | a power-of-two chord family has O(log N) original classes and Omega(N) exact reduced-cost classes |
 | AN19 exact reduced-event semantics | fixed-projection Figure 6 event contract | Complete on tested domain | 31 Oracle/reduced A--H snapshots | exact rational trace and six empirical charge maps; no runtime proof |
 | AN19 fixed-snapshot event cardinality | local all-radii event work | Proved | machine certificate in every Oracle/reduced run | semantic events <= 3n + 4m + 2 and queue items <= n + 2m + 2; comparison time excluded |
-| AN19 exact reduced-event ordering replacement | required for the local P9.3.2d runtime chain | Implemented semantics / proof blocked | bounded exact differential only | the proved backend must bound de-potentialized exact rational thresholds without one priority class per reduced cost |
-| AN19 runtime verification | O(m log n log log n) | Blocked | no | workspace scans do not close the missing mathematical reduction |
-| P9.3.2d | AN19 static LSST prerequisite for Lemma 5.4 | Hard blocker | implementation side only | dependent P9 phases are not started and forbidden until resolved |
-| almost-linear theoretical flow backend | used asymptotically | not implemented | no | citation-only complexity component; blocked downstream of P9.3.2d |
+| AN19 exact reduced-event ordering replacement | required for the local P9.3.2d runtime chain | Implemented semantics / proof deferred | bounded exact differential only | the future proved backend must bound de-potentialized exact rational thresholds without one priority class per reduced cost |
+| AN19 runtime verification | O(m log n log log n) | Pending low-priority proof | no | workspace scans do not close the missing mathematical reduction |
+| P9.3.2d | AN19 static LSST prerequisite for Lemma 5.4 | Faithful implementation complete | exact Oracle differential and trace audit | proof debt is deferred until P9.6; P9.3.3 through P9.5 may proceed, but no AN19 runtime claim is permitted |
+| almost-linear theoretical flow backend | used asymptotically | P9.5 implementation pending | no | the source-shaped semantic chain may proceed; the AlmostLinear claim awaits P9.6 proof closure |
 | explicit rectangle output | constructive completion | implemented | yes | cell-exact validation |
 | machine-checkable certificates | not an artifact requirement | implemented | yes | matching, partition, flow, cut, and rectangles |
 | clean hole-free eligibility | Definition 9.1 | integer grid classifier with loop identities | yes | component and chord-mass census; ornaments remain out of model |

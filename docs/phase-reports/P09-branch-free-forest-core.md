@@ -2,7 +2,8 @@
 
 ## Status
 
-P9.3.2d is blocked. This report covers the completed Appendix B.3 tree
+P9.3.2d's faithful implementation is complete; its runtime proof is deferred.
+This report covers the completed Appendix B.3 tree
 core, full ST04 decomposition, global stretch overestimates, weighted-copy
 reduction, and dynamic batch integration. The AN19 petal constructor,
 weighted symbolic portals, hierarchy certificates, and complete workspace
@@ -101,5 +102,5 @@ Baseline: `2a553013554db1b6623f82cf15c3392ea2206f63`.
 
 The implemented AN19 candidate output has exact tree/stretch and workspace-scan
 verifiers. Those implementation checks do not prove the missing reduced-event
-class bound. P9.3.2d remains a hard blocker; no complete Lemma 5.4 or runtime
-claim is made by this partial core.
+class bound. The proof debt does not block P9.3.3 through P9.5, but no complete
+Lemma 5.4 or runtime claim is made by this partial core.

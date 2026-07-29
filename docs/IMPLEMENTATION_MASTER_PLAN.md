@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.6
+- Current phase: P9.3.7
 - Current phase state: in_progress
-- Last completed phase: P9.3.5
-- Last pushed SHA: 61afc100fbb00212685370a07a02ac470ede1bef
-- Plan last updated: 2026-07-29T18:49:00Z
+- Last completed phase: P9.3.6
+- Last pushed SHA: 4714ee3311ac85e1407aa3ae047e6ce5f2558697
+- Plan last updated: 2026-07-29T19:03:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -911,37 +911,46 @@ P9.3 is split into the following source-gated subphases:
      sparsity, recourse, and runtime bounds remain unclaimed without matching
      proofs.
    Retain the greedy-rebuild spanner as an Oracle only.
-6. **P9.3.6 state: in_progress. Start gate: P9.3.5 implementation audit
-   passed.**
-   Implement Theorem 1.2/Section 9's fully dynamic
+6. **P9.3.6 state: complete. Start gate: P9.3.5 implementation audit
+   passed. Implementation SHAs: `8a69733`, `a9ac727`, `6985234`, `4a3ad34`.**
+   The finite source-shaped implementation of Theorem 1.2/Section 9 builds a
+   depth-one contracted-tree chain and immutable update replay. Its evidence is
+   `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md`. It implements
    low-stretch spanning tree for bounded integral lengths, including contracted
    forests, embedded spanners, insertions/deletions, worst-case update work,
-   average stretch, and amortized tree recourse. It is split before coding into:
-   - **P9.3.6a state: in_progress. Start gate: P9.3.5 implementation audit
-     passed.** Implement and exactly audit one immutable Section 9.1 level:
-     consume an already certified partial forest, form the contracted graph
-     `H_i = G_i/F_i`, retain original edge and endpoint provenance, reject
-     intra-component loops explicitly, and derive each exact scaled length
-     `stretch_tilde(e) * length_Gi(e)`. No hierarchy recursion, spanner update,
-     or complexity claim belongs in this subphase.
-   - **P9.3.6b state: planned. Start gate: P9.3.6a contraction and provenance
-     differential passes.** Partition a contracted level into exact dyadic
-     stretch/length buckets, initialize its finite source-spanner embeddings,
-     and compose all mapped paths back to the preceding graph without losing
-     source-edge lineage. The finite bounded domain and all rejected cases must
-     remain explicit.
-   - **P9.3.6c state: planned. Start gate: P9.3.6b embedding certificate
-     passes.** Build a bounded-depth immutable chain of partial forests and
-     embedded spanners, derive `T_i = F_i union ... union F_d`, verify it is a
-     spanning tree, and record exact per-level stretch/congestion measurements.
-     The source asymptotic stretch induction remains unclaimed.
-   - **P9.3.6d state: planned. Start gate: P9.3.6c static chain differential
-     passes.** Replay insertions, deletions, and smaller-side vertex splits;
-     rebuild levels at explicit finite thresholds; record update work and tree
-     recourse; and compare each supported snapshot with the permanent bounded
-     low-stretch-tree Oracle. These counters are evidence, not an amortized
-     source bound.
-7. **P9.3.7 state: planned. Start gate: P9.3.6 implementation audit passed.**
+   average stretch, and amortized tree recourse only as exact finite
+   measurements, not source complexity bounds. It is split into:
+   - **P9.3.6a state: complete. Implementation SHA: `8a69733`.**
+     One immutable Section 9.1 level consumes a certified partial forest,
+     forms `H_i = G_i/F_i`, retains original edge and endpoint provenance,
+     explicitly records discarded intra-component loops, and derives each exact
+     scaled length `stretch_tilde(e) * length_Gi(e)`. A separate direct
+     component-enumerating Oracle differentially checks every component, edge,
+     loop, and scaled length. No hierarchy recursion, spanner update, or
+     complexity claim is made.
+   - **P9.3.6b state: complete. Implementation SHA: `a9ac727`.**
+     Exact integer arithmetic partitions each cross edge by the Section 9.1
+     dyadic intervals for its stretch overestimate and scaled length. Every
+     bucket is split into connected components, translated to stable source
+     IDs after finite `Sparsify` initialization, and rechecked by pure replay.
+     Parallel or out-of-domain components reject explicitly.
+   - **P9.3.6c state: complete. Implementation SHA: `6985234`.** A finite
+     depth-one immutable chain constructs `T_0 = F_0 union F_1`: it initializes
+     the certified contracted/bucket path, builds an AN19-shaped terminal tree
+     on the selected contracted spanner, and independently verifies original
+     tree connectivity, exact weighted stretch, and per-level embedding
+     congestion. The permanent enumerating LSST Oracle agrees on the bounded
+     path fixture. The source asymptotic stretch induction remains unclaimed.
+   - **P9.3.6d state: complete. Implementation SHA: `4a3ad34`.** Immutable
+     history replay supports connected insertion, deletion, and smaller-side
+     split snapshots with explicit threshold flags, exact full-snapshot work,
+     and tree recourse counters. It uses a certified empty `F_0` so every
+     finite source graph is still contracted honestly; each supported snapshot
+     is differentially compared with the bounded exhaustive LSST Oracle in
+     tests. This intentionally rebuilds every finite snapshot and makes no
+     dynamic-LSF, recourse, or amortized-work claim.
+7. **P9.3.7 state: in_progress. Start gate: P9.3.6 implementation audit
+   passed.**
    Run source traceability, adversarial update,
    certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
    close from static fixtures or asymptotic assertions alone.
@@ -977,6 +986,18 @@ audit theorem-to-code traceability, checked domains, precision, operation
 counters, no-fallback traces, exact differentials, and compressed-network
 evidence. P9 remains `in_progress` or becomes `audit_failed` until this audit
 proves the advertised deterministic almost-linear bound.
+
+**P9.6a - P9.3.2d proof-debt closure (low priority).** Start only after P9.5
+has a complete source-shaped flow backend with semantic, differential, and
+no-fallback evidence. Prove an explicit bound on the number and ordering of
+the exact reduced-event equivalence classes generated by
+`source_an19::petal::WeightedPetal`, or replace the event-order data structure
+with an independently proved construction that preserves Figure 6's exact
+rational event order. The proof must account for the vertex-dependent
+subtraction `2 d(x,v)`, exact window denominators, recursive portal splits,
+and hierarchy-wide amortization; finite traces, workspace scans, and bounded
+campaigns are not substitutes. Only a completed P9.6a may enable the
+`AlmostLinear` name, `an19_runtime_verified: true`, or an AN19 runtime claim.
 
 P9.3.2d proof debt does not block P9.3.3 through P9.5. It blocks only the
 `AlmostLinear` backend name, `an19_runtime_verified: true`, P9 complexity
@@ -1115,3 +1136,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4e3 | complete | e396484 | 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite direct `J -> W`, image, composed embedding, and exact audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | direct branch only for the complete finite witness |
 | P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
 | P9.3.5 | complete | e396484 | 1d18dee, 7282e92, 9d7bed7 | pending closeout | pending | `docs/phase-reports/P09-3-5-dynamic-sparsify.md` | source-shaped deletion/split batches, finite Algorithm 4 rebuild, stable-ID recourse, independent greedy Oracle, and exact update accounting | 2026-07-29T18:24:15Z | 2026-07-29T18:41:34Z | finite one-level connected domain only; no general Theorem 8.2 sparsity, recourse, or runtime claim |
+| P9.3.6 | complete | 4714ee3 | 8a69733, a9ac727, 6985234, 4a3ad34 | pending closeout | pending | `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md` | finite Section 9.1 contraction, exact buckets, static terminal tree, immutable source update replay, recourse, and bounded Oracle differential | 2026-07-29T18:49:00Z | 2026-07-29T19:03:00Z | explicit finite integral connected domain; every replay rebuilds; no source Theorem 1.2 stretch or runtime claim |

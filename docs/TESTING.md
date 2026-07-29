@@ -40,8 +40,9 @@ equal at that SHA.
 This QA evidence does not validate AN19's asymptotic runtime. The formal SIAM
 source, DOI `10.1137/17M1115575`, does not supply the reduced-event
 ordering/counting conversion required by P9.3.2d. That mathematical obligation
-is blocked independently of the green test suite, and downstream P9 phases may
-not start.
+is deferred independently of the green test suite. P9.3.3 through P9.5 may
+continue with the faithful implementation and exact differentials, but no
+complexity claim may use the finite test evidence.
 
 The exact fixed-snapshot event layer has a separate bounded gate:
 

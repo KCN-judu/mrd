@@ -4,7 +4,8 @@
 - Branch: `codex/full-implementation`
 - Baseline: `318fb302363f47515c8082ac273427eb1e81d52e`
 - Implementation: `2b0036545cdd2cfe8a26c3655aa4c72fd6b1791f`
-- Phase effect: maintenance only; P9 remains blocked at P9.3.2d
+- Phase effect: maintenance only; P9.3.2d's runtime proof remains deferred,
+  while P9 continues through the source-shaped backend chain
 
 ## Scope
 
@@ -47,4 +48,4 @@ the new architecture.
 No complexity or runtime claim changed. The AN19-shaped implementation remains
 exact and source-shaped on its tested domain, while the reduced-event
 hierarchy-wide amortization, proof-backed priority queue, and complete AN19
-runtime verification remain blocked.
+runtime verification remain unproved and deferred to P9.6.

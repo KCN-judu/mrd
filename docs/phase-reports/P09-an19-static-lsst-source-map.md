@@ -2,10 +2,12 @@
 
 ## Status
 
-**P9.3.2d is a hard blocker.** The formal SIAM journal version of Abraham and
-Neiman was checked, but it does not establish the reduced-event
-ordering/counting conversion needed here. Consequently, the AN19 runtime chain
-remains unverified and P9.3.2d remains blocked.
+**P9.3.2d's faithful implementation is complete; its runtime proof is deferred
+at low priority.** The formal SIAM journal version of Abraham and Neiman was
+checked, but it does not establish the reduced-event ordering/counting
+conversion needed here. Consequently, the AN19 runtime chain remains
+unverified. P9.3.3 through P9.5 may proceed with the source-shaped backend;
+P9.6 must close this proof debt before an AN19 runtime claim is made.
 
 Source recovery, exact single-petal and symbolic weighted-portal gates, compact
 weighted hierarchy, recursive contraction, and fast membership-event processing
@@ -38,8 +40,8 @@ The power-of-two chord-family reduced-class lower bound is `0b3b704`.
 | Implemented and empirically audited | workspace scan counting, implementation counters/invariants, differential and regression tests | Complete | 247 tests passed and 3 existing tests were ignored; local and remote repository state was clean at `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7` |
 | Source-checked but unsupported | formal SIAM source identification | Complete | Abraham--Neiman, SIAM J. Comput. 48(2), 2019, pp. 227--248, DOI `10.1137/17M1115575`; the required conversion is not present |
 | Refuted conversion branch | `O(log n)` reduced-cost classes from `O(log n)` original power-of-two lengths | Refuted | the `N=2^q` chord family has only `q+1` original classes but at least `N/2-1` distinct forward reduced costs |
-| Still unproved | exact reduced-event ordering replacement and corresponding AN19 asymptotic runtime | Blocked | the event stream must bypass the linear reduced-cost class count with a proved exact ordering structure |
-| Downstream gate | P9.3.2d and every dependent P9 milestone | Hard blocker | work may not advance past this gate without the missing source-backed proof or a separately proved replacement |
+| Still unproved | exact reduced-event ordering replacement and corresponding AN19 asymptotic runtime | Deferred, low priority | the event stream must bypass the linear reduced-cost class count with a proved exact ordering structure before P9.6 can certify complexity |
+| Downstream gate | P9.3.2d proof debt | nonblocking implementation gate | P9.3.3 through P9.5 may continue; `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims wait for P9.6 proof closure |
 
 ## Resolved source questions
 
@@ -146,9 +148,10 @@ ambiguous interval must increase precision rather than choose a side.
 4. Region-growing event implementation and source-shaped counters establishing
    the near-linear bound without graph expansion or an Oracle fallback.
 
-Gates 1--3 are implemented and empirically audited. Gate 4 is blocked by the
-missing reduced-event conversion; therefore P9.3.2d is a hard blocker and no
-AN19, Lemma 5.4, or production runtime claim is made.
+Gates 1--3 are implemented and empirically audited. Gate 4's runtime proof is
+deferred because the reduced-event conversion is missing. This does not block
+P9.3.3 through P9.5, but no AN19, Lemma 5.4, or production runtime claim is
+made before P9.6 closes the proof debt.
 
 ## Linear reduced-class lower bound and remaining proof obligation
 
@@ -221,7 +224,7 @@ Claim 15 region-growing runtime implementation.
 These pieces established P9.3.2c's symbolic representation and recovery
 contracts. Subsequent P9.3.2d commits compose Figure 5 recursively and audit
 the hierarchy, radius/stretch certificates, and workspace scans. The remaining
-P9.3.2d blocker is the reduced-event proof obligation stated above.
+P9.3.2d proof debt is the reduced-event obligation stated above.
 
 P9.3.2d now also has an exact weighted Figure 6 baseline.
 `source_an19::petal::WeightedPetal` treats each successive highway edge as one parametric
@@ -430,7 +433,7 @@ follow-up `source_an19::event::certificate::LocalBound` also completes P9.3.2d-l
 each fixed snapshot has at most `3n + 4m + 2` semantic events and
 `n + 2m + 2` queue insertions/pops. The counterexample activity remains
 empirical/proof-discovery evidence. P9.3.2d-global-proof, -pq-proof, and
--runtime remain blocked.
+-runtime remain planned low-priority proof work.
 The reduced engine now also uses a stable exact binary min-heap and carries an
 `An19PracticalQueueBoundCertificate`. For `I` insertions it reconstructs the
 fixed-snapshot comparison bound `3 I ceil(log2(max(I,1))) + 2m`, separates
@@ -499,8 +502,8 @@ key, or absolute local path was added. At this local-event-proof closeout, the
 trace queue still used exact linear minimum scans and could perform
 quadratically many comparisons in its certified item count. The later
 practical heap-bound closeout below supersedes that implementation fact with a
-stable binary heap, but does not change the P9.3.2d source blocker or permit
-P9.3.3.
+stable binary heap, but does not resolve P9.3.2d's source proof debt. P9.3.3
+may proceed while the resulting runtime claim remains prohibited.
 
 ## Runtime acceptance audit
 
@@ -516,11 +519,12 @@ P9.3.3.
 The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. The source-edge audit exposes where
 work accumulates but does not convert the observed totals into an asymptotic
-bound. It is not accepted as a proof. P9.3.2d is `blocked`,
-`source_an19::experiment::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
-production runtime or full Lemma 5.4 completion is claimed.
+bound. It is not accepted as a proof. P9.3.2d is implementation-complete with
+deferred proof debt; `source_an19::experiment::hierarchy::AmortizationMode`
+remains `AggregateRegressionOnly`, and no AN19 production runtime or full
+Lemma 5.4 completion is claimed.
 
-## Persisted source blocker
+## Persisted source proof debt
 
 AN19 defines the cone ball around `p` by the excess
 `d(p,v)+d(p,x)-d(v,x)`. Claim 15 realizes this as directed arc costs
@@ -561,11 +565,12 @@ only as coverage limitations, not as evidence that a source does not exist.
 No formal correction, author clarification, supplement, revised manuscript, or
 later paper proving the exact conversion was found. This is a bounded search
 result, not a proof of nonexistence. It leaves the exact reduced-event lemma
-unchanged and P9.3.2d blocked. Unblocking still requires an authoritative
-corrected construction or an independently proved replacement satisfying the
-exact rational event-order and `O(m log n log log n)` work obligations.
+unproved and scheduled as P9.6a low-priority work. Closing that task requires
+an authoritative corrected construction or an independently proved replacement
+satisfying the exact rational event-order and `O(m log n log log n)` work
+obligations.
 
-## Repository-wide blocker consistency audit
+## Repository-wide proof-debt consistency audit
 
 The original documentation audit started from clean, synchronized local and
 remote HEAD `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7`. This lower-bound audit started
@@ -581,8 +586,8 @@ status source, generated scope CSV, paper tables, README, limitations,
 algorithm traceability, experiments, testing QA, references, near-linear flow
 map, master plan, and P9 reports now separate implemented evidence,
 source-checked-but-unsupported evidence, and unproved obligations. The release
-consistency checker enforces the required blocker text and rejects explicit
-runtime/P9.3.2d completion overclaims.
+consistency checker enforces the deferred-proof boundary and rejects explicit
+runtime/P9.3.2d complexity-completion overclaims.
 
 | Command | Exit | Result |
 | --- | ---: | --- |
@@ -595,13 +600,13 @@ runtime/P9.3.2d completion overclaims.
 | `cargo test --workspace` | 0 | 247 passed, 3 existing ignored, 13 suites, 397.72 s |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
 | `cargo build --workspace --release` | 0 | release workspace is current |
-| `python3 tools/check_release_consistency.py` | 0 | release evidence and AN19 blocker status are consistent |
+| `python3 tools/check_release_consistency.py` | 0 | release evidence and AN19 deferred-proof status are consistent |
 
 ## Focused evidence
 
 | Command | Exit | Duration | Result |
 | --- | ---: | ---: | --- |
-| `git status --short` | 0 | <0.01 s | only the intended blocker documentation, generator, checker, and generated tables changed before closeout |
+| `git status --short` | 0 | <0.01 s | only the intended proof-debt documentation, generator, checker, and generated tables changed before closeout |
 | `git diff --check` | 0 | <0.01 s | clean |
 | `cargo test -p rect-graph source_an19::tests::` | 0 | 0.49 s | 32 tests passed; 456 fixed-radius directed-distance families and 456 threshold families match their independent Oracles; source/virtual projection charges and every workspace scan class survive valid hierarchy operations and uniform scaling while synchronized class/aggregate mutations are rejected |
 | `cargo test -p rect-graph` | 0 | 0.50 s | 102 tests passed; projection and workspace scan charging preserve hierarchy, contraction, recovery, active-class, source-counter, symbolic-label, and recursive-scale certificates |
@@ -652,8 +657,9 @@ All 31 reduced runs carry a valid `3 I ceil(log2(max(I,1))) + 2m` certificate;
 all 31 Oracle runs carry none. The maximum observed/bound totals are 473 and
 1,112. Exact semantic agreement remains true in every case. The source target
 is not upgraded: `priority_queue_bound_proved`, `global_amortization_proved`,
-and `an19_runtime_verified` remain false, P9.3.2d-pq-proof remains blocked, and
-P9.3.3--P12 remain forbidden.
+and `an19_runtime_verified` remain false, P9.3.2d-pq-proof remains planned
+low-priority work, and P9.3.3 through P9.5 may proceed. P9.6 remains
+responsible for proof closure before an `AlmostLinear` claim.
 
 | Command | Exit | Result |
 | --- | ---: | --- |

@@ -333,9 +333,9 @@ validate the implemented accounting contract only.
 
 The formal SIAM paper (DOI `10.1137/17M1115575`) was source-checked but does
 not provide the reduced-event ordering/counting conversion required to bound
-the exact costs `ell(u,v) + d(x,u) - d(x,v)`. The AN19 asymptotic runtime and
-P9.3.2d therefore remain blocked; no experimental population is treated as a
-proof of that bound.
+the exact costs `ell(u,v) + d(x,u) - d(x,v)`. The AN19 asymptotic runtime
+therefore remains unproved. P9.3.2d's implementation is complete and its proof
+is deferred at low priority; no experimental population is treated as a proof of that bound.
 
 ## AN19 exact event campaign
 
