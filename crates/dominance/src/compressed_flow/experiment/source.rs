@@ -357,10 +357,13 @@ mod tests {
         biclique::{Block, Partition},
         compressed_flow::oracle,
         embedding::DominanceEmbedding,
+        formal::analyze_formal_admissible_family,
     };
     use mrd_domain::{
-        BicliqueId, HorizontalChord, HorizontalChordId, VerticalChord, VerticalChordId,
+        BicliqueId, FormalRectilinearPolygon, HorizontalChord, HorizontalChordId, Ornament,
+        OrnamentSegment, OrthogonalLoop, Point, RectilinearPolygon, VerticalChord, VerticalChordId,
     };
+    use sg_oracle::polygon::CoordinateCompressedCompletion;
 
     fn two_by_two_partition() -> (BipartiteGraph, Partition) {
         let mut graph = BipartiteGraph::new(2, 2);
@@ -380,6 +383,31 @@ mod tests {
                 right: vec![0, 1],
             }],
         }
+    }
+
+    fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
+        OrthogonalLoop::new(vec![
+            Point::new(x0, y0),
+            Point::new(x1, y0),
+            Point::new(x1, y1),
+            Point::new(x0, y1),
+        ])
+    }
+
+    fn formal_source_figure_three() -> FormalRectilinearPolygon {
+        FormalRectilinearPolygon::new(
+            RectilinearPolygon::new(rectangle(0, 0, 12, 12), vec![rectangle(2, 6, 5, 9)]).unwrap(),
+            Ornament {
+                isolated_points: vec![Point::new(6, 3), Point::new(6, 9), Point::new(8, 9)],
+                segments: vec![
+                    OrnamentSegment::new(Point::new(10, 0), Point::new(10, 3)).unwrap(),
+                    OrnamentSegment::new(Point::new(2, 3), Point::new(5, 3)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 6), Point::new(12, 6)).unwrap(),
+                    OrnamentSegment::new(Point::new(10, 9), Point::new(10, 12)).unwrap(),
+                ],
+            },
+        )
+        .unwrap()
     }
 
     #[test]
@@ -429,6 +457,54 @@ mod tests {
         for (left, right) in graph.edges() {
             assert!(recovered.vertex_cover.left[left] || recovered.vertex_cover.right[right]);
         }
+    }
+
+    #[test]
+    fn source_cover_completes_a_formal_polygon_to_its_optimum() {
+        let polygon = formal_source_figure_three();
+        let analysis = analyze_formal_admissible_family(&polygon).unwrap();
+        let embedding =
+            DominanceEmbedding::new(&analysis.families.horizontal, &analysis.families.vertical)
+                .unwrap();
+        let partition = Partition::comparability_theorem_8(&embedding).unwrap();
+        partition
+            .verify_exact_partition(&analysis.explicit_conflict_graph)
+            .unwrap();
+        let circulation = Circulation::from_partition(
+            analysis.families.horizontal.len(),
+            analysis.families.vertical.len(),
+            &partition,
+        )
+        .unwrap();
+        let terminal = graph::min_cost::experiment::solve(circulation.network()).unwrap();
+        let recovered = circulation.recover_certified(&terminal).unwrap();
+        assert_eq!(recovered.flow_value, analysis.explicit_matching.size);
+
+        let selected_horizontal = recovered
+            .vertex_cover
+            .left
+            .iter()
+            .map(|covered| !covered)
+            .collect::<Vec<_>>();
+        let selected_vertical = recovered
+            .vertex_cover
+            .right
+            .iter()
+            .map(|covered| !covered)
+            .collect::<Vec<_>>();
+        let completion = CoordinateCompressedCompletion
+            .complete_formal(
+                &polygon,
+                &analysis.families.horizontal,
+                &analysis.families.vertical,
+                &selected_horizontal,
+                &selected_vertical,
+            )
+            .unwrap();
+        assert_eq!(
+            completion.rectangles.len(),
+            analysis.optimum_rectangle_count
+        );
     }
 
     #[test]
