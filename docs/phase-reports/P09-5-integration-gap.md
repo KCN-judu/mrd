@@ -17,14 +17,22 @@ dependency. `tools/check_source_flow_audit.py` rejects reference max-flow,
 enumerating min-cost, legacy snapshot-recovery, and dynamic-cycle dependencies
 from the production P9.5 boundary.
 
-This narrows the recovery gap but does not close P9.5. There is still no
-certified iterative producer for the terminal snapshot, no lower-bound or
-augmentation recovery integration, no MRD compressed-network differential,
-and no end-to-end no-fallback audit. `Backend::require_complete()` therefore
-continues to reject execution and `an19_runtime_verified` remains false.
-P9.3.2d's missing AN19 proof is a separate low-priority debt: it does not
-block these semantic integration tasks, but must be closed in P9.6a before an
-`AlmostLinear` name or AN19 runtime claim.
+Commit `b34be66` adds `source_flow::iteration::Session`. It owns a certified
+snapshot and its `IpmDetectLedger`; an immutable `Step` supplies exact
+direction, approximations, and `kappa`. The session applies the existing
+Lemma 4.4 transition, records the accepted step, and exposes exact Detect
+threshold accounting. This connects update semantics to recovery without
+using a reference flow path. It deliberately does not select `Step.direction`:
+the P9.4 query boundary validates candidate cycles but does not construct the
+minimum-ratio update required by the source iteration.
+
+P9.5 remains open. Source direction selection, lower-bound and augmentation
+recovery integration, MRD compressed-network differential evidence, and an
+end-to-end no-fallback audit are still absent. `Backend::require_complete()`
+therefore continues to reject execution and `an19_runtime_verified` remains
+false. P9.3.2d's missing AN19 proof is a separate low-priority debt: it does
+not block these semantic integration tasks, but must be closed in P9.6a before
+an `AlmostLinear` name or AN19 runtime claim.
 
 ## Incremental audit
 
@@ -32,4 +40,4 @@ block these semantic integration tasks, but must be closed in P9.6a before an
 | --- | ---: | --- |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
-| `cargo test -p graph source_flow` | 0 | 4 focused tests passed, including the test-only exact recovery differential |
+| `cargo test -p graph source_flow` | 0 | 5 focused tests passed, including recovery differential and supplied-step accounting |
