@@ -7,6 +7,8 @@ use crate::{
     SourceUpdateBatch, SourceWeightedEdge,
 };
 
+pub mod mwu;
+
 type RootedOrder = (Vec<Option<usize>>, Vec<usize>, Vec<usize>);
 
 /// Appendix B.3 tree machinery used by the dynamic low-stretch forest.

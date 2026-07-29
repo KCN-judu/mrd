@@ -291,12 +291,16 @@ path for every active input edge; validation recomputes path endpoints,
 connectivity, congestion, path length, and recourse counters. There is no
 directed graph, insertion, arbitrary update, expander, or theorem-runtime API.
 
-`graph::lsf_mwu::ForestCollection` is the P8.4 exact small-instance
-baseline for Lemma 5.5's forest collection. It deterministically reweights
-edges after exact P8.2 stretch measurements, constructs weighted Kruskal trees,
-and emits exact per-edge average-stretch certificates with operation counters.
-It does not claim Lemma 5.5's `O(log^7 n)` guarantee or its production-scale
-construction.
+`graph::source_lsf::experiment::mwu::Collection` is the P9.3.3 source-shaped
+Lemma 5.5 construction. For exactly `k` rounds it expands the current rational
+edge weights to the P9.3.2 weighted-copy graph, constructs an AN19 static tree,
+maps the acyclic copy tree back to original edges, and initializes the source
+LSF forest. Its rational update is `1 + x + x^2` for
+`x = stretch / rho`; the certificate checks `x <= 1/10`, both supplied Lemma
+5.4 envelope inequalities, every source forest, and the resulting uniform
+per-edge average-stretch bound. This is a finite-instance checked bound, not
+an `O(log^7 n)` claim. `graph::lsf_mwu::ForestCollection` remains the permanent
+P8 weighted-Kruskal small-instance Oracle and is not a fallback.
 
 `graph::dynamic_min_ratio` is the P8.5 compact-cycle baseline. A compact
 cycle separates signed off-tree edges from signed tree paths, then decodes
