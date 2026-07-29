@@ -15,10 +15,9 @@ use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
     PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonDissectionValidatorBackend,
-    PolygonRecoveryBackend, PreparedCoordinateArrangement, SoltanGorpinevichSweepEnumerator,
-    SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
-    SubdivisionBuilderBackend, SweepCertificate, classify_clean_polygon, polygon_cut_index,
-    validate_polygon_dissection,
+    PolygonRecoveryBackend, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
+    SparseSlabValidator, SparseValidatorBackend, SubdivisionBuilderBackend, SweepCertificate,
+    classify_clean_polygon, polygon_arrangement, polygon_cut_index, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -341,7 +340,7 @@ pub fn verify_polygon(
         .copied()
         .collect::<BTreeSet<_>>();
     let arrangement =
-        PreparedCoordinateArrangement::new(&indexed_prepared, &horizontal_cuts, &vertical_cuts)
+        polygon_arrangement::Arrangement::new(&indexed_prepared, &horizontal_cuts, &vertical_cuts)
             .map_err(|error| PolygonVerificationError::Backend {
                 backend: "indexed-arrangement",
                 message: error.to_string(),
@@ -387,11 +386,19 @@ pub fn verify_polygon(
             &indexed_completion.rectangles,
         )
         .is_ok(),
-        indexed_accepts_reference: arrangement
-            .validate_rectangles(indexed_prepared.polygon(), &reference_completion.rectangles)
+        indexed_accepts_reference: polygon_arrangement::experiment::Validator
+            .validate(
+                &arrangement,
+                indexed_prepared.polygon(),
+                &reference_completion.rectangles,
+            )
             .is_ok(),
-        indexed_accepts_indexed: arrangement
-            .validate_rectangles(indexed_prepared.polygon(), &indexed_completion.rectangles)
+        indexed_accepts_indexed: polygon_arrangement::experiment::Validator
+            .validate(
+                &arrangement,
+                indexed_prepared.polygon(),
+                &indexed_completion.rectangles,
+            )
             .is_ok(),
         sparse_accepts_reference: SparseSlabValidator
             .validate(indexed_prepared.polygon(), &reference_completion.rectangles)

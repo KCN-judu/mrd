@@ -36,7 +36,7 @@ and boundary/cut ray stops use static and dynamic indexes. Production counters
 require zero global candidate rebuilds, zero full boundary scans, and zero full
 cut scans.
 
-The final cut family builds one `PreparedCoordinateArrangement`. Scanline
+The final cut family builds one `polygon_arrangement::Arrangement`. Scanline
 parity fills occupied spans, dense barrier arrays provide constant-time recovery
 adjacency, and a two-dimensional difference array validates output coverage.
 The reference and indexed backends must return identical selected cuts, added
@@ -47,7 +47,7 @@ cuts, and canonical rectangles.
 The CompactOnly default is now `polygon_cut_index::experiment::Index` plus
 `SparseOrthogonalSubdivision` plus `SparseSlabValidator`.  It preserves the
 policy above but does not build a coordinate Cartesian product.  The line-map
-cut index and `PreparedCoordinateArrangement` are permanent dense/reference
+cut index and `polygon_arrangement::Arrangement` are permanent dense/reference
 oracles.  See [POLYGON_COMPLETION_COORDINATE_CLOSURE.md](POLYGON_COMPLETION_COORDINATE_CLOSURE.md),
 [DYNAMIC_ORTHOGONAL_CUT_INDEX.md](DYNAMIC_ORTHOGONAL_CUT_INDEX.md),
 [SPARSE_POLYGON_SUBDIVISION.md](SPARSE_POLYGON_SUBDIVISION.md), and

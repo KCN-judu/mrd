@@ -33,10 +33,10 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, EffectiveChordEnumerator, GeneralPolygonPairwiseEnumerator,
     GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
     IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    PolygonSgError, PreparedCoordinateArrangement, ReferencePairwiseEnumerator,
-    ReferenceRescanCompletion, SgError, SoltanGorpinevichSweepEnumerator, SparseValidatorBackend,
-    SubdivisionBuilderBackend, analyze_prepared_geometry, audit_sweep_provenance,
-    classify_clean_polygon, complete_with_prepared_backend, polygon_cut_index,
+    PolygonSgError, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
+    SoltanGorpinevichSweepEnumerator, SparseValidatorBackend, SubdivisionBuilderBackend,
+    analyze_prepared_geometry, audit_sweep_provenance, classify_clean_polygon,
+    complete_with_prepared_backend, polygon_arrangement, polygon_cut_index,
     validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
@@ -515,9 +515,9 @@ pub fn solve_polygon_with_options(
             .copied()
             .collect::<BTreeSet<_>>();
         let arrangement =
-            PreparedCoordinateArrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)?;
-        arrangement
-            .validate_rectangles(polygon, &completion.rectangles)
+            polygon_arrangement::Arrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)?;
+        polygon_arrangement::experiment::Validator
+            .validate(&arrangement, polygon, &completion.rectangles)
             .map_err(PolygonSgError::from)?;
     }
     let completed_at = Instant::now();

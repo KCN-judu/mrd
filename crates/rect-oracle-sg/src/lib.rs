@@ -14,10 +14,6 @@ pub use polygon::{
     SweepOutputRecord, VerticalCutSegment, audit_sweep_provenance, classify_clean_polygon,
     validate_polygon_dissection, validate_polygon_dissection_count,
 };
-pub use polygon_arrangement::{
-    ArrangementMetrics, IndexedArrangementValidator, PreparedCoordinateArrangement,
-    ReferenceArrangementValidator,
-};
 pub use polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PolygonRecoveryPolicy,
     SparseOrthogonalSubdivision, SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics,

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::EffectiveChordFamilies;
-use crate::polygon_arrangement::PreparedCoordinateArrangement;
+use crate::polygon_arrangement;
 use crate::polygon_cut_index;
 use crate::polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
@@ -2485,8 +2485,11 @@ impl IndexedPolygonCompletion {
         let mut dense_arrangement = None;
         let rectangles = match selected_recovery_backend {
             PolygonRecoveryBackend::DenseCoordinateArrangement => {
-                let mut arrangement =
-                    PreparedCoordinateArrangement::new(prepared, &horizontal_cuts, &vertical_cuts)?;
+                let mut arrangement = polygon_arrangement::Arrangement::new(
+                    prepared,
+                    &horizontal_cuts,
+                    &vertical_cuts,
+                )?;
                 let rectangles = arrangement.recover_rectangles()?;
                 metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
                 metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
@@ -2526,13 +2529,17 @@ impl IndexedPolygonCompletion {
             PolygonDissectionValidatorBackend::DenseArrangement => {
                 let arrangement = match dense_arrangement {
                     Some(arrangement) => arrangement,
-                    None => PreparedCoordinateArrangement::new(
+                    None => polygon_arrangement::Arrangement::new(
                         prepared,
                         &horizontal_cuts,
                         &vertical_cuts,
                     )?,
                 };
-                arrangement.validate_rectangles(prepared.polygon(), &rectangles)?;
+                polygon_arrangement::experiment::Validator.validate(
+                    &arrangement,
+                    prepared.polygon(),
+                    &rectangles,
+                )?;
                 metrics.coordinate_compression_x_count = arrangement.metrics().arrangement_x_count;
                 metrics.coordinate_compression_y_count = arrangement.metrics().arrangement_y_count;
                 metrics.atomic_cell_count = arrangement.metrics().arrangement_atomic_cells;
@@ -3315,9 +3322,7 @@ mod tests {
         OrthogonalLoop, Point, PreparedPolygonContext, RectilinearPolygon,
     };
 
-    use crate::polygon_arrangement::{
-        IndexedArrangementValidator, PreparedCoordinateArrangement, ReferenceArrangementValidator,
-    };
+    use crate::polygon_arrangement;
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
     use super::{
@@ -4002,16 +4007,16 @@ mod tests {
         }]);
         let prepared = PreparedPolygonContext::new(&polygon).unwrap();
         let arrangement =
-            PreparedCoordinateArrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)
+            polygon_arrangement::Arrangement::new(&prepared, &horizontal_cuts, &vertical_cuts)
                 .unwrap();
         let valid = vec![CoordinateRect::new(0, 0, 4, 4).unwrap()];
         assert!(
-            ReferenceArrangementValidator
+            polygon_arrangement::oracle::Validator
                 .validate(&polygon, &valid)
                 .is_ok()
         );
         assert!(
-            IndexedArrangementValidator
+            polygon_arrangement::experiment::Validator
                 .validate(&arrangement, &polygon, &valid)
                 .is_ok()
         );
@@ -4020,10 +4025,10 @@ mod tests {
             CoordinateRect::new(0, 0, 4, 3).unwrap(),
             CoordinateRect::new(0, 2, 2, 4).unwrap(),
         ];
-        let reference = ReferenceArrangementValidator
+        let reference = polygon_arrangement::oracle::Validator
             .validate(&polygon, &overlap)
             .unwrap_err();
-        let indexed = IndexedArrangementValidator
+        let indexed = polygon_arrangement::experiment::Validator
             .validate(&arrangement, &polygon, &overlap)
             .unwrap_err();
         assert_eq!(reference, indexed);

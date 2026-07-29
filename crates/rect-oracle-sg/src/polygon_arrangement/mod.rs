@@ -2,15 +2,16 @@
 
 use std::collections::{BTreeSet, VecDeque};
 
-use rect_core::{CoordinateRect, Point, PreparedPolygonContext, RectilinearPolygon};
+use rect_core::{CoordinateRect, Point, PreparedPolygonContext};
 use serde::{Deserialize, Serialize};
 
-use crate::polygon::{
-    HorizontalCutSegment, PolygonSgError, PolygonValidationError, VerticalCutSegment,
-};
+use crate::polygon::{HorizontalCutSegment, PolygonSgError, VerticalCutSegment};
+
+pub mod experiment;
+pub mod oracle;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ArrangementMetrics {
+pub struct Metrics {
     pub arrangement_x_count: usize,
     pub arrangement_y_count: usize,
     pub arrangement_atomic_cells: usize,
@@ -23,7 +24,7 @@ pub struct ArrangementMetrics {
 /// One exact coordinate-compressed polygon arrangement shared by recovery and
 /// indexed validation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PreparedCoordinateArrangement {
+pub struct Arrangement {
     xs: Vec<i64>,
     ys: Vec<i64>,
     occupied: Vec<bool>,
@@ -31,11 +32,11 @@ pub struct PreparedCoordinateArrangement {
     vertical_barriers: Vec<bool>,
     width: usize,
     height: usize,
-    metrics: ArrangementMetrics,
+    metrics: Metrics,
     owned_bytes: usize,
 }
 
-impl PreparedCoordinateArrangement {
+impl Arrangement {
     /// Builds occupancy by a scanline parity sweep and indexes all barriers.
     ///
     /// # Errors
@@ -73,11 +74,11 @@ impl PreparedCoordinateArrangement {
             .checked_mul(height)
             .ok_or(PolygonSgError::CoordinateOverflow)?;
         let mut occupied = vec![false; atomic_cells];
-        let mut metrics = ArrangementMetrics {
+        let mut metrics = Metrics {
             arrangement_x_count: xs.len(),
             arrangement_y_count: ys.len(),
             arrangement_atomic_cells: atomic_cells,
-            ..ArrangementMetrics::default()
+            ..Metrics::default()
         };
 
         for y_index in 0..height {
@@ -170,7 +171,7 @@ impl PreparedCoordinateArrangement {
     }
 
     #[must_use]
-    pub const fn metrics(&self) -> &ArrangementMetrics {
+    pub const fn metrics(&self) -> &Metrics {
         &self.metrics
     }
 
@@ -256,134 +257,6 @@ impl PreparedCoordinateArrangement {
         rectangles.sort_unstable();
         Ok(rectangles)
     }
-
-    /// Validates coverage using a two-dimensional difference array.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first exact coverage or rectangle-geometry failure.
-    #[allow(clippy::too_many_lines)]
-    pub fn validate_rectangles(
-        &self,
-        polygon: &RectilinearPolygon,
-        rectangles: &[CoordinateRect],
-    ) -> Result<(), PolygonValidationError> {
-        let mut difference = vec![0_i64; (self.width + 1) * (self.height + 1)];
-        let mut area = 0_i128;
-        for (index, rectangle) in rectangles.iter().copied().enumerate() {
-            if rectangle.x0 >= rectangle.x1 || rectangle.y0 >= rectangle.y1 {
-                return Err(PolygonValidationError::NonPositiveRectangle { rectangle: index });
-            }
-            let Ok(x0) = self.xs.binary_search(&rectangle.x0) else {
-                return Err(PolygonValidationError::OutsidePolygon {
-                    rectangle: index,
-                    point: rect_core::DoubledPoint::new(
-                        i128::from(rectangle.x0) + i128::from(rectangle.x1),
-                        i128::from(rectangle.y0) + i128::from(rectangle.y1),
-                    ),
-                });
-            };
-            let Ok(x1) = self.xs.binary_search(&rectangle.x1) else {
-                return Err(PolygonValidationError::OutsidePolygon {
-                    rectangle: index,
-                    point: rect_core::DoubledPoint::new(
-                        i128::from(rectangle.x0) + i128::from(rectangle.x1),
-                        i128::from(rectangle.y0) + i128::from(rectangle.y1),
-                    ),
-                });
-            };
-            let Ok(y0) = self.ys.binary_search(&rectangle.y0) else {
-                return Err(PolygonValidationError::OutsidePolygon {
-                    rectangle: index,
-                    point: rect_core::DoubledPoint::new(
-                        i128::from(rectangle.x0) + i128::from(rectangle.x1),
-                        i128::from(rectangle.y0) + i128::from(rectangle.y1),
-                    ),
-                });
-            };
-            let Ok(y1) = self.ys.binary_search(&rectangle.y1) else {
-                return Err(PolygonValidationError::OutsidePolygon {
-                    rectangle: index,
-                    point: rect_core::DoubledPoint::new(
-                        i128::from(rectangle.x0) + i128::from(rectangle.x1),
-                        i128::from(rectangle.y0) + i128::from(rectangle.y1),
-                    ),
-                });
-            };
-            difference[y0 * (self.width + 1) + x0] += 1;
-            difference[y0 * (self.width + 1) + x1] -= 1;
-            difference[y1 * (self.width + 1) + x0] -= 1;
-            difference[y1 * (self.width + 1) + x1] += 1;
-            area = area
-                .checked_add(rectangle.area())
-                .ok_or(PolygonValidationError::AreaOverflow)?;
-        }
-        let polygon_area = polygon
-            .twice_signed_area()
-            .map_err(PolygonValidationError::Polygon)?;
-        if area
-            .checked_mul(2)
-            .ok_or(PolygonValidationError::AreaOverflow)?
-            != polygon_area
-        {
-            return Err(PolygonValidationError::AreaMismatch {
-                polygon_area_twice: polygon_area,
-                rectangle_area_twice: area * 2,
-            });
-        }
-        let stride = self.width + 1;
-        for y in 0..=self.height {
-            for x in 0..=self.width {
-                let index = y * stride + x;
-                let left = x.checked_sub(1).map_or(0, |_| difference[index - 1]);
-                let above = y.checked_sub(1).map_or(0, |_| difference[index - stride]);
-                let diagonal = if x > 0 && y > 0 {
-                    difference[index - stride - 1]
-                } else {
-                    0
-                };
-                difference[index] += left + above - diagonal;
-            }
-        }
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let coverage = difference[y * stride + x];
-                let point = rect_core::DoubledPoint::new(
-                    i128::from(self.xs[x]) + i128::from(self.xs[x + 1]),
-                    i128::from(self.ys[y]) + i128::from(self.ys[y + 1]),
-                );
-                if coverage > 1 {
-                    let mut covering =
-                        rectangles
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(index, rectangle)| {
-                                rectangle
-                                    .contains_doubled_point_strict(point)
-                                    .then_some(index)
-                            });
-                    let first = covering.next().unwrap_or(0);
-                    let second = covering.next().unwrap_or(first);
-                    return Err(PolygonValidationError::Overlap {
-                        first,
-                        second,
-                        point,
-                    });
-                }
-                if self.occupied[y * self.width + x] && coverage == 0 {
-                    return Err(PolygonValidationError::UncoveredInterior { point });
-                }
-                if !self.occupied[y * self.width + x] && coverage != 0 {
-                    let rectangle = rectangles
-                        .iter()
-                        .position(|rectangle| rectangle.contains_doubled_point_strict(point))
-                        .unwrap_or(0);
-                    return Err(PolygonValidationError::OutsidePolygon { rectangle, point });
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 fn index_boundary_segment(
@@ -417,48 +290,5 @@ fn index_boundary_segment(
         for y in bottom..top {
             vertical[y * (width + 1) + x] = true;
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct IndexedArrangementValidator;
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ReferenceArrangementValidator;
-
-impl IndexedArrangementValidator {
-    /// # Errors
-    ///
-    /// Returns the first exact coverage or rectangle-geometry failure.
-    pub fn validate(
-        &self,
-        arrangement: &PreparedCoordinateArrangement,
-        polygon: &RectilinearPolygon,
-        rectangles: &[CoordinateRect],
-    ) -> Result<(), PolygonValidationError> {
-        arrangement.validate_rectangles(polygon, rectangles)
-    }
-
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        "indexed-difference-array"
-    }
-}
-
-impl ReferenceArrangementValidator {
-    /// # Errors
-    ///
-    /// Returns the reference validator's first exact coverage failure.
-    pub fn validate(
-        &self,
-        polygon: &RectilinearPolygon,
-        rectangles: &[CoordinateRect],
-    ) -> Result<(), PolygonValidationError> {
-        crate::polygon::validate_polygon_dissection(polygon, rectangles)
-    }
-
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        "reference-arrangement-scan"
     }
 }

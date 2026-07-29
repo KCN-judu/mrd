@@ -15,10 +15,9 @@ use rect_dominance::{
 use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    PolygonValidationError, PreparedCoordinateArrangement, SoltanGorpinevichSweepEnumerator,
-    SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
-    SubdivisionBuilderBackend, VerticalCutSegment, classify_clean_polygon, polygon_cut_index,
-    validate_polygon_dissection,
+    PolygonValidationError, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
+    SparseSlabValidator, SparseValidatorBackend, SubdivisionBuilderBackend, VerticalCutSegment,
+    classify_clean_polygon, polygon_arrangement, polygon_cut_index, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -565,13 +564,13 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
             top: 4,
         })
         .collect::<BTreeSet<_>>();
-    let arrangement = PreparedCoordinateArrangement::new(&prepared, &BTreeSet::new(), &vertical)
+    let arrangement = polygon_arrangement::Arrangement::new(&prepared, &BTreeSet::new(), &vertical)
         .expect("rectangle fixture arrangement builds");
     for (name, rectangles) in invalid_rectangle_sets() {
         let reference = validate_polygon_dissection(&rectangle_polygon, &rectangles)
             .expect_err("fixture must be invalid");
-        let indexed = arrangement
-            .validate_rectangles(&rectangle_polygon, &rectangles)
+        let indexed = polygon_arrangement::experiment::Validator
+            .validate(&arrangement, &rectangle_polygon, &rectangles)
             .expect_err("fixture must be invalid");
         let reference_category = dissection_error_category(&reference);
         let indexed_category = dissection_error_category(&indexed);
@@ -1499,9 +1498,10 @@ fn validate_with_indexed_arrangement(
         .into_iter()
         .chain(certificate_segments(result, "added_vertical_cuts")?)
         .collect::<BTreeSet<_>>();
-    PreparedCoordinateArrangement::new(prepared, &horizontal, &vertical)
-        .map_err(|error| error.to_string())?
-        .validate_rectangles(prepared.polygon(), &result.rectangles)
+    let arrangement = polygon_arrangement::Arrangement::new(prepared, &horizontal, &vertical)
+        .map_err(|error| error.to_string())?;
+    polygon_arrangement::experiment::Validator
+        .validate(&arrangement, prepared.polygon(), &result.rectangles)
         .map_err(|error| error.to_string())
 }
 

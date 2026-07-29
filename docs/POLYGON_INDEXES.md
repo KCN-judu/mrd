@@ -30,7 +30,7 @@ event ordering, and source limitations.
 Completion uses an incremental frontier and a dynamic cut index. Selected cuts
 are materialized first, horizontal completion runs before vertical completion,
 and only endpoint/intersection candidates are refreshed after insertion. The
-indexed backend shares one `PreparedCoordinateArrangement` for occupancy,
+indexed backend shares one `polygon_arrangement::Arrangement` for occupancy,
 barriers, rectangle recovery, and difference-array validation.
 
 Owned-byte diagnostics are estimates of Rust-owned vectors, maps, indexes,

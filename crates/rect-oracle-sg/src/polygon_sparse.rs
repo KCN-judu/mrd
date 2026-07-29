@@ -1557,7 +1557,7 @@ mod tests {
     };
 
     use crate::polygon::{HorizontalCutSegment, VerticalCutSegment};
-    use crate::polygon_arrangement::PreparedCoordinateArrangement;
+    use crate::polygon_arrangement;
 
     use super::{
         SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
@@ -1705,7 +1705,7 @@ mod tests {
                 .recover_rectangles(&polygon)
                 .unwrap();
             let mut dense =
-                PreparedCoordinateArrangement::new(&prepared, &horizontal, &vertical).unwrap();
+                polygon_arrangement::Arrangement::new(&prepared, &horizontal, &vertical).unwrap();
             let dense = dense.recover_rectangles().unwrap();
             assert_eq!(sparse, dense);
             SparseSlabValidator.validate(&polygon, &sparse).unwrap();
