@@ -10,6 +10,7 @@ pub mod min_cost;
 pub mod min_ratio_cycle;
 pub mod rooted_forest;
 pub mod source_an19;
+pub mod source_flow;
 pub mod source_lsf;
 pub mod source_lsst;
 pub mod source_min_ratio;
