@@ -50,6 +50,14 @@ heap over source-driven updates, and reverses a positive choice for descent.
 It cannot create a tree chain, spanner embedding, or candidate declaration,
 and it does not yet connect the choice to a current `Step` certificate.
 
+Commit `abb77ac` adds P9.5a.3.1's static terminal-tree projection. It runs the
+exact AN19-shaped hierarchy over the current materialized `Input`, retains the
+source tree certificate, forms one checked terminal branch, and declares the
+unique tree-path-plus-edge compact cycle for every non-tree source edge. It is
+direct candidate construction from source state, not cycle enumeration. It does
+not attach core/spanner embedding provenance, update candidates across
+snapshots, or certify a selected direction as a `Step`.
+
 Commit `8d7975b` adds source-flow terminal recovery through both initial-point
 augmentation and lower-bound normalization. It first recovers the augmented
 integral circulation, rejects any surviving artificial arc, restores the
@@ -116,6 +124,7 @@ runtime proof debt.
 | `StableMinRatioLedger` | Its public `edges()` slice contains only anonymous `StableEdge` coordinates; `StableWitness` is consumed at construction and only checked stability floors are retained. | Neither coordinate identity nor the witness input identifies a `source_min_ratio::cycle::Cycle`. |
 | `source_min_ratio::input::Input` | It validates caller-supplied exact current coordinates and constructs an orientation-preserving source-edge/circulation-arc binding with the source graph. | Stable arc provenance is now available; it still does not create a tree chain, embeddings, a candidate set, or a selection certificate. |
 | `source_min_ratio::candidate::Registry` | It accepts only declared fundamental spanner/tree compact cycles, computes their exact current quality, and chooses the best nonzero candidate with deterministic stale-record handling. | It cannot discover candidate declarations from a graph, construct source embeddings, or certify the chosen direction as a `Step`. |
+| `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings, cross-snapshot candidate maintenance, or `Step` certificate. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
 | `source_flow::iteration::Step::from_compact_candidate` | It decodes a caller-supplied compact cycle into a full exact circulation direction. | It cannot initialize an IPM iteration without a selected candidate and current approximation certificate. |
@@ -124,10 +133,10 @@ runtime proof debt.
 The missing P9.5a construction must do all of the following using the completed
 exact input projection and supplied-candidate heap:
 
-1. Extend the stable source graph/circulation-arc provenance to tree-chain
-   branches, embeddings, and compact-cycle segments.
-2. Construct and update fundamental spanner/tree declarations from that live
-   source state for `candidate::Registry`.
+1. Extend the stable source graph/circulation-arc provenance from the terminal
+   tree to core/spanner embeddings and their compact-cycle segments.
+2. Construct and update fundamental spanner declarations and maintain terminal
+   declarations from that live source state for `candidate::Registry`.
 3. Certify its selected compact direction with the current approximation
    gradients, lengths, and `kappa` required by the Lemma 4.4 transition.
 4. Keep the stability-witness input out of the query result, retain exact

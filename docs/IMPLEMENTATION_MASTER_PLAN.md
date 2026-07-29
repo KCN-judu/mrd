@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.4
 - Last pushed SHA: 20ee78d7f791d6b6d133e70d12b55db0bc92095b
-- Plan last updated: 2026-07-29T22:27:30Z
+- Plan last updated: 2026-07-29T22:38:34Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1117,11 +1117,25 @@ P9.5a is split before further implementation:
    complexity bound. Evidence:
    `docs/phase-reports/P09-5-candidate-heap.md`.
 3. **P9.5a.3 - Live tree-chain/embedding and `Step` integration. State:
-   planned.** Construct the source tree-chain, core/spanner embeddings, and
+   in_progress.** Construct the source tree-chain, core/spanner embeddings, and
    candidate updates from the live IPM/source state; then convert the selected
    candidate to a certified Lemma 4.4 `Step` and run the no-fallback
    differential. This is the remaining selector gate for
-   `Backend::require_complete()`.
+   `Backend::require_complete()`. It is split before implementation:
+   - **P9.5a.3.1 - Terminal-tree projection and declarations. State:
+     complete. Implementation SHA: `abb77ac`.** Materialize one exact AN19-shaped static tree from a live
+     `Input`, preserve its source certificate, form a one-level checked chain,
+     and emit one terminal fundamental declaration for every non-tree source
+     edge. This must not enumerate cycles or claim a runtime bound. Evidence:
+     `docs/phase-reports/P09-5-terminal-tree-projection.md`.
+   - **P9.5a.3.2 - Core/spanner embeddings and live maintenance. State:
+     planned.** Attach source core/spanner embedding provenance, declare the
+     associated fundamental spanner cycles, and apply source-driven
+     replacement/retirement updates to the registry across supported snapshots.
+   - **P9.5a.3.3 - Certified `Step` selection differential. State: planned.**
+     Connect the maintained heap choice to the current approximation and
+     `Step::from_compact_candidate`, then differentially validate the
+     no-fallback source-flow transition against permanent bounded Oracles.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1189,6 +1203,13 @@ checked heap through source-driven replacement/retirement, and reverses a
 positive candidate for descent. It does not construct the source tree chain or
 embeddings that produce those declarations, invoke an Oracle, or connect a
 choice to a certified `Step`.
+
+Commit `abb77ac` closes P9.5a.3.1's single-snapshot terminal-tree projection.
+It retains the exact AN19-shaped static tree certificate, forms the checked
+terminal chain branch, and supplies one fundamental tree declaration for every
+non-tree source edge without cycle enumeration. Core/spanner embedding
+provenance, cross-snapshot candidate maintenance, and the `Step` certificate
+remain P9.5a.3.2--.3 work.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1365,7 +1386,8 @@ and AN19 runtime claims.
 | P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
 | P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
 | P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
-| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, compressed-circulation recovery differentials through a formal-polygon rectangle completion, exact IPM/source/circulation provenance, and exact source-declared candidate heap | 2026-07-29T20:25:33Z | pending | live source candidate construction, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37, abb77ac | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, compressed-circulation recovery differentials through a formal-polygon rectangle completion, exact IPM/source/circulation provenance, exact source-declared candidate heap, and a single-snapshot terminal-tree declaration projection | 2026-07-29T20:25:33Z | pending | core/spanner candidate construction, cross-snapshot maintenance, `Step` certification, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
 | P9.5a.2 | complete | 20ee78d | 0bf9d37 | pending closeout | pending | `docs/phase-reports/P09-5-candidate-heap.md` | exact source-declared fundamental candidate validation, quality, orientation, deterministic stale-record heap, and no-enumeration tests | 2026-07-29T22:04:55Z | 2026-07-29T22:20:23Z | no live tree-chain/embedding candidate construction, `Step` certificate, or runtime claim |
-| P9.5a | blocked | d11cb3f | 91132c4, 0bf9d37 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md` | exact caller-supplied IPM/source/circulation provenance and source-declared fundamental candidate heap | 2026-07-29T22:20:23Z | pending | live source tree-chain/embedding construction and current exact `Step` certificate remain; reference-cycle enumeration remains forbidden |
+| P9.5a.3.1 | complete | 0bf9d37 | abb77ac | pending closeout | pending | `docs/phase-reports/P09-5-terminal-tree-projection.md` | exact AN19-shaped source tree, checked terminal branch, and one declaration per non-tree source edge | 2026-07-29T22:27:30Z | 2026-07-29T22:38:34Z | no core/spanner embeddings, cross-snapshot candidate maintenance, `Step` certificate, or runtime claim |
+| P9.5a | blocked | d11cb3f | 91132c4, 0bf9d37, abb77ac | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md` | exact caller-supplied IPM/source/circulation provenance, source-declared fundamental candidate heap, and single-snapshot terminal-tree declarations | 2026-07-29T22:38:34Z | pending | core/spanner embedding construction, cross-snapshot candidate maintenance, and current exact `Step` certificate remain; reference-cycle enumeration remains forbidden |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
