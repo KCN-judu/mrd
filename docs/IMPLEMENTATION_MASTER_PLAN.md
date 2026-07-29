@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P9.3.4e
-- Current phase state: in_progress
-- Last completed phase: P9.3.4d
+- Current phase state: complete
+- Last completed phase: P9.3.4e
 - Last pushed SHA: 0b15ba27510d03bad50322f69cb8988350703d60
-- Plan last updated: 2026-07-29T18:06:36Z
+- Plan last updated: 2026-07-29T18:19:17Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -868,23 +868,26 @@ P9.3 is split into the following source-gated subphases:
        rejects differential disagreement. General Theorem 8.6 construction and
        its decremental bounds stay unclaimed unless a source-backed proof and
        matching counters are added.
-   - **P9.3.4e state: in_progress. Start gate: P9.3.4d audit passed.**
-     arXiv:2309.16629v1 Algorithm 4 (pp. 41--42) was reread before coding.
-     Integrate its witness graph, both thresholded embedding loops, image
-     subgraph, composed embedding, and exact Theorem 8.1 certificates in these
-     subphases:
-     - **P9.3.4e1 state: in_progress.** Model Algorithm 4 Task 1's finite
-       witness union from explicitly certified decompositions and retain each
-       component's level weight and source edge provenance.
-     - **P9.3.4e2 state: planned. Start gate: P9.3.4e1 semantic tests pass.**
-       Implement Task 2's `W -> J` path loop with exact threshold traces and
-       deletion-state transitions, preserving unembedded-edge witnesses.
-     - **P9.3.4e3 state: planned. Start gate: P9.3.4e2 differential tests
-       pass.** Implement Task 3's `J -> W` path loop, image subgraph, composed
-       embedding, and independent exact Theorem 8.1 audit.
-     Only this subphase may claim a finite-domain source-shaped `Sparsify`
-     implementation; it still may not claim the source asymptotic bound without
-     all operation counters and predecessor-proof audits.
+   - **P9.3.4e state: complete. Implementation SHAs: `93a0aa2`, `08a854c`,
+     `3a637ac`.** arXiv:2309.16629v1 Algorithm 4 (pp. 41--42) was reread
+     before coding. `source_spanner::algorithm4` now supplies a certified
+     finite replay with witness provenance, `W -> J` threshold/deletion traces,
+     direct finite `J -> W`, the image subgraph, and an exact composition audit.
+     Evidence is `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md`.
+     - **P9.3.4e1 state: complete. Implementation SHA: `93a0aa2`.**
+       `source_spanner::algorithm4::witness` builds the finite witness union
+       from the certified single level and retains component weight, vertices,
+       source edges, and witness-edge provenance.
+     - **P9.3.4e2 state: complete. Implementation SHA: `08a854c`.**
+       `source_spanner::algorithm4::first_embedding` replays the finite
+       `W -> J` loop with stable bounded paths, composed congestion thresholds,
+       deletion traces, and explicit unembedded witness edges.
+     - **P9.3.4e3 state: complete. Implementation SHA: `3a637ac`.**
+       `source_spanner::algorithm4::finalize` builds the finite direct `J -> W`
+       branch, image subgraph, and composed embedding with the independent exact
+       audit. This is limited to the certified one-level, one-component finite
+       domain. General loops, Theorem 8.6 pruning, and Theorem 8.1 bounds remain
+       unimplemented and unclaimed.
 5. **P9.3.5 state: planned. Start gate: P9.3.4 implementation audit passed.**
    Implement Theorem 8.2's deletion/vertex-split
    reduction, batch encoding, sparsity, spanner recourse, re-embedding sets,
@@ -1064,3 +1067,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4d2 | complete | d5bb65d | f097cd4 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | stable-ID BFS path response with hop-bound and pruned-endpoint outcomes | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | no source decremental work/depth claim |
 | P9.3.4d3 | complete | d5bb65d | 838a321 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | independent enumerating simple-path differential certificate and mutation regression | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | Oracle is verification-only and exponential in the worst case |
 | P9.3.4d | complete | d5bb65d | d5d80cc, f097cd4, 838a321 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | exact decremental-path semantics, trace, production BFS, and independent bounded certificate; full-workspace audit | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | general Theorem 8.6 construction and bounds intentionally unclaimed; Algorithm 4 remains |
+| P9.3.4e1 | complete | e396484 | 93a0aa2 | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite Task 1 witness union with exact level weight and source/witness provenance | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | single-level/single-component finite input only |
+| P9.3.4e2 | complete | e396484 | 08a854c | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite `W -> J` bounded path loop with congestion threshold, deletions, and unembedded-edge trace | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | no general expander-pruning or iteration-bound claim |
+| P9.3.4e3 | complete | e396484 | 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite direct `J -> W`, image, composed embedding, and exact audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | direct branch only for the complete finite witness |
+| P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
