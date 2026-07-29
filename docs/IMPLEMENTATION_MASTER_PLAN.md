@@ -1091,6 +1091,27 @@ P9.5 backend, not P9.3.2d's deferred P9.6a proof debt. P9.5 remains
 `Backend::require_complete()` must continue to reject execution until P9.5a is
 implemented and audited.
 
+P9.5a is split before further implementation:
+
+1. **P9.5a.1 - Exact IPM/source/arc provenance. State: complete. Implementation
+   SHA: `91132c4`.** Construct the checked `Input` projection and joint source
+   graph/arc-binding materialization. It does not derive a tree metric from a
+   signed gradient or select a cycle. Evidence:
+   `docs/phase-reports/P09-5-ipm-provenance.md`.
+2. **P9.5a.2 - Maintained fundamental-candidate registry and exact-quality
+   heap. State: in_progress.** Model only source-maintained fundamental
+   spanner/tree candidates, compute their exact current quality from the
+   provenance projection, and keep a deterministic checked heap over supplied
+   candidate updates. The registry must reject undeclared, nondecodable, or
+   duplicate candidates; it must not enumerate graph cycles or claim a
+   complexity bound.
+3. **P9.5a.3 - Live tree-chain/embedding and `Step` integration. State:
+   planned.** Construct the source tree-chain, core/spanner embeddings, and
+   candidate updates from the live IPM/source state; then convert the selected
+   candidate to a certified Lemma 4.4 `Step` and run the no-fallback
+   differential. This is the remaining selector gate for
+   `Backend::require_complete()`.
+
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
 legacy recovery paths, and certify the non-Oracle additive-half termination

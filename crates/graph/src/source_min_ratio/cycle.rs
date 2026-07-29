@@ -30,6 +30,15 @@ impl Direction {
             Self::Reverse => -1,
         }
     }
+
+    /// Reverses the orientation without changing the underlying source edge.
+    #[must_use]
+    pub const fn reversed(self) -> Self {
+        match self {
+            Self::Forward => Self::Reverse,
+            Self::Reverse => Self::Forward,
+        }
+    }
 }
 
 /// One compact segment referring either to an off-tree source edge or a path in
@@ -101,6 +110,33 @@ impl ArcBindings {
 }
 
 impl Cycle {
+    /// Returns the same circulation with every segment traversed in reverse.
+    #[must_use]
+    pub fn reversed(&self) -> Self {
+        Self {
+            segments: self
+                .segments
+                .iter()
+                .rev()
+                .map(|segment| match segment {
+                    Segment::OffTree { source, direction } => Segment::OffTree {
+                        source: *source,
+                        direction: direction.reversed(),
+                    },
+                    Segment::TreePath {
+                        selection,
+                        from,
+                        to,
+                    } => Segment::TreePath {
+                        selection: *selection,
+                        from: *to,
+                        to: *from,
+                    },
+                })
+                .collect(),
+        }
+    }
+
     /// Decodes source references directly through the selected tree branches
     /// and validates the result as a nonempty signed circulation.
     ///

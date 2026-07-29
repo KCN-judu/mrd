@@ -4,6 +4,7 @@
 //! P8 `dynamic_min_ratio` module remains an enumerating Oracle and replay
 //! baseline; it is intentionally not imported here.
 
+pub mod candidate;
 pub mod chain;
 pub mod cycle;
 pub mod execution;

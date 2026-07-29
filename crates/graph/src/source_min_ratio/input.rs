@@ -114,6 +114,14 @@ impl Input {
         &self.arcs
     }
 
+    /// Returns one exact coordinate by its stable circulation-arc identity.
+    #[must_use]
+    pub fn arc(&self, circulation: CirculationArcId) -> Option<&Arc> {
+        self.arcs
+            .get(circulation.0)
+            .filter(|arc| arc.circulation == circulation)
+    }
+
     /// Constructs the source structural graph and its bindings as one checked
     /// operation.
     ///

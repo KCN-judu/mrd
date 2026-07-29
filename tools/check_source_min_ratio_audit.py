@@ -8,13 +8,15 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     "root": ROOT / "crates/graph/src/source_min_ratio.rs",
+    "candidate": ROOT / "crates/graph/src/source_min_ratio/candidate.rs",
     "input": ROOT / "crates/graph/src/source_min_ratio/input.rs",
     "model": ROOT / "crates/graph/src/source_min_ratio/model.rs",
     "chain": ROOT / "crates/graph/src/source_min_ratio/chain.rs",
     "cycle": ROOT / "crates/graph/src/source_min_ratio/cycle.rs",
 }
 REQUIRED = {
-    "root": ("pub mod input", "pub mod chain", "pub mod model"),
+    "root": ("pub mod candidate", "pub mod input", "pub mod chain", "pub mod model"),
+    "candidate": ("pub struct Registry", "pub fn best", "FundamentalSpanner"),
     "input": ("pub struct Input", "pub fn materialize", "ArcBindings::new"),
     "model": ("struct BranchId", "struct Tree", "struct Level"),
     "chain": ("fn validate_tree", "pub fn initial_shifts", "pub fn shift"),
