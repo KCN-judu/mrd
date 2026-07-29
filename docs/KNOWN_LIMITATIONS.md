@@ -78,8 +78,11 @@
   differential/regression tests are implemented and audited. The formal SIAM
   journal source (DOI `10.1137/17M1115575`) was checked but does not establish
   the required ordering/counting conversion for exact reduced costs
-  `ell(u,v) + d(x,u) - d(x,v)`. This missing lemma blocks P9.3.2d and the AN19
-  asymptotic runtime chain; empirical counts do not close the proof. An isolated
+  `ell(u,v) + d(x,u) - d(x,v)`. P9.3.2d's faithful implementation and exact
+  Oracle differential are complete; the missing lemma is deferred,
+  low-priority proof debt and does not block P9.3.3 through P9.5. It still
+  blocks the `AlmostLinear` name, a true `an19_runtime_verified` report, and the
+  AN19 asymptotic runtime claim; empirical counts do not close the proof. An isolated
   exact all-radii engine and definition-level Oracle now agree on the bounded
   A--H campaign and emit complete charge traces. The fixed-snapshot semantic
   event and queue-item cardinalities are structurally certified as `O(n+m)`,

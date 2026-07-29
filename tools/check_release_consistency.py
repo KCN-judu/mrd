@@ -112,13 +112,20 @@ def fail(message: str) -> None:
 
 def check_an19_status_docs() -> None:
     required = {
-        "README.md": ("P9.3.2d is a hard blocker", "10.1137/17M1115575"),
+        "README.md": (
+            "P9.3.2d's faithful implementation and exact Oracle differential are",
+            "P9.3.3 through P9.5 may proceed",
+            "an19_runtime_verified: true",
+            "10.1137/17M1115575",
+        ),
         "docs/KNOWN_LIMITATIONS.md": (
-            "blocks P9.3.2d",
+            "does not block P9.3.3 through P9.5",
+            "low-priority proof debt",
             "empirical counts do not close the proof",
         ),
         "docs/ALGORITHMS.md": (
-            "P9.3.2d hard blocker",
+            "P9.3.2d faithful implementation complete",
+            "low-priority proof debt deferred until after P9.5",
             "tests do not verify the asymptotic runtime",
         ),
         "docs/EXPERIMENTS.md": (
@@ -135,11 +142,16 @@ def check_an19_status_docs() -> None:
             "runtime chain therefore remains unverified",
         ),
         "docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md": (
-            "Current P9.3.2d source blocker",
-            "every dependent P9 milestone remain blocked",
+            "Current P9.3.2d deferred proof debt",
+            "P9.3.3 through P9.5 build the complete source-shaped flow backend",
+            "P9.6 must",
         ),
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
-            "P9.3.2d state: blocked. Hard blocker",
+            "P9.3.2d state: complete",
+            "P9.3.3 state: in_progress",
+            "an19_runtime_verified: false",
+            "P9.3.2d proof debt does not block P9.3.3 through P9.5",
+            "`AlmostLinear` backend name",
             "at least `N/2-1` distinct forward reduced costs",
             "vertex-dependent subtraction `2 d(x,v)`",
         ),
@@ -171,8 +183,6 @@ def check_an19_status_docs() -> None:
                 fail(f"AN19 status documentation omits {fragment!r}: {relative}")
     forbidden = (
         "an19 runtime verified",
-        "p9.3.2d state: complete",
-        "p9.3.2d is complete",
         "siam paper proves the reduced-event",
         "workspace scans close the theoretical proof",
     )

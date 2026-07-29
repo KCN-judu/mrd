@@ -55,7 +55,7 @@ The source map is complete for P6. P7 must implement only the superlinear exact
 circulation and rounding Oracle first; P8 must split the dynamic structures
 into source-backed subphases before claiming their amortized guarantees.
 
-## Current P9.3.2d source blocker
+## Current P9.3.2d deferred proof debt
 
 The formal SIAM version of Abraham--Neiman, *Using Petal-Decompositions to
 Build a Low Stretch Spanning Tree*, SIAM J. Comput. 48(2), 2019, pp. 227--248,
@@ -64,7 +64,12 @@ the conversion from the implementation's exact reduced costs
 `ell(u,v) + d(x,u) - d(x,v)` to an explicitly bounded ordered set of
 reduced-event equivalence classes. Workspace scan counting and finite tests are
 complete implementation evidence, but they do not prove this asymptotic
-obligation. P9.3.2d and every dependent P9 milestone remain blocked.
+obligation. P9.3.2d's faithful implementation and exact Oracle differential are
+complete. The proof obligation is explicitly deferred at low priority while
+P9.3.3 through P9.5 build the complete source-shaped flow backend. P9.6 must
+return to it before approving the `AlmostLinear` name, a true
+`an19_runtime_verified` report, P9 complexity closeout, or any AN19 runtime
+claim.
 
 The implementation side of this boundary is now explicit. `source_an19::oracle::event::Engine`
 enumerates definition-level fixed-snapshot events, while

@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9
-- Current phase state: blocked
-- Last completed phase: P8
-- Last pushed SHA: cdd9da1056ed036e8366f7c9f2500c06903ea61a
-- Plan last updated: 2026-07-29T13:35:20Z
+- Current phase: P9.3.3
+- Current phase state: in_progress
+- Last completed phase: P9.3.2
+- Last pushed SHA: ee9743255a07e40b53275f55888219131a7a68e6
+- Plan last updated: 2026-07-29T16:29:53Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -37,8 +37,9 @@ implementation commit `2b0036545cdd2cfe8a26c3655aa4c72fd6b1791f` and
 `docs/phase-reports/P09-functional-architecture-refactor.md`. The workspace now
 uses responsibility-bearing package names and explicit `oracle` and
 `experiment` namespaces without compatibility re-exports. This maintenance
-changes ownership paths and names only; it does not change the P9 state,
-resolve P9.3.2d, verify the AN19 runtime, or activate a downstream phase.
+changes ownership paths and names only. P9.3.2d's implementation is now
+accepted as a faithful source-shaped implementation with explicitly deferred
+proof debt; the refactor itself does not verify the AN19 runtime.
 
 ## Global Rules
 
@@ -455,7 +456,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P9 - Integrated deterministic almost-linear exact flow
 
-**State:** blocked. The source-assumption gate is recorded in
+**State:** in_progress. The source-assumption audit is recorded in
 `docs/phase-reports/P09-integration-gate-audit.md`. The first corrective
 subphase is recorded in `docs/phase-reports/P09-fractional-rounding.md`:
 exact rational feasible-flow validation, deterministic costed cycle rounding,
@@ -463,14 +464,17 @@ and a bounded-domain rational surrogate-potential verifier now exist. These
 are explicitly superlinear/auditing components, not the fixed-point IPM from
 the source. Source-grade IPM accounting, a source-grade Theorem 5.1 query,
 source-grade P8 constructions, and MRD integration evidence remain missing. No `AlmostLinear`
-backend or fallback has been introduced. Continue in the report's exact
-implementation order.
+backend or fallback has been introduced. Implementation may proceed through
+the complete experimental flow backend while missing source complexity proofs
+remain explicit proof debt. Runtime naming and release claims stay gated.
 Suggested release:
 `v2.0.0-deterministic-almost-linear-flow`.
 
-P9 is split into the following source-gated subphases. Completion of an Oracle
-subphase proves only its stated audit contract; it does not satisfy a theorem
-gate that is explicitly retained by a later subphase.
+P9 is split into implementation and proof gates. Completion of an Oracle or
+source-shaped implementation subphase proves only its stated semantic audit
+contract. Missing source complexity arguments do not block construction of the
+remaining pipeline, but they do block the `AlmostLinear` name, the AN19 runtime
+claim, P9 complexity closeout, and a runtime-claiming release.
 
 ### P9.1 - Exact fractional and integration Oracles
 
@@ -524,7 +528,7 @@ precision cannot certify the required inequalities.
 
 ### P9.3 - Source-grade low-stretch and spanner structures
 
-**State:** blocked. **Start SHA:** `aabe7fc`. Replace the P8/P9 static
+**State:** in_progress. **Start SHA:** `aabe7fc`. Replace the P8/P9 static
 certificate baselines with the source constructions and accounting required by
 Lemmas 5.4--5.5, Theorem 8.2, and Theorem 1.2. Preserve each exact
 constructor/verifier as an Oracle. Require the precise decremental/vertex-split
@@ -538,7 +542,7 @@ P9.3 is split into the following source-gated subphases:
    batches, decremental forest edges, root additions, partitions, stretch
    overestimates, embeddings, encoded recourse, and quasipolynomial bounds are
    audited in `docs/phase-reports/P09-source-structure-contracts.md`.
-2. **P9.3.2 state: blocked. Start SHA: `6e96916`; implementation SHAs:
+2. **P9.3.2 state: complete. Deferred proof debt is nonblocking. Start SHA: `6e96916`; implementation SHAs:
    `9ac15b5`, `d0629c1`, `a9456e9`, `698ad7c`, `f5f91f6`, `7251038`,
    `2bca89c`, `a57e48c`, `6769ec1`, `3bb0400`, `839cb5c`, `20b0421`,
    `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`, `27d5773`,
@@ -579,7 +583,7 @@ P9.3 is split into the following source-gated subphases:
      interior portal points, rational Claim 15 region growing, exact highway
      interval halving, short-edge contraction/expansion, and original-edge tree
      recovery are implemented and differentially audited.
-   - **P9.3.2d state: blocked. Hard blocker. Implementation SHAs: `3bb0400`, `839cb5c`,
+   - **P9.3.2d state: complete. Faithful implementation accepted; runtime proof deferred. Implementation SHAs: `3bb0400`, `839cb5c`,
      `20b0421`, `cdf732d`, `d6b8e6b`, `3d3afe2`, `be21982`, `720f0cb`,
      `27d5773`, `f54c29a`, `c02c7c9`, `ece2722`, `6901703`, `e4f54af`,
      `bc61592`, `14e9abb`, `8d68d59`, `5cc49f0`, `b050625`, `60fdfe4`,
@@ -597,9 +601,17 @@ P9.3 is split into the following source-gated subphases:
      | P9.3.2d-counterexample: reduced-class adversarial families | evidence recorded; proof status open | bounded A--H campaign plus the earlier algebraic Family A lower bound; finite growth analysis is not treated as proof |
      | P9.3.2d-local-proof: fixed-snapshot event bound | complete | machine certificate proves at most `3n + 4m + 2` semantic events and `n + 2m + 2` queue items; exact-comparison time is explicitly excluded |
      | P9.3.2d-practical-pq-bound: fixed-snapshot binary heap | complete | stable exact heap certificate proves at most `3 I ceil(log2(max(I,1))) + 2m` counted comparisons; this is only `O((n+m) log(n+m))` |
-     | P9.3.2d-global-proof: hierarchy-wide amortization | blocked | no charge argument bounds all snapshots across recursion |
-     | P9.3.2d-pq-proof: exact event-order data structure | blocked | no proved source-equivalent `O(m+n log log n)` ordering structure |
-     | P9.3.2d-runtime: AN19 runtime verification | blocked | depends on all three proof rows above; `source_runtime_verified()` remains false |
+     | P9.3.2d-global-proof: hierarchy-wide amortization | planned, low priority, deferred until the complete flow backend exists | no charge argument bounds all snapshots across recursion |
+     | P9.3.2d-pq-proof: exact event-order data structure | planned, low priority, deferred until the complete flow backend exists | no proved source-equivalent `O(m+n log log n)` ordering structure |
+     | P9.3.2d-runtime: AN19 runtime verification | planned, low priority, deferred until the two proof rows above are resolved | `source_runtime_verified()` remains false; this gates claims, not implementation |
+
+     **Sequencing rule:** DOI `10.1137/17M1115575` does not supply the missing
+     reduced-event ordering/counting proof. Preserve that fact as explicit
+     proof debt, not as a hard implementation blocker. Proceed now through
+     P9.3.3--P9.5 to build and differentially verify the complete source-shaped
+     flow solver. After P9.5 passes its semantic and no-fallback audits, return
+     to `P9.3.2d-global-proof`, `P9.3.2d-pq-proof`, and
+     `P9.3.2d-runtime` before P9.6 may approve an `AlmostLinear` runtime claim.
 
      The exact
      arbitrary-rational Figure 6 selector derives parametric directed
@@ -615,10 +627,12 @@ P9.3 is split into the following source-gated subphases:
      fast event processing, cluster-local projection, actual heap-comparison
      accounting, and scale-relative power-of-two length rounding are now
      implemented without numeric graph expansion or fallback. The source
-     runtime gate remains open. `ece2722` proves by potential reweighting that a
+     runtime proof remains open but is not an implementation gate. `ece2722`
+     proves by potential reweighting that a
      fixed-radius Claim 15 ball can use original edge-length classes; 456 exact
      directed-distance differentials and the retained 128-node fixture pass.
-     The all-radii Figure 6 event stream remains blocked: AN19's reduced cone
+     The all-radii Figure 6 event stream is faithfully implemented, but its
+     claimed source runtime remains unproved: AN19's reduced cone
      metric has costs `l+d(x,u)-d(x,v)`, whereas EEST05 Definition 4.4 charges
      the original length only when leaving the forward-edge ideal. These balls
      are not source-equivalent, and KMPb Corollary 5.5 assumes distinct cone
@@ -769,7 +783,7 @@ P9.3 is split into the following source-gated subphases:
      exact binary heap and adds an independent fixed-snapshot certificate for
      at most `3 I ceil(log2(max(I,1))) + 2m` counted comparisons. This practical
      `O((n+m) log(n+m))` bound does not satisfy the source target below, so the
-     priority-queue proof status remains blocked.
+     priority-queue proof status remains open as deferred proof debt.
      **Remaining exact proof obligation:** the `O(log n)` reduced-class route is refuted
      by the linear chord-family lower bound. For the parametric Figure 6 events
      generated by `source_an19::petal::WeightedPetal`, produce the stable exact order of the
@@ -782,40 +796,41 @@ P9.3 is split into the following source-gated subphases:
      `O(m log n log log n)`. It must charge every operation and preserve the
      exact Figure 6 event order. Comparison sorting, fixed-width radix passes,
      and unstated bounded-integer assumptions do not close this obligation.
-     Unblock only with an authoritative corrected construction or a separately
-     proved exact event-order data structure meeting the rational-input bound;
+     Close this low-priority proof debt only with an authoritative corrected
+     construction or a separately proved exact event-order data structure
+     meeting the rational-input bound;
      that structure must preserve exact event order while consuming the
      symbolic labels. The implementation must charge the exact all-radii event
      work before selecting a structural amortization mode. `source_an19::experiment::hierarchy::AmortizationMode`
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
-3. **P9.3.3 state: planned. Start gate: forbidden until P9.3.2d is resolved.**
+3. **P9.3.3 state: in_progress. Start gate: P9.3.2d faithful implementation and differential audit passed.**
    Implement Lemma 5.5's deterministic MWU
    collection of exactly `k` LSFs and prove the uniform per-edge average
    stretch bound while retaining the P8 weighted-Kruskal Oracle.
-4. **P9.3.4 state: planned. Start gate: forbidden until P9.3.2d is resolved.**
+4. **P9.3.4 state: planned. Start gate: P9.3.3 implementation audit passed.**
    Implement the deterministic static
    spanner-with-embedding primitive delegated by Theorem 8.1, with exact
    subgraph, path-length, vertex-congestion, and size certificates.
-5. **P9.3.5 state: planned. Start gate: forbidden until P9.3.2d is resolved.**
+5. **P9.3.5 state: planned. Start gate: P9.3.4 implementation audit passed.**
    Implement Theorem 8.2's deletion/vertex-split
    reduction, batch encoding, sparsity, spanner recourse, re-embedding sets,
    and initialization/update accounting. Retain the greedy-rebuild spanner as
    an Oracle only.
-6. **P9.3.6 state: planned. Start gate: forbidden until P9.3.2d is resolved.**
+6. **P9.3.6 state: planned. Start gate: P9.3.5 implementation audit passed.**
    Implement Theorem 1.2/Section 9's fully dynamic
    low-stretch spanning tree for bounded integral lengths, including contracted
    forests, embedded spanners, insertions/deletions, worst-case update work,
    average stretch, and amortized tree recourse.
-7. **P9.3.7 state: planned. Start gate: forbidden until P9.3.2d is resolved.**
+7. **P9.3.7 state: planned. Start gate: P9.3.6 implementation audit passed.**
    Run source traceability, adversarial update,
    certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
    close from static fixtures or asymptotic assertions alone.
 
 ### P9.4 - Source-grade dynamic minimum-ratio cycle
 
-**State:** planned. **Start gate:** forbidden until P9.3.2d is resolved.
+**State:** planned. **Start gate:** P9.3.7 implementation and semantic audits passed.
 Implement the
 deterministic paper's Theorem 5.1, including the complete tree chain, shifted
 branches, dynamic sparsification, link-cut
@@ -825,27 +840,31 @@ remain permanent exact Oracles and are not allowed as a fallback.
 
 ### P9.5 - Integrated exact flow backend
 
-**State:** planned. **Start gate:** forbidden until P9.3.2d is resolved.
-Introduce an
-`AlmostLinear` backend only after P9.2--P9.4 prove every source assumption.
-Integrate the IPM, dynamic query, additive-half
+**State:** planned. **Start gate:** P9.4 implementation and exact differential
+audits passed. Introduce a clearly named experimental source-shaped backend
+and integrate the IPM, dynamic query, additive-half
 termination, deterministic rounding, and exact recovery without invoking
 Dinic, Push--Relabel, or an enumerating Oracle. Differentially require identical
 flow values and valid cuts, covers, chords, and rectangles on MRD compressed
-networks.
+networks. The complete solver may exist before the deferred P9.3.2d proof debt
+is resolved, but it must not be named `AlmostLinear` and must report
+`an19_runtime_verified: false` until all source complexity assumptions pass.
 
 ### P9.6 - Phase-wide source and complexity audit
 
-**State:** planned. **Start gate:** forbidden until P9.3.2d is resolved. Audit
-theorem-to-code traceability, checked domains, precision, operation counters,
-no-fallback traces, exact differentials, and compressed-network evidence. P9
-remains blocked at P9.3.2d. If that source obligation is later resolved, P9
-must remain `in_progress` or `audit_failed` until this audit proves the
-advertised deterministic almost-linear bound.
+**State:** planned. **Start gate:** the complete P9.5 experimental flow backend
+passes semantic, exact differential, and no-fallback audits. First return to
+the low-priority P9.3.2d global-amortization and event-order proof debt, then
+audit theorem-to-code traceability, checked domains, precision, operation
+counters, no-fallback traces, exact differentials, and compressed-network
+evidence. P9 remains `in_progress` or becomes `audit_failed` until this audit
+proves the advertised deterministic almost-linear bound.
 
-P9.3.3 through P12 are not started and must not become active while P9.3.2d
-is blocked. The completed workspace scan audit does not authorize this
-transition.
+P9.3.2d proof debt does not block P9.3.3 through P9.5. It blocks only the
+`AlmostLinear` backend name, `an19_runtime_verified: true`, P9 complexity
+closeout, and any release or report that claims the AN19 runtime. P10 remains
+planned behind P9.6 because the proof debt is intentionally revisited after the
+complete flow-solver chain exists.
 
 ### Mandatory transition after this phase
 
@@ -954,3 +973,10 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.2d-event-engine | blocked | 89b5ea3 | 7ea13da, 28f9ff7, 6c8cfac, 98bb615, afea347, 4413e94 | 3fee109 | 3fee109 | `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact Oracle/reduced engine, canonical trace, six charge maps, A--H campaign, CLI, manifest and full audit; 254 passed and 3 existing ignored | 2026-07-28T17:29:46Z | 2026-07-28T18:23:10Z | local/global/PQ event proofs and AN19 runtime remain blocked; P9.3.3-P12 remain forbidden |
 | P9.3.2d-local-proof | complete | 0dba080 | 5e771d8, a25ac08, d4dda8f, b4358a9 | cb59512 | cb59512 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | machine-verified `3n + 4m + 2` semantic-event and `n + 2m + 2` queue-item bounds in all 62 A--H Oracle/reduced runs; 254 passed and 3 existing ignored | 2026-07-28T23:29:14Z | 2026-07-28T23:49:52Z | PQ comparison bound, global amortization, runtime, and P9.3.3-P12 remain blocked |
 | P9.3.2d-practical-pq-bound | complete | ebde003 | 02c8385, fbc869e, bbf13b3 | cdd9da1 | cdd9da1 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact stable binary heap and machine-verified `3 I ceil(log2(max(I,1))) + 2m` practical comparison bound in all 31 reduced A--H runs; Oracle independence retained; 256 passed and 3 existing ignored | 2026-07-28T23:59:57Z | 2026-07-29T00:14:09Z | source-equivalent PQ proof, global amortization, runtime, and P9.3.3-P12 remain blocked |
+| P9-policy-update | complete | ee97432 | pending | pending | pending | `docs/IMPLEMENTATION_MASTER_PLAN.md` | separates faithful implementation progress from deferred complexity proof debt | 2026-07-29T16:29:53Z | 2026-07-29T16:29:53Z | supersedes the earlier hard-blocker policy without changing any AN19 runtime claim |
+| P9 | in_progress | ee97432 | pending | pending | pending | pending | continue the complete source-shaped flow-solver chain through P9.5 | 2026-07-29T16:29:53Z | pending | AN19 complexity proof debt gates naming, claims, and closeout only |
+| P9.3 | in_progress | ee97432 | pending | pending | pending | pending | P9.3.3 is the next active implementation item | 2026-07-29T16:29:53Z | pending | none |
+| P9.3.2 | complete | 6e96916 | 9ac15b5 through 02c8385 | pending | pending | existing P9.3.2 reports | faithful AN19-shaped implementation, exact Oracle agreement, traces, and local practical bounds | 2026-07-28T02:48:00Z | 2026-07-29T16:29:53Z | global/PQ/runtime proof debt deferred until after P9.5 |
+| P9.3.2d | complete | 8f9ab06 | 7ea13da through 02c8385 | pending | pending | existing AN19 source-map and local-bound reports | implementation and semantic differential gates complete | 2026-07-28T16:31:47Z | 2026-07-29T16:29:53Z | DOI 10.1137/17M1115575 omits the needed proof; runtime remains unverified |
+| P9.3.2d-proof-debt | planned | ee97432 | pending | pending | pending | pending | hierarchy-wide amortization, source-equivalent exact event ordering, and final runtime verification | deferred | pending | low priority until the complete P9.5 flow backend exists |
+| P9.3.3 | in_progress | ee97432 | pending | pending | pending | pending | deterministic MWU collection of exactly `k` LSFs | 2026-07-29T16:29:53Z | pending | none |

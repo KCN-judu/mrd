@@ -227,7 +227,12 @@ The formal SIAM version of Abraham--Neiman, DOI `10.1137/17M1115575`, was
 obtained and checked. It does not establish the reduced-event
 ordering/counting conversion required by the local AN19 proof plan.
 Consequently, the reduced-event class bound and AN19 runtime remain unproved,
-P9.3.2d is a hard blocker, and dependent P9 phases must not start.
+but P9.3.2d's faithful implementation and exact Oracle differential are
+complete. The missing proof is deferred, low-priority proof debt rather than an
+implementation blocker: P9.3.3 through P9.5 may proceed to a complete
+source-shaped flow backend. After P9.5, P9.6 must resolve the proof debt before
+the backend may be named `AlmostLinear`, report `an19_runtime_verified: true`,
+or support an AN19 runtime claim.
 
 The AN19-shaped all-radii event engine is now implemented behind a replaceable
 interface with exact rational ordering, a definition-level `source_an19::oracle::event::Engine`,
