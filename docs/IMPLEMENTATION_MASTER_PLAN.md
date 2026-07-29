@@ -8,7 +8,7 @@
 - Current phase state: blocked
 - Last completed phase: P8
 - Last pushed SHA: cdd9da1056ed036e8366f7c9f2500c06903ea61a
-- Plan last updated: 2026-07-29T00:17:31Z
+- Plan last updated: 2026-07-29T13:35:20Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -29,6 +29,16 @@ construction; only Dinic for flow; no
 source-backed deterministic almost-linear exact flow; no direct grid parity
 embedding; and unprofiled constant factors. No phase may upgrade a claim until
 its implementation, assumptions, counters, and evidence establish it.
+
+## P9 architecture maintenance
+
+The repository-wide functional architecture refactor is recorded by
+implementation commit `2b0036545cdd2cfe8a26c3655aa4c72fd6b1791f` and
+`docs/phase-reports/P09-functional-architecture-refactor.md`. The workspace now
+uses responsibility-bearing package names and explicit `oracle` and
+`experiment` namespaces without compatibility re-exports. This maintenance
+changes ownership paths and names only; it does not change the P9 state,
+resolve P9.3.2d, verify the AN19 runtime, or activate a downstream phase.
 
 ## Global Rules
 
