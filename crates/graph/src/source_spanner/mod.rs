@@ -2,6 +2,7 @@
 
 pub mod algorithm4;
 pub mod decremental;
+pub mod dynamic;
 pub mod experiment;
 pub mod model;
 pub mod oracle;
