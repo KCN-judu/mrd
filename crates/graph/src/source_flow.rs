@@ -82,7 +82,9 @@ impl Backend {
         if !optimal.is_integral() || optimal.numerator() != rounding.solution.cost {
             return Err(Error::RecoveryNotOptimal);
         }
-        network.verify_solution(&rounding.solution)?;
+        // The additive-half certificate and exact cost equality above establish
+        // optimality; recovery only needs a no-Oracle feasibility check.
+        network.verify_feasible_solution(&rounding.solution)?;
         Ok(RecoveredFlow {
             termination,
             rounding,
@@ -103,7 +105,7 @@ impl Backend {
     ) -> Result<RecoveredAugmentedFlow, Error> {
         let terminal = self.recover_terminated(snapshot, &augmentation.network)?;
         let original = augmentation
-            .recover_original(&terminal.rounding.solution)
+            .recover_original_feasible(&terminal.rounding.solution)
             .map_err(Error::Augmentation)?;
         Ok(RecoveredAugmentedFlow { terminal, original })
     }
@@ -124,7 +126,7 @@ impl Backend {
             self.recover_augmented_terminated(snapshot, &initial.initial_point.augmentation)?;
         let original = initial
             .normalization
-            .recover_original(&augmented.original)
+            .recover_original_feasible(&augmented.original)
             .map_err(Error::Normalization)?;
         Ok(RecoveredLowerBoundFlow {
             terminal: augmented.terminal,

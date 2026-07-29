@@ -399,6 +399,32 @@ impl LowerBoundNormalization {
         normalized_solution: &MinCostSolution,
     ) -> Result<MinCostSolution, MinCostCirculationError> {
         self.normalized.verify_solution(normalized_solution)?;
+        self.recover_original_from_validated(normalized_solution)
+    }
+
+    /// Recovers an original lower-bounded solution after feasibility-only
+    /// validation of the normalized witness.
+    ///
+    /// This is for a caller that has established optimality independently and
+    /// must not invoke the residual-cycle Oracle during recovery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when either representation is infeasible or an exact
+    /// flow/objective addition overflows.
+    pub fn recover_original_feasible(
+        &self,
+        normalized_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
+        self.normalized
+            .verify_feasible_solution(normalized_solution)?;
+        self.recover_original_from_validated(normalized_solution)
+    }
+
+    fn recover_original_from_validated(
+        &self,
+        normalized_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
         let mut arc_flows = Vec::with_capacity(self.original.arcs.len());
         for (arc, normalized_id) in self
             .original
@@ -538,6 +564,24 @@ impl CirculationNetwork {
             return Err(MinCostCirculationError::InvalidSolution);
         }
         Ok(())
+    }
+
+    /// Validates integral feasibility and the exact objective without an
+    /// optimality search.
+    ///
+    /// This is the appropriate boundary when an independent certificate has
+    /// already established optimality. In particular, it does not enumerate
+    /// residual cycles.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for invalid dimensions, capacity or demand violations,
+    /// an incorrect objective, or checked arithmetic overflow.
+    pub fn verify_feasible_solution(
+        &self,
+        solution: &MinCostSolution,
+    ) -> Result<(), MinCostCirculationError> {
+        validate_feasible_solution(self, solution)
     }
 
     #[must_use]
@@ -972,6 +1016,35 @@ impl InitialPointAugmentation {
         augmented_solution: &MinCostSolution,
     ) -> Result<MinCostSolution, MinCostCirculationError> {
         self.network.verify_solution(augmented_solution)?;
+        let solution = self.truncated_original(augmented_solution)?;
+        self.original_network.verify_solution(&solution)?;
+        Ok(solution)
+    }
+
+    /// Recovers the original feasible circulation without an optimality search.
+    ///
+    /// Callers must separately establish that `augmented_solution` is optimal.
+    /// This keeps source-shaped recovery independent from the permanent
+    /// residual-cycle Oracle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the witness is infeasible, an artificial root arc
+    /// carries flow, or the recovered original circulation is infeasible.
+    pub fn recover_original_feasible(
+        &self,
+        augmented_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
+        self.network.verify_feasible_solution(augmented_solution)?;
+        let solution = self.truncated_original(augmented_solution)?;
+        self.original_network.verify_feasible_solution(&solution)?;
+        Ok(solution)
+    }
+
+    fn truncated_original(
+        &self,
+        augmented_solution: &MinCostSolution,
+    ) -> Result<MinCostSolution, MinCostCirculationError> {
         if self
             .artificial_arc_ids
             .iter()
@@ -985,7 +1058,6 @@ impl InitialPointAugmentation {
             cost: solution_cost(&self.original_network, &arc_flows)?,
             arc_flows,
         };
-        self.original_network.verify_solution(&solution)?;
         Ok(solution)
     }
 }
@@ -1597,6 +1669,25 @@ mod tests {
                 arc_flows: vec![1],
                 cost: 3,
             }),
+            Err(MinCostCirculationError::InvalidSolution)
+        );
+    }
+
+    #[test]
+    fn feasibility_validation_does_not_claim_optimality() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let feasible_but_suboptimal = MinCostSolution {
+            arc_flows: vec![1, 1],
+            cost: 1,
+        };
+
+        network
+            .verify_feasible_solution(&feasible_but_suboptimal)
+            .unwrap();
+        assert_eq!(
+            network.verify_solution(&feasible_but_suboptimal),
             Err(MinCostCirculationError::InvalidSolution)
         );
     }

@@ -19,6 +19,8 @@ REQUIRED = {
         "recover_augmented_terminated",
         "recover_lower_bounded_terminated",
         "pub fn begin_iterations",
+        "verify_feasible_solution",
+        "recover_original_feasible",
         "an19_runtime_verified: false",
     ),
     "recovery": ("pub fn round", "validate_signed_circulation", "verify_fractional_solution"),
@@ -39,6 +41,7 @@ FORBIDDEN = (
     "recover_additive_half",
     "recover_isolation_perturbed",
     "dynamic_min_ratio",
+    ".verify_solution(",
 )
 
 
