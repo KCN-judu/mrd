@@ -30,7 +30,7 @@ General contour-contact solving remains outside P2 and must not be inferred.
 
 ## Rust model
 
-`rect_core::FormalRectilinearPolygon` owns:
+`mrd_domain::FormalRectilinearPolygon` owns:
 
 - a normalized `RectilinearPolygon` topological region; and
 - a canonical `Ornament` containing sorted isolated points and sorted
@@ -103,7 +103,7 @@ The CLI accepts this validation-only input in `auto` mode or with
 }
 ```
 
-`rect-cli verify` returns the canonical model and complete incidence. P2
+`mrd verify` returns the canonical model and complete incidence. P2
 deliberately rejects `solve` for this input. Effective-chord enumeration,
 merge/delete cases, completion, sparse subdivision, and rectangle validation
 for formal holes belong to P3; silently dropping the ornament would violate
@@ -256,8 +256,8 @@ Theorem 2 value `m + c - h - e`.
 
 ## CLI and reproducible differential campaign
 
-`rect-cli solve --input-format formal-polygon` invokes
-`rect_dominance::complete_formal_polygon` directly for the fully audited and
+`mrd solve --input-format formal-polygon` invokes
+`dominance::complete_formal_polygon` directly for the fully audited and
 compact-only dominance solver names. Formal geometry has a source-fixed backend
 pipeline, so grid and ordinary-polygon backend override flags are rejected
 rather than silently ignored. The JSON result records `m`, `c`, `h`, `e`, the
@@ -267,7 +267,7 @@ chords, completion cuts, canonical rectangles, and sparse metrics.
 Permanent fixtures under `test-data/polygons/formal` cover an isolated point
 hole, an interior segment hole, a segment hole attached to the outer boundary,
 collinear chords sharing an isolated endpoint, and the paper's Fig. 3 example.
-`rect-cli benchmark --suite formal-fixtures` runs all five plus empty-ornament
+`mrd benchmark --suite formal-fixtures` runs all five plus empty-ornament
 ordinary/formal parity on a rectangle, an L-shaped polygon, and a polygon with
 an ordinary hole. A successful report requires identical explicit and compact
 certificates, exact Theorem 2 counts, Definition 2-valid rectangles, and exact

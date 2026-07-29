@@ -5,7 +5,7 @@ model: a finite four-connected component of unit grid cells. The adapter has no
 ornament object, so `UnsupportedOrnamentModel` is not inferred for ordinary
 inputs; arbitrary formal ornaments remain outside the model.
 
-`rect-oracle-sg::classify_clean_hole_free` checks one outer loop, zero ordinary
+`sg-oracle::classify_clean_hole_free` checks one outer loop, zero ordinary
 holes, proper chord interiors, boundary endpoint identities, and distinct
 endpoints. Endpoint identities are `(loop_id, cyclic_index)` values from the
 normalized integer boundary loops. Shared endpoints are rejected before any
@@ -33,7 +33,7 @@ representation covers substantial matching work. The current checked grid
 census is generated with:
 
 ```text
-rect-cli benchmark --suite clean-census --output results/v0.5-clean-census.csv
+mrd benchmark --suite clean-census --output results/v0.5-clean-census.csv
 ```
 
 The command also writes `results/v0.5-clean-census.json` and

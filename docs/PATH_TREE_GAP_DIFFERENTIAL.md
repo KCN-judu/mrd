@@ -11,7 +11,7 @@ correctness oracle and is selectable through the backend-aware solver API.
 The complete reproducible campaign is:
 
 ```text
-target/release/rect-cli benchmark \
+target/release/mrd benchmark \
   --suite path-tree-gap-differential \
   --max-cells 12 --random-cases 100000 \
   --sizes 1,2,4,8,16,32,64,128 \

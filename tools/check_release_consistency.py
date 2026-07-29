@@ -210,21 +210,21 @@ def assert_reachable(commit: str, head: str, label: str) -> None:
 
 
 def assert_implementation_defaults() -> None:
-    implementation = (ROOT / "crates/rect-dominance/src/lib.rs").read_text(
+    implementation = (ROOT / "crates/dominance/src/experiment/mod.rs").read_text(
         encoding="utf-8"
     )
     merged = re.search(
-        r"VerificationMode::FullyAudited\s*\|\s*VerificationMode::CompactOnly\s*=>\s*\{?\s*PathTreeOrientationPolicy::BuildBothExact",
+        r"Verification::FullyAudited\s*\|\s*Verification::CompactOnly\s*=>\s*\{?\s*PathTreeOrientationPolicy::BuildBothExact",
         implementation,
     )
     if merged:
         return
     compact = re.search(
-        r"VerificationMode::CompactOnly\s*=>\s*PathTreeOrientationPolicy::([A-Za-z0-9_]+)",
+        r"Verification::CompactOnly\s*=>\s*PathTreeOrientationPolicy::([A-Za-z0-9_]+)",
         implementation,
     )
     audited = re.search(
-        r"VerificationMode::FullyAudited\s*=>\s*PathTreeOrientationPolicy::([A-Za-z0-9_]+)",
+        r"Verification::FullyAudited\s*=>\s*PathTreeOrientationPolicy::([A-Za-z0-9_]+)",
         implementation,
     )
     if not compact or compact.group(1) != "BuildBothExact":
@@ -554,7 +554,7 @@ def main() -> None:
     if "No strict sigma advantage was found" in experiments:
         fail("experiment documentation still reports no strict sigma advantage")
     algorithms = (ROOT / "docs/ALGORITHMS.md").read_text(encoding="utf-8")
-    if "GridInteriorRunEnumerator" not in algorithms or "BoundaryIndex" not in algorithms:
+    if "grid::experiment::InteriorRuns" not in algorithms or "BoundaryIndex" not in algorithms:
         fail("algorithm documentation does not name the indexed production path")
     for required in (
         "chord::oracle::Indexed",

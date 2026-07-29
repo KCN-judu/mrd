@@ -8,7 +8,7 @@ synthetic tree is used as a production input.
 The deterministic command is:
 
 ```text
-cargo run --release -p rect-cli -- search-path-tree-witness \
+cargo run --release -p mrd -- search-path-tree-witness \
   --max-width 12 --max-height 12 --seed 42 --require-clean \
   --min-horizontal-chords 2 --min-vertical-chords 2 \
   --min-dual-branching 3 --min-path-count 3 \

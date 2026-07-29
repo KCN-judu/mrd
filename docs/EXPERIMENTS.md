@@ -38,7 +38,7 @@ unsupported component, or disagreement. The evidence file is
 The compact-pipeline hardening and grid-run differential implementation is
 committed in `20de1aa` and the follow-up evidence/documentation commit. The
 reference implementation remains available; CompactOnly uses
-`GridInteriorRunEnumerator` after exact chord-set equality on every binary
+`grid::experiment::InteriorRuns` after exact chord-set equality on every binary
 `3x3` and `4x4` component (512 and 65,535 non-empty masks respectively).
 The differential population produced no missing or fabricated chords.
 An additional 100,000 connected random-walk regions on grids from `5x5`
@@ -56,7 +56,7 @@ The CompactOnly contract tests assert that pairwise embedding audit, explicit
 conflict graph construction, Hopcroft--Karp, C0 construction, and full edge
 partition expansion are all false. FullyAudited tests assert the corresponding
 operations are true. CompactOnly SVG rendering uses `analyze_geometry_with`
-and the same grid-run families; it does not invoke `rect_oracle_sg::analyze`.
+and the same grid-run families; it does not invoke `sg_oracle::analyze`.
 Every serialized CompactOnly component reports
 `explicit_conflict_edge_count: null` and an execution trace with all forbidden
 flags false.
@@ -165,7 +165,7 @@ command remains the acceptance source of truth below.
 ## 1. Exhaustive binary-grid verification
 
 ```bash
-target/release/rect-cli exhaustive \
+target/release/mrd exhaustive \
   --width 4 --height 4 \
   --output results/exhaustive-4x4.json
 ```
@@ -179,7 +179,7 @@ wall time was 6.60 seconds.
 ## 2. Random-grid verification
 
 ```bash
-target/release/rect-cli random \
+target/release/mrd random \
   --width 8 --height 8 --cases 10000 --seed 42 \
   --output results/random-8x8-seed42.json
 ```
@@ -193,11 +193,11 @@ wall time was 9.42 seconds.
 ## 3. Free-polyomino verification
 
 ```bash
-target/release/rect-cli benchmark \
+target/release/mrd benchmark \
   --suite polyomino --max-cells 10 --oracle-cell-limit 40 \
   --output results/polyomino.csv
 
-target/release/rect-cli polyomino \
+target/release/mrd polyomino \
   --max-cells 12 --all-solvers --oracle-cell-limit 40 \
   --output /tmp/mrd-polyomino-max12-32faff6.json
 ```
@@ -214,7 +214,7 @@ command and aggregate are retained here and in the release notes.
 ## 4. Adversarial verification
 
 ```bash
-target/release/rect-cli benchmark \
+target/release/mrd benchmark \
   --suite adversarial \
   --output results/adversarial.csv
 ```
@@ -233,7 +233,7 @@ counterexample occurred.
 
 ```bash
 tools/external-oracle/verify_suite.py \
-  --rect-cli target/release/rect-cli \
+  --mrd target/release/mrd \
   --exhaustive-width 3 --exhaustive-height 3 \
   --polyomino-max-cells 10 \
   --adversarial-dir /tmp/mrd-adversarial-final-32faff6 \
@@ -270,7 +270,7 @@ are bounded.
 ## 7. Dense-conflict compression benchmarks
 
 ```bash
-target/release/rect-cli benchmark \
+target/release/mrd benchmark \
   --suite dense-conflict --sizes 4,8,16,32,64,128 \
   --output results/dense-conflict.csv
 ```
@@ -287,7 +287,7 @@ sizes are in the generated compression table.
 ## 8. Metamorphic tests
 
 ```bash
-cargo test -p rect-verify transforms
+cargo test -p verification transforms
 ```
 
 The fixture is transformed by translation, horizontal and vertical
@@ -374,7 +374,7 @@ runtime statuses false. The practical binary heap is only
 The v0.4 campaign keeps the v0.3 populations unchanged and compares the two
 completion backends on the geometry-backed dense family. Targets 128, 256, 512,
 and 1024 correspond to total effective-chord counts 512, 1024, 2048, and 4096.
-Both backends use `GridInteriorRunEnumerator` and CompactOnly flow; only the
+Both backends use `grid::experiment::InteriorRuns` and CompactOnly flow; only the
 completion backend changes. Generated files are
 `results/v0.4-dense-completion.csv`, `results/v0.4-completion-table.csv`, and
 `results/v0.4-completion-table.md`.
@@ -480,7 +480,7 @@ area dual, physical transpose, explicit path vectors, and per-path BFS remain
 reference-only operations. The reproducible full-population command is:
 
 ```text
-rect-cli benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv
+mrd benchmark --suite clean-boundary-differential --output results/v0.6-clean-boundary-differential.csv
 ```
 
 It writes CSV, JSON, and Markdown summaries and compares canonical rectangles,

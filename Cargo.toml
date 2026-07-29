@@ -1,12 +1,12 @@
 [workspace]
 members = [
-    "crates/rect-core",
-    "crates/rect-graph",
-    "crates/rect-oracle-exact-cover",
-    "crates/rect-oracle-sg",
-    "crates/rect-dominance",
-    "crates/rect-verify",
-    "crates/rect-cli",
+    "crates/mrd-domain",
+    "crates/graph",
+    "crates/exact-cover-oracle",
+    "crates/sg-oracle",
+    "crates/dominance",
+    "crates/verification",
+    "crates/mrd",
 ]
 resolver = "2"
 

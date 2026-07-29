@@ -23,6 +23,6 @@ exact chord counts, complete conflict density, and path-tree solvability for
 `t = 1..4`. Larger fixtures can be generated with:
 
 ```text
-rect-cli generate --family clean-complete-bipartite --t 8 \
+mrd generate --family clean-complete-bipartite --t 8 \
   --json /tmp/clean-k16-16.json --svg /tmp/clean-k16-16.svg
 ```

@@ -1,0 +1,21 @@
+[package]
+name = "mrd"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+clap.workspace = true
+mrd-domain = { path = "../mrd-domain" }
+dominance = { path = "../dominance" }
+graph = { path = "../graph" }
+exact-cover-oracle = { path = "../exact-cover-oracle" }
+sg-oracle = { path = "../sg-oracle" }
+verification = { path = "../verification" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -202,7 +202,7 @@ def run_case(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rect-cli", type=Path, required=True)
+    parser.add_argument("--mrd", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--work-dir", type=Path, required=True)
     parser.add_argument("--exhaustive-width", type=int, default=3)

@@ -1,6 +1,6 @@
 # Clean Hole-Free Path-Tree Representation
 
-For a clean hole-free component, `rect-dominance::path_tree` provides two dual
+For a clean hole-free component, `dominance::path_tree` provides two dual
 backends. `ReferenceAreaFloodFill` inserts every vertical effective chord as a
 unit cut, flood-fills occupied cells across uncut sides, and labels the two
 incident regions of each chord. `BoundaryLaminar` is the CompactOnly

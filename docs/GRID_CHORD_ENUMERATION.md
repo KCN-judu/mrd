@@ -3,7 +3,7 @@
 The production enumerator receives maximal runs and row/column reflex groups
 from `PreparedComponentContext`. It obtains each run's coordinate slice with
 `partition_point`; it does not rebuild a cell hash set, rediscover runs, or
-allocate a filtered vector per run. `ReferencePairwiseEnumerator` remains the
+allocate a filtered vector per run. `grid::oracle::Pairwise` remains the
 independent chord-set Oracle.
 
 This workspace supports ordinary finite unit-cell components. For a horizontal
@@ -27,8 +27,8 @@ they are represented by run endpoints and the pairwise output rule. Ordinary
 holes are handled independently on each grid line. Formal ornaments and
 degenerate holes remain outside the supported model.
 
-`ReferencePairwiseEnumerator` retains the nested reflex-pair implementation as
-the correctness oracle. `GridInteriorRunEnumerator` builds a cell mask, scans
+`grid::oracle::Pairwise` retains the nested reflex-pair implementation as
+the correctness oracle. `grid::experiment::InteriorRuns` builds a cell mask, scans
 the two-sided runs, groups aligned reflex coordinates, and emits canonical
 sorted chord records. Its grid-specialized cost is `O(N + r log r + q)` up to
 constant-time mask lookups, where `N` is the scanned grid area, `r` is the

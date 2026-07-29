@@ -14,14 +14,14 @@
   merge/delete cases. `chord::oracle::Pairwise` and
   `chord::oracle::Indexed` remain exact reference backends.
 - CompactOnly enumerates effective chords with the exact grid-specialized
-  `GridInteriorRunEnumerator`; the aligned-reflex pair implementation remains
+  `grid::experiment::InteriorRuns`; the aligned-reflex pair implementation remains
   the differential reference. This does not implement the paper's general
   polygon `O(n log n)` sweep-line enumeration bound.
 - The compact biclique implementation follows Cardinal--Yuditsky Theorem 8 but
   uses straightforward sorting in recursive calls. It prioritizes checkable
   construction over optimized constants. Because the embedding has four
   coordinates, the cited general bound specializes to `O(q log^4 q)`.
-- `VerificationMode::CompactOnly` avoids explicit conflict edges, pairwise
+- `experiment::Verification::CompactOnly` avoids explicit conflict edges, pairwise
   chord traversal, Hopcroft--Karp, C0 construction, and the full partition
   audit. Its correctness relies on the same constructive recursion that is
   exhaustively audited in `FullyAudited`; output geometry and minimum-cut

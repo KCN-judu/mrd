@@ -23,6 +23,8 @@ rectilinear polygons:
 All correctness-critical geometry uses integers. Grid rectangles are half-open;
 polygon rectangles use native `i64` coordinates; geometric chords are closed.
 Every solver returns explicit rectangles and runs its exact native validator.
+The crate and namespace ownership map is documented in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a
@@ -46,102 +48,102 @@ Disconnected outer components remain unsupported. See
 ## Quick start
 
 ```bash
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver exact-cover \
   --input test-data/example.json
 
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only \
   --input test-data/example.json
 
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only \
   --input-format polygon \
   --input test-data/polygons/nonuniform-l.json \
   --svg /tmp/nonuniform-l.svg
 
 # `sg-sweep` is the ordinary-polygon default; pairwise backends remain selectable.
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only \
   --input-format polygon \
   --polygon-chords sg-sweep \
   --input test-data/polygons/comb.json
 
 # Keep the pairwise reference enumerator available for differential debugging.
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only \
   --chord-enumerator reference-pairwise \
   --input test-data/example.json
 
-cargo run --release -p rect-cli -- search-path-tree-witness \
+cargo run --release -p mrd -- search-path-tree-witness \
   --max-width 12 --max-height 12 --seed 42 --require-clean \
   --output-dir results/path-tree-witnesses
 
-cargo run --release -p rect-cli -- verify \
+cargo run --release -p mrd -- verify \
   --input test-data/example.json \
   --all-solvers
 
-cargo run --release -p rect-cli -- verify \
+cargo run --release -p mrd -- verify \
   --input-format formal-polygon \
   --input test-data/polygons/formal-boundary.json \
   --output /tmp/formal-boundary-incidence.json
 
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only \
   --input-format formal-polygon \
   --input test-data/polygons/formal/source-figure-three.json \
   --output /tmp/formal-source-figure-three.json \
   --svg /tmp/formal-source-figure-three.svg
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite formal-fixtures \
   --output results/formal-fixtures.json
 
-cargo run --release -p rect-cli -- exhaustive --width 3 --height 3
+cargo run --release -p mrd -- exhaustive --width 3 --height 3
 
-cargo run --release -p rect-cli -- random \
+cargo run --release -p mrd -- random \
   --width 8 --height 8 --cases 10000 --seed 42
 
-cargo run --release -p rect-cli -- polyomino \
+cargo run --release -p mrd -- polyomino \
   --max-cells 12 --all-solvers \
   --output results/polyomino-summary.json
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite adversarial --output results/adversarial.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite dense-conflict --sizes 4,8,16,32,64,128 \
   --output results/dense-conflict.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite clean-boundary-differential \
   --output results/v0.6-clean-boundary-differential.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite path-tree-orientation-audit --sizes 1,2,4,8,16,32,64,128 \
   --output results/v0.7-path-tree-orientation-audit.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite path-tree-dual-differential --sizes 1,2,4 \
   --output results/v0.7-path-tree-dual-differential.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite path-tree-vs4d --sizes 1,2,4,8 \
   --output results/v0.7-path-tree-vs-4d.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite path-tree-scaling --sizes 3,8,16,32,64 \
   --output results/v0.8-path-tree-families.csv
 
-cargo run --release -p rect-cli -- benchmark \
+cargo run --release -p mrd -- benchmark \
   --suite path-tree-advantage --sizes 1,2,4,8,16,32,64,128 \
   --output results/v0.8-path-tree-advantage.csv
 
-cargo run --release -p rect-cli -- generate \
+cargo run --release -p mrd -- generate \
   --family dense-conflict --horizontal 32 --vertical 32 \
   --json /tmp/dense-32.json --svg /tmp/dense-32.svg
 
-cargo run --release -p rect-cli -- generate \
+cargo run --release -p mrd -- generate \
   --family clean-complete-bipartite --t 1 \
   --json /tmp/clean-k2-2.json --svg /tmp/clean-k2-2.svg
 ```

@@ -23,7 +23,7 @@ populations have zero chord, cut, or rectangle disagreements. Unsupported
 grid-derived formal degeneracies remain grid-only inputs and are counted
 outside the ordinary-polygon population.
 
-The independent bounded raster adapter in `rect-verify::polygon` is available
+The independent bounded raster adapter in `verification::polygon` is available
 only for small integer-coordinate differential tests. Width, height, and total
 cell limits are mandatory. Production polygon solving records
 `raster_oracle_used=false` and never calls the adapter.

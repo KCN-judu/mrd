@@ -23,7 +23,7 @@ Run and compare:
   --input test-data/example.json \
   --output /tmp/external-result.json
 
-cargo run --release -p rect-cli -- compare-external \
+cargo run --release -p mrd -- compare-external \
   --input test-data/example.json \
   --external-result /tmp/external-result.json
 ```
@@ -40,14 +40,14 @@ subject to sum_{R contains c} x_R = 1 for every component cell c
 x_R in {0, 1}
 ```
 
-Run the bounded cross-language population after building `rect-cli`:
+Run the bounded cross-language population after building `mrd`:
 
 ```bash
-cargo run --release -p rect-cli -- export-adversarial \
+cargo run --release -p mrd -- export-adversarial \
   --output-dir /tmp/rect-adversarial
 
 /tmp/rect-oracle-venv/bin/python tools/external-oracle/verify_suite.py \
-  --rect-cli target/release/rect-cli \
+  --mrd target/release/mrd \
   --exhaustive-width 3 --exhaustive-height 3 \
   --polyomino-max-cells 10 \
   --adversarial-dir /tmp/rect-adversarial \

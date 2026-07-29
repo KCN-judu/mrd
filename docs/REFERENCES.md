@@ -7,9 +7,9 @@
    Computational Geometry* 9, 57--79, 1993.
    DOI: 10.1007/BF02189307.
 
-   `rect-core::formal_polygon` implements the ornament, formal-boundary,
+   `mrd-domain::formal_polygon` implements the ornament, formal-boundary,
    vertex, and elementary-segment contracts in Definitions 1, 3, and 4.
-   `rect-oracle-sg` uses Definition 7's four effective-chord conditions, the
+   `sg-oracle` uses Definition 7's four effective-chord conditions, the
    admissible-family reduction, the rectangle-count formula, and Section 10's
    horizontal-then-vertical completion. The current input adapter implements
    ordinary nondegenerate grid-cell polygons. Formal-hole chord enumeration
@@ -25,12 +25,12 @@
    Matchings in Bipartite Graphs," *SIAM Journal on Computing* 2(4), 1973.
    DOI: 10.1137/0202019.
 
-   `rect-graph::hopcroft_karp` is the independent explicit matching oracle and
+   `graph::hopcroft_karp` is the independent explicit matching oracle and
    supplies alternating reachability for a Konig minimum vertex cover.
 
 4. Donald E. Knuth, "Dancing Links," arXiv:cs/0011047, 2000.
 
-   `rect-oracle-exact-cover` uses Algorithm X's constrained branching idea with
+   `exact-cover-oracle` uses Algorithm X's constrained branching idea with
    dynamic bitsets. It deliberately does not use pointer-based dancing links.
 
 5. Jean Cardinal and Yelena Yuditsky, "Compact Representation of Semilinear
@@ -39,7 +39,7 @@
 
    A fixed-dimensional comparability bigraph has two point sets, with an edge
    when the point on the first side is strictly smaller than the point on the
-   second side in every coordinate. `rect-dominance::biclique` directly
+   second side in every coordinate. `dominance::biclique` directly
    implements the induction in Theorem 8 for this strict coordinatewise
    dominance relation. Lemma 12 supplies the constructive representation.
 
@@ -54,13 +54,13 @@
    Flow in a Network with Power Estimation," *Doklady Akademii Nauk SSSR* 194,
    1970.
 
-   `rect-graph::dinic` provides a practical exact maximum-flow backend.
+   `graph::dinic` provides a practical exact maximum-flow backend.
    It uses safe Rust, integral capacities, and returns residual cut reachability.
 
 7. Andrew V. Goldberg and Robert E. Tarjan, "A New Approach to the
    Maximum-Flow Problem," *Journal of the ACM* 35(4), 1988.
 
-   `rect-graph::dinic::PushRelabelBackend` implements the integral
+   `graph::dinic::PushRelabelBackend` implements the integral
    highest-label preflow-push family with global relabeling and gap heuristic
    counters. It is a practical exact backend, not an almost-linear claim.
 
@@ -69,7 +69,7 @@
 8. Jan van den Brand et al., "A Deterministic Almost-Linear Time Algorithm for
    Minimum-Cost Flow," arXiv:2309.16629 / FOCS 2023.
 
-   `rect-graph::min_cost` implements only a deliberately superlinear exact
+   `graph::min_cost` implements only a deliberately superlinear exact
    integer circulation and signed residual minimum-ratio-cycle Oracle. It
    explicitly does not claim the paper's interior-point reduction, hidden
    stability, dynamic cycle structure, or almost-linear bound. The permanent
@@ -80,7 +80,7 @@
    Stretch Spanning Tree," *SIAM Journal on Computing* 48(2), 2019,
    pp. 227--248. DOI: 10.1137/17M1115575.
 
-   `rect-graph::source_an19` implements and audits hierarchy mechanics,
+   `graph::source_an19` implements and audits hierarchy mechanics,
    tree/stretch certificates, source/work counters, and the complete workspace
    scan ledger. The formal SIAM text was checked, but it does not establish the
    reduced-event ordering/counting conversion required by P9.3.2d. The AN19

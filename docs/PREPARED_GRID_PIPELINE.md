@@ -8,7 +8,7 @@ prepare a context internally when they are called in isolation.
 
 ## Production path
 
-`GridInteriorRunEnumerator` consumes the stored runs. It uses
+`grid::experiment::InteriorRuns` consumes the stored runs. It uses
 `partition_point` to select continuous reflex-coordinate slices and does not
 construct a cell `HashSet`, rescan rows or columns, or allocate a filtered
 vector per run.
@@ -25,7 +25,7 @@ region area plus the prepared occupancy prefix sum. The final validator calls
 
 ## Correctness references
 
-`ReferencePairwiseEnumerator`, `ReferenceRescanCompletion`, and
+`grid::oracle::Pairwise`, `ReferenceRescanCompletion`, and
 `ReferenceHashBfsRecovery` remain available as independent references. Tests
 compare exact chord families, selected and added unit cuts, sorted rectangles,
 counts, and both ordinary and prepared validation results. Equal optimum

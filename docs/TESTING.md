@@ -46,8 +46,8 @@ not start.
 The exact fixed-snapshot event layer has a separate bounded gate:
 
 ```bash
-cargo test -p rect-graph event_engine
-cargo run --release -p rect-cli -- an19-events \
+cargo test -p graph event_engine
+cargo run --release -p mrd -- an19-events \
   --an19-event-engine reduced-exact \
   --an19-adversarial-family all \
   --an19-adversarial-size 16,32 \
@@ -68,26 +68,26 @@ asymptotic runtime. The proof and excluded work are documented in
 Run larger exhaustive and random campaigns with:
 
 ```bash
-cargo run --release -p rect-cli -- exhaustive --width 4 --height 4 \
+cargo run --release -p mrd -- exhaustive --width 4 --height 4 \
   --output exhaustive-4x4.json
 
-cargo run --release -p rect-cli -- random --width 8 --height 8 \
+cargo run --release -p mrd -- random --width 8 --height 8 \
   --cases 10000 --seed 42 --output random-seed-42.json
 
-cargo run --release -p rect-cli -- polyomino --max-cells 12 \
+cargo run --release -p mrd -- polyomino --max-cells 12 \
   --all-solvers --output polyomino-max12.json
 
-cargo run --release -p rect-cli -- benchmark --suite adversarial \
+cargo run --release -p mrd -- benchmark --suite adversarial \
   --output adversarial.csv
 
-cargo run --release -p rect-cli -- benchmark --suite dense-compact-only \
+cargo run --release -p mrd -- benchmark --suite dense-compact-only \
   --sizes 128,256,512,1024 --output compact-dense.csv
 
-cargo run --release -p rect-cli -- generate --family dense-conflict \
+cargo run --release -p mrd -- generate --family dense-conflict \
   --horizontal 1024 --vertical 1024 \
   --json /tmp/dense-1024.json --svg /tmp/dense-1024.svg
 
-cargo run --release -p rect-cli -- solve \
+cargo run --release -p mrd -- solve \
   --solver dominance-compact-only --input /tmp/dense-1024.json \
   --output /tmp/dense-1024-result.json
 ```
