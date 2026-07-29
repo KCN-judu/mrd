@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.4e
-- Current phase state: complete
+- Current phase: P9.3.5
+- Current phase state: in_progress
 - Last completed phase: P9.3.4e
-- Last pushed SHA: 0b15ba27510d03bad50322f69cb8988350703d60
-- Plan last updated: 2026-07-29T18:19:17Z
+- Last pushed SHA: 4f02a244d322a54d46ca202a9a784c4f11cd6078
+- Plan last updated: 2026-07-29T18:24:15Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -888,11 +888,20 @@ P9.3 is split into the following source-gated subphases:
        audit. This is limited to the certified one-level, one-component finite
        domain. General loops, Theorem 8.6 pruning, and Theorem 8.1 bounds remain
        unimplemented and unclaimed.
-5. **P9.3.5 state: planned. Start gate: P9.3.4 implementation audit passed.**
-   Implement Theorem 8.2's deletion/vertex-split
-   reduction, batch encoding, sparsity, spanner recourse, re-embedding sets,
-   and initialization/update accounting. Retain the greedy-rebuild spanner as
-   an Oracle only.
+5. **P9.3.5 state: in_progress. Start gate: P9.3.4 implementation audit
+   passed.** Implement Theorem 8.2's deletion/vertex-split reduction, batch
+   encoding, sparsity, spanner recourse, re-embedding sets, and
+   initialization/update accounting. It is split before coding into:
+   - **P9.3.5a state: in_progress.** Model source-shaped deletion/split batches,
+     smaller-side encodings, stable provenance, and replayable update traces.
+   - **P9.3.5b state: planned. Start gate: P9.3.5a semantic tests pass.**
+     Integrate the P9.3.4 finite `Sparsify` replay into a finite decremental
+     update path with explicit selected-edge, re-embedding, and recourse sets.
+   - **P9.3.5c state: planned. Start gate: P9.3.5b differential tests pass.**
+     Add independent certificate replay, greedy-rebuild Oracle comparison,
+     update accounting, and complete audit. General Theorem 8.2 sparsity,
+     recourse, and runtime bounds remain unclaimed without matching proofs.
+   Retain the greedy-rebuild spanner as an Oracle only.
 6. **P9.3.6 state: planned. Start gate: P9.3.5 implementation audit passed.**
    Implement Theorem 1.2/Section 9's fully dynamic
    low-stretch spanning tree for bounded integral lengths, including contracted
