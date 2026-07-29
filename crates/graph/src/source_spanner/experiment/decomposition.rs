@@ -1,6 +1,6 @@
 //! One-level finite-domain expander decomposition certificates.
 
-use crate::ExactRatio;
+use crate::{ExactRatio, FlowNodeId};
 
 use super::{
     super::model::{EdgeId, Graph},
@@ -12,8 +12,15 @@ use super::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Decomposition {
     pub level: u32,
-    pub edges: Vec<EdgeId>,
     pub phi: ExactRatio,
+    pub components: Vec<Component>,
+}
+
+/// A connected expander component within one certified decomposition level.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Component {
+    pub vertices: Vec<FlowNodeId>,
+    pub edges: Vec<EdgeId>,
     pub minimum_degree: u64,
     pub expansion: ExactRatio,
     pub cuts_checked: u64,
@@ -59,11 +66,14 @@ pub fn single_level(
     }
     Ok(Decomposition {
         level,
-        edges: (0..graph.edge_count()).map(EdgeId).collect(),
         phi,
-        minimum_degree,
-        expansion,
-        cuts_checked,
+        components: vec![Component {
+            vertices: (0..graph.node_count()).map(FlowNodeId).collect(),
+            edges: (0..graph.edge_count()).map(EdgeId).collect(),
+            minimum_degree,
+            expansion,
+            cuts_checked,
+        }],
     })
 }
 
@@ -109,7 +119,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(decomposition.level, 1);
-        assert_eq!(decomposition.edges.len(), witness.graph.edge_count());
+        assert_eq!(decomposition.components.len(), 1);
+        assert_eq!(
+            decomposition.components[0].edges.len(),
+            witness.graph.edge_count()
+        );
         decomposition
             .verify(&witness.graph, ExhaustiveDomain { maximum_nodes: 8 })
             .unwrap();
