@@ -247,7 +247,7 @@ def assert_implementation_defaults() -> None:
         "recovery_backend: PolygonRecoveryBackend::SparseSubdivision",
         "dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab",
         "subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment",
-        "sparse_validator_backend: SparseValidatorBackend::EventSegmentTree",
+        "sparse_validator_backend: polygon_sparse::validator::Backend::Experiment",
         "arrangement_backend: PolygonArrangementBackend::Indexed",
     ):
         if expected not in defaults.group(0):

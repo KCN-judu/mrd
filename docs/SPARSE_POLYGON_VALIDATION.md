@@ -1,6 +1,6 @@
 # Sparse Polygon Dissection Validation
 
-`SparseSlabValidator` validates coordinate rectangles without a two-dimensional
+`polygon_sparse::validator::Validator` validates coordinate rectangles without a two-dimensional
 coverage table.  It first checks positive areas and exact total area.  It then
 sweeps open vertical slabs induced by polygon and rectangle x coordinates.
 

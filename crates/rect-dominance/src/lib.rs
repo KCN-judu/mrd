@@ -34,9 +34,9 @@ use rect_oracle_sg::{
     GridInteriorRunEnumerator, IndexedFrontierCompletion, IndexedPolygonCompletion,
     IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
     PolygonSgError, ReferencePairwiseEnumerator, ReferenceRescanCompletion, SgError,
-    SoltanGorpinevichSweepEnumerator, SparseValidatorBackend, analyze_prepared_geometry,
-    audit_sweep_provenance, classify_clean_polygon, complete_with_prepared_backend,
-    polygon_arrangement, polygon_cut_index, polygon_sparse, validate_polygon_dissection_count,
+    SoltanGorpinevichSweepEnumerator, analyze_prepared_geometry, audit_sweep_provenance,
+    classify_clean_polygon, complete_with_prepared_backend, polygon_arrangement, polygon_cut_index,
+    polygon_sparse, validate_polygon_dissection_count,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -170,7 +170,7 @@ pub struct PolygonSolveOptions {
     pub recovery_backend: PolygonRecoveryBackend,
     pub dissection_validator_backend: PolygonDissectionValidatorBackend,
     pub subdivision_builder_backend: polygon_sparse::subdivision::Backend,
-    pub sparse_validator_backend: SparseValidatorBackend,
+    pub sparse_validator_backend: polygon_sparse::validator::Backend,
     /// Legacy dense/reference arrangement selector retained for old callers.
     pub arrangement_backend: PolygonArrangementBackend,
     pub representation: ConflictRepresentationBackend,
@@ -188,7 +188,7 @@ impl Default for PolygonSolveOptions {
             recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
             dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
             subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
-            sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
+            sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
             arrangement_backend: PolygonArrangementBackend::Indexed,
             representation: ConflictRepresentationBackend::GeneralDominance4D,
         }
@@ -446,7 +446,7 @@ pub fn solve_polygon_with_options(
                 options.recovery_backend,
                 options.dissection_validator_backend,
                 polygon_sparse::subdivision::Backend::Oracle,
-                SparseValidatorBackend::ReferenceSlabRescan,
+                polygon_sparse::validator::Backend::Oracle,
             )?;
             if reference.selected_horizontal_cuts != indexed.selected_horizontal_cuts
                 || reference.selected_vertical_cuts != indexed.selected_vertical_cuts

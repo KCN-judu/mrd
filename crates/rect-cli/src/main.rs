@@ -21,7 +21,7 @@ use rect_dominance::{
 use rect_graph::source_an19::event::campaign::{Campaign, Family};
 use rect_oracle_sg::{
     CompletionBackendKind, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    SparseValidatorBackend, polygon_cut_index, polygon_sparse,
+    polygon_cut_index, polygon_sparse,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1541,7 +1541,7 @@ fn solve_command(
                         subdivision_builder_kind,
                     ),
                     sparse_validator_backend: sparse_validator.map_or(
-                        SparseValidatorBackend::EventSegmentTree,
+                        polygon_sparse::validator::Backend::Experiment,
                         sparse_validator_kind,
                     ),
                     arrangement_backend: polygon_arrangement
@@ -1803,10 +1803,10 @@ const fn subdivision_builder_kind(
     }
 }
 
-const fn sparse_validator_kind(backend: SparseValidatorArg) -> SparseValidatorBackend {
+const fn sparse_validator_kind(backend: SparseValidatorArg) -> polygon_sparse::validator::Backend {
     match backend {
-        SparseValidatorArg::ReferenceSlabRescan => SparseValidatorBackend::ReferenceSlabRescan,
-        SparseValidatorArg::EventSegmentTree => SparseValidatorBackend::EventSegmentTree,
+        SparseValidatorArg::ReferenceSlabRescan => polygon_sparse::validator::Backend::Oracle,
+        SparseValidatorArg::EventSegmentTree => polygon_sparse::validator::Backend::Experiment,
     }
 }
 

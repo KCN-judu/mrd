@@ -16,8 +16,8 @@ use rect_oracle_sg::{
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
     PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
-    SparseSlabValidator, SparseValidatorBackend, SweepCertificate, classify_clean_polygon,
-    polygon_arrangement, polygon_cut_index, polygon_sparse, validate_polygon_dissection,
+    SweepCertificate, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
+    polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -211,7 +211,7 @@ pub fn verify_polygon(
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
-        sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
+        sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::GeneralDominance4D,
     };
@@ -365,15 +365,15 @@ pub fn verify_polygon(
         backend: "orthogonal-sweep-subdivision",
         message: error.to_string(),
     })?;
-    let reference_sparse_validation = SparseSlabValidator.validate_with_backend(
+    let reference_sparse_validation = polygon_sparse::validator::Validator.validate_with_backend(
         indexed_prepared.polygon(),
         &indexed_completion.rectangles,
-        SparseValidatorBackend::ReferenceSlabRescan,
+        polygon_sparse::validator::Backend::Oracle,
     );
-    let event_sparse_validation = SparseSlabValidator.validate_with_backend(
+    let event_sparse_validation = polygon_sparse::validator::Validator.validate_with_backend(
         indexed_prepared.polygon(),
         &indexed_completion.rectangles,
-        SparseValidatorBackend::EventSegmentTree,
+        polygon_sparse::validator::Backend::Experiment,
     );
     let validator_results = PolygonValidatorEvidence {
         reference_accepts_reference: validate_polygon_dissection(
@@ -400,10 +400,10 @@ pub fn verify_polygon(
                 &indexed_completion.rectangles,
             )
             .is_ok(),
-        sparse_accepts_reference: SparseSlabValidator
+        sparse_accepts_reference: polygon_sparse::validator::Validator
             .validate(indexed_prepared.polygon(), &reference_completion.rectangles)
             .is_ok(),
-        sparse_accepts_indexed: SparseSlabValidator
+        sparse_accepts_indexed: polygon_sparse::validator::Validator
             .validate(indexed_prepared.polygon(), &indexed_completion.rectangles)
             .is_ok(),
     };

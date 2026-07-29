@@ -16,8 +16,8 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
     PolygonValidationError, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
-    SparseSlabValidator, SparseValidatorBackend, VerticalCutSegment, classify_clean_polygon,
-    polygon_arrangement, polygon_cut_index, polygon_sparse, validate_polygon_dissection,
+    VerticalCutSegment, classify_clean_polygon, polygon_arrangement, polygon_cut_index,
+    polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -574,19 +574,19 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
             .expect_err("fixture must be invalid");
         let reference_category = dissection_error_category(&reference);
         let indexed_category = dissection_error_category(&indexed);
-        let sparse = rect_oracle_sg::SparseSlabValidator
+        let sparse = rect_oracle_sg::polygon_sparse::validator::Validator
             .validate_with_backend(
                 &rectangle_polygon,
                 &rectangles,
-                SparseValidatorBackend::EventSegmentTree,
+                polygon_sparse::validator::Backend::Experiment,
             )
             .expect_err("fixture must be invalid");
         let sparse_category = dissection_error_category(&sparse);
-        let sparse_reference = rect_oracle_sg::SparseSlabValidator
+        let sparse_reference = rect_oracle_sg::polygon_sparse::validator::Validator
             .validate_with_backend(
                 &rectangle_polygon,
                 &rectangles,
-                SparseValidatorBackend::ReferenceSlabRescan,
+                polygon_sparse::validator::Backend::Oracle,
             )
             .expect_err("fixture must be invalid");
         let deterministic_match = reference_category == indexed_category
@@ -1225,15 +1225,15 @@ fn compare_polygon_backends(
             Some(sweep),
         ));
     }
-    let reference_validation = SparseSlabValidator.validate_with_backend(
+    let reference_validation = polygon_sparse::validator::Validator.validate_with_backend(
         indexed_prepared.polygon(),
         &sweep.rectangles,
-        SparseValidatorBackend::ReferenceSlabRescan,
+        polygon_sparse::validator::Backend::Oracle,
     );
-    let event_validation = SparseSlabValidator.validate_with_backend(
+    let event_validation = polygon_sparse::validator::Validator.validate_with_backend(
         indexed_prepared.polygon(),
         &sweep.rectangles,
-        SparseValidatorBackend::EventSegmentTree,
+        polygon_sparse::validator::Backend::Experiment,
     );
     if reference_validation.as_ref().map(|_| ()) != event_validation.as_ref().map(|_| ())
         || event_validation.as_ref().is_ok_and(|metrics| {
@@ -1424,7 +1424,7 @@ fn solve_geometry_variants(
     let mut reference_sparse_options = sweep_options();
     reference_sparse_options.subdivision_builder_backend =
         polygon_sparse::subdivision::Backend::Oracle;
-    reference_sparse_options.sparse_validator_backend = SparseValidatorBackend::ReferenceSlabRescan;
+    reference_sparse_options.sparse_validator_backend = polygon_sparse::validator::Backend::Oracle;
     let reference_sparse = solve_polygon_with_options(polygon, reference_sparse_options)
         .map_err(|error| format!("reference sparse geometry solve failed: {error}"))?;
 
@@ -1455,7 +1455,7 @@ const fn reference_options() -> PolygonSolveOptions {
         recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
         dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Oracle,
-        sparse_validator_backend: SparseValidatorBackend::ReferenceSlabRescan,
+        sparse_validator_backend: polygon_sparse::validator::Backend::Oracle,
         arrangement_backend: PolygonArrangementBackend::Reference,
         representation: ConflictRepresentationBackend::Auto,
     }
@@ -1472,7 +1472,7 @@ const fn indexed_options() -> PolygonSolveOptions {
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
-        sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
+        sparse_validator_backend: polygon_sparse::validator::Backend::Experiment,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::Auto,
     }

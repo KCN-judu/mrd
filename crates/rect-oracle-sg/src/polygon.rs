@@ -19,7 +19,7 @@ use crate::polygon_arrangement;
 use crate::polygon_cut_index;
 use crate::polygon_sparse::{
     self, PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
-    SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics, SparseValidatorBackend,
+    SparseSubdivisionMetrics,
 };
 use crate::{
     ChordRef, CleanHoleFreeCertificate, CleanRejectionReason, EffectiveChordEndpointIndex,
@@ -218,7 +218,7 @@ pub struct PolygonCompletionMetrics {
     pub sparse_subdivision_owned_bytes: usize,
     pub sparse_validator_slab_count: usize,
     pub sparse_subdivision: SparseSubdivisionMetrics,
-    pub sparse_validator: SparseSlabMetrics,
+    pub sparse_validator: polygon_sparse::validator::Metrics,
     pub recovery_policy: String,
     pub selected_recovery_backend: String,
     pub dense_recovery_retained_byte_estimate: usize,
@@ -254,7 +254,7 @@ struct FormalCompletionInputs {
 struct FormalRecovery {
     dense: PolygonRecovery,
     subdivision: SparseSubdivisionMetrics,
-    sparse_validation: SparseSlabMetrics,
+    sparse_validation: polygon_sparse::validator::Metrics,
 }
 
 impl CoordinateCompressedCompletion {
@@ -578,15 +578,15 @@ fn recover_and_validate_formal(
         return Err(PolygonSgError::FormalRecoveryMismatch);
     }
     validate_polygon_dissection(polygon.region(), &dense.rectangles)?;
-    SparseSlabValidator.validate_with_backend(
+    polygon_sparse::validator::Validator.validate_with_backend(
         polygon.region(),
         &dense.rectangles,
-        SparseValidatorBackend::ReferenceSlabRescan,
+        polygon_sparse::validator::Backend::Oracle,
     )?;
-    let sparse_validation = SparseSlabValidator.validate_with_backend(
+    let sparse_validation = polygon_sparse::validator::Validator.validate_with_backend(
         polygon.region(),
         &dense.rectangles,
-        SparseValidatorBackend::EventSegmentTree,
+        polygon_sparse::validator::Backend::Experiment,
     )?;
     validate_formal_boundary_coverage(incidence, &dense.rectangles)?;
     Ok(FormalRecovery {
@@ -2351,7 +2351,7 @@ impl IndexedPolygonCompletion {
             recovery_backend,
             validator_backend,
             polygon_sparse::subdivision::Backend::Experiment,
-            SparseValidatorBackend::EventSegmentTree,
+            polygon_sparse::validator::Backend::Experiment,
         )
     }
 
@@ -2375,7 +2375,7 @@ impl IndexedPolygonCompletion {
         recovery_backend: PolygonRecoveryBackend,
         validator_backend: PolygonDissectionValidatorBackend,
         subdivision_builder_backend: polygon_sparse::subdivision::Backend,
-        sparse_validator_backend: SparseValidatorBackend,
+        sparse_validator_backend: polygon_sparse::validator::Backend,
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
         let started = Instant::now();
         if horizontal_chords.len() != selected_horizontal.len()
@@ -2545,7 +2545,7 @@ impl IndexedPolygonCompletion {
                 metrics.arrangement_owned_bytes = arrangement.owned_bytes_estimate();
             }
             PolygonDissectionValidatorBackend::SparseSlab => {
-                let slab = SparseSlabValidator.validate_with_backend(
+                let slab = polygon_sparse::validator::Validator.validate_with_backend(
                     prepared.polygon(),
                     &rectangles,
                     sparse_validator_backend,
