@@ -53,7 +53,7 @@ remain unverified.
 - Constructs the weighted-copy graph `G_v` with
   `ceil(m v_e / ||v||_1)` unit-weight copies per active edge, exact copy maps,
   retained lengths, and a checked total of at most `2m` copies.
-- Provides `ExactStaticLsstOracle` for differential testing on bounded small
+- Provides `source_lsf::oracle::Lsst` for differential testing on bounded small
   graphs (`n <= 12`, `m <= 24`). It exhaustively enumerates spanning trees,
   evaluates exact weighted stretch with the certified forest routines, and
   chooses the exact minimum with a stable edge-ID tie break. This exponential

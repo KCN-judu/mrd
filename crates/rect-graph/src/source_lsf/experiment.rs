@@ -11,10 +11,10 @@ type RootedOrder = (Vec<Option<usize>>, Vec<usize>, Vec<usize>);
 
 /// Appendix B.3 tree machinery used by the dynamic low-stretch forest.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BranchFreeTree {
+pub struct Tree {
     root: usize,
-    tree_edges: BTreeSet<SourceEdgeId>,
-    tree_edge_data: BTreeMap<SourceEdgeId, (usize, usize, ExactRatio)>,
+    edges: BTreeSet<SourceEdgeId>,
+    edge_data: BTreeMap<SourceEdgeId, (usize, usize, ExactRatio)>,
     adjacency: Vec<Vec<(usize, SourceEdgeId)>>,
     parent: Vec<Option<usize>>,
     depth: Vec<usize>,
@@ -30,13 +30,13 @@ pub struct CongestionOrder {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct GlobalStretchCertificate {
+pub struct StretchCertificate {
     pub stretch_overestimates: Vec<ExactRatio>,
     pub auxiliary_levels: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TreeDecompositionAudit {
+pub struct DecompositionAudit {
     pub boundary: BTreeSet<FlowNodeId>,
     pub piece_count: usize,
     pub total_weight: ExactRatio,
@@ -45,7 +45,7 @@ pub struct TreeDecompositionAudit {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct WeightedCopyExpansion {
+pub struct WeightedExpansion {
     pub graph: SourceDynamicGraph,
     pub copy_to_original: Vec<SourceEdgeId>,
     pub original_to_copies: Vec<Vec<SourceEdgeId>>,
@@ -53,7 +53,7 @@ pub struct WeightedCopyExpansion {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SpielmanTengDecomposition {
+pub struct Decomposition {
     pub pieces: Vec<LsfPiece>,
     pub edge_assignments: Vec<BTreeSet<usize>>,
     pub threshold_phi: ExactRatio,
@@ -61,68 +61,10 @@ pub struct SpielmanTengDecomposition {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ConstructedLsfInitialization {
-    pub core: DynamicLsfCore,
-    pub spielman_teng: SpielmanTengDecomposition,
+pub struct Initialization {
+    pub core: Core,
+    pub spielman_teng: Decomposition,
     pub decomposition_boundary: BTreeSet<FlowNodeId>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExactStaticLsstOracle {
-    pub tree_edges: BTreeSet<SourceEdgeId>,
-    pub weighted_stretch: ExactRatio,
-    pub total_weight: ExactRatio,
-    pub candidates_checked: u64,
-}
-
-impl ExactStaticLsstOracle {
-    /// Exhaustively finds the minimum exact weighted-stretch spanning tree on
-    /// a bounded small graph. This is a differential Oracle, not AN19.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error beyond the explicit small-instance limit, for a
-    /// disconnected graph, or when exact enumeration arithmetic overflows.
-    pub fn solve(graph: &SourceDynamicGraph) -> Result<Self, SourceLsfConstructionError> {
-        if graph.node_count() == 0 || graph.node_count() > 12 || graph.edge_count() > 24 {
-            return Err(SourceLsfConstructionError::OracleLimitExceeded);
-        }
-        let active = (0..graph.edge_count())
-            .filter(|index| graph.edge(SourceEdgeId(*index)).is_some())
-            .map(SourceEdgeId)
-            .collect::<Vec<_>>();
-        let required = graph
-            .node_count()
-            .checked_sub(1)
-            .ok_or(SourceLsfConstructionError::InvalidTree)?;
-        if active.len() < required {
-            return Err(SourceLsfConstructionError::InvalidTree);
-        }
-        let mut state = OracleEnumeration {
-            graph,
-            active: &active,
-            required,
-            best: None,
-            candidates_checked: 0,
-        };
-        state.enumerate(0, &mut Vec::new())?;
-        let (tree_edges, weighted_stretch, total_weight) =
-            state.best.ok_or(SourceLsfConstructionError::InvalidTree)?;
-        Ok(Self {
-            tree_edges,
-            weighted_stretch,
-            total_weight,
-            candidates_checked: state.candidates_checked,
-        })
-    }
-}
-
-struct OracleEnumeration<'a> {
-    graph: &'a SourceDynamicGraph,
-    active: &'a [SourceEdgeId],
-    required: usize,
-    best: Option<(BTreeSet<SourceEdgeId>, ExactRatio, ExactRatio)>,
-    candidates_checked: u64,
 }
 
 struct DecomposeResult {
@@ -132,7 +74,7 @@ struct DecomposeResult {
 }
 
 struct DecomposeBuilder<'a> {
-    tree: &'a BranchFreeTree,
+    tree: &'a Tree,
     graph: &'a SourceDynamicGraph,
     eta: &'a [ExactRatio],
     phi: ExactRatio,
@@ -140,14 +82,14 @@ struct DecomposeBuilder<'a> {
     edge_assignments: Vec<BTreeSet<usize>>,
 }
 
-impl WeightedCopyExpansion {
+impl WeightedExpansion {
     /// Applies the exact weighted-to-uniform reduction from Lemma 5.4.
     ///
     /// # Errors
     ///
     /// Returns an error when the graph has no active edge, a copy count or
     /// exact ratio overflows, or the proved `|E(G_v)| <= 2m` bound fails.
-    pub fn build(graph: &SourceDynamicGraph) -> Result<Self, SourceLsfConstructionError> {
+    pub fn build(graph: &SourceDynamicGraph) -> Result<Self, Error> {
         let active = (0..graph.edge_count())
             .filter_map(|index| {
                 graph
@@ -156,7 +98,7 @@ impl WeightedCopyExpansion {
             })
             .collect::<Vec<_>>();
         if active.is_empty() {
-            return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+            return Err(Error::InvalidWeightedExpansion);
         }
         let mut total_original_weight = ratio(0)?;
         for (_, edge) in &active {
@@ -164,7 +106,7 @@ impl WeightedCopyExpansion {
                 .checked_add(edge.weight)
                 .map_err(map_ratio)?;
         }
-        let m = i128::try_from(active.len()).map_err(|_| SourceLsfConstructionError::Overflow)?;
+        let m = i128::try_from(active.len()).map_err(|_| Error::Overflow)?;
         let inverse_total = total_original_weight.reciprocal().map_err(map_ratio)?;
         let mut copies = Vec::new();
         let mut copy_to_original = Vec::new();
@@ -190,7 +132,7 @@ impl WeightedCopyExpansion {
         }
         let maximum_copies = active_copy_limit(m)?;
         if copies.len() > maximum_copies {
-            return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+            return Err(Error::InvalidWeightedExpansion);
         }
         Ok(Self {
             graph: SourceDynamicGraph::new(
@@ -198,7 +140,7 @@ impl WeightedCopyExpansion {
                 copies,
                 graph.maximum_abs_coordinate().max(1),
             )
-            .map_err(|_| SourceLsfConstructionError::InvalidWeightedExpansion)?,
+            .map_err(|_| Error::InvalidWeightedExpansion)?,
             copy_to_original,
             original_to_copies,
             total_original_weight,
@@ -207,7 +149,7 @@ impl WeightedCopyExpansion {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct DynamicLsfCoreMetrics {
+pub struct Metrics {
     pub batches: u64,
     pub root_additions: u64,
     pub forest_edge_removals: u64,
@@ -217,14 +159,14 @@ pub struct DynamicLsfCoreMetrics {
 
 /// Source update mechanics around a fixed Appendix B.3 tree.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DynamicLsfCore {
+pub struct Core {
     graph: SourceDynamicGraph,
-    tree: BranchFreeTree,
+    tree: Tree,
     ordered_tree_edges: Vec<SourceEdgeId>,
     roots: BTreeSet<FlowNodeId>,
     forest_edges: BTreeSet<SourceEdgeId>,
-    global_stretch: GlobalStretchCertificate,
-    metrics: DynamicLsfCoreMetrics,
+    global_stretch: StretchCertificate,
+    metrics: Metrics,
 }
 
 struct BatchRootInputs {
@@ -233,7 +175,7 @@ struct BatchRootInputs {
     split_count: u64,
 }
 
-impl DynamicLsfCore {
+impl Core {
     /// Runs the exact Spielman--Teng decomposition and consumes it directly in
     /// the source LSF initializer.
     ///
@@ -243,14 +185,14 @@ impl DynamicLsfCore {
     /// certificate fails.
     pub fn new_with_spielman_teng(
         graph: SourceDynamicGraph,
-        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        edges: impl IntoIterator<Item = SourceEdgeId>,
         tree_root: FlowNodeId,
         target_piece_count: usize,
         reduction_k: usize,
         large_stretch_threshold: ExactRatio,
-    ) -> Result<ConstructedLsfInitialization, SourceLsfConstructionError> {
-        let tree_edges = tree_edges.into_iter().collect::<Vec<_>>();
-        let tree = BranchFreeTree::new(&graph, tree_edges.iter().copied(), tree_root)?;
+    ) -> Result<Initialization, Error> {
+        let edges = edges.into_iter().collect::<Vec<_>>();
+        let tree = Tree::new(&graph, edges.iter().copied(), tree_root)?;
         let eta = (0..graph.edge_count())
             .map(|index| {
                 graph
@@ -260,7 +202,7 @@ impl DynamicLsfCore {
             .collect::<Result<Vec<_>, _>>()?;
         let spielman_teng = tree.decompose_spielman_teng(&graph, &eta, target_piece_count)?;
         if reduction_k == 0 || !large_stretch_threshold.is_positive() {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let decomposition_boundary =
             decomposition_boundary(&spielman_teng.pieces, graph.node_count())?;
@@ -281,8 +223,8 @@ impl DynamicLsfCore {
         if terminals.is_empty() {
             terminals.push(tree_root);
         }
-        let core = Self::new(graph, tree_edges, tree_root, terminals)?;
-        Ok(ConstructedLsfInitialization {
+        let core = Self::new(graph, edges, tree_root, terminals)?;
+        Ok(Initialization {
             core,
             spielman_teng,
             decomposition_boundary,
@@ -299,18 +241,18 @@ impl DynamicLsfCore {
     /// resulting dynamic core cannot be certified.
     pub fn new_from_decomposition(
         graph: SourceDynamicGraph,
-        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        edges: impl IntoIterator<Item = SourceEdgeId>,
         tree_root: FlowNodeId,
         pieces: &[LsfPiece],
         reduction_k: usize,
         piece_count_limit: usize,
         large_stretch_threshold: ExactRatio,
-    ) -> Result<(Self, TreeDecompositionAudit), SourceLsfConstructionError> {
+    ) -> Result<(Self, DecompositionAudit), Error> {
         if !large_stretch_threshold.is_positive() {
-            return Err(SourceLsfConstructionError::InvalidStretch);
+            return Err(Error::InvalidStretch);
         }
-        let tree_edges = tree_edges.into_iter().collect::<Vec<_>>();
-        let tree = BranchFreeTree::new(&graph, tree_edges.iter().copied(), tree_root)?;
+        let edges = edges.into_iter().collect::<Vec<_>>();
+        let tree = Tree::new(&graph, edges.iter().copied(), tree_root)?;
         let decomposition =
             tree.audit_tree_decomposition(&graph, pieces, reduction_k, piece_count_limit)?;
         let order = tree.congestion_order(&graph)?;
@@ -330,7 +272,7 @@ impl DynamicLsfCore {
         if terminals.is_empty() {
             terminals.push(tree_root);
         }
-        let core = Self::new(graph, tree_edges, tree_root, terminals)?;
+        let core = Self::new(graph, edges, tree_root, terminals)?;
         Ok((core, decomposition))
     }
 
@@ -342,15 +284,15 @@ impl DynamicLsfCore {
     /// or global stretch vector cannot be certified.
     pub fn new(
         graph: SourceDynamicGraph,
-        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        edges: impl IntoIterator<Item = SourceEdgeId>,
         tree_root: FlowNodeId,
         seed_terminals: impl IntoIterator<Item = FlowNodeId>,
-    ) -> Result<Self, SourceLsfConstructionError> {
-        let tree = BranchFreeTree::new(&graph, tree_edges, tree_root)?;
+    ) -> Result<Self, Error> {
+        let tree = Tree::new(&graph, edges, tree_root)?;
         let order = tree.congestion_order(&graph)?;
         let roots = tree.ancestor_closure(seed_terminals)?;
         if roots.is_empty() {
-            return Err(SourceLsfConstructionError::InvalidRoots);
+            return Err(Error::InvalidRoots);
         }
         let forest_edges = tree.forest_for_roots(&roots, &order.ordered_tree_edges)?;
         let global_stretch =
@@ -368,9 +310,9 @@ impl DynamicLsfCore {
             roots,
             forest_edges,
             global_stretch,
-            metrics: DynamicLsfCoreMetrics {
+            metrics: Metrics {
                 stretch_checks,
-                ..DynamicLsfCoreMetrics::default()
+                ..Metrics::default()
             },
         })
     }
@@ -391,12 +333,12 @@ impl DynamicLsfCore {
     }
 
     #[must_use]
-    pub const fn global_stretch(&self) -> &GlobalStretchCertificate {
+    pub const fn global_stretch(&self) -> &StretchCertificate {
         &self.global_stretch
     }
 
     #[must_use]
-    pub const fn metrics(&self) -> DynamicLsfCoreMetrics {
+    pub const fn metrics(&self) -> Metrics {
         self.metrics
     }
 
@@ -407,16 +349,13 @@ impl DynamicLsfCore {
     ///
     /// Returns an error for a graph update failure, nondecremental forest, or
     /// stretch certification failure.
-    pub fn apply_edge_batch(
-        &mut self,
-        batch: &SourceUpdateBatch,
-    ) -> Result<(), SourceLsfConstructionError> {
+    pub fn apply_edge_batch(&mut self, batch: &SourceUpdateBatch) -> Result<(), Error> {
         let mut candidate = self.clone();
         let inputs = batch_root_inputs(&candidate.graph, batch)?;
         candidate
             .graph
             .apply_batch(batch)
-            .map_err(|_| SourceLsfConstructionError::InvalidUpdate)?;
+            .map_err(|_| Error::InvalidUpdate)?;
         while candidate.global_stretch.stretch_overestimates.len() < candidate.graph.edge_count() {
             candidate
                 .global_stretch
@@ -438,13 +377,13 @@ impl DynamicLsfCore {
             .tree
             .forest_for_roots(&candidate.roots, &candidate.ordered_tree_edges)?;
         if !next_forest.is_subset(&candidate.forest_edges) {
-            return Err(SourceLsfConstructionError::NondecrementalForest);
+            return Err(Error::NondecrementalForest);
         }
         let removed = candidate
             .forest_edges
             .len()
             .checked_sub(next_forest.len())
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
         candidate.forest_edges = next_forest;
         let checks = candidate.tree.certify_global_stretch_for_roots(
             &candidate.graph,
@@ -456,36 +395,36 @@ impl DynamicLsfCore {
             .metrics
             .batches
             .checked_add(1)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
         candidate.metrics.root_additions = candidate
             .metrics
             .root_additions
             .checked_add(
                 u64::try_from(candidate.roots.len() - old_root_count)
-                    .map_err(|_| SourceLsfConstructionError::Overflow)?,
+                    .map_err(|_| Error::Overflow)?,
             )
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
         candidate.metrics.forest_edge_removals = candidate
             .metrics
             .forest_edge_removals
-            .checked_add(u64::try_from(removed).map_err(|_| SourceLsfConstructionError::Overflow)?)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .checked_add(u64::try_from(removed).map_err(|_| Error::Overflow)?)
+            .ok_or(Error::Overflow)?;
         candidate.metrics.stretch_checks = candidate
             .metrics
             .stretch_checks
             .checked_add(checks)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
         candidate.metrics.vertex_splits = candidate
             .metrics
             .vertex_splits
             .checked_add(inputs.split_count)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
         *self = candidate;
         Ok(())
     }
 }
 
-impl BranchFreeTree {
+impl Tree {
     /// Implements Spielman--Teng `decompose/sub` from `cs/0607105` using
     /// exact rational edge values.
     ///
@@ -499,26 +438,26 @@ impl BranchFreeTree {
         graph: &SourceDynamicGraph,
         eta: &[ExactRatio],
         target_piece_count: usize,
-    ) -> Result<SpielmanTengDecomposition, SourceLsfConstructionError> {
+    ) -> Result<Decomposition, Error> {
         if eta.len() != graph.edge_count() || target_piece_count <= 1 {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let mut total = ratio(0)?;
         for (index, value) in eta.iter().copied().enumerate() {
             if graph.edge(SourceEdgeId(index)).is_some() {
                 if !value.is_positive() {
-                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                    return Err(Error::InvalidDecomposition);
                 }
                 total = total.checked_add(value).map_err(map_ratio)?;
             }
         }
         let target = ExactRatio::new(
-            i128::try_from(target_piece_count).map_err(|_| SourceLsfConstructionError::Overflow)?,
+            i128::try_from(target_piece_count).map_err(|_| Error::Overflow)?,
             1,
         )
         .map_err(map_ratio)?;
         if !total.at_least(target).map_err(map_ratio)? {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let phi = total
             .checked_mul_integer(2)
@@ -543,29 +482,27 @@ impl BranchFreeTree {
     ///
     /// # Errors
     ///
-    /// Returns an error unless `tree_edges` form a spanning tree of `graph`
+    /// Returns an error unless `edges` form a spanning tree of `graph`
     /// rooted at `root` and all exact arithmetic remains defined.
     pub fn new(
         graph: &SourceDynamicGraph,
-        tree_edges: impl IntoIterator<Item = SourceEdgeId>,
+        edges: impl IntoIterator<Item = SourceEdgeId>,
         root: FlowNodeId,
-    ) -> Result<Self, SourceLsfConstructionError> {
+    ) -> Result<Self, Error> {
         if root.0 >= graph.node_count() {
-            return Err(SourceLsfConstructionError::InvalidTree);
+            return Err(Error::InvalidTree);
         }
-        let tree_edges = tree_edges.into_iter().collect::<BTreeSet<_>>();
-        if tree_edges.len().checked_add(1) != Some(graph.node_count()) {
-            return Err(SourceLsfConstructionError::InvalidTree);
+        let edges = edges.into_iter().collect::<BTreeSet<_>>();
+        if edges.len().checked_add(1) != Some(graph.node_count()) {
+            return Err(Error::InvalidTree);
         }
         let mut adjacency = vec![Vec::new(); graph.node_count()];
-        let mut tree_edge_data = BTreeMap::new();
-        for id in &tree_edges {
-            let edge = graph
-                .edge(*id)
-                .ok_or(SourceLsfConstructionError::InvalidTree)?;
+        let mut edge_data = BTreeMap::new();
+        for id in &edges {
+            let edge = graph.edge(*id).ok_or(Error::InvalidTree)?;
             adjacency[edge.first.0].push((edge.second.0, *id));
             adjacency[edge.second.0].push((edge.first.0, *id));
-            tree_edge_data.insert(*id, (edge.first.0, edge.second.0, edge.length));
+            edge_data.insert(*id, (edge.first.0, edge.second.0, edge.length));
         }
         let (parent, depth, order) = rooted_order(&adjacency, root.0)?;
         let heavy_child = heavy_children(&adjacency, &parent, &order)?;
@@ -574,8 +511,8 @@ impl BranchFreeTree {
             auxiliary_depths(&auxiliary_parent, root.0)?;
         Ok(Self {
             root: root.0,
-            tree_edges,
-            tree_edge_data,
+            edges,
+            edge_data,
             adjacency,
             parent,
             depth,
@@ -598,11 +535,11 @@ impl BranchFreeTree {
     pub fn ancestor_closure(
         &self,
         terminals: impl IntoIterator<Item = FlowNodeId>,
-    ) -> Result<BTreeSet<FlowNodeId>, SourceLsfConstructionError> {
+    ) -> Result<BTreeSet<FlowNodeId>, Error> {
         let mut result = BTreeSet::new();
         for terminal in terminals {
             if terminal.0 >= self.parent.len() {
-                return Err(SourceLsfConstructionError::NodeOutOfBounds);
+                return Err(Error::NodeOutOfBounds);
             }
             let mut current = Some(terminal.0);
             while let Some(node) = current {
@@ -635,34 +572,29 @@ impl BranchFreeTree {
     ///
     /// Returns an error when an active graph edge has no tree path or exact
     /// rational accumulation overflows.
-    pub fn congestion_order(
-        &self,
-        graph: &SourceDynamicGraph,
-    ) -> Result<CongestionOrder, SourceLsfConstructionError> {
+    pub fn congestion_order(&self, graph: &SourceDynamicGraph) -> Result<CongestionOrder, Error> {
         let edge_to_slot = self
-            .tree_edges
+            .edges
             .iter()
             .copied()
             .enumerate()
             .map(|(slot, id)| (id, slot))
             .collect::<BTreeMap<_, _>>();
         let zero = ratio(0)?;
-        let mut exact_congestion = vec![zero; self.tree_edges.len()];
+        let mut exact_congestion = vec![zero; self.edges.len()];
         for index in 0..graph.edge_count() {
             let Some(edge) = graph.edge(SourceEdgeId(index)) else {
                 continue;
             };
             let reciprocal = edge.length.reciprocal().map_err(map_ratio)?;
             for id in self.path(edge.first.0, edge.second.0)?.1 {
-                let slot = *edge_to_slot
-                    .get(&id)
-                    .ok_or(SourceLsfConstructionError::InvalidTree)?;
+                let slot = *edge_to_slot.get(&id).ok_or(Error::InvalidTree)?;
                 exact_congestion[slot] = exact_congestion[slot]
                     .checked_add(reciprocal)
                     .map_err(map_ratio)?;
             }
         }
-        let mut ordered_tree_edges = self.tree_edges.iter().copied().collect::<Vec<_>>();
+        let mut ordered_tree_edges = self.edges.iter().copied().collect::<Vec<_>>();
         for index in 1..ordered_tree_edges.len() {
             let mut cursor = index;
             while cursor > 0
@@ -694,18 +626,18 @@ impl BranchFreeTree {
         &self,
         roots: &BTreeSet<FlowNodeId>,
         ordered_tree_edges: &[SourceEdgeId],
-    ) -> Result<BTreeSet<SourceEdgeId>, SourceLsfConstructionError> {
+    ) -> Result<BTreeSet<SourceEdgeId>, Error> {
         if roots.is_empty() || !self.is_branch_free(roots) {
-            return Err(SourceLsfConstructionError::InvalidRoots);
+            return Err(Error::InvalidRoots);
         }
-        let rank = permutation_ranks(&self.tree_edges, ordered_tree_edges)?;
+        let rank = permutation_ranks(&self.edges, ordered_tree_edges)?;
         let roots_vec = roots
             .iter()
             .copied()
             .filter(|root| root.0 < self.parent.len())
             .collect::<Vec<_>>();
         if roots_vec.is_empty() {
-            return Err(SourceLsfConstructionError::InvalidRoots);
+            return Err(Error::InvalidRoots);
         }
         let mut removed = BTreeSet::new();
         for first in 0..roots_vec.len() {
@@ -722,14 +654,14 @@ impl BranchFreeTree {
                 let removed_edge = edges
                     .into_iter()
                     .min_by_key(|id| rank[id])
-                    .ok_or(SourceLsfConstructionError::InvalidRoots)?;
+                    .ok_or(Error::InvalidRoots)?;
                 removed.insert(removed_edge);
             }
         }
         if removed.len().checked_add(1) != Some(roots_vec.len()) {
-            return Err(SourceLsfConstructionError::InvalidRoots);
+            return Err(Error::InvalidRoots);
         }
-        Ok(self.tree_edges.difference(&removed).copied().collect())
+        Ok(self.edges.difference(&removed).copied().collect())
     }
 
     /// Computes Equation (56)'s fixed global stretch overestimates by summing
@@ -743,8 +675,8 @@ impl BranchFreeTree {
         &self,
         graph: &SourceDynamicGraph,
         ordered_tree_edges: &[SourceEdgeId],
-    ) -> Result<GlobalStretchCertificate, SourceLsfConstructionError> {
-        permutation_ranks(&self.tree_edges, ordered_tree_edges)?;
+    ) -> Result<StretchCertificate, Error> {
+        permutation_ranks(&self.edges, ordered_tree_edges)?;
         let zero = ratio(0)?;
         let mut sums = vec![zero; graph.edge_count()];
         for level in 0..=self.maximum_auxiliary_depth {
@@ -765,12 +697,12 @@ impl BranchFreeTree {
             .into_iter()
             .map(|sum| sum.checked_mul_integer(2).map_err(map_ratio))
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(GlobalStretchCertificate {
+        Ok(StretchCertificate {
             stretch_overestimates,
             auxiliary_levels: self
                 .maximum_auxiliary_depth
                 .checked_add(1)
-                .ok_or(SourceLsfConstructionError::Overflow)?,
+                .ok_or(Error::Overflow)?,
         })
     }
 
@@ -789,13 +721,13 @@ impl BranchFreeTree {
         pieces: &[LsfPiece],
         reduction_k: usize,
         piece_count_limit: usize,
-    ) -> Result<TreeDecompositionAudit, SourceLsfConstructionError> {
+    ) -> Result<DecompositionAudit, Error> {
         if pieces.is_empty()
             || pieces.len() > piece_count_limit
             || reduction_k == 0
             || graph.edge_count() == 0
         {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let mut memberships = vec![0_usize; self.parent.len()];
         let mut assigned = BTreeSet::new();
@@ -804,16 +736,16 @@ impl BranchFreeTree {
             for vertex in &piece.vertices {
                 memberships[vertex.0] = memberships[vertex.0]
                     .checked_add(1)
-                    .ok_or(SourceLsfConstructionError::Overflow)?;
+                    .ok_or(Error::Overflow)?;
             }
             for id in &piece.forest_edges {
                 if !assigned.insert(*id) {
-                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                    return Err(Error::InvalidDecomposition);
                 }
             }
         }
-        if assigned != self.tree_edges || memberships.contains(&0) {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+        if assigned != self.edges || memberships.contains(&0) {
+            return Err(Error::InvalidDecomposition);
         }
         let boundary = memberships
             .iter()
@@ -822,7 +754,7 @@ impl BranchFreeTree {
             .map(|(node, _)| FlowNodeId(node))
             .collect::<BTreeSet<_>>();
         if !self.is_branch_free(&boundary) {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let zero = ratio(0)?;
         let mut total_weight = zero;
@@ -832,11 +764,10 @@ impl BranchFreeTree {
             }
         }
         let multiplier = i128::try_from(reduction_k)
-            .map_err(|_| SourceLsfConstructionError::Overflow)?
+            .map_err(|_| Error::Overflow)?
             .checked_mul(40)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
-        let edge_count =
-            i128::try_from(graph.edge_count()).map_err(|_| SourceLsfConstructionError::Overflow)?;
+            .ok_or(Error::Overflow)?;
+        let edge_count = i128::try_from(graph.edge_count()).map_err(|_| Error::Overflow)?;
         let per_piece_weight_limit = total_weight
             .checked_mul_integer(multiplier)
             .and_then(|value| value.checked_mul(ExactRatio::new(1, edge_count)?))
@@ -845,13 +776,13 @@ impl BranchFreeTree {
         for piece in pieces {
             let weight = adjacent_nonboundary_weight(graph, piece, &boundary)?;
             if !per_piece_weight_limit.at_least(weight).map_err(map_ratio)? {
-                return Err(SourceLsfConstructionError::InvalidDecomposition);
+                return Err(Error::InvalidDecomposition);
             }
             if weight.at_least(maximum_piece_weight).map_err(map_ratio)? {
                 maximum_piece_weight = weight;
             }
         }
-        Ok(TreeDecompositionAudit {
+        Ok(DecompositionAudit {
             boundary,
             piece_count: pieces.len(),
             total_weight,
@@ -871,10 +802,10 @@ impl BranchFreeTree {
         graph: &SourceDynamicGraph,
         roots: &BTreeSet<FlowNodeId>,
         ordered_tree_edges: &[SourceEdgeId],
-        certificate: &GlobalStretchCertificate,
-    ) -> Result<u64, SourceLsfConstructionError> {
+        certificate: &StretchCertificate,
+    ) -> Result<u64, Error> {
         if certificate.stretch_overestimates.len() != graph.edge_count() {
-            return Err(SourceLsfConstructionError::InvalidStretch);
+            return Err(Error::InvalidStretch);
         }
         let forest = self.forest_for_roots(roots, ordered_tree_edges)?;
         let exact = exact_forest_stretches(self, graph, &forest, roots)?;
@@ -887,22 +818,16 @@ impl BranchFreeTree {
                 .at_least(stretch)
                 .map_err(map_ratio)?
             {
-                return Err(SourceLsfConstructionError::InvalidStretch);
+                return Err(Error::InvalidStretch);
             }
-            checks = checks
-                .checked_add(1)
-                .ok_or(SourceLsfConstructionError::Overflow)?;
+            checks = checks.checked_add(1).ok_or(Error::Overflow)?;
         }
         Ok(checks)
     }
 
-    fn path(
-        &self,
-        first: usize,
-        second: usize,
-    ) -> Result<(Vec<usize>, Vec<SourceEdgeId>), SourceLsfConstructionError> {
+    fn path(&self, first: usize, second: usize) -> Result<(Vec<usize>, Vec<SourceEdgeId>), Error> {
         if first >= self.parent.len() || second >= self.parent.len() {
-            return Err(SourceLsfConstructionError::NodeOutOfBounds);
+            return Err(Error::NodeOutOfBounds);
         }
         let mut left = first;
         let mut right = second;
@@ -940,16 +865,13 @@ impl BranchFreeTree {
         Ok((left_vertices, left_edges))
     }
 
-    fn parent_step(
-        &self,
-        node: usize,
-    ) -> Result<(usize, SourceEdgeId), SourceLsfConstructionError> {
-        let parent = self.parent[node].ok_or(SourceLsfConstructionError::InvalidTree)?;
+    fn parent_step(&self, node: usize) -> Result<(usize, SourceEdgeId), Error> {
+        let parent = self.parent[node].ok_or(Error::InvalidTree)?;
         let edge = self.adjacency[node]
             .iter()
             .find(|(next, _)| *next == parent)
             .map(|(_, id)| *id)
-            .ok_or(SourceLsfConstructionError::InvalidTree)?;
+            .ok_or(Error::InvalidTree)?;
         Ok((parent, edge))
     }
 
@@ -969,7 +891,7 @@ impl BranchFreeTree {
 }
 
 impl DecomposeBuilder<'_> {
-    fn sub(&mut self, vertex: usize) -> Result<DecomposeResult, SourceLsfConstructionError> {
+    fn sub(&mut self, vertex: usize) -> Result<DecomposeResult, Error> {
         let mut children = self.tree.adjacency[vertex]
             .iter()
             .map(|(next, _)| *next)
@@ -981,7 +903,7 @@ impl DecomposeBuilder<'_> {
         for child in children {
             let child_result = self.sub(child)?;
             if self.weight(&child_result.attached_edges)? != child_result.weight {
-                return Err(SourceLsfConstructionError::InvalidDecomposition);
+                return Err(Error::InvalidDecomposition);
             }
             attached_edges.extend(child_result.attached_edges);
             vertices.extend(child_result.vertices);
@@ -1019,7 +941,7 @@ impl DecomposeBuilder<'_> {
         })
     }
 
-    fn empty_result() -> Result<DecomposeResult, SourceLsfConstructionError> {
+    fn empty_result() -> Result<DecomposeResult, Error> {
         Ok(DecomposeResult {
             attached_edges: BTreeSet::new(),
             weight: ratio(0)?,
@@ -1031,13 +953,13 @@ impl DecomposeBuilder<'_> {
         &mut self,
         vertices: BTreeSet<FlowNodeId>,
         assigned_edges: &BTreeSet<SourceEdgeId>,
-    ) -> Result<(), SourceLsfConstructionError> {
+    ) -> Result<(), Error> {
         if vertices.is_empty() {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         let forest_edges = self
             .tree
-            .tree_edge_data
+            .edge_data
             .iter()
             .filter(|(_, (first, second, _))| {
                 vertices.contains(&FlowNodeId(*first)) && vertices.contains(&FlowNodeId(*second))
@@ -1066,22 +988,15 @@ impl DecomposeBuilder<'_> {
             .collect()
     }
 
-    fn weight(
-        &self,
-        edges: &BTreeSet<SourceEdgeId>,
-    ) -> Result<ExactRatio, SourceLsfConstructionError> {
+    fn weight(&self, edges: &BTreeSet<SourceEdgeId>) -> Result<ExactRatio, Error> {
         edges.iter().try_fold(ratio(0)?, |sum, id| {
             sum.checked_add(self.eta[id.0]).map_err(map_ratio)
         })
     }
 
-    fn finish(
-        self,
-        total: ExactRatio,
-        target_piece_count: usize,
-    ) -> Result<SpielmanTengDecomposition, SourceLsfConstructionError> {
+    fn finish(self, total: ExactRatio, target_piece_count: usize) -> Result<Decomposition, Error> {
         if self.pieces.len() > target_piece_count {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         for piece in &self.pieces {
             verify_decomposition_piece(self.tree, piece)?;
@@ -1091,7 +1006,7 @@ impl DecomposeBuilder<'_> {
             covered_vertices.extend(piece.vertices.iter().copied());
         }
         if covered_vertices.len() != self.tree.parent.len() {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         for first in 0..self.pieces.len() {
             for second in first + 1..self.pieces.len() {
@@ -1101,7 +1016,7 @@ impl DecomposeBuilder<'_> {
                     .count()
                     > 1
                 {
-                    return Err(SourceLsfConstructionError::InvalidDecomposition);
+                    return Err(Error::InvalidDecomposition);
                 }
             }
         }
@@ -1121,7 +1036,7 @@ impl DecomposeBuilder<'_> {
                 .at_least(self.weight(&assigned)?)
                 .map_err(map_ratio)?
             {
-                return Err(SourceLsfConstructionError::InvalidDecomposition);
+                return Err(Error::InvalidDecomposition);
             }
         }
         for (index, assignments) in self.edge_assignments.iter().enumerate() {
@@ -1129,7 +1044,7 @@ impl DecomposeBuilder<'_> {
                 continue;
             };
             if assignments.is_empty() || assignments.len() > 2 {
-                return Err(SourceLsfConstructionError::InvalidDecomposition);
+                return Err(Error::InvalidDecomposition);
             }
             let endpoints_covered = [edge.first, edge.second].into_iter().all(|endpoint| {
                 assignments
@@ -1137,19 +1052,18 @@ impl DecomposeBuilder<'_> {
                     .any(|piece| self.pieces[*piece].vertices.contains(&endpoint))
             });
             if !endpoints_covered {
-                return Err(SourceLsfConstructionError::InvalidDecomposition);
+                return Err(Error::InvalidDecomposition);
             }
         }
-        let target =
-            i128::try_from(target_piece_count).map_err(|_| SourceLsfConstructionError::Overflow)?;
+        let target = i128::try_from(target_piece_count).map_err(|_| Error::Overflow)?;
         let expected_phi = total
             .checked_mul_integer(2)
             .and_then(|value| value.checked_mul(ExactRatio::new(1, target)?))
             .map_err(map_ratio)?;
         if expected_phi != self.phi {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
-        Ok(SpielmanTengDecomposition {
+        Ok(Decomposition {
             pieces: self.pieces,
             edge_assignments: self.edge_assignments,
             threshold_phi: self.phi,
@@ -1158,76 +1072,10 @@ impl DecomposeBuilder<'_> {
     }
 }
 
-impl OracleEnumeration<'_> {
-    fn enumerate(
-        &mut self,
-        cursor: usize,
-        chosen: &mut Vec<SourceEdgeId>,
-    ) -> Result<(), SourceLsfConstructionError> {
-        if chosen.len() == self.required {
-            self.evaluate(chosen)?;
-            return Ok(());
-        }
-        let needed = self.required - chosen.len();
-        if self.active.len().saturating_sub(cursor) < needed {
-            return Ok(());
-        }
-        for index in cursor..self.active.len() {
-            chosen.push(self.active[index]);
-            self.enumerate(index + 1, chosen)?;
-            chosen.pop();
-        }
-        Ok(())
-    }
-
-    fn evaluate(&mut self, chosen: &[SourceEdgeId]) -> Result<(), SourceLsfConstructionError> {
-        let tree = match BranchFreeTree::new(self.graph, chosen.iter().copied(), FlowNodeId(0)) {
-            Ok(tree) => tree,
-            Err(SourceLsfConstructionError::InvalidTree) => return Ok(()),
-            Err(error) => return Err(error),
-        };
-        self.candidates_checked = self
-            .candidates_checked
-            .checked_add(1)
-            .ok_or(SourceLsfConstructionError::Overflow)?;
-        let roots = BTreeSet::from([FlowNodeId(0)]);
-        let stretches =
-            exact_forest_stretches(&tree, self.graph, &chosen.iter().copied().collect(), &roots)?;
-        let mut weighted_stretch = ratio(0)?;
-        let mut total_weight = ratio(0)?;
-        for (index, stretch) in stretches.into_iter().enumerate() {
-            let Some(edge) = self.graph.edge(SourceEdgeId(index)) else {
-                continue;
-            };
-            total_weight = total_weight.checked_add(edge.weight).map_err(map_ratio)?;
-            weighted_stretch = weighted_stretch
-                .checked_add(edge.weight.checked_mul(stretch).map_err(map_ratio)?)
-                .map_err(map_ratio)?;
-        }
-        let improves = match &self.best {
-            None => true,
-            Some((_, old, _)) => {
-                old.at_least(weighted_stretch).map_err(map_ratio)? && *old != weighted_stretch
-            }
-        };
-        let ties_with_lower_ids = self.best.as_ref().is_some_and(|(old_edges, old, _)| {
-            *old == weighted_stretch && chosen.iter().copied().collect::<BTreeSet<_>>() < *old_edges
-        });
-        if improves || ties_with_lower_ids {
-            self.best = Some((
-                chosen.iter().copied().collect(),
-                weighted_stretch,
-                total_weight,
-            ));
-        }
-        Ok(())
-    }
-}
-
 fn batch_root_inputs(
     graph: &SourceDynamicGraph,
     batch: &SourceUpdateBatch,
-) -> Result<BatchRootInputs, SourceLsfConstructionError> {
+) -> Result<BatchRootInputs, Error> {
     let mut terminals = Vec::new();
     let mut isolated_roots = Vec::new();
     let mut pending = BTreeMap::<SourceEdgeId, SourceWeightedEdge>::new();
@@ -1239,26 +1087,20 @@ fn batch_root_inputs(
             SourceGraphUpdate::Insert(edge) => {
                 terminals.extend([edge.first, edge.second]);
                 pending.insert(SourceEdgeId(next_edge), edge.clone());
-                next_edge = next_edge
-                    .checked_add(1)
-                    .ok_or(SourceLsfConstructionError::Overflow)?;
+                next_edge = next_edge.checked_add(1).ok_or(Error::Overflow)?;
             }
             SourceGraphUpdate::Delete(id) => {
                 let edge = graph
                     .edge(*id)
                     .or_else(|| pending.get(id))
-                    .ok_or(SourceLsfConstructionError::InvalidUpdate)?;
+                    .ok_or(Error::InvalidUpdate)?;
                 terminals.extend([edge.first, edge.second]);
             }
             SourceGraphUpdate::SplitVertex { vertex, .. } => {
                 terminals.push(*vertex);
                 isolated_roots.push(FlowNodeId(next_node));
-                next_node = next_node
-                    .checked_add(1)
-                    .ok_or(SourceLsfConstructionError::Overflow)?;
-                split_count = split_count
-                    .checked_add(1)
-                    .ok_or(SourceLsfConstructionError::Overflow)?;
+                next_node = next_node.checked_add(1).ok_or(Error::Overflow)?;
+                split_count = split_count.checked_add(1).ok_or(Error::Overflow)?;
             }
         }
     }
@@ -1269,10 +1111,7 @@ fn batch_root_inputs(
     })
 }
 
-fn verify_decomposition_piece(
-    tree: &BranchFreeTree,
-    piece: &LsfPiece,
-) -> Result<(), SourceLsfConstructionError> {
+fn verify_decomposition_piece(tree: &Tree, piece: &LsfPiece) -> Result<(), Error> {
     if piece.vertices.is_empty()
         || piece
             .vertices
@@ -1280,27 +1119,20 @@ fn verify_decomposition_piece(
             .any(|vertex| vertex.0 >= tree.parent.len())
         || piece.forest_edges.len().checked_add(1) != Some(piece.vertices.len())
     {
-        return Err(SourceLsfConstructionError::InvalidDecomposition);
+        return Err(Error::InvalidDecomposition);
     }
     let mut adjacency = BTreeMap::<usize, Vec<usize>>::new();
     for id in &piece.forest_edges {
-        let (first, second, _) = tree
-            .tree_edge_data
-            .get(id)
-            .ok_or(SourceLsfConstructionError::InvalidDecomposition)?;
+        let (first, second, _) = tree.edge_data.get(id).ok_or(Error::InvalidDecomposition)?;
         if !piece.vertices.contains(&FlowNodeId(*first))
             || !piece.vertices.contains(&FlowNodeId(*second))
         {
-            return Err(SourceLsfConstructionError::InvalidDecomposition);
+            return Err(Error::InvalidDecomposition);
         }
         adjacency.entry(*first).or_default().push(*second);
         adjacency.entry(*second).or_default().push(*first);
     }
-    let start = piece
-        .vertices
-        .first()
-        .ok_or(SourceLsfConstructionError::InvalidDecomposition)?
-        .0;
+    let start = piece.vertices.first().ok_or(Error::InvalidDecomposition)?.0;
     let mut seen = BTreeSet::from([start]);
     let mut queue = VecDeque::from([start]);
     while let Some(node) = queue.pop_front() {
@@ -1311,7 +1143,7 @@ fn verify_decomposition_piece(
         }
     }
     if seen != piece.vertices.iter().map(|vertex| vertex.0).collect() {
-        return Err(SourceLsfConstructionError::InvalidDecomposition);
+        return Err(Error::InvalidDecomposition);
     }
     Ok(())
 }
@@ -1319,20 +1151,18 @@ fn verify_decomposition_piece(
 fn decomposition_boundary(
     pieces: &[LsfPiece],
     node_count: usize,
-) -> Result<BTreeSet<FlowNodeId>, SourceLsfConstructionError> {
+) -> Result<BTreeSet<FlowNodeId>, Error> {
     let mut memberships = vec![0_usize; node_count];
     for piece in pieces {
         for vertex in &piece.vertices {
             let slot = memberships
                 .get_mut(vertex.0)
-                .ok_or(SourceLsfConstructionError::InvalidDecomposition)?;
-            *slot = slot
-                .checked_add(1)
-                .ok_or(SourceLsfConstructionError::Overflow)?;
+                .ok_or(Error::InvalidDecomposition)?;
+            *slot = slot.checked_add(1).ok_or(Error::Overflow)?;
         }
     }
     if memberships.contains(&0) {
-        return Err(SourceLsfConstructionError::InvalidDecomposition);
+        return Err(Error::InvalidDecomposition);
     }
     Ok(memberships
         .into_iter()
@@ -1346,7 +1176,7 @@ fn adjacent_nonboundary_weight(
     graph: &SourceDynamicGraph,
     piece: &LsfPiece,
     boundary: &BTreeSet<FlowNodeId>,
-) -> Result<ExactRatio, SourceLsfConstructionError> {
+) -> Result<ExactRatio, Error> {
     let mut weight = ratio(0)?;
     for index in 0..graph.edge_count() {
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
@@ -1363,7 +1193,7 @@ fn adjacent_nonboundary_weight(
 }
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
-pub enum SourceLsfConstructionError {
+pub enum Error {
     #[error("tree edges do not form a rooted spanning tree")]
     InvalidTree,
     #[error("root set is empty, non-branch-free, or inconsistent")]
@@ -1391,7 +1221,7 @@ pub enum SourceLsfConstructionError {
 fn rooted_order(
     adjacency: &[Vec<(usize, SourceEdgeId)>],
     root: usize,
-) -> Result<RootedOrder, SourceLsfConstructionError> {
+) -> Result<RootedOrder, Error> {
     let mut parent = vec![None; adjacency.len()];
     let mut depth = vec![0_usize; adjacency.len()];
     let mut order = Vec::with_capacity(adjacency.len());
@@ -1404,15 +1234,13 @@ fn rooted_order(
             if !seen[*next] {
                 seen[*next] = true;
                 parent[*next] = Some(node);
-                depth[*next] = depth[node]
-                    .checked_add(1)
-                    .ok_or(SourceLsfConstructionError::Overflow)?;
+                depth[*next] = depth[node].checked_add(1).ok_or(Error::Overflow)?;
                 queue.push_back(*next);
             }
         }
     }
     if seen.contains(&false) {
-        return Err(SourceLsfConstructionError::InvalidTree);
+        return Err(Error::InvalidTree);
     }
     Ok((parent, depth, order))
 }
@@ -1421,7 +1249,7 @@ fn heavy_children(
     adjacency: &[Vec<(usize, SourceEdgeId)>],
     parent: &[Option<usize>],
     order: &[usize],
-) -> Result<Vec<Option<usize>>, SourceLsfConstructionError> {
+) -> Result<Vec<Option<usize>>, Error> {
     let mut subtree_size = vec![1_usize; adjacency.len()];
     let mut heavy_child = vec![None; adjacency.len()];
     for node in order.iter().rev().copied() {
@@ -1432,7 +1260,7 @@ fn heavy_children(
             }
             subtree_size[node] = subtree_size[node]
                 .checked_add(subtree_size[*child])
-                .ok_or(SourceLsfConstructionError::Overflow)?;
+                .ok_or(Error::Overflow)?;
             if best.is_none_or(|old| subtree_size[*child] > subtree_size[old]) {
                 best = Some(*child);
             }
@@ -1445,7 +1273,7 @@ fn heavy_children(
 fn build_auxiliary_parents(
     parent: &[Option<usize>],
     heavy_child: &[Option<usize>],
-) -> Result<Vec<Option<usize>>, SourceLsfConstructionError> {
+) -> Result<Vec<Option<usize>>, Error> {
     let mut auxiliary_parent = vec![None; parent.len()];
     for head in 0..parent.len() {
         if parent[head].is_some_and(|value| heavy_child[value] == Some(head)) {
@@ -1469,23 +1297,20 @@ fn assign_balanced_parents(
     vertices: &[usize],
     parent: usize,
     auxiliary_parent: &mut [Option<usize>],
-) -> Result<(), SourceLsfConstructionError> {
+) -> Result<(), Error> {
     if vertices.is_empty() {
         return Ok(());
     }
     let middle = vertices.len() / 2;
     let root = vertices[middle];
     if auxiliary_parent[root].replace(parent).is_some() {
-        return Err(SourceLsfConstructionError::InvalidTree);
+        return Err(Error::InvalidTree);
     }
     assign_balanced_parents(&vertices[..middle], root, auxiliary_parent)?;
     assign_balanced_parents(&vertices[middle + 1..], root, auxiliary_parent)
 }
 
-fn auxiliary_depths(
-    parent: &[Option<usize>],
-    root: usize,
-) -> Result<(Vec<usize>, usize), SourceLsfConstructionError> {
+fn auxiliary_depths(parent: &[Option<usize>], root: usize) -> Result<(Vec<usize>, usize), Error> {
     let mut maximum = 0;
     let mut depths = vec![0_usize; parent.len()];
     for (start, slot) in depths.iter_mut().enumerate() {
@@ -1494,12 +1319,10 @@ fn auxiliary_depths(
         let mut seen = BTreeSet::new();
         while current != root {
             if !seen.insert(current) {
-                return Err(SourceLsfConstructionError::InvalidTree);
+                return Err(Error::InvalidTree);
             }
-            current = parent[current].ok_or(SourceLsfConstructionError::InvalidTree)?;
-            depth = depth
-                .checked_add(1)
-                .ok_or(SourceLsfConstructionError::Overflow)?;
+            current = parent[current].ok_or(Error::InvalidTree)?;
+            depth = depth.checked_add(1).ok_or(Error::Overflow)?;
         }
         *slot = depth;
         maximum = maximum.max(depth);
@@ -1507,18 +1330,15 @@ fn auxiliary_depths(
     Ok((depths, maximum))
 }
 
-fn exact_forest_stretches(
-    tree: &BranchFreeTree,
+pub(super) fn exact_forest_stretches(
+    tree: &Tree,
     graph: &SourceDynamicGraph,
     forest: &BTreeSet<SourceEdgeId>,
     roots: &BTreeSet<FlowNodeId>,
-) -> Result<Vec<ExactRatio>, SourceLsfConstructionError> {
+) -> Result<Vec<ExactRatio>, Error> {
     let mut adjacency = vec![Vec::new(); graph.node_count()];
     for id in forest {
-        let (first, second, _) = tree
-            .tree_edge_data
-            .get(id)
-            .ok_or(SourceLsfConstructionError::InvalidTree)?;
+        let (first, second, _) = tree.edge_data.get(id).ok_or(Error::InvalidTree)?;
         adjacency[*first].push((*second, *id));
         adjacency[*second].push((*first, *id));
     }
@@ -1558,7 +1378,7 @@ fn exact_forest_stretches(
 fn forest_components(
     adjacency: &[Vec<(usize, SourceEdgeId)>],
     roots: &BTreeSet<FlowNodeId>,
-) -> Result<(Vec<usize>, Vec<usize>), SourceLsfConstructionError> {
+) -> Result<(Vec<usize>, Vec<usize>), Error> {
     let mut component_of = vec![usize::MAX; adjacency.len()];
     let mut component_roots = Vec::new();
     for start in 0..adjacency.len() {
@@ -1583,7 +1403,7 @@ fn forest_components(
             .filter(|node| roots.contains(&FlowNodeId(*node)))
             .collect::<Vec<_>>();
         if component_root.len() != 1 {
-            return Err(SourceLsfConstructionError::InvalidRoots);
+            return Err(Error::InvalidRoots);
         }
         component_roots.push(component_root[0]);
     }
@@ -1591,11 +1411,11 @@ fn forest_components(
 }
 
 fn forest_distance(
-    tree: &BranchFreeTree,
+    tree: &Tree,
     adjacency: &[Vec<(usize, SourceEdgeId)>],
     start: usize,
     target: usize,
-) -> Result<ExactRatio, SourceLsfConstructionError> {
+) -> Result<ExactRatio, Error> {
     let zero = ratio(0)?;
     let mut queue = VecDeque::from([(start, zero)]);
     let mut seen = vec![false; adjacency.len()];
@@ -1607,16 +1427,12 @@ fn forest_distance(
         for (next, id) in &adjacency[node] {
             if !seen[*next] {
                 seen[*next] = true;
-                let length = tree
-                    .tree_edge_data
-                    .get(id)
-                    .ok_or(SourceLsfConstructionError::InvalidTree)?
-                    .2;
+                let length = tree.edge_data.get(id).ok_or(Error::InvalidTree)?.2;
                 queue.push_back((*next, distance.checked_add(length).map_err(map_ratio)?));
             }
         }
     }
-    Err(SourceLsfConstructionError::InvalidTree)
+    Err(Error::InvalidTree)
 }
 
 fn congestion_precedes(
@@ -1624,7 +1440,7 @@ fn congestion_precedes(
     right: SourceEdgeId,
     edge_to_slot: &BTreeMap<SourceEdgeId, usize>,
     congestion: &[ExactRatio],
-) -> Result<bool, SourceLsfConstructionError> {
+) -> Result<bool, Error> {
     let left_value = congestion[edge_to_slot[&left]];
     let right_value = congestion[edge_to_slot[&right]];
     if left_value == right_value {
@@ -1634,13 +1450,11 @@ fn congestion_precedes(
 }
 
 fn permutation_ranks(
-    tree_edges: &BTreeSet<SourceEdgeId>,
+    edges: &BTreeSet<SourceEdgeId>,
     order: &[SourceEdgeId],
-) -> Result<BTreeMap<SourceEdgeId, usize>, SourceLsfConstructionError> {
-    if order.len() != tree_edges.len()
-        || order.iter().copied().collect::<BTreeSet<_>>() != *tree_edges
-    {
-        return Err(SourceLsfConstructionError::InvalidPermutation);
+) -> Result<BTreeMap<SourceEdgeId, usize>, Error> {
+    if order.len() != edges.len() || order.iter().copied().collect::<BTreeSet<_>>() != *edges {
+        return Err(Error::InvalidPermutation);
     }
     Ok(order
         .iter()
@@ -1650,44 +1464,35 @@ fn permutation_ranks(
         .collect())
 }
 
-fn ratio(value: i128) -> Result<ExactRatio, SourceLsfConstructionError> {
+pub(super) fn ratio(value: i128) -> Result<ExactRatio, Error> {
     ExactRatio::new(value, 1).map_err(map_ratio)
 }
 
-fn map_ratio(_: crate::StableMinRatioError) -> SourceLsfConstructionError {
-    SourceLsfConstructionError::Overflow
+pub(super) fn map_ratio(_: crate::StableMinRatioError) -> Error {
+    Error::Overflow
 }
 
-fn ceil_positive_ratio(value: ExactRatio) -> Result<usize, SourceLsfConstructionError> {
+fn ceil_positive_ratio(value: ExactRatio) -> Result<usize, Error> {
     if !value.is_positive() {
-        return Err(SourceLsfConstructionError::InvalidWeightedExpansion);
+        return Err(Error::InvalidWeightedExpansion);
     }
     let adjusted = value
         .numerator()
-        .checked_add(
-            value
-                .denominator()
-                .checked_sub(1)
-                .ok_or(SourceLsfConstructionError::Overflow)?,
-        )
-        .ok_or(SourceLsfConstructionError::Overflow)?;
-    usize::try_from(adjusted / value.denominator())
-        .map_err(|_| SourceLsfConstructionError::Overflow)
+        .checked_add(value.denominator().checked_sub(1).ok_or(Error::Overflow)?)
+        .ok_or(Error::Overflow)?;
+    usize::try_from(adjusted / value.denominator()).map_err(|_| Error::Overflow)
 }
 
-fn active_copy_limit(m: i128) -> Result<usize, SourceLsfConstructionError> {
-    usize::try_from(
-        m.checked_mul(2)
-            .ok_or(SourceLsfConstructionError::Overflow)?,
-    )
-    .map_err(|_| SourceLsfConstructionError::Overflow)
+fn active_copy_limit(m: i128) -> Result<usize, Error> {
+    usize::try_from(m.checked_mul(2).ok_or(Error::Overflow)?).map_err(|_| Error::Overflow)
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{BranchFreeTree, DynamicLsfCore, ExactStaticLsstOracle, WeightedCopyExpansion};
+    use super::{Core, Tree, WeightedExpansion};
+    use crate::source_lsf::oracle;
     use crate::{
         ExactRatio, FlowNodeId, LsfPiece, SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate,
         SourceUpdateBatch, SourceWeightedEdge,
@@ -1716,7 +1521,7 @@ mod tests {
             8,
         )
         .unwrap();
-        let tree = BranchFreeTree::new(
+        let tree = Tree::new(
             &graph,
             [
                 SourceEdgeId(0),
@@ -1809,8 +1614,7 @@ mod tests {
     #[test]
     fn rejects_non_branch_free_root_set() {
         let graph = SourceDynamicGraph::new(3, vec![edge(0, 1, 1), edge(0, 2, 1)], 4).unwrap();
-        let tree =
-            BranchFreeTree::new(&graph, [SourceEdgeId(0), SourceEdgeId(1)], FlowNodeId(0)).unwrap();
+        let tree = Tree::new(&graph, [SourceEdgeId(0), SourceEdgeId(1)], FlowNodeId(0)).unwrap();
         let roots = BTreeSet::from([FlowNodeId(1), FlowNodeId(2)]);
         assert!(!tree.is_branch_free(&roots));
     }
@@ -1823,7 +1627,7 @@ mod tests {
             8,
         )
         .unwrap();
-        let mut core = DynamicLsfCore::new(
+        let mut core = Core::new(
             graph,
             [SourceEdgeId(0), SourceEdgeId(1), SourceEdgeId(2)],
             FlowNodeId(0),
@@ -1877,7 +1681,7 @@ mod tests {
                 forest_edges: BTreeSet::from([SourceEdgeId(1)]),
             },
         ];
-        let (core, audit) = DynamicLsfCore::new_from_decomposition(
+        let (core, audit) = Core::new_from_decomposition(
             graph,
             [SourceEdgeId(0), SourceEdgeId(1)],
             FlowNodeId(0),
@@ -1906,7 +1710,7 @@ mod tests {
             8,
         )
         .unwrap();
-        let initialized = DynamicLsfCore::new_with_spielman_teng(
+        let initialized = Core::new_with_spielman_teng(
             graph,
             [
                 SourceEdgeId(0),
@@ -1941,7 +1745,7 @@ mod tests {
         edges[1].weight = ExactRatio::new(2, 1).unwrap();
         edges[2].weight = ExactRatio::new(3, 1).unwrap();
         let graph = SourceDynamicGraph::new(3, edges, 8).unwrap();
-        let expansion = WeightedCopyExpansion::build(&graph).unwrap();
+        let expansion = WeightedExpansion::build(&graph).unwrap();
         assert_eq!(
             expansion.total_original_weight,
             ExactRatio::new(6, 1).unwrap()
@@ -1960,9 +1764,9 @@ mod tests {
         let mut edges = vec![edge(0, 1, 1), edge(1, 2, 1), edge(0, 2, 1)];
         edges[0].weight = ExactRatio::new(10, 1).unwrap();
         let graph = SourceDynamicGraph::new(3, edges, 16).unwrap();
-        let oracle = ExactStaticLsstOracle::solve(&graph).unwrap();
-        assert!(oracle.tree_edges.contains(&SourceEdgeId(0)));
-        assert_eq!(oracle.tree_edges.len(), 2);
+        let oracle = oracle::Lsst::solve(&graph).unwrap();
+        assert!(oracle.edges.contains(&SourceEdgeId(0)));
+        assert_eq!(oracle.edges.len(), 2);
         assert_eq!(oracle.weighted_stretch, ExactRatio::new(25, 1).unwrap());
         assert_eq!(oracle.total_weight, ExactRatio::new(12, 1).unwrap());
         assert_eq!(oracle.candidates_checked, 3);

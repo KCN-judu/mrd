@@ -141,7 +141,7 @@ ambiguous interval must increase precision rather than choose a side.
 2. Symbolic interior portals, contractions, and exact recovery to original
    edges on rational weighted fixtures.
 3. Full hierarchical construction with radius, tree, and weighted-stretch
-   certificates, differentially checked against `ExactStaticLsstOracle` on its
+   certificates, differentially checked against `source_lsf::oracle::Lsst` on its
    bounded domain.
 4. Region-growing event implementation and source-shaped counters establishing
    the near-linear bound without graph expansion or an Oracle fallback.
@@ -258,7 +258,7 @@ paper `1 + stretch` convention, weighted total stretch, and total weight.
 Tests cover a 500-vertex nonvirtual recursion, the top-level imaginary path and
 suppression on a 500-vertex unit path, certificate mutation rejection, and all
 38 connected labeled simple graphs on four vertices against
-`ExactStaticLsstOracle`.
+`source_lsf::oracle::Lsst`.
 
 The production hierarchy now accepts arbitrary positive rational lengths,
 uses one compact exact imaginary edge instead of numeric subdivision, performs

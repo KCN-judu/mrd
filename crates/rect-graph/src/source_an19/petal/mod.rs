@@ -4642,12 +4642,12 @@ mod tests {
 
     #[test]
     fn hierarchical_base_case_matches_the_exact_tree_oracle() {
-        use crate::ExactStaticLsstOracle;
+        use crate::source_lsf::oracle::Lsst;
 
         let graph = path_graph(5);
         let hierarchy = hierarchy::Lsst::construct(&graph, FlowNodeId(0)).unwrap();
-        let oracle = ExactStaticLsstOracle::solve(&graph).unwrap();
-        assert_eq!(hierarchy.tree_edges, oracle.tree_edges);
+        let oracle = Lsst::solve(&graph).unwrap();
+        assert_eq!(hierarchy.tree_edges, oracle.edges);
         assert_eq!(hierarchy.weighted_stretch, oracle.weighted_stretch);
         assert_eq!(hierarchy.total_weight, oracle.total_weight);
         assert_eq!(hierarchy.metrics.recursion_calls, 1);
@@ -4771,7 +4771,7 @@ mod tests {
 
     #[test]
     fn hierarchical_base_cases_differentiate_against_all_connected_four_node_graphs() {
-        use crate::ExactStaticLsstOracle;
+        use crate::source_lsf::oracle::Lsst;
 
         let endpoints = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
         let mut checked = 0;
@@ -4788,7 +4788,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>();
             let graph = SourceDynamicGraph::new(4, edges, 16).unwrap();
-            let Ok(oracle) = ExactStaticLsstOracle::solve(&graph) else {
+            let Ok(oracle) = Lsst::solve(&graph) else {
                 continue;
             };
             let hierarchy = hierarchy::Lsst::construct(&graph, FlowNodeId(0)).unwrap();
@@ -4807,7 +4807,7 @@ mod tests {
 
     #[test]
     fn weighted_hierarchies_differentiate_on_all_connected_four_node_graphs() {
-        use crate::ExactStaticLsstOracle;
+        use crate::source_lsf::oracle::Lsst;
 
         let endpoints = [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)];
         let mut checked = 0;
@@ -4828,7 +4828,7 @@ mod tests {
                 SourceDynamicGraph::new(4, edges, 100_000).unwrap()
             };
             let small = make_graph(1);
-            let Ok(oracle) = ExactStaticLsstOracle::solve(&small) else {
+            let Ok(oracle) = Lsst::solve(&small) else {
                 continue;
             };
             let large = make_graph(1_000);
@@ -4990,7 +4990,7 @@ mod tests {
 
     #[test]
     fn weighted_hierarchy_contracts_recursively_and_expands_the_quotient_tree() {
-        use crate::ExactStaticLsstOracle;
+        use crate::source_lsf::oracle::Lsst;
 
         let make_graph = |scale: i128| {
             SourceDynamicGraph::new(
@@ -5029,7 +5029,7 @@ mod tests {
         let large = make_graph(1_000);
         let small_hierarchy = hierarchy::Lsst::construct(&small, FlowNodeId(0)).unwrap();
         let large_hierarchy = hierarchy::Lsst::construct(&large, FlowNodeId(0)).unwrap();
-        let oracle = ExactStaticLsstOracle::solve(&small).unwrap();
+        let oracle = Lsst::solve(&small).unwrap();
         small_hierarchy.verify(&small).unwrap();
         large_hierarchy.verify(&large).unwrap();
         assert_eq!(
