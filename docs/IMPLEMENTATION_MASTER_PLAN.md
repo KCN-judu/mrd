@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.4
+- Current phase: P9.4b
 - Current phase state: in_progress
-- Last completed phase: P9.3.7
-- Last pushed SHA: ba3779e42db2db509e85870adf894bdc2eb93c1f
-- Plan last updated: 2026-07-29T20:01:28Z
+- Last completed phase: P9.4a
+- Last pushed SHA: 58bb52b8074a8d7c23ce620b539e147a1ed2b3ba
+- Plan last updated: 2026-07-29T20:04:45Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1012,7 +1012,7 @@ amortized bound or unlock the `AlmostLinear` name.
    it does not implement a compact cycle, a hidden-stability query, link-cut
    updates, Theorem 5.1's approximation, or any amortized bound.
 
-2. **P9.4b - Compact cycle and exact certificate decoding. State: planned.**
+2. **P9.4b - Compact cycle and exact certificate decoding. State: in_progress.**
    Add a source-shaped compact cycle that references selected tree paths and
    off-tree arcs by stable IDs. Decode and validate it directly against the
    checked chain and circulation domain, with deterministic orientation and
@@ -1206,3 +1206,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.5 | complete | e396484 | 1d18dee, 7282e92, 9d7bed7 | pending closeout | pending | `docs/phase-reports/P09-3-5-dynamic-sparsify.md` | source-shaped deletion/split batches, finite Algorithm 4 rebuild, stable-ID recourse, independent greedy Oracle, and exact update accounting | 2026-07-29T18:24:15Z | 2026-07-29T18:41:34Z | finite one-level connected domain only; no general Theorem 8.2 sparsity, recourse, or runtime claim |
 | P9.3.6 | complete | 4714ee3 | 8a69733, a9ac727, 6985234, 4a3ad34 | pending closeout | pending | `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md` | finite Section 9.1 contraction, exact buckets, static terminal tree, immutable source update replay, recourse, and bounded Oracle differential | 2026-07-29T18:49:00Z | 2026-07-29T19:03:00Z | explicit finite integral connected domain; every replay rebuilds; no source Theorem 1.2 stretch or runtime claim |
 | P9.3.7 | complete | 6b3bb73 | 66d7920 | pending closeout | pending | `docs/phase-reports/P09-3-7-finite-tree-audit.md` | source trace, no-fallback static audit, adversarial immutable update history, exact weight/bound/certificate rejection evidence | 2026-07-29T19:03:00Z | 2026-07-29T19:45:43Z | finite-domain semantics only; P9.3.2d proof debt continues to prohibit AN19 complexity claims |
+| P9.4a | complete | ba3779e | 4ce313b | 58bb52b | 58bb52b | `docs/phase-reports/P09-4a-tree-chain-contract.md` | immutable multi-level source-tree chain, shifted branch selection, validation, and no-fallback static audit | 2026-07-29T20:01:28Z | 2026-07-29T20:04:45Z | finite-domain structural semantics only; no compact cycle, query, link-cut, or runtime claim |
+| P9.4b | in_progress | 58bb52b | pending | pending | 58bb52b | pending | compact cycle and deterministic source-tree decoding | 2026-07-29T20:04:45Z | pending | none |
