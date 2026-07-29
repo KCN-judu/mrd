@@ -9,7 +9,13 @@ use thiserror::Error;
 
 use crate::{
     CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
-    IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics, MinRatioEdgeId,
+    IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics, MinCostCirculationError,
+    MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError, StableMinRatioLedger,
+    source_min_ratio::{
+        chain::{Chain, Shifts},
+        cycle::{ArcBindings, Cycle, Error as CompactCycleError},
+        query::decode_candidate,
+    },
 };
 
 /// One immutable, externally supplied Lemma 4.4 update request.
@@ -23,6 +29,70 @@ pub struct Step {
     pub kappa: ExactRatio,
     /// Exact circulation direction selected by an external construction.
     pub direction: Vec<ExactRatio>,
+}
+
+/// Immutable input needed to decode one externally selected compact cycle.
+///
+/// This is a transport boundary only. It deliberately does not choose the
+/// compact cycle or make a minimum-ratio query claim.
+#[derive(Clone, Copy, Debug)]
+pub struct CompactCandidate<'a> {
+    /// Already validated hidden-stability state.
+    pub ledger: &'a StableMinRatioLedger,
+    /// Externally selected compact cycle.
+    pub cycle: &'a Cycle,
+    /// Source graph carrying stable edge provenance.
+    pub graph: &'a SourceDynamicGraph,
+    /// Checked source-tree chain.
+    pub chain: &'a Chain,
+    /// Immutable branch shifts for this candidate.
+    pub shifts: &'a Shifts,
+    /// Exact source-edge to circulation-arc bindings.
+    pub bindings: &'a ArcBindings,
+}
+
+impl Step {
+    /// Forms an exact update request from an externally selected compact cycle.
+    ///
+    /// The source query boundary decodes the compact cycle into signed
+    /// circulation arcs. This conversion sums those signed occurrences into a
+    /// full exact direction vector and rechecks circulation before the later
+    /// Lemma 4.4 transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when compact decoding, exact vector construction, or
+    /// circulation validation fails.
+    pub fn from_compact_candidate(
+        compact: CompactCandidate<'_>,
+        network: &CirculationNetwork,
+        approximate_gradients: Vec<ExactRatio>,
+        approximate_lengths: Vec<ExactRatio>,
+        kappa: ExactRatio,
+    ) -> Result<Self, Error> {
+        let decoded = decode_candidate(
+            compact.ledger,
+            compact.cycle,
+            compact.graph,
+            compact.chain,
+            compact.shifts,
+            compact.bindings,
+            network,
+        )?;
+        let zero = ExactRatio::new(0, 1)?;
+        let mut direction = vec![zero; network.arc_count()];
+        for (arc, sign) in decoded.arcs {
+            let slot = direction.get_mut(arc.0).ok_or(Error::InvalidArc)?;
+            *slot = slot.checked_add(ExactRatio::new(i128::from(sign), 1)?)?;
+        }
+        network.verify_fractional_circulation(&direction)?;
+        Ok(Self {
+            approximate_gradients,
+            approximate_lengths,
+            kappa,
+            direction,
+        })
+    }
 }
 
 /// Observable result of one accepted transition.
@@ -106,4 +176,131 @@ impl Session {
 pub enum Error {
     #[error(transparent)]
     Ipm(#[from] CertifiedIpmError),
+    #[error("compact source-cycle decoding failed: {0}")]
+    Compact(#[from] CompactCycleError),
+    #[error(transparent)]
+    Network(#[from] MinCostCirculationError),
+    #[error(transparent)]
+    Ratio(#[from] StableMinRatioError),
+    #[error("decoded compact cycle refers to an invalid circulation arc")]
+    InvalidArc,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::{CompactCandidate, Step};
+    use crate::{
+        CirculationNetwork, ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId,
+        SourceWeightedEdge, StableEdge, StableMinRatioLedger, StableWitness,
+        source_min_ratio::{
+            chain::Chain,
+            cycle::{ArcBindings, Cycle, Direction, Segment},
+            model::{Branch, BranchId, Level, LevelId, Tree},
+        },
+    };
+
+    #[test]
+    fn converts_a_compact_cycle_to_a_full_exact_direction() {
+        let edge = |first, second| SourceWeightedEdge {
+            first: FlowNodeId(first),
+            second: FlowNodeId(second),
+            length: ExactRatio::new(1, 1).unwrap(),
+            weight: ExactRatio::new(1, 1).unwrap(),
+        };
+        let graph =
+            SourceDynamicGraph::new(3, vec![edge(0, 1), edge(1, 2), edge(0, 2)], 8).unwrap();
+        let chain = Chain::new(
+            &graph,
+            vec![Level::new(
+                LevelId(0),
+                vec![Branch::new(
+                    BranchId(0),
+                    0,
+                    Tree::new(
+                        FlowNodeId(0),
+                        BTreeSet::from([SourceEdgeId(0), SourceEdgeId(1)]),
+                    ),
+                )],
+            )],
+        )
+        .unwrap();
+        let mut network = CirculationNetwork::new(3);
+        let first = network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 0).unwrap();
+        let second = network.add_arc(FlowNodeId(1), FlowNodeId(2), 2, 0).unwrap();
+        let off_tree = network.add_arc(FlowNodeId(0), FlowNodeId(2), 2, 0).unwrap();
+        let bindings = ArcBindings::new(
+            &graph,
+            &network,
+            vec![
+                (SourceEdgeId(0), first),
+                (SourceEdgeId(1), second),
+                (SourceEdgeId(2), off_tree),
+            ],
+        )
+        .unwrap();
+        let ledger = StableMinRatioLedger::new(
+            2,
+            vec![
+                StableEdge {
+                    from: FlowNodeId(0),
+                    to: FlowNodeId(1),
+                    gradient: -1,
+                    length: 1,
+                },
+                StableEdge {
+                    from: FlowNodeId(1),
+                    to: FlowNodeId(0),
+                    gradient: 0,
+                    length: 1,
+                },
+            ],
+            ExactRatio::new(1, 4).unwrap(),
+            ExactRatio::new(1, 2).unwrap(),
+            StableWitness {
+                circulation: vec![1, 1],
+                upper_bounds: vec![1, 1],
+            },
+        )
+        .unwrap();
+        let shifts = chain.initial_shifts();
+        let selection = chain.select(&shifts).unwrap()[0];
+        let cycle = Cycle {
+            segments: vec![
+                Segment::TreePath {
+                    selection,
+                    from: FlowNodeId(0),
+                    to: FlowNodeId(2),
+                },
+                Segment::OffTree {
+                    source: SourceEdgeId(2),
+                    direction: Direction::Reverse,
+                },
+            ],
+        };
+        let step = Step::from_compact_candidate(
+            CompactCandidate {
+                ledger: &ledger,
+                cycle: &cycle,
+                graph: &graph,
+                chain: &chain,
+                shifts: &shifts,
+                bindings: &bindings,
+            },
+            &network,
+            vec![ExactRatio::new(1, 1).unwrap(); 3],
+            vec![ExactRatio::new(1, 1).unwrap(); 3],
+            ExactRatio::new(1, 2).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            step.direction,
+            vec![
+                ExactRatio::new(1, 1).unwrap(),
+                ExactRatio::new(1, 1).unwrap(),
+                ExactRatio::new(-1, 1).unwrap(),
+            ]
+        );
+    }
 }

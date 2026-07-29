@@ -20,7 +20,13 @@ REQUIRED = {
         "an19_runtime_verified: false",
     ),
     "recovery": ("pub fn round", "validate_signed_circulation", "verify_fractional_solution"),
-    "iteration": ("pub struct Step", "pub fn apply", "IpmDetectLedger"),
+    "iteration": (
+        "pub struct Step",
+        "from_compact_candidate",
+        "decode_candidate",
+        "pub fn apply",
+        "IpmDetectLedger",
+    ),
 }
 FORBIDDEN = (
     "Dinic",
