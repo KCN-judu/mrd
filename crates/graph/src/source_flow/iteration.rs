@@ -12,9 +12,11 @@ use crate::{
     IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics, MinCostCirculationError,
     MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError, StableMinRatioLedger,
     source_min_ratio::{
+        candidate::Error as CandidateError,
         chain::{Chain, Shifts},
         cycle::{ArcBindings, Cycle, Error as CompactCycleError},
         query::decode_candidate,
+        terminal::{Error as TerminalError, Tree as TerminalTree},
     },
 };
 
@@ -52,6 +54,62 @@ pub struct CompactCandidate<'a> {
 }
 
 impl Step {
+    /// Forms an exact update request from the best nonzero terminal-tree
+    /// declaration in one checked source/IPM snapshot.
+    ///
+    /// The supplied approximation vectors must exactly equal the immutable
+    /// coordinates that formed `terminal`; a merely compatible or reordered
+    /// vector is rejected. The terminal heap supplies only source-declared
+    /// fundamental tree cycles. It neither creates core/spanner candidates nor
+    /// falls back to an enumerating cycle implementation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for mismatched coordinates, a changed source snapshot,
+    /// candidate evaluation failure, or compact-cycle decoding failure.
+    pub fn from_terminal_candidate(
+        ledger: &StableMinRatioLedger,
+        terminal: &TerminalTree,
+        network: &CirculationNetwork,
+        approximate_gradients: Vec<ExactRatio>,
+        approximate_lengths: Vec<ExactRatio>,
+        kappa: ExactRatio,
+    ) -> Result<Option<Self>, Error> {
+        let expected_gradients = terminal
+            .input()
+            .arcs()
+            .iter()
+            .map(|arc| arc.gradient)
+            .collect::<Vec<_>>();
+        let expected_lengths = terminal
+            .input()
+            .arcs()
+            .iter()
+            .map(|arc| arc.length)
+            .collect::<Vec<_>>();
+        if approximate_gradients != expected_gradients || approximate_lengths != expected_lengths {
+            return Err(Error::MismatchedTerminalCoordinates);
+        }
+        let mut registry = terminal.registry(network)?;
+        let Some(choice) = registry.best()? else {
+            return Ok(None);
+        };
+        Ok(Some(Self::from_compact_candidate(
+            CompactCandidate {
+                ledger,
+                cycle: &choice.cycle,
+                graph: &terminal.materialization().graph,
+                chain: terminal.chain(),
+                shifts: terminal.shifts(),
+                bindings: &terminal.materialization().bindings,
+            },
+            network,
+            approximate_gradients,
+            approximate_lengths,
+            kappa,
+        )?))
+    }
+
     /// Forms an exact update request from an externally selected compact cycle.
     ///
     /// The source query boundary decodes the compact cycle into signed
@@ -182,6 +240,12 @@ pub enum Error {
     Network(#[from] MinCostCirculationError),
     #[error(transparent)]
     Ratio(#[from] StableMinRatioError),
+    #[error("terminal source candidate failed: {0}")]
+    Terminal(#[from] TerminalError),
+    #[error("terminal candidate heap failed: {0}")]
+    Candidate(#[from] CandidateError),
+    #[error("caller approximation coordinates differ from the terminal source input")]
+    MismatchedTerminalCoordinates,
     #[error("decoded compact cycle refers to an invalid circulation arc")]
     InvalidArc,
 }
@@ -190,14 +254,16 @@ pub enum Error {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{CompactCandidate, Step};
+    use super::{CompactCandidate, Error, Step};
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId,
         SourceWeightedEdge, StableEdge, StableMinRatioLedger, StableWitness,
         source_min_ratio::{
             chain::Chain,
             cycle::{ArcBindings, Cycle, Direction, Segment},
+            input::Input,
             model::{Branch, BranchId, Level, LevelId, Tree},
+            terminal::Tree as TerminalTree,
         },
     };
 
@@ -301,6 +367,73 @@ mod tests {
                 ExactRatio::new(1, 1).unwrap(),
                 ExactRatio::new(-1, 1).unwrap(),
             ]
+        );
+    }
+
+    #[test]
+    fn converts_the_checked_terminal_choice_only_when_coordinates_match() {
+        let mut network = CirculationNetwork::new(3);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 0).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(2), 2, 0).unwrap();
+        network.add_arc(FlowNodeId(0), FlowNodeId(2), 2, 0).unwrap();
+        let gradients = vec![
+            ExactRatio::new(1, 1).unwrap(),
+            ExactRatio::new(4, 1).unwrap(),
+            ExactRatio::new(16, 1).unwrap(),
+        ];
+        let lengths = vec![ExactRatio::new(1, 1).unwrap(); 3];
+        let input = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
+        let terminal = TerminalTree::build(input, &network, FlowNodeId(0)).unwrap();
+        let ledger = StableMinRatioLedger::new(
+            2,
+            vec![
+                StableEdge {
+                    from: FlowNodeId(0),
+                    to: FlowNodeId(1),
+                    gradient: -1,
+                    length: 1,
+                },
+                StableEdge {
+                    from: FlowNodeId(1),
+                    to: FlowNodeId(0),
+                    gradient: 0,
+                    length: 1,
+                },
+            ],
+            ExactRatio::new(1, 4).unwrap(),
+            ExactRatio::new(1, 2).unwrap(),
+            StableWitness {
+                circulation: vec![1, 1],
+                upper_bounds: vec![1, 1],
+            },
+        )
+        .unwrap();
+
+        let step = Step::from_terminal_candidate(
+            &ledger,
+            &terminal,
+            &network,
+            gradients.clone(),
+            lengths.clone(),
+            ExactRatio::new(1, 2).unwrap(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            step.direction
+                .iter()
+                .any(|coefficient| !coefficient.is_zero())
+        );
+        assert_eq!(
+            Step::from_terminal_candidate(
+                &ledger,
+                &terminal,
+                &network,
+                vec![ExactRatio::new(0, 1).unwrap(), gradients[1], gradients[2]],
+                lengths,
+                ExactRatio::new(1, 2).unwrap(),
+            ),
+            Err(Error::MismatchedTerminalCoordinates)
         );
     }
 }

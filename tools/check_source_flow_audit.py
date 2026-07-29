@@ -28,9 +28,11 @@ REQUIRED = {
     "iteration": (
         "pub struct Step",
         "from_compact_candidate",
+        "from_terminal_candidate",
         "decode_candidate",
         "pub fn apply",
         "IpmDetectLedger",
+        "MismatchedTerminalCoordinates",
     ),
     "compressed": (
         "pub struct Circulation",
