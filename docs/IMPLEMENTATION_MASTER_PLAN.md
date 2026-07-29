@@ -7,8 +7,8 @@
 - Current phase: P9.4
 - Current phase state: in_progress
 - Last completed phase: P9.3.7
-- Last pushed SHA: 6b3bb73c8b5b6a09adf290df8bc7ce68904a461d
-- Plan last updated: 2026-07-29T19:45:43Z
+- Last pushed SHA: ba3779e42db2db509e85870adf894bdc2eb93c1f
+- Plan last updated: 2026-07-30T00:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -987,6 +987,44 @@ branches, dynamic sparsification, link-cut
 updates, hidden-stability approximation, compact cycle output, and amortized
 `Update`/`Query`/`Detect` accounting. The enumerating cycle query and P8 replay
 remain permanent exact Oracles and are not allowed as a fallback.
+
+P9.4 is deliberately split before implementation. Each completed subphase
+provides only its finite-domain semantic evidence; none may claim Theorem 5.1's
+amortized bound or unlock the `AlmostLinear` name.
+
+1. **P9.4a - Source contract and complete tree-chain representation. State:
+   in_progress.** Introduce the production `source_min_ratio::{model,chain}`
+   namespace. Model a checked, finite, multi-level tree chain with stable
+   branch IDs, immutable source-tree snapshots, and a deterministic shifted
+   single-branch selector. Keep structural validation, branch selection, and
+   transition planning pure; contain any mutable tree-maintenance state behind
+   a later explicit adapter. The P8 `dynamic_min_ratio` replay remains an
+   `oracle`/`experiment` baseline only, and no enumerating cycle routine may
+   be reachable from this production representation. Acceptance: malformed
+   levels, branches, shifts, source IDs, and certificates reject; valid
+   multi-level shifts select exactly one branch per level deterministically;
+   source-tree snapshots are immutable; and a static audit confirms no Oracle
+   fallback is in the new production path.
+2. **P9.4b - Compact cycle and exact certificate decoding. State: planned.**
+   Add a source-shaped compact cycle that references selected tree paths and
+   off-tree arcs by stable IDs. Decode and validate it directly against the
+   checked chain and circulation domain, with deterministic orientation and
+   conservation certificates. The P7/P8 enumerators may compare results in
+   tests only and may not participate in production decoding.
+3. **P9.4c - Hidden-stability approximate-query contract and differential
+   harness. State: planned.** Bind the checked Definition 4.2--4.5 stability
+   state to the source-shaped chain through an explicit query input/output and
+   certificate. Keep the witness hidden from query output, use exact arithmetic
+   throughout, and differentially compare bounded fixtures with the permanent
+   exact cycle Oracle. Report semantic agreement separately from any
+   approximation or runtime proof.
+4. **P9.4d - Update/query/detect execution, accounting, and audit. State:
+   planned.** Add explicit dynamic sparsification and link-cut execution
+   adapters, then record update/query/detect transitions, compact-cycle
+   application, bounded-domain work counters, no-fallback static checks, and
+   adversarial mutation/replay campaigns. State every rejected operation and
+   finite-domain limit. Do not claim an amortized, priority-queue, or AN19
+   runtime bound.
 
 ### P9.5 - Integrated exact flow backend
 
