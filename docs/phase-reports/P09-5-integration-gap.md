@@ -49,8 +49,21 @@ direct optimality-validator call from production `source_flow`; a regression
 test demonstrates that feasibility validation does not itself claim
 optimality.
 
+Commit `08eaae4` adds the first exact bridge from compressed biclique flow to
+the source-flow circulation domain. Its only negative-cost arc returns sink
+flow to the source, so the circulation objective is the negated matching
+value. From an externally certified terminal solution, recovery pairs active
+left and right incidences in each complete biclique, checks every outer arc,
+then derives and validates a Konig cover. Production code uses only exact
+feasibility validation; the permanent min-cost, Dinic, and Push--Relabel
+implementations occur only in the bounded test differential. The source-flow
+audit now includes this production module. The two current fixtures cover a
+two-by-two explicit-edge differential and a single-biclique terminal snapshot
+recovered through `source_flow::Backend`.
+
 P9.5 remains open. Source candidate selection, MRD compressed-network
-differential evidence, and an end-to-end no-fallback audit are still absent.
+differential evidence for flow, cut, cover, chords, and rectangles, and an
+end-to-end no-fallback audit are still absent.
 `Backend::require_complete()` therefore continues to reject execution and
 `an19_runtime_verified` remains false. P9.3.2d's missing AN19 proof is a
 separate low-priority debt: it does not block these semantic integration tasks,
@@ -67,7 +80,9 @@ claim.
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
 | `cargo test -p graph source_flow` | 0 | 8 focused tests passed, including augmented and lower-bound recovery |
 | `cargo test -p graph` | 0 | 164 graph tests passed, including feasibility-versus-optimality regression |
+| `cargo test -p dominance` | 0 | 36 dominance tests passed and 2 existing tests ignored; includes compressed source-flow bridge differentials |
 | `cargo clippy -p graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo clippy -p dominance --all-targets --all-features -- -D warnings` | 0 | no warnings |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
 | `cargo test --workspace` | 0 | workspace suite passed |
 | `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | documentation built without warnings |
