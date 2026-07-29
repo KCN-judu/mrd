@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.7
+- Current phase: P9.4
 - Current phase state: in_progress
-- Last completed phase: P9.3.6
-- Last pushed SHA: 4714ee3311ac85e1407aa3ae047e6ce5f2558697
-- Plan last updated: 2026-07-29T19:03:00Z
+- Last completed phase: P9.3.7
+- Last pushed SHA: 6b3bb73c8b5b6a09adf290df8bc7ce68904a461d
+- Plan last updated: 2026-07-29T19:45:43Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -949,32 +949,38 @@ P9.3 is split into the following source-gated subphases:
      is differentially compared with the bounded exhaustive LSST Oracle in
      tests. This intentionally rebuilds every finite snapshot and makes no
      dynamic-LSF, recourse, or amortized-work claim.
-7. **P9.3.7 state: in_progress. Start gate: P9.3.6 implementation audit
-   passed.**
-   Run source traceability, adversarial update,
-   certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
-   close from static fixtures or asymptotic assertions alone. It is split into:
-   - **P9.3.7a state: in_progress.** Audit Section 9.1/Theorem 1.2
+7. **P9.3.7 state: complete. Start gate: P9.3.6 implementation audit
+   passed. Implementation SHA: `66d7920`.** Evidence is in
+   `docs/phase-reports/P09-3-7-finite-tree-audit.md`. The audit confirms the
+   finite Section 9.1 tree path is source-traceable, has no production Oracle
+   or legacy fallback, preserves immutable update semantics, and rejects its
+   explicit finite-domain and certificate violations. It does not upgrade the
+   source stretch, recourse, or runtime claims. It is split into:
+   - **P9.3.7a state: complete.** Audit Section 9.1/Theorem 1.2
      traceability for `source_lsst::{level,bucket,chain,replay}`. Verify the
      production path has only the finite source-shaped contraction, bucket,
      spanner-replay, and AN19 terminal-tree calls; enumerating LSST and direct
      contraction Oracles must remain test-only and no legacy greedy or
-     simple-path fallback may be reachable.
-   - **P9.3.7b state: planned. Start gate: P9.3.7a production-path audit
-     passes.** Add deterministic adversarial immutable histories combining
+     simple-path fallback may be reachable. The checked static audit is
+     `tools/check_source_lsst_audit.py`.
+   - **P9.3.7b state: complete.** Add deterministic adversarial immutable histories combining
      insertion, smaller-side split, and deletion. Rebuild every snapshot,
      preserve stable source IDs, compare bounded connected snapshots with the
      exhaustive LSST Oracle, verify recourse/scheduled-rebuild accounting, and
-     prove rejected updates leave the prior immutable state unchanged.
-   - **P9.3.7c state: planned. Start gate: P9.3.7b differential passes.**
+     prove rejected updates leave the prior immutable state unchanged. A
+     four-node nonuniform-weight cycle exercises all three updates over three
+     immutable batches, with a scheduled rebuild after batch two.
+   - **P9.3.7c state: complete.**
      Exercise exact nonuniform positive weights, finite integral-length bounds,
      counter/certificate mutation rejection, and all explicit unsupported
      cases. Record every finite-domain limit; these checks cannot promote the
-     source stretch, recourse, or runtime bounds.
+     source stretch, recourse, or runtime bounds. Nonintegral and out-of-range
+     lengths, out-of-range dyadic buckets, parallel bucket edges, invalid
+     updates, and corrupted tree/replay certificates reject deterministically.
 
 ### P9.4 - Source-grade dynamic minimum-ratio cycle
 
-**State:** planned. **Start gate:** P9.3.7 implementation and semantic audits passed.
+**State:** in_progress. **Start gate:** P9.3.7 implementation and semantic audits passed.
 Implement the
 deterministic paper's Theorem 5.1, including the complete tree chain, shifted
 branches, dynamic sparsification, link-cut
@@ -1154,3 +1160,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
 | P9.3.5 | complete | e396484 | 1d18dee, 7282e92, 9d7bed7 | pending closeout | pending | `docs/phase-reports/P09-3-5-dynamic-sparsify.md` | source-shaped deletion/split batches, finite Algorithm 4 rebuild, stable-ID recourse, independent greedy Oracle, and exact update accounting | 2026-07-29T18:24:15Z | 2026-07-29T18:41:34Z | finite one-level connected domain only; no general Theorem 8.2 sparsity, recourse, or runtime claim |
 | P9.3.6 | complete | 4714ee3 | 8a69733, a9ac727, 6985234, 4a3ad34 | pending closeout | pending | `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md` | finite Section 9.1 contraction, exact buckets, static terminal tree, immutable source update replay, recourse, and bounded Oracle differential | 2026-07-29T18:49:00Z | 2026-07-29T19:03:00Z | explicit finite integral connected domain; every replay rebuilds; no source Theorem 1.2 stretch or runtime claim |
+| P9.3.7 | complete | 6b3bb73 | 66d7920 | pending closeout | pending | `docs/phase-reports/P09-3-7-finite-tree-audit.md` | source trace, no-fallback static audit, adversarial immutable update history, exact weight/bound/certificate rejection evidence | 2026-07-29T19:03:00Z | 2026-07-29T19:45:43Z | finite-domain semantics only; P9.3.2d proof debt continues to prohibit AN19 complexity claims |
