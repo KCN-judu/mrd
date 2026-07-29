@@ -54,21 +54,6 @@ pub use min_ratio_cycle::{
 pub use rooted_forest::{
     DynamicRootedForest, ForestEdge, ForestEdgeId, ForestMetrics, RootedForestError,
 };
-pub use source_an19::{
-    An19AdversarialCampaign, An19AdversarialCaseResult, An19AdversarialFamily,
-    An19AmortizationMode, An19ChargeAnalysis, An19ChargeMapKind, An19CountByKey, An19EventContext,
-    An19EventEngine, An19EventEngineKind, An19EventOrientation, An19EventProblem, An19EventRun,
-    An19EventRuntimeStatus, An19EventSegmentMetadata, An19EventState, An19EventTraceRecord,
-    An19EventType, An19ExactRatioRecord, An19HalvedInterval, An19HierarchicalLsst,
-    An19HierarchyEventMetrics, An19HierarchyMetrics, An19HighwayLedger, An19HighwaySegment,
-    An19LengthMode, An19LocalEventBoundCertificate, An19PathPoint, An19PetalError,
-    An19PetalMetrics, An19PracticalQueueBoundCertificate, An19PracticalQueueProofScope,
-    An19PracticalQueueStrategy, An19PriorityQueueMode, An19ProjectionAudit, An19ProjectionMode,
-    An19RadiusCertificate, An19RadiusEdge, An19ReducedEventEngine, An19ShortEdgeContraction,
-    An19SnapshotMetrics, An19StaleReason, An19StoppingCertificate, An19SymbolicLengthLabel,
-    An19UnweightedPetal, An19WeightedPetal, An19WeightedPetalAtRadius, An19WorkCertificate,
-    ExactEventOracle, ProvedEventEngine,
-};
 pub use source_lsf::{
     BranchFreeTree, CongestionOrder, ConstructedLsfInitialization, DynamicLsfCore,
     DynamicLsfCoreMetrics, ExactStaticLsstOracle, GlobalStretchCertificate,

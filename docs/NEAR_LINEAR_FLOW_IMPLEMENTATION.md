@@ -66,10 +66,10 @@ reduced-event equivalence classes. Workspace scan counting and finite tests are
 complete implementation evidence, but they do not prove this asymptotic
 obligation. P9.3.2d and every dependent P9 milestone remain blocked.
 
-The implementation side of this boundary is now explicit. `ExactEventOracle`
+The implementation side of this boundary is now explicit. `source_an19::event::engine::Exact`
 enumerates definition-level fixed-snapshot events, while
-`An19ReducedEventEngine` runs the separate exact reduced-cost queue and rejects
-any semantic disagreement. `ProvedEventEngine` is a replaceable placeholder
+`source_an19::event::engine::Reduced` runs the separate exact reduced-cost queue and rejects
+any semantic disagreement. `source_an19::event::engine::Proved` is a replaceable placeholder
 that returns an explicit unsupported error. The canonical trace and six charge
 maps support future proof or counterexample work, but their bounded A--H
 campaign is not itself a proof. A separate structural certificate now proves

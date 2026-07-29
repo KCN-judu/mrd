@@ -18,7 +18,7 @@ use rect_dominance::{
     RegionDualBackend, VerificationMode, complete_formal_polygon, solve_polygon_with_options,
     solve_with_representation_and_region_dual_and_orientation_policy,
 };
-use rect_graph::{An19AdversarialCampaign, An19AdversarialFamily};
+use rect_graph::source_an19::event::campaign::{Campaign, Family};
 use rect_oracle_sg::{
     CompletionBackendKind, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, SparseValidatorBackend, SubdivisionBuilderBackend,
@@ -198,14 +198,14 @@ enum Command {
         output_dir: PathBuf,
     },
     An19Events {
-        #[arg(long, value_enum, default_value_t = An19EventEngineArg::ReducedExact)]
-        an19_event_engine: An19EventEngineArg,
+        #[arg(long, value_enum, default_value_t = EventEngineArg::ReducedExact)]
+        an19_event_engine: EventEngineArg,
         #[arg(long)]
         an19_event_trace: Option<PathBuf>,
         #[arg(long)]
         an19_charge_analysis: Option<PathBuf>,
-        #[arg(long, value_enum, default_value_t = An19AdversarialFamilyArg::All)]
-        an19_adversarial_family: An19AdversarialFamilyArg,
+        #[arg(long, value_enum, default_value_t = EventFamilyArg::All)]
+        an19_adversarial_family: EventFamilyArg,
         #[arg(long, default_value = "16,32,64")]
         an19_adversarial_size: String,
         #[arg(long)]
@@ -233,13 +233,13 @@ enum InputFormatArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum An19EventEngineArg {
+enum EventEngineArg {
     ExactOracle,
     ReducedExact,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum An19AdversarialFamilyArg {
+enum EventFamilyArg {
     All,
     ManyReducedCostsFewSourceLengths,
     RepeatedPortalSplitting,
@@ -737,8 +737,8 @@ fn run() -> Result<(), CliError> {
 
 #[allow(clippy::too_many_arguments)]
 fn an19_events_command(
-    engine: An19EventEngineArg,
-    family: An19AdversarialFamilyArg,
+    engine: EventEngineArg,
+    family: EventFamilyArg,
     sizes: &str,
     output: &Path,
     markdown: &Path,
@@ -748,9 +748,8 @@ fn an19_events_command(
     let context = benchmark_context()?;
     let sizes = parse_an19_sizes(sizes)?;
     let families = family.families();
-    let campaign =
-        An19AdversarialCampaign::run(&families, &sizes, context.git_commit, context.command)
-            .map_err(|error| CliError::Verification(error.to_string()))?;
+    let campaign = Campaign::run(&families, &sizes, context.git_commit, context.command)
+        .map_err(|error| CliError::Verification(error.to_string()))?;
     write_json(&campaign, Some(output))?;
     write_text(markdown, &campaign.to_markdown())?;
     if let Some(path) = trace_output {
@@ -758,8 +757,8 @@ fn an19_events_command(
             .cases
             .iter()
             .map(|case| match engine {
-                An19EventEngineArg::ExactOracle => &case.oracle_run,
-                An19EventEngineArg::ReducedExact => &case.reduced_run,
+                EventEngineArg::ExactOracle => &case.oracle_run,
+                EventEngineArg::ReducedExact => &case.reduced_run,
             })
             .collect::<Vec<_>>();
         write_json(&traces, Some(path))?;
@@ -782,25 +781,25 @@ fn an19_events_command(
     Ok(())
 }
 
-impl An19AdversarialFamilyArg {
-    fn families(self) -> Vec<An19AdversarialFamily> {
+impl EventFamilyArg {
+    fn families(self) -> Vec<Family> {
         match self {
-            Self::All => An19AdversarialFamily::ALL.to_vec(),
+            Self::All => Family::ALL.to_vec(),
             Self::ManyReducedCostsFewSourceLengths => {
-                vec![An19AdversarialFamily::ManyReducedCostsFewSourceLengths]
+                vec![Family::ManyReducedCostsFewSourceLengths]
             }
             Self::RepeatedPortalSplitting => {
-                vec![An19AdversarialFamily::RepeatedPortalSplitting]
+                vec![Family::RepeatedPortalSplitting]
             }
-            Self::FullDepthPersistence => vec![An19AdversarialFamily::FullDepthPersistence],
-            Self::AllEqualReducedKeys => vec![An19AdversarialFamily::AllEqualReducedKeys],
-            Self::AllDistinctReducedKeys => vec![An19AdversarialFamily::AllDistinctReducedKeys],
+            Self::FullDepthPersistence => vec![Family::FullDepthPersistence],
+            Self::AllEqualReducedKeys => vec![Family::AllEqualReducedKeys],
+            Self::AllDistinctReducedKeys => vec![Family::AllDistinctReducedKeys],
             Self::AlternatingPartitionContraction => {
-                vec![An19AdversarialFamily::AlternatingPartitionContraction]
+                vec![Family::AlternatingPartitionContraction]
             }
-            Self::HighwayHalvingReorder => vec![An19AdversarialFamily::HighwayHalvingReorder],
+            Self::HighwayHalvingReorder => vec![Family::HighwayHalvingReorder],
             Self::VirtualRealMixedSegments => {
-                vec![An19AdversarialFamily::VirtualRealMixedSegments]
+                vec![Family::VirtualRealMixedSegments]
             }
         }
     }
@@ -2205,11 +2204,10 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        An19AdversarialFamilyArg, An19EventEngineArg, ChordEnumeratorArg, Cli, Command,
-        CompletionBackendArg, InputFormatArg, LoadedInput, PathTreeOrientationArg,
-        PolygonArrangementArg, PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg,
-        PolygonValidatorArg, RegionDualArg, RepresentationArg, SolverArg, load_input,
-        solve_command,
+        ChordEnumeratorArg, Cli, Command, CompletionBackendArg, EventEngineArg, EventFamilyArg,
+        InputFormatArg, LoadedInput, PathTreeOrientationArg, PolygonArrangementArg,
+        PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg, PolygonValidatorArg,
+        RegionDualArg, RepresentationArg, SolverArg, load_input, solve_command,
     };
 
     #[test]
@@ -2238,10 +2236,10 @@ mod tests {
         else {
             panic!("wrong command parsed");
         };
-        assert_eq!(an19_event_engine, An19EventEngineArg::ExactOracle);
+        assert_eq!(an19_event_engine, EventEngineArg::ExactOracle);
         assert_eq!(
             an19_adversarial_family,
-            An19AdversarialFamilyArg::HighwayHalvingReorder
+            EventFamilyArg::HighwayHalvingReorder
         );
         assert_eq!(an19_adversarial_size, "16,32");
         assert!(

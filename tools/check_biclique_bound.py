@@ -18,10 +18,14 @@ REQUIRED_NOTE = (
 
 
 def tracked_text_files() -> list[Path]:
-    paths = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+    paths = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        text=True,
+    ).splitlines()
     return [
         Path(path)
         for path in paths
+        if Path(path).is_file()
         if Path(path).resolve() != Path(__file__).resolve()
         if Path(path).suffix
         in {".md", ".rs", ".py", ".toml", ".txt", ".yml", ".yaml"}

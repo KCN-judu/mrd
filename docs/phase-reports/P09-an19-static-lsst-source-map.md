@@ -185,7 +185,7 @@ unstated bounded-integer assumption is insufficient.
 
 ## Implemented single-petal gate
 
-`An19UnweightedPetal` implements Figure 6 on the original unit-length vertex
+`source_an19::petal::UnweightedPetal` implements Figure 6 on the original unit-length vertex
 domain:
 
 - exact cone-union membership thresholds for every vertex of `Y`;
@@ -204,16 +204,16 @@ Claim 15 region-growing runtime implementation.
 
 ## Implemented weighted-portal gate
 
-- `An19WeightedPetalAtRadius` evaluates Claim 15 with exact rational reduced
+- `source_an19::petal::WeightedPetalAtRadius` evaluates Claim 15 with exact rational reduced
   directed lengths. It represents a radius inside an edge as the original edge
   ID, orientation, and exact offset, without unit subdivision.
 - Each highway records the exact original-edge portion whose forward directed
   cost is halved. The directed region-growing result is differentially equal
   to the cone-union baseline on their shared unit-length domain.
-- `An19HighwayLedger` stores canonical exact intervals on original edges,
+- `source_an19::projection::HighwayLedger` stores canonical exact intervals on original edges,
   atomically rejects positive overlap, merges touching intervals, and computes
   the effective endpoint-to-endpoint length after every portion is halved once.
-- `An19ShortEdgeContraction` computes the cluster radius, contracts exactly the
+- `source_an19::projection::ShortEdgeContraction` computes the cluster radius, contracts exactly the
   edges shorter than `rad(X)/n^2`, retains original IDs on quotient edges, and
   expands a certified quotient tree with deterministic internal forests into
   an original-edge spanning tree.
@@ -224,7 +224,7 @@ the hierarchy, radius/stretch certificates, and workspace scans. The remaining
 P9.3.2d blocker is the reduced-event proof obligation stated above.
 
 P9.3.2d now also has an exact weighted Figure 6 baseline.
-`An19WeightedPetal` treats each successive highway edge as one parametric
+`source_an19::petal::WeightedPetal` treats each successive highway edge as one parametric
 interval: with the current forward edge removed, every directed shortest-path
 distance has the form `min(A, B - 3r/2)`. It derives exact vertex-entry radii,
 then reuses the certified window and strict stopping comparisons. On the shared
@@ -241,7 +241,7 @@ inactive and partial selections, and independently proves acyclicity and
 connectivity on the original endpoints. This is the representation substrate
 for Figures 4--5, not their completed recursive composition.
 
-`An19HierarchicalLsst` now completes Figures 4--5 on the exact unit-length
+`source_an19::hierarchy::Lsst` now completes Figures 4--5 on the exact unit-length
 source domain. It constructs the source's imaginary first path with at most
 `O(n)` virtual unit segments, creates later `Delta/2` targets and petal portals
 at exact rational points, recursively halves each highway edge once, joins
@@ -280,7 +280,7 @@ with no root source and are counted separately.
 Projection materialization recomputes the exact sets of effective symbolic
 source and virtual lengths, where a halved label contributes half its unsplit
 length. Incremental shape observations use the cached sets, and
-`An19ProjectionAudit::verify` cross-checks their maxima against hierarchy
+`source_an19::projection::Audit::verify` cross-checks their maxima against hierarchy
 metrics. On the deterministic 500-node unit path, the maximum remains 16
 materialized projection length classes, but only 2 symbolic source-label
 classes and 3 symbolic virtual-label classes. This isolates portal splitting
@@ -399,12 +399,12 @@ remain unselected and `source_runtime_verified()` remains false.
 
 Commits `7ea13da`, `28f9ff7`, `6c8cfac`, `98bb615`, `5e771d8`,
 `a25ac08`, `d4dda8f`, and `02c8385` isolate and certify the fixed-projection event
-contract from the existing hierarchy production path. `ExactEventOracle` uses
+contract from the existing hierarchy production path. `source_an19::event::engine::Exact` uses
 definition-level exact threshold and Figure 6 selection logic.
-`An19ReducedEventEngine` independently runs the integral-normalized exact
+`source_an19::event::engine::Reduced` independently runs the integral-normalized exact
 reduced costs `2(ell(u,v) + d(x,u) - d(x,v))`, records each insertion, pop,
 replacement, tie, and stale item, and rejects disagreement with the existing
-source-shaped threshold path rather than falling back. `ProvedEventEngine`
+source-shaped threshold path rather than falling back. `source_an19::event::engine::Proved`
 remains unavailable and returns an explicit error.
 
 The canonical trace contains projection/recursion identity, stable source and
@@ -426,7 +426,7 @@ from 4/3 to 2/3. Families B, C, and F emulate recursive observation contexts;
 they are not a hierarchy amortization argument.
 
 This initially completed P9.3.2d-impl, -oracle, -trace, and -differential. The
-follow-up `An19LocalEventBoundCertificate` also completes P9.3.2d-local-proof:
+follow-up `source_an19::event::certificate::LocalBound` also completes P9.3.2d-local-proof:
 each fixed snapshot has at most `3n + 4m + 2` semantic events and
 `n + 2m + 2` queue insertions/pops. The counterexample activity remains
 empirical/proof-discovery evidence. P9.3.2d-global-proof, -pq-proof, and
@@ -440,7 +440,7 @@ not carry this implementation certificate. Across the 31 release cases, the
 largest observed total is 473 and the largest conservative bound is 1,112.
 This is an `O((n+m) log(n+m))` practical implementation bound, not the missing
 source-equivalent `O(m+n log log n)` proof.
-`An19AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
+`source_an19::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, the priority-queue
 mode remains `ReducedLengthMonotone`, and `source_runtime_verified()` remains
 false.
 
@@ -517,7 +517,7 @@ The fixed `1024 * m * ceil(log n) * ceil(log log n)` ceiling is therefore only
 a regression guard for observed counters. The source-edge audit exposes where
 work accumulates but does not convert the observed totals into an asymptotic
 bound. It is not accepted as a proof. P9.3.2d is `blocked`,
-`An19AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
+`source_an19::hierarchy::AmortizationMode` remains `AggregateRegressionOnly`, and no AN19
 production runtime or full Lemma 5.4 completion is claimed.
 
 ## Persisted source blocker
