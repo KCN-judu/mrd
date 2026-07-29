@@ -26,7 +26,13 @@ using a reference flow path. It deliberately does not select `Step.direction`:
 the P9.4 query boundary validates candidate cycles but does not construct the
 minimum-ratio update required by the source iteration.
 
-P9.5 remains open. Source direction selection, lower-bound and augmentation
+Commit `1a95a59` adds `Step::from_compact_candidate`. It calls the P9.4 query
+boundary only to decode an externally selected compact cycle, then sums signed
+arc occurrences into a complete exact direction vector and revalidates its
+circulation. This binds compact source-tree semantics to the P9.5 step input
+without selecting a candidate or using an enumerating cycle implementation.
+
+P9.5 remains open. Source candidate selection, lower-bound and augmentation
 recovery integration, MRD compressed-network differential evidence, and an
 end-to-end no-fallback audit are still absent. `Backend::require_complete()`
 therefore continues to reject execution and `an19_runtime_verified` remains
@@ -40,4 +46,4 @@ an `AlmostLinear` name or AN19 runtime claim.
 | --- | ---: | --- |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
-| `cargo test -p graph source_flow` | 0 | 5 focused tests passed, including recovery differential and supplied-step accounting |
+| `cargo test -p graph source_flow` | 0 | 6 focused tests passed, including compact-cycle direction conversion |
