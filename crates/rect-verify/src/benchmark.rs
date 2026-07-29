@@ -3,7 +3,7 @@ use std::fmt::Write;
 use std::time::Instant;
 
 use rect_core::{ColorGrid, Diagnostics, ExactRatio, GridComponent};
-use rect_dominance::compressed_flow::solve_biclique_flow;
+use rect_dominance::compressed_flow::experiment as flow_experiment;
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, VerificationMode,
     biclique::{Metrics, experiment, oracle},
@@ -1529,7 +1529,7 @@ fn benchmark_biclique_component<C>(
             == presorted.partition.total_vertex_occurrences();
     if reference.partition == presorted.partition && counters_valid {
         let dinic_started = Instant::now();
-        let dinic = match solve_biclique_flow(
+        let dinic = match flow_experiment::solve(
             geometry.horizontal_chords.len(),
             geometry.vertical_chords.len(),
             &presorted.partition,
@@ -1543,7 +1543,7 @@ fn benchmark_biclique_component<C>(
         };
         row.dinic_flow_microseconds = Some(dinic_started.elapsed().as_micros());
         let push_relabel_started = Instant::now();
-        let push_relabel = match solve_biclique_flow(
+        let push_relabel = match flow_experiment::solve(
             geometry.horizontal_chords.len(),
             geometry.vertical_chords.len(),
             &presorted.partition,

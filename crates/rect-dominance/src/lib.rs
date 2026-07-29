@@ -14,7 +14,7 @@ use std::mem::size_of;
 use std::time::Instant;
 
 use biclique::{Error, Partition};
-use compressed_flow::{CompressedFlowError, solve_biclique_flow};
+use compressed_flow::experiment;
 use embedding::{DominanceEmbedding, EmbeddingError};
 pub use path_tree::{GapBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionBackend};
 use path_tree::{
@@ -315,7 +315,7 @@ pub fn solve_polygon_with_options(
     };
     let four_d_partition = four_d_construction.partition;
     four_d_partition.verify_dominance_blocks(&embedding)?;
-    let four_d_flow = solve_biclique_flow(
+    let four_d_flow = experiment::solve(
         embedding.horizontal.len(),
         embedding.vertical.len(),
         &four_d_partition,
@@ -361,7 +361,7 @@ pub fn solve_polygon_with_options(
             };
             path_tree_orientation = Some(selected.orientation.name().to_owned());
             let partition = selected.biclique_partition;
-            let flow = solve_biclique_flow(
+            let flow = experiment::solve(
                 embedding.horizontal.len(),
                 embedding.vertical.len(),
                 &partition,
@@ -1266,7 +1266,7 @@ fn solve_fully_audited_with_backend<C, E: EffectiveChordEnumerator, B: MaxFlowBa
     partition.verify_exact_partition(&dominance_graph)?;
     let biclique_certificate = partition.certificate(&dominance_graph);
     let bicliques_at = Instant::now();
-    let flow_solution = solve_biclique_flow(
+    let flow_solution = experiment::solve(
         embedding.horizontal.len(),
         embedding.vertical.len(),
         &partition,
@@ -1499,7 +1499,7 @@ fn solve_compact_only_with<C, E: EffectiveChordEnumerator>(
     let partition = biclique::experiment::construct(&embedding)?.partition;
     partition.verify_dominance_blocks(&embedding)?;
     let bicliques_at = Instant::now();
-    let flow_solution = solve_biclique_flow(
+    let flow_solution = experiment::solve(
         embedding.horizontal.len(),
         embedding.vertical.len(),
         &partition,
@@ -1938,7 +1938,7 @@ fn solve_path_tree_with_geometry<C>(
             }
         }
     }
-    let flow_solution = solve_biclique_flow(
+    let flow_solution = experiment::solve(
         geometry.horizontal_chords.len(),
         geometry.vertical_chords.len(),
         &path_tree.biclique_partition,
@@ -2336,7 +2336,7 @@ pub enum DominanceError {
     #[error(transparent)]
     Block(#[from] Error),
     #[error(transparent)]
-    CompressedFlow(#[from] CompressedFlowError),
+    CompressedFlow(#[from] compressed_flow::Error),
     #[error(transparent)]
     PathTree(#[from] PathTreeError),
     #[error("solver produced an invalid dissection: {0}")]

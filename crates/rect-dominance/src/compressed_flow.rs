@@ -1,13 +1,11 @@
-use rect_graph::{
-    BipartiteGraph, DinicBackend, FlowError, FlowNetwork, FlowNodeId, FlowResult, MaxFlowBackend,
-    PushRelabelBackend, VertexCover, hopcroft_karp,
-};
+use rect_graph::{FlowError, FlowResult, VertexCover};
 use thiserror::Error;
 
-use crate::biclique::Partition;
+pub mod experiment;
+pub mod oracle;
 
 #[derive(Clone, Debug)]
-pub struct CompressedFlowSolution {
+pub struct Solution {
     pub flow: FlowResult,
     pub vertex_cover: VertexCover,
     pub network_vertex_count: usize,
@@ -19,206 +17,14 @@ pub struct CompressedFlowSolution {
 /// Exact agreement evidence for the explicit graph and both permanent flow
 /// reference backends over a verified biclique partition.
 #[derive(Clone, Debug)]
-pub struct CompressedFlowParity {
+pub struct Parity {
     pub matching_size: usize,
-    pub dinic: CompressedFlowSolution,
-    pub push_relabel: CompressedFlowSolution,
-}
-
-/// Verifies compressed-flow recovery against independent exact references.
-///
-/// # Errors
-///
-/// Returns an error when the partition is not exact, either backend fails, or
-/// a matching/flow/cover cardinality disagrees.
-pub fn audit_biclique_flow_parity(
-    graph: &BipartiteGraph,
-    partition: &Partition,
-) -> Result<CompressedFlowParity, CompressedFlowError> {
-    partition
-        .verify_exact_partition(graph)
-        .map_err(|_| CompressedFlowError::InvalidPartition)?;
-    let matching_size = hopcroft_karp(graph).size;
-    let dinic = solve_biclique_flow(
-        graph.left_size(),
-        graph.right_size(),
-        partition,
-        &DinicBackend,
-    )?;
-    let push_relabel = solve_biclique_flow(
-        graph.left_size(),
-        graph.right_size(),
-        partition,
-        &PushRelabelBackend,
-    )?;
-    let dinic_value =
-        usize::try_from(dinic.flow.value).map_err(|_| CompressedFlowError::FlowValueConversion)?;
-    let push_value = usize::try_from(push_relabel.flow.value)
-        .map_err(|_| CompressedFlowError::FlowValueConversion)?;
-    if dinic_value != matching_size
-        || push_value != matching_size
-        || dinic.vertex_cover.size != matching_size
-        || push_relabel.vertex_cover.size != matching_size
-    {
-        return Err(CompressedFlowError::ParityMismatch);
-    }
-    Ok(CompressedFlowParity {
-        matching_size,
-        dinic,
-        push_relabel,
-    })
-}
-
-/// Runs an exact flow on the biclique-compressed network and recovers a cover.
-///
-/// Outer arcs have unit capacity. Internal arcs use
-/// `U = min(horizontal_count, vertical_count) + 1`; `U - 1` bounds every
-/// possible matching value, so a minimum cut used for certificate recovery
-/// cannot prefer an internal arc over an outer unit-arc cover. The large value
-/// is a cut-certificate device, not a claim that one matching flow needs to
-/// send multiple units through a particular internal arc.
-///
-/// # Errors
-///
-/// Returns [`CompressedFlowError`] for invalid dimensions/capacities, backend
-/// failure, an internal cut arc, or a cut/cover cardinality mismatch.
-pub fn solve_biclique_flow(
-    horizontal_count: usize,
-    vertical_count: usize,
-    partition: &Partition,
-    backend: &impl MaxFlowBackend,
-) -> Result<CompressedFlowSolution, CompressedFlowError> {
-    let layout = build_network(horizontal_count, vertical_count, partition)?;
-    let flow = backend.max_flow_min_cut(&layout.network, layout.source, layout.sink)?;
-
-    let mut internal_cut_arc_count = 0;
-    for (biclique_index, biclique) in partition.blocks.iter().enumerate() {
-        let biclique_node = layout.biclique_nodes[biclique_index];
-        for &left in &biclique.left {
-            if flow.source_side[layout.horizontal_nodes[left].0]
-                && !flow.source_side[biclique_node.0]
-            {
-                internal_cut_arc_count += 1;
-            }
-        }
-        for &right in &biclique.right {
-            if flow.source_side[biclique_node.0]
-                && !flow.source_side[layout.vertical_nodes[right].0]
-            {
-                internal_cut_arc_count += 1;
-            }
-        }
-    }
-    if internal_cut_arc_count != 0 {
-        return Err(CompressedFlowError::InternalArcInMinimumCut {
-            count: internal_cut_arc_count,
-        });
-    }
-
-    let left = layout
-        .horizontal_nodes
-        .iter()
-        .map(|node| !flow.source_side[node.0])
-        .collect::<Vec<_>>();
-    let right = layout
-        .vertical_nodes
-        .iter()
-        .map(|node| flow.source_side[node.0])
-        .collect::<Vec<_>>();
-    let size = left.iter().filter(|&&selected| selected).count()
-        + right.iter().filter(|&&selected| selected).count();
-    let flow_value =
-        usize::try_from(flow.value).map_err(|_| CompressedFlowError::FlowValueConversion)?;
-    if size != flow_value {
-        return Err(CompressedFlowError::CutCoverSizeMismatch {
-            cut: flow_value,
-            cover: size,
-        });
-    }
-    Ok(CompressedFlowSolution {
-        network_vertex_count: layout.network.node_count(),
-        network_arc_count: layout.network.arc_count(),
-        internal_capacity: layout.internal_capacity,
-        internal_cut_arc_count,
-        flow,
-        vertex_cover: VertexCover { left, right, size },
-    })
-}
-
-struct NetworkLayout {
-    network: FlowNetwork,
-    source: FlowNodeId,
-    sink: FlowNodeId,
-    horizontal_nodes: Vec<FlowNodeId>,
-    biclique_nodes: Vec<FlowNodeId>,
-    vertical_nodes: Vec<FlowNodeId>,
-    internal_capacity: u64,
-}
-
-fn build_network(
-    horizontal_count: usize,
-    vertical_count: usize,
-    partition: &Partition,
-) -> Result<NetworkLayout, CompressedFlowError> {
-    let node_count = 2_usize
-        .checked_add(horizontal_count)
-        .and_then(|value| value.checked_add(partition.blocks.len()))
-        .and_then(|value| value.checked_add(vertical_count))
-        .ok_or(CompressedFlowError::NetworkSizeOverflow)?;
-    let source = FlowNodeId(0);
-    let horizontal_start = 1;
-    let biclique_start = horizontal_start + horizontal_count;
-    let vertical_start = biclique_start + partition.blocks.len();
-    let sink = FlowNodeId(node_count - 1);
-    let horizontal_nodes = (0..horizontal_count)
-        .map(|index| FlowNodeId(horizontal_start + index))
-        .collect::<Vec<_>>();
-    let biclique_nodes = (0..partition.blocks.len())
-        .map(|index| FlowNodeId(biclique_start + index))
-        .collect::<Vec<_>>();
-    let vertical_nodes = (0..vertical_count)
-        .map(|index| FlowNodeId(vertical_start + index))
-        .collect::<Vec<_>>();
-    let internal_capacity = horizontal_count
-        .min(vertical_count)
-        .checked_add(1)
-        .and_then(|value| u64::try_from(value).ok())
-        .ok_or(CompressedFlowError::CapacityOverflow)?;
-    let mut network = FlowNetwork::new(node_count);
-    for &node in &horizontal_nodes {
-        network.add_arc(source, node, 1)?;
-    }
-    for (index, biclique) in partition.blocks.iter().enumerate() {
-        let biclique_node = biclique_nodes[index];
-        for &left in &biclique.left {
-            let node = *horizontal_nodes
-                .get(left)
-                .ok_or(CompressedFlowError::BicliqueEndpointOutOfBounds)?;
-            network.add_arc(node, biclique_node, internal_capacity)?;
-        }
-        for &right in &biclique.right {
-            let node = *vertical_nodes
-                .get(right)
-                .ok_or(CompressedFlowError::BicliqueEndpointOutOfBounds)?;
-            network.add_arc(biclique_node, node, internal_capacity)?;
-        }
-    }
-    for &node in &vertical_nodes {
-        network.add_arc(node, sink, 1)?;
-    }
-    Ok(NetworkLayout {
-        network,
-        source,
-        sink,
-        horizontal_nodes,
-        biclique_nodes,
-        vertical_nodes,
-        internal_capacity,
-    })
+    pub dinic: Solution,
+    pub push_relabel: Solution,
 }
 
 #[derive(Debug, Error)]
-pub enum CompressedFlowError {
+pub enum Error {
     #[error(transparent)]
     Flow(#[from] FlowError),
     #[error("compressed network node count overflowed usize")]
@@ -245,7 +51,7 @@ mod tests {
 
     use crate::biclique::Partition;
 
-    use super::{audit_biclique_flow_parity, solve_biclique_flow};
+    use super::{experiment, oracle};
 
     #[test]
     fn c0_flow_equals_explicit_matching() {
@@ -254,7 +60,7 @@ mod tests {
             graph.add_edge(left, right).unwrap();
         }
         let partition = Partition::from_explicit_edges(&graph);
-        let flow = solve_biclique_flow(3, 3, &partition, &DinicBackend).unwrap();
+        let flow = experiment::solve(3, 3, &partition, &DinicBackend).unwrap();
         let value = usize::try_from(flow.flow.value).unwrap();
         assert_eq!(value, hopcroft_karp(&graph).size);
         assert_eq!(flow.vertex_cover.size, value);
@@ -276,8 +82,8 @@ mod tests {
             graph.add_edge(left, right).unwrap();
         }
         let partition = Partition::from_explicit_edges(&graph);
-        let dinic = solve_biclique_flow(4, 4, &partition, &DinicBackend).unwrap();
-        let push_relabel = solve_biclique_flow(4, 4, &partition, &PushRelabelBackend).unwrap();
+        let dinic = experiment::solve(4, 4, &partition, &DinicBackend).unwrap();
+        let push_relabel = experiment::solve(4, 4, &partition, &PushRelabelBackend).unwrap();
         assert_eq!(push_relabel.flow.value, dinic.flow.value);
         assert_eq!(push_relabel.vertex_cover.size, dinic.vertex_cover.size);
         assert_eq!(push_relabel.internal_cut_arc_count, 0);
@@ -293,7 +99,7 @@ mod tests {
                 }
             }
             let partition = Partition::from_explicit_edges(&graph);
-            let parity = audit_biclique_flow_parity(&graph, &partition).unwrap();
+            let parity = oracle::audit(&graph, &partition).unwrap();
             assert_eq!(parity.matching_size, hopcroft_karp(&graph).size);
         }
     }

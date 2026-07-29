@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::biclique::{Error, Partition};
-use crate::compressed_flow::{CompressedFlowError, solve_biclique_flow};
+use crate::compressed_flow::{self, experiment};
 use crate::embedding::{DominanceEmbedding, EmbeddingError};
 use rect_oracle_sg::{PolygonCompletionResult, PolygonSgError};
 
@@ -194,7 +194,7 @@ fn solve_conflict_oracles(
     let vertex_cover = minimum_vertex_cover(&graph, &matching);
 
     let explicit_partition = Partition::from_explicit_edges(&graph);
-    let explicit_flow = solve_biclique_flow(
+    let explicit_flow = experiment::solve(
         families.horizontal.len(),
         families.vertical.len(),
         &explicit_partition,
@@ -203,7 +203,7 @@ fn solve_conflict_oracles(
     let compact_partition = Partition::comparability_theorem_8_audited(&embedding)?.partition;
     compact_partition.verify_exact_partition(&graph)?;
     compact_partition.verify_dominance_blocks(&embedding)?;
-    let compact_flow = solve_biclique_flow(
+    let compact_flow = experiment::solve(
         families.horizontal.len(),
         families.vertical.len(),
         &compact_partition,
@@ -445,7 +445,7 @@ pub enum FormalAdmissibleError {
     #[error(transparent)]
     Block(#[from] Error),
     #[error(transparent)]
-    CompressedFlow(#[from] CompressedFlowError),
+    CompressedFlow(#[from] compressed_flow::Error),
     #[error(transparent)]
     PolygonCompletion(#[from] PolygonSgError),
     #[error("Step 2 exact-coordinate transformation overflowed")]
