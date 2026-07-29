@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.4b
+- Current phase: P9.3.4c
 - Current phase state: complete
-- Last completed phase: P9.3.4b
-- Last pushed SHA: a71dceef117ae37decca82b7ea4cbe098af9b092
-- Plan last updated: 2026-07-29T17:01:06Z
+- Last completed phase: P9.3.4c
+- Last pushed SHA: 64ce6f44e928564fac214b8b8960cc13999c0183
+- Plan last updated: 2026-07-29T17:49:14Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -838,9 +838,14 @@ P9.3 is split into the following source-gated subphases:
      reject explicitly. Evidence is in
      `docs/phase-reports/P09-3-4b-witness-expander.md`. This is not the general
      CGLNPS20 construction and carries no source runtime claim.
-   - **P9.3.4c state: planned. Start gate: P9.3.4b audit passed.** Implement
-     Theorem 8.5's deterministic edge-disjoint expander decomposition with
-     level, component, degree-floor, and partition certificates.
+   - **P9.3.4c state: complete. Implementation SHAs: `f9dd410`,
+     `bce0f14`.** `source_spanner::experiment::{decomposition,domain}`
+     implements a one-level, connected, at-most-20-node exhaustive certificate
+     with explicit component, edge-partition, degree-floor, and expansion
+     evidence. Every source edge occurs exactly once and verification rebuilds
+     all stored fields. Multi-level and general instances reject instead of
+     claiming a generic CGLNPS20 construction or runtime bound. Evidence is
+     `docs/phase-reports/P09-3-4c-expander-decomposition.md`.
    - **P9.3.4d state: planned. Start gate: P9.3.4c audit passed.** Implement
      the deterministic Theorem 8.6 decremental expander path structure,
      monotone pruned set, deletion trace, and bounded simple-path certificates.
@@ -1023,3 +1028,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4a | complete | 91a3e3c | e0b7bc1 | pending closeout | pending | `docs/phase-reports/P09-3-4a-static-embedding-contract.md` | exact graph/subgraph/direct-and-composed embedding audits and isolated bounded simple-path Oracle | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | Theorem 8.4 witness expander, Theorem 8.5 decomposition, Theorem 8.6 paths, and Algorithm 4 remain |
 | P9.3.4b | in_progress | a71dcee | pending | pending | a71dcee | pending | deterministic bounded-degree witness expander and expansion certificate | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4b | complete | a71dcee | 77878a8, cc54c10 | pending closeout | pending | `docs/phase-reports/P09-3-4b-witness-expander.md` | finite-domain complete witness, exact degree sandwich, exhaustive cut-expansion certificate, explicit domain rejection, and full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | general CGLNPS20 construction intentionally not claimed; Theorem 8.5-8.6 and Algorithm 4 remain |
+| P9.3.4c | in_progress | 64ce6f4 | pending | pending | 64ce6f4 | pending | deterministic edge-disjoint expander decomposition with exact layer certificates | 2026-07-29T17:01:06Z | pending | none |
+| P9.3.4c | complete | 64ce6f4 | f9dd410, bce0f14 | pending closeout | pending | `docs/phase-reports/P09-3-4c-expander-decomposition.md` | finite-domain one-level decomposition with explicit component, exact edge partition, degree-floor, and exhaustive expansion certificates; full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:49:14Z | general/multi-level CGLNPS20 construction and its runtime are intentionally not claimed; Theorem 8.6 and Algorithm 4 remain |
