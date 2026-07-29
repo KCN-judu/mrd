@@ -16,6 +16,8 @@ REQUIRED = {
         "pub mod recovery",
         "pub mod iteration",
         "pub fn recover_terminated",
+        "recover_augmented_terminated",
+        "recover_lower_bounded_terminated",
         "pub fn begin_iterations",
         "an19_runtime_verified: false",
     ),

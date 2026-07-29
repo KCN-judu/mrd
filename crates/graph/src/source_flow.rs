@@ -7,8 +7,9 @@
 use thiserror::Error;
 
 use crate::{
-    CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, CostedFlowRoundingResult,
-    IpmTerminationCertificate, MinCostCirculationError,
+    CertifiedIpmError, CertifiedIpmSnapshot, CertifiedLowerBoundInitialPoint, CirculationNetwork,
+    CostedFlowRoundingResult, InitialPointAugmentation, IpmTerminationCertificate,
+    MinCostCirculationError, MinCostSolution,
 };
 
 pub mod iteration;
@@ -88,6 +89,50 @@ impl Backend {
         })
     }
 
+    /// Recovers the original zero-lower-bound network from an augmented terminal
+    /// snapshot without invoking a reference recovery path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when terminal recovery fails, an artificial arc carries
+    /// flow, or the recovered original solution is invalid.
+    pub fn recover_augmented_terminated(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        augmentation: &InitialPointAugmentation,
+    ) -> Result<RecoveredAugmentedFlow, Error> {
+        let terminal = self.recover_terminated(snapshot, &augmentation.network)?;
+        let original = augmentation
+            .recover_original(&terminal.rounding.solution)
+            .map_err(Error::Augmentation)?;
+        Ok(RecoveredAugmentedFlow { terminal, original })
+    }
+
+    /// Recovers an original lower-bounded flow from a terminal augmented
+    /// snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when augmented recovery, lower-bound restoration, or
+    /// either exact validation fails.
+    pub fn recover_lower_bounded_terminated(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        initial: &CertifiedLowerBoundInitialPoint,
+    ) -> Result<RecoveredLowerBoundFlow, Error> {
+        let augmented =
+            self.recover_augmented_terminated(snapshot, &initial.initial_point.augmentation)?;
+        let original = initial
+            .normalization
+            .recover_original(&augmented.original)
+            .map_err(Error::Normalization)?;
+        Ok(RecoveredLowerBoundFlow {
+            terminal: augmented.terminal,
+            normalized: augmented.original,
+            original,
+        })
+    }
+
     /// Starts a checked sequence of externally supplied certified updates.
     ///
     /// The source minimum-ratio layer does not yet select these directions, so
@@ -113,6 +158,21 @@ pub struct RecoveredFlow {
     pub rounding: CostedFlowRoundingResult,
 }
 
+/// Exact recovery from an augmented circulation to its original network.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecoveredAugmentedFlow {
+    pub terminal: RecoveredFlow,
+    pub original: MinCostSolution,
+}
+
+/// Exact recovery through augmentation and lower-bound normalization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecoveredLowerBoundFlow {
+    pub terminal: RecoveredFlow,
+    pub normalized: MinCostSolution,
+    pub original: MinCostSolution,
+}
+
 /// The source-shaped backend is not complete enough to execute.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
@@ -131,6 +191,12 @@ pub enum Error {
     /// The recovered result is not a valid minimum-cost circulation.
     #[error("recovered circulation validation failed: {0}")]
     Network(#[from] MinCostCirculationError),
+    /// Recovery could not remove the certified initial-point augmentation.
+    #[error("augmented source-flow recovery failed: {0}")]
+    Augmentation(#[source] MinCostCirculationError),
+    /// Recovery could not restore lower bounds after augmentation recovery.
+    #[error("lower-bound source-flow recovery failed: {0}")]
+    Normalization(#[source] MinCostCirculationError),
     /// A supplied certified iteration step failed validation.
     #[error("source-shaped iteration failed: {0}")]
     Iteration(#[source] iteration::Error),
@@ -141,7 +207,7 @@ mod tests {
     use super::{Backend, Error, iteration};
     use crate::{
         CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
-        FractionalCirculation,
+        FractionalCirculation, LowerBoundCirculationNetwork,
     };
 
     #[test]
@@ -172,6 +238,93 @@ mod tests {
         let recovered = Backend.recover_terminated(&snapshot, &network).unwrap();
         assert_eq!(recovered.rounding.solution.arc_flows, vec![0, 0]);
         assert_eq!(recovered.rounding.solution.cost, 0);
+    }
+
+    #[test]
+    fn recovers_an_augmented_terminal_snapshot_to_its_original_network() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let config = FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap();
+        let initial = CertifiedIpmSnapshot::initial_point_augmented(
+            &network,
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            config,
+        )
+        .unwrap();
+        let quarter = ExactRatio::new(1, 4).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &initial.augmentation.network,
+            &FractionalCirculation {
+                arc_flows: vec![quarter; 2],
+                cost: quarter,
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            initial.augmentation.maximum_abs_input,
+            config,
+        )
+        .unwrap();
+
+        let recovered = Backend
+            .recover_augmented_terminated(&snapshot, &initial.augmentation)
+            .unwrap();
+        assert_eq!(recovered.original.arc_flows, vec![0, 0]);
+        assert_eq!(recovered.original.cost, 0);
+    }
+
+    #[test]
+    fn recovers_lower_bounds_after_augmented_terminal_recovery() {
+        let mut network = LowerBoundCirculationNetwork::new(2);
+        network.set_demand(FlowNodeId(0), -2).unwrap();
+        network.set_demand(FlowNodeId(1), 2).unwrap();
+        network
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 1, 3, 2)
+            .unwrap();
+        network
+            .add_arc(FlowNodeId(1), FlowNodeId(0), -1, 2, 1)
+            .unwrap();
+        network
+            .add_arc(FlowNodeId(0), FlowNodeId(0), 2, 2, 3)
+            .unwrap();
+        let config = FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap();
+        let initial = CertifiedIpmSnapshot::initial_point_lower_bounded(
+            &network,
+            ExactRatio::new(7, 1).unwrap(),
+            3,
+            config,
+        )
+        .unwrap();
+        let initial_flow = &initial.initial_point.augmentation.initial_flow;
+        let scale = ExactRatio::new(
+            initial_flow.cost.denominator(),
+            initial_flow.cost.numerator().checked_mul(8).unwrap(),
+        )
+        .unwrap();
+        let arc_flows = initial_flow
+            .arc_flows
+            .iter()
+            .copied()
+            .map(|flow| flow.checked_mul(scale).unwrap())
+            .collect();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &initial.initial_point.augmentation.network,
+            &FractionalCirculation {
+                arc_flows,
+                cost: initial_flow.cost.checked_mul(scale).unwrap(),
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            initial.initial_point.augmentation.maximum_abs_input,
+            config,
+        )
+        .unwrap();
+
+        let recovered = Backend
+            .recover_lower_bounded_terminated(&snapshot, &initial)
+            .unwrap();
+        assert_eq!(recovered.normalized.arc_flows, vec![0, 0]);
+        assert_eq!(recovered.original.arc_flows, vec![1, -1, 2]);
+        assert_eq!(recovered.original.cost, 7);
     }
 
     #[test]
