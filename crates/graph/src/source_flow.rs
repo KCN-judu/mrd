@@ -11,6 +11,7 @@ use crate::{
     IpmTerminationCertificate, MinCostCirculationError,
 };
 
+pub mod iteration;
 pub mod recovery;
 
 /// Explicit status for the experimental source-shaped backend.
@@ -86,6 +87,23 @@ impl Backend {
             rounding,
         })
     }
+
+    /// Starts a checked sequence of externally supplied certified updates.
+    ///
+    /// The source minimum-ratio layer does not yet select these directions, so
+    /// this method intentionally executes supplied steps only. It cannot be
+    /// used to claim a complete source-flow solver.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initial snapshot cannot initialize its exact
+    /// Detect accounting ledger.
+    pub fn begin_iterations(
+        self,
+        snapshot: CertifiedIpmSnapshot,
+    ) -> Result<iteration::Session, Error> {
+        iteration::Session::new(snapshot).map_err(Error::Iteration)
+    }
 }
 
 /// An exact integral recovery paired with its terminal certificate.
@@ -113,11 +131,14 @@ pub enum Error {
     /// The recovered result is not a valid minimum-cost circulation.
     #[error("recovered circulation validation failed: {0}")]
     Network(#[from] MinCostCirculationError),
+    /// A supplied certified iteration step failed validation.
+    #[error("source-shaped iteration failed: {0}")]
+    Iteration(#[source] iteration::Error),
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Backend, Error};
+    use super::{Backend, Error, iteration};
     use crate::{
         CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
         FractionalCirculation,
@@ -151,5 +172,46 @@ mod tests {
         let recovered = Backend.recover_terminated(&snapshot, &network).unwrap();
         assert_eq!(recovered.rounding.solution.arc_flows, vec![0, 0]);
         assert_eq!(recovered.rounding.solution.cost, 0);
+    }
+
+    #[test]
+    fn records_a_supplied_certified_step_without_selecting_a_direction() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &FractionalCirculation {
+                arc_flows: vec![ExactRatio::new(1, 1).unwrap(); 2],
+                cost: ExactRatio::new(1, 1).unwrap(),
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let mut session = Backend.begin_iterations(snapshot).unwrap();
+        let outcome = session
+            .apply(
+                &network,
+                &iteration::Step {
+                    approximate_gradients: vec![
+                        ExactRatio::new(40, 1).unwrap(),
+                        ExactRatio::new(0, 1).unwrap(),
+                    ],
+                    approximate_lengths: vec![ExactRatio::new(2, 1).unwrap(); 2],
+                    kappa: ExactRatio::new(1, 2).unwrap(),
+                    direction: vec![ExactRatio::new(-1, 1).unwrap(); 2],
+                },
+            )
+            .unwrap();
+        assert_eq!(outcome.eta, ExactRatio::new(1, 8_000).unwrap());
+        assert_eq!(session.snapshot().update_metrics().iterations, 1);
+        assert!(
+            session
+                .detect(ExactRatio::new(1, 1_000).unwrap())
+                .unwrap()
+                .is_empty()
+        );
     }
 }

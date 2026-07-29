@@ -9,10 +9,18 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     "root": ROOT / "crates/graph/src/source_flow.rs",
     "recovery": ROOT / "crates/graph/src/source_flow/recovery.rs",
+    "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
 }
 REQUIRED = {
-    "root": ("pub mod recovery", "pub fn recover_terminated", "an19_runtime_verified: false"),
+    "root": (
+        "pub mod recovery",
+        "pub mod iteration",
+        "pub fn recover_terminated",
+        "pub fn begin_iterations",
+        "an19_runtime_verified: false",
+    ),
     "recovery": ("pub fn round", "validate_signed_circulation", "verify_fractional_solution"),
+    "iteration": ("pub struct Step", "pub fn apply", "IpmDetectLedger"),
 }
 FORBIDDEN = (
     "Dinic",
