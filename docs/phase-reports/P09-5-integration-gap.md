@@ -69,6 +69,13 @@ Dinic, Push--Relabel, and min-cost references. This exercises a genuine
 compressed chord graph, but it does not yet carry the selected cover through
 the full polygon rectangle-recovery workflow.
 
+Commit `40bb2f1` closes that specific fixture gap: its recovered cover is
+converted to selected chord flags and passed through formal-polygon completion
+for the source Figure 3 formal input. The resulting rectangle count equals the
+formal optimum formula. The test supplies its terminal circulation through the
+permanent min-cost implementation under `#[cfg(test)]`; it is a differential
+of recovery and completion semantics, not source-flow candidate selection.
+
 P9.5 remains open. Source candidate selection, MRD compressed-network
 differential evidence for flow, cut, cover, chords, and rectangles, and an
 end-to-end no-fallback audit are still absent.
@@ -88,7 +95,7 @@ claim.
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
 | `cargo test -p graph source_flow` | 0 | 8 focused tests passed, including augmented and lower-bound recovery |
 | `cargo test -p graph` | 0 | 164 graph tests passed, including feasibility-versus-optimality regression |
-| `cargo test -p dominance` | 0 | 37 dominance tests passed and 2 existing tests ignored; includes compressed source-flow bridge and MRD chord differentials |
+| `cargo test -p dominance` | 0 | 38 dominance tests passed and 2 existing tests ignored; includes compressed source-flow, MRD chord, and formal completion differentials |
 | `cargo clippy -p graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
 | `cargo clippy -p dominance --all-targets --all-features -- -D warnings` | 0 | no warnings |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
