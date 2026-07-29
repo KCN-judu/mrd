@@ -21,7 +21,7 @@ use rect_dominance::{
 use rect_graph::source_an19::event::campaign::{Campaign, Family};
 use rect_oracle_sg::{
     CompletionBackendKind, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
-    SparseValidatorBackend, SubdivisionBuilderBackend, polygon_cut_index,
+    SparseValidatorBackend, polygon_cut_index, polygon_sparse,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1537,7 +1537,7 @@ fn solve_command(
                         polygon_dissection_validator_kind,
                     ),
                     subdivision_builder_backend: subdivision_builder.map_or(
-                        SubdivisionBuilderBackend::OrthogonalSweep,
+                        polygon_sparse::subdivision::Backend::Experiment,
                         subdivision_builder_kind,
                     ),
                     sparse_validator_backend: sparse_validator.map_or(
@@ -1794,10 +1794,12 @@ const fn polygon_dissection_validator_kind(
     }
 }
 
-const fn subdivision_builder_kind(backend: SubdivisionBuilderArg) -> SubdivisionBuilderBackend {
+const fn subdivision_builder_kind(
+    backend: SubdivisionBuilderArg,
+) -> polygon_sparse::subdivision::Backend {
     match backend {
-        SubdivisionBuilderArg::ReferenceRangeScan => SubdivisionBuilderBackend::ReferenceRangeScan,
-        SubdivisionBuilderArg::OrthogonalSweep => SubdivisionBuilderBackend::OrthogonalSweep,
+        SubdivisionBuilderArg::ReferenceRangeScan => polygon_sparse::subdivision::Backend::Oracle,
+        SubdivisionBuilderArg::OrthogonalSweep => polygon_sparse::subdivision::Backend::Experiment,
     }
 }
 

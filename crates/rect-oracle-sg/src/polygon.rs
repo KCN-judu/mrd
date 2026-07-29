@@ -18,9 +18,8 @@ use crate::EffectiveChordFamilies;
 use crate::polygon_arrangement;
 use crate::polygon_cut_index;
 use crate::polygon_sparse::{
-    PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
+    self, PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
     SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics, SparseValidatorBackend,
-    SubdivisionBuilderBackend,
 };
 use crate::{
     ChordRef, CleanHoleFreeCertificate, CleanRejectionReason, EffectiveChordEndpointIndex,
@@ -2351,7 +2350,7 @@ impl IndexedPolygonCompletion {
             cut_index_backend,
             recovery_backend,
             validator_backend,
-            SubdivisionBuilderBackend::OrthogonalSweep,
+            polygon_sparse::subdivision::Backend::Experiment,
             SparseValidatorBackend::EventSegmentTree,
         )
     }
@@ -2375,7 +2374,7 @@ impl IndexedPolygonCompletion {
         cut_index_backend: polygon_cut_index::Backend,
         recovery_backend: PolygonRecoveryBackend,
         validator_backend: PolygonDissectionValidatorBackend,
-        subdivision_builder_backend: SubdivisionBuilderBackend,
+        subdivision_builder_backend: polygon_sparse::subdivision::Backend,
         sparse_validator_backend: SparseValidatorBackend,
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
         let started = Instant::now();

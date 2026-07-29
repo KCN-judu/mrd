@@ -246,7 +246,7 @@ def assert_implementation_defaults() -> None:
         "cut_index_backend: polygon_cut_index::Backend::Experiment",
         "recovery_backend: PolygonRecoveryBackend::SparseSubdivision",
         "dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab",
-        "subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep",
+        "subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment",
         "sparse_validator_backend: SparseValidatorBackend::EventSegmentTree",
         "arrangement_backend: PolygonArrangementBackend::Indexed",
     ):

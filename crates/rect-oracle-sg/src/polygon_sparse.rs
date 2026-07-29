@@ -15,6 +15,8 @@ use crate::polygon::{
     HorizontalCutSegment, PolygonSgError, PolygonValidationError, VerticalCutSegment,
 };
 
+pub mod subdivision;
+
 /// Final-geometry recovery implementation.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -51,27 +53,6 @@ pub enum PolygonDissectionValidatorBackend {
     /// Sparse vertical slab sweep.
     #[default]
     SparseSlab,
-}
-
-/// Selects how orthogonal subdivision intersections are reported.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum SubdivisionBuilderBackend {
-    /// Preserved v1.2 horizontal-range scan Oracle.
-    ReferenceRangeScan,
-    /// Output-sensitive closed-endpoint x sweep.
-    #[default]
-    OrthogonalSweep,
-}
-
-impl SubdivisionBuilderBackend {
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::ReferenceRangeScan => "reference-range-scan",
-            Self::OrthogonalSweep => "orthogonal-sweep",
-        }
-    }
 }
 
 /// Selects the sparse dissection validator implementation.
@@ -352,129 +333,6 @@ fn record_intersection(
     }
 }
 
-fn reference_range_scan_splits(
-    segments: &[Segment],
-) -> (
-    Vec<BTreeSet<i64>>,
-    BTreeSet<Point>,
-    SparseSubdivisionMetrics,
-) {
-    let mut split_coordinates = initial_split_coordinates(segments);
-    let mut junctions = BTreeSet::new();
-    let mut vertical_by_x = BTreeMap::<i64, Vec<usize>>::new();
-    let mut horizontal_ids = Vec::new();
-    for (id, segment) in segments.iter().copied().enumerate() {
-        if segment.horizontal() {
-            horizontal_ids.push(id);
-        } else {
-            vertical_by_x.entry(segment.line()).or_default().push(id);
-        }
-    }
-    let mut metrics = SparseSubdivisionMetrics {
-        builder_backend: SubdivisionBuilderBackend::ReferenceRangeScan
-            .name()
-            .to_owned(),
-        input_segment_count: segments.len(),
-        horizontal_segment_count: horizontal_ids.len(),
-        vertical_segment_count: segments.len() - horizontal_ids.len(),
-        ..SparseSubdivisionMetrics::default()
-    };
-    for horizontal_id in horizontal_ids {
-        let horizontal = segments[horizontal_id];
-        for (&x, vertical_ids) in vertical_by_x.range(horizontal.low()..=horizontal.high()) {
-            for &vertical_id in vertical_ids {
-                metrics.candidate_pair_tests += 1;
-                let vertical = segments[vertical_id];
-                if vertical.low() <= horizontal.line() && horizontal.line() <= vertical.high() {
-                    record_intersection(
-                        segments,
-                        &mut split_coordinates,
-                        horizontal_id,
-                        vertical_id,
-                        Point::new(x, horizontal.line()),
-                        &mut junctions,
-                        &mut metrics,
-                    );
-                }
-            }
-        }
-    }
-    metrics.materialized_split_coordinates = split_coordinates.iter().map(BTreeSet::len).sum();
-    (split_coordinates, junctions, metrics)
-}
-
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum IntersectionEventKind {
-    HorizontalStart,
-    VerticalQuery,
-    HorizontalEnd,
-}
-
-fn orthogonal_sweep_splits(
-    segments: &[Segment],
-) -> (
-    Vec<BTreeSet<i64>>,
-    BTreeSet<Point>,
-    SparseSubdivisionMetrics,
-) {
-    let mut split_coordinates = initial_split_coordinates(segments);
-    let mut junctions = BTreeSet::new();
-    let mut events = Vec::with_capacity(segments.len().saturating_mul(2));
-    let mut horizontal_count = 0;
-    for (id, segment) in segments.iter().copied().enumerate() {
-        if segment.horizontal() {
-            horizontal_count += 1;
-            events.push((segment.low(), IntersectionEventKind::HorizontalStart, id));
-            events.push((segment.high(), IntersectionEventKind::HorizontalEnd, id));
-        } else {
-            events.push((segment.line(), IntersectionEventKind::VerticalQuery, id));
-        }
-    }
-    events.sort_unstable();
-    let mut active = BTreeSet::<(i64, usize)>::new();
-    let mut metrics = SparseSubdivisionMetrics {
-        builder_backend: SubdivisionBuilderBackend::OrthogonalSweep.name().to_owned(),
-        input_segment_count: segments.len(),
-        horizontal_segment_count: horizontal_count,
-        vertical_segment_count: segments.len() - horizontal_count,
-        sweep_event_count: events.len(),
-        ..SparseSubdivisionMetrics::default()
-    };
-    for (x, kind, id) in events {
-        let segment = segments[id];
-        match kind {
-            IntersectionEventKind::HorizontalStart => {
-                active.insert((segment.line(), id));
-                metrics.active_set_insertions += 1;
-            }
-            IntersectionEventKind::VerticalQuery => {
-                metrics.range_queries += 1;
-                let intersections = active
-                    .range((segment.low(), 0)..=(segment.high(), usize::MAX))
-                    .copied()
-                    .collect::<Vec<_>>();
-                for (y, horizontal_id) in intersections {
-                    record_intersection(
-                        segments,
-                        &mut split_coordinates,
-                        horizontal_id,
-                        id,
-                        Point::new(x, y),
-                        &mut junctions,
-                        &mut metrics,
-                    );
-                }
-            }
-            IntersectionEventKind::HorizontalEnd => {
-                active.remove(&(segment.line(), id));
-                metrics.active_set_removals += 1;
-            }
-        }
-    }
-    metrics.materialized_split_coordinates = split_coordinates.iter().map(BTreeSet::len).sum();
-    (split_coordinates, junctions, metrics)
-}
-
 /// Sparse embedded orthogonal graph built from boundary and final cuts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SparseOrthogonalSubdivision {
@@ -504,7 +362,7 @@ impl SparseOrthogonalSubdivision {
             prepared,
             horizontal_cuts,
             vertical_cuts,
-            SubdivisionBuilderBackend::OrthogonalSweep,
+            subdivision::Backend::Experiment,
         )
     }
 
@@ -520,7 +378,7 @@ impl SparseOrthogonalSubdivision {
         prepared: &PreparedPolygonContext,
         horizontal_cuts: &BTreeSet<HorizontalCutSegment>,
         vertical_cuts: &BTreeSet<VerticalCutSegment>,
-        backend: SubdivisionBuilderBackend,
+        backend: subdivision::Backend,
     ) -> Result<Self, PolygonSgError> {
         let mut segments = Vec::new();
         for boundary_loop in prepared.polygon().loops() {
@@ -542,10 +400,8 @@ impl SparseOrthogonalSubdivision {
         }
         let segments = normalize_collinear_segments(segments)?;
 
-        let (split_coordinates, split_junctions, mut metrics) = match backend {
-            SubdivisionBuilderBackend::ReferenceRangeScan => reference_range_scan_splits(&segments),
-            SubdivisionBuilderBackend::OrthogonalSweep => orthogonal_sweep_splits(&segments),
-        };
+        let (split_coordinates, split_junctions, mut metrics) =
+            subdivision::split(backend, &segments);
         let mut atomic_edges = BTreeSet::new();
         for (segment, coordinates) in segments.iter().zip(&split_coordinates) {
             let coordinates = coordinates.iter().copied().collect::<Vec<_>>();
@@ -1561,7 +1417,7 @@ mod tests {
 
     use super::{
         SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
-        SubdivisionBuilderBackend,
+        subdivision::Backend,
     };
 
     #[test]
@@ -1739,14 +1595,14 @@ mod tests {
             &prepared,
             &horizontal,
             &vertical,
-            SubdivisionBuilderBackend::ReferenceRangeScan,
+            Backend::Oracle,
         )
         .unwrap();
         let sweep = SparseOrthogonalSubdivision::new_with_backend(
             &prepared,
             &horizontal,
             &vertical,
-            SubdivisionBuilderBackend::OrthogonalSweep,
+            Backend::Experiment,
         )
         .unwrap();
         assert_eq!(reference.split_junctions, sweep.split_junctions);

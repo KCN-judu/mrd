@@ -18,7 +18,9 @@ The builder retains vertices, half-edges, face cycles, junction count, and a
 structured retained/capacity/container/temporary memory estimate. Bridges are represented by twin half-edges incident to
 the same face cycle; they are not assumed to split a face.  T-junctions and
 crossing cuts are explicit vertices before the half-edge graph is formed. The
-v1.2 range scan remains the explicit reference backend; see
+`polygon_sparse::subdivision::oracle` retains the v1.2 range scan as the
+explicit reference backend, while `polygon_sparse::subdivision::experiment`
+owns the orthogonal sweep; see
 [OUTPUT_SENSITIVE_SUBDIVISION_SWEEP.md](OUTPUT_SENSITIVE_SUBDIVISION_SWEEP.md).
 
 For an interior cycle, recovery removes consecutive collinear vertices and

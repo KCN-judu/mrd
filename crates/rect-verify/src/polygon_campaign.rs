@@ -16,8 +16,8 @@ use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
     IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
     PolygonValidationError, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
-    SparseSlabValidator, SparseValidatorBackend, SubdivisionBuilderBackend, VerticalCutSegment,
-    classify_clean_polygon, polygon_arrangement, polygon_cut_index, validate_polygon_dissection,
+    SparseSlabValidator, SparseValidatorBackend, VerticalCutSegment, classify_clean_polygon,
+    polygon_arrangement, polygon_cut_index, polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1196,14 +1196,14 @@ fn compare_polygon_backends(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
-        SubdivisionBuilderBackend::ReferenceRangeScan,
+        polygon_sparse::subdivision::Backend::Oracle,
     )
     .map_err(|error| (error.to_string(), None, None, None))?;
     let sweep_subdivision = SparseOrthogonalSubdivision::new_with_backend(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
-        SubdivisionBuilderBackend::OrthogonalSweep,
+        polygon_sparse::subdivision::Backend::Experiment,
     )
     .map_err(|error| (error.to_string(), None, None, None))?;
     if reference_subdivision.split_junctions != sweep_subdivision.split_junctions
@@ -1423,7 +1423,7 @@ fn solve_geometry_variants(
 
     let mut reference_sparse_options = sweep_options();
     reference_sparse_options.subdivision_builder_backend =
-        SubdivisionBuilderBackend::ReferenceRangeScan;
+        polygon_sparse::subdivision::Backend::Oracle;
     reference_sparse_options.sparse_validator_backend = SparseValidatorBackend::ReferenceSlabRescan;
     let reference_sparse = solve_polygon_with_options(polygon, reference_sparse_options)
         .map_err(|error| format!("reference sparse geometry solve failed: {error}"))?;
@@ -1454,7 +1454,7 @@ const fn reference_options() -> PolygonSolveOptions {
         cut_index_backend: polygon_cut_index::Backend::Oracle,
         recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
         dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
-        subdivision_builder_backend: SubdivisionBuilderBackend::ReferenceRangeScan,
+        subdivision_builder_backend: polygon_sparse::subdivision::Backend::Oracle,
         sparse_validator_backend: SparseValidatorBackend::ReferenceSlabRescan,
         arrangement_backend: PolygonArrangementBackend::Reference,
         representation: ConflictRepresentationBackend::Auto,
@@ -1471,7 +1471,7 @@ const fn indexed_options() -> PolygonSolveOptions {
         cut_index_backend: polygon_cut_index::Backend::Experiment,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
-        subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
+        subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
         sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::Auto,

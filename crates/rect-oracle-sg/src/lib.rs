@@ -17,7 +17,7 @@ pub use polygon::{
 pub use polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PolygonRecoveryPolicy,
     SparseOrthogonalSubdivision, SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics,
-    SparseValidatorBackend, SubdivisionAtomicSegment, SubdivisionBuilderBackend,
+    SparseValidatorBackend, SubdivisionAtomicSegment,
 };
 
 use std::cmp::Reverse;

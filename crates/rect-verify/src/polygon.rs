@@ -16,8 +16,8 @@ use rect_oracle_sg::{
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
     PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonDissectionValidatorBackend,
     PolygonRecoveryBackend, SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision,
-    SparseSlabValidator, SparseValidatorBackend, SubdivisionBuilderBackend, SweepCertificate,
-    classify_clean_polygon, polygon_arrangement, polygon_cut_index, validate_polygon_dissection,
+    SparseSlabValidator, SparseValidatorBackend, SweepCertificate, classify_clean_polygon,
+    polygon_arrangement, polygon_cut_index, polygon_sparse, validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -210,7 +210,7 @@ pub fn verify_polygon(
         cut_index_backend: polygon_cut_index::Backend::Experiment,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
-        subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
+        subdivision_builder_backend: polygon_sparse::subdivision::Backend::Experiment,
         sparse_validator_backend: SparseValidatorBackend::EventSegmentTree,
         arrangement_backend: PolygonArrangementBackend::Indexed,
         representation: ConflictRepresentationBackend::GeneralDominance4D,
@@ -349,7 +349,7 @@ pub fn verify_polygon(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
-        SubdivisionBuilderBackend::ReferenceRangeScan,
+        polygon_sparse::subdivision::Backend::Oracle,
     )
     .map_err(|error| PolygonVerificationError::Backend {
         backend: "reference-range-scan-subdivision",
@@ -359,7 +359,7 @@ pub fn verify_polygon(
         &indexed_prepared,
         &horizontal_cuts,
         &vertical_cuts,
-        SubdivisionBuilderBackend::OrthogonalSweep,
+        polygon_sparse::subdivision::Backend::Experiment,
     )
     .map_err(|error| PolygonVerificationError::Backend {
         backend: "orthogonal-sweep-subdivision",
