@@ -4,6 +4,7 @@ use thiserror::Error;
 
 use crate::{ExactRatio, FlowNodeId};
 
+pub mod bucket;
 pub mod level;
 pub mod oracle;
 
