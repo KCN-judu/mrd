@@ -13,6 +13,7 @@ MODULES = {
     "model": ROOT / "crates/graph/src/source_min_ratio/model.rs",
     "chain": ROOT / "crates/graph/src/source_min_ratio/chain.rs",
     "cycle": ROOT / "crates/graph/src/source_min_ratio/cycle.rs",
+    "terminal": ROOT / "crates/graph/src/source_min_ratio/terminal.rs",
 }
 REQUIRED = {
     "root": ("pub mod candidate", "pub mod input", "pub mod chain", "pub mod model"),
@@ -21,6 +22,7 @@ REQUIRED = {
     "model": ("struct BranchId", "struct Tree", "struct Level"),
     "chain": ("fn validate_tree", "pub fn initial_shifts", "pub fn shift"),
     "cycle": ("struct ArcBindings", "pub fn decode", "validate_signed_circulation"),
+    "terminal": ("pub struct Tree", "pub fn build", "Lsst::construct", "FundamentalTree"),
 }
 FORBIDDEN = (
     "use crate::dynamic_min_ratio",
