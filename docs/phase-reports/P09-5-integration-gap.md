@@ -61,6 +61,14 @@ audit now includes this production module. The two current fixtures cover a
 two-by-two explicit-edge differential and a single-biclique terminal snapshot
 recovered through `source_flow::Backend`.
 
+Commit `0359194` adds a third, chord-level differential using the repository's
+MRD chord types. It derives the four-dimensional dominance embedding and its
+Theorem 8 compact partition, checks the exact partition and strict dominance,
+then requires source-circulation recovery to agree with the explicit matching,
+Dinic, Push--Relabel, and min-cost references. This exercises a genuine
+compressed chord graph, but it does not yet carry the selected cover through
+the full polygon rectangle-recovery workflow.
+
 P9.5 remains open. Source candidate selection, MRD compressed-network
 differential evidence for flow, cut, cover, chords, and rectangles, and an
 end-to-end no-fallback audit are still absent.
@@ -80,7 +88,7 @@ claim.
 | `python3 tools/check_source_flow_audit.py` | 0 | no production recovery or reference-flow fallback dependency |
 | `cargo test -p graph source_flow` | 0 | 8 focused tests passed, including augmented and lower-bound recovery |
 | `cargo test -p graph` | 0 | 164 graph tests passed, including feasibility-versus-optimality regression |
-| `cargo test -p dominance` | 0 | 36 dominance tests passed and 2 existing tests ignored; includes compressed source-flow bridge differentials |
+| `cargo test -p dominance` | 0 | 37 dominance tests passed and 2 existing tests ignored; includes compressed source-flow bridge and MRD chord differentials |
 | `cargo clippy -p graph --all-targets --all-features -- -D warnings` | 0 | no warnings |
 | `cargo clippy -p dominance --all-targets --all-features -- -D warnings` | 0 | no warnings |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
