@@ -636,3 +636,39 @@ only 2 source-label classes versus 16 materialized classes, 3 virtual-label
 classes, nonzero provenance-free projection work even though its first
 top-level target is not virtual, and per-source segment repetition beyond
 recursion depth.
+
+## Practical heap-bound closeout audit
+
+The practical fixed-snapshot queue work starts from synchronized SHA
+`ebde003f8907447dadb06d6551ccb4a95dae3db6`. Implementation commit `02c8385`
+replaces the traced reduced engine's linear minimum scan with the stable exact
+binary min-heap and introduces the comparison certificate. Commit `fbc869e`
+adds release reconstruction and conservative documentation, and `bbf13b3`
+records deterministic A--H evidence generated from the committed verifier.
+
+All 31 reduced runs carry a valid `3 I ceil(log2(max(I,1))) + 2m` certificate;
+all 31 Oracle runs carry none. The maximum observed/bound totals are 473 and
+1,112. Exact semantic agreement remains true in every case. The source target
+is not upgraded: `priority_queue_bound_proved`, `global_amortization_proved`,
+and `an19_runtime_verified` remain false, P9.3.2d-pq-proof remains blocked, and
+P9.3.3--P12 remain forbidden.
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git status --short --branch` | 0 | clean; branch ahead only by the three intended practical-heap commits before closeout |
+| `git diff --check` | 0 | clean |
+| `cargo fmt --all -- --check` | 0 | clean |
+| `python3 tools/check_biclique_bound.py` | 0 | passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no warnings |
+| `cargo test --workspace` | 0 | 256 passed, 3 existing ignored, 13 suites, 392.76 s |
+| `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps` | 0 | 7 package documentation sets generated without warnings |
+| `cargo build --workspace --release` | 0 | release workspace current |
+| `python3 tools/check_release_consistency.py` | 0 | all 31 reduced practical certificates reconstructed; all 31 Oracle certificates absent; conservative proof flags preserved |
+| bounded event CLI twice | 0 | stable JSON SHA-256 `c89db530`; Markdown SHA-256 `c4fe7d1d` |
+| paper-table generator twice | 0 | stable scope SHA-256 `539d98ed`; paper SHA-256 `031edcd4`; manifest SHA-256 `7eada86b` |
+| source diff searched for `ignore` | 0 | no ignored test changed; the same 3 release-scale campaigns remain ignored |
+| changed-file credential and local-path scan | 1 | no matches, as required |
+
+The first attempted ignored-test audit used a malformed regular expression and
+Git rejected it before scanning. The corrected source-diff query above ran
+successfully and returned no changes. No failed product check was suppressed.
