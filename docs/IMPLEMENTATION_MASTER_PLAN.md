@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: de4df98b27b0bde1ba84d30914f9c3a49bbc766c
-- Plan last updated: 2026-07-29T20:15:00Z
+- Last pushed SHA: 094a289
+- Plan last updated: 2026-07-29T20:44:53Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1059,6 +1059,20 @@ networks. The complete solver may exist before the deferred P9.3.2d proof debt
 is resolved, but it must not be named `AlmostLinear` and must report
 `an19_runtime_verified: false` until all source complexity assumptions pass.
 
+**Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
+`d28a68a` establish the P9.5 source-flow boundary, document the prohibited
+legacy recovery paths, and certify the non-Oracle additive-half termination
+boundary. Commit `094a289` adds a separate deterministic exact cycle-cancellation
+recovery implementation. It is differentially equal to the permanent recovery
+implementation on a shared-cycle fixture, but production has no dependency on
+that implementation; `tools/check_source_flow_audit.py` enforces the boundary.
+These are incremental integration evidence, not P9.5 closeout: complete
+non-Oracle iteration, lower-bound/augmentation recovery integration, MRD
+compressed-network differentials, and the no-fallback audit remain required.
+P9.3.2d proof debt is deliberately nonblocking for that work. Do not begin
+P9.6a until this complete source-shaped flow backend exists and has passed
+those audits.
+
 ### P9.6 - Phase-wide source and complexity audit
 
 **State:** planned. **Start gate:** the complete P9.5 experimental flow backend
@@ -1222,3 +1236,8 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.7 | complete | 6b3bb73 | 66d7920 | pending closeout | pending | `docs/phase-reports/P09-3-7-finite-tree-audit.md` | source trace, no-fallback static audit, adversarial immutable update history, exact weight/bound/certificate rejection evidence | 2026-07-29T19:03:00Z | 2026-07-29T19:45:43Z | finite-domain semantics only; P9.3.2d proof debt continues to prohibit AN19 complexity claims |
 | P9.4a | complete | ba3779e | 4ce313b | 58bb52b | 58bb52b | `docs/phase-reports/P09-4a-tree-chain-contract.md` | immutable multi-level source-tree chain, shifted branch selection, validation, and no-fallback static audit | 2026-07-29T20:01:28Z | 2026-07-29T20:04:45Z | finite-domain structural semantics only; no compact cycle, query, link-cut, or runtime claim |
 | P9.4b | complete | 58bb52b | 70a80f5 | pending closeout | pending | `docs/phase-reports/P09-4b-compact-cycle-decoding.md` | direct source-tree compact-cycle decoding and exact circulation certificate | 2026-07-29T20:04:45Z | 2026-07-29T20:12:57Z | finite semantics only; no query, update, approximation, or runtime claim |
+| P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
+| P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
+| P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289 | pending | 094a289 | `docs/phase-reports/P09-5-integration-gap.md` | source-flow no-fallback boundary, additive-half certificate, and independent exact terminal recovery | 2026-07-29T20:25:33Z | pending | complete non-Oracle iteration, lower-bound/augmentation recovery integration, compressed-network differential, and no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
