@@ -4,10 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.4a
+- Current phase: P9.3.4b
 - Current phase state: complete
-- Last completed phase: P9.3.4a
-- Last pushed SHA: 91a3e3cfbe54b132c86f4fa351394fc2141cc527
+- Last completed phase: P9.3.4b
+- Last pushed SHA: a71dceef117ae37decca82b7ea4cbe098af9b092
 - Plan last updated: 2026-07-29T17:01:06Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -830,10 +830,14 @@ P9.3 is split into the following source-gated subphases:
      bounded enumerating simple-path Oracle remains isolated. Evidence is in
      `docs/phase-reports/P09-3-4a-static-embedding-contract.md`; no expander,
      sparsity, or Theorem 8.1 bound is claimed.
-   - **P9.3.4b state: planned. Start gate: P9.3.4a audit passed.** Implement
-     and certify Theorem 8.4's deterministic bounded-degree witness expander,
-     including its checked expansion witness or an explicit source-domain
-     rejection where the constructive bound cannot be certified.
+   - **P9.3.4b state: complete. Implementation SHAs: `77878a8`, `cc54c10`.**
+     `source_spanner::experiment::complete` constructs a deterministic
+     complete-graph witness for the explicitly certified at-most-20-node domain
+     when every exact weight satisfies `w <= n-1 <= 18w`. Every nontrivial cut
+     is enumerated and recomputed by the certificate verifier; all other inputs
+     reject explicitly. Evidence is in
+     `docs/phase-reports/P09-3-4b-witness-expander.md`. This is not the general
+     CGLNPS20 construction and carries no source runtime claim.
    - **P9.3.4c state: planned. Start gate: P9.3.4b audit passed.** Implement
      Theorem 8.5's deterministic edge-disjoint expander decomposition with
      level, component, degree-floor, and partition certificates.
@@ -1017,3 +1021,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.4 | in_progress | 41be08c | pending | pending | 41be08c | pending | deterministic static spanner-with-embedding primitive | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4a | in_progress | 41be08c | pending | pending | 41be08c | pending | exact static embedding-composition contracts and bounded simple-path Oracle | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4a | complete | 91a3e3c | e0b7bc1 | pending closeout | pending | `docs/phase-reports/P09-3-4a-static-embedding-contract.md` | exact graph/subgraph/direct-and-composed embedding audits and isolated bounded simple-path Oracle | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | Theorem 8.4 witness expander, Theorem 8.5 decomposition, Theorem 8.6 paths, and Algorithm 4 remain |
+| P9.3.4b | in_progress | a71dcee | pending | pending | a71dcee | pending | deterministic bounded-degree witness expander and expansion certificate | 2026-07-29T17:01:06Z | pending | none |
+| P9.3.4b | complete | a71dcee | 77878a8, cc54c10 | pending closeout | pending | `docs/phase-reports/P09-3-4b-witness-expander.md` | finite-domain complete witness, exact degree sandwich, exhaustive cut-expansion certificate, explicit domain rejection, and full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | general CGLNPS20 construction intentionally not claimed; Theorem 8.5-8.6 and Algorithm 4 remain |
