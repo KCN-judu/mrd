@@ -2,9 +2,11 @@
 
 ## Purpose
 
-`DynamicPolygonCutIndex` remains the line-map reference implementation.
-`DynamicStabbingCutIndex` is the CompactOnly production index for the
-boundary-native ordinary-polygon completion policy.
+`polygon_cut_index::oracle::Index` is the line-map reference implementation.
+`polygon_cut_index::experiment::Index` is the CompactOnly production index for
+the boundary-native ordinary-polygon completion policy. The neutral
+`polygon_cut_index::Backend` selects between them without owning either
+algorithm.
 
 ## Finite universe
 

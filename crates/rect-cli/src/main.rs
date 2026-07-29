@@ -20,8 +20,8 @@ use rect_dominance::{
 };
 use rect_graph::source_an19::event::campaign::{Campaign, Family};
 use rect_oracle_sg::{
-    CompletionBackendKind, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
-    PolygonRecoveryBackend, SparseValidatorBackend, SubdivisionBuilderBackend,
+    CompletionBackendKind, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
+    SparseValidatorBackend, SubdivisionBuilderBackend, polygon_cut_index,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -1515,7 +1515,7 @@ fn solve_command(
                         polygon_completion_kind,
                     ),
                     cut_index_backend: polygon_cut_index.map_or(
-                        PolygonCutIndexBackend::DynamicStabbing,
+                        polygon_cut_index::Backend::Experiment,
                         polygon_cut_index_kind,
                     ),
                     recovery_backend: polygon_recovery.map_or_else(
@@ -1768,10 +1768,10 @@ const fn polygon_arrangement_kind(backend: PolygonArrangementArg) -> PolygonArra
     }
 }
 
-const fn polygon_cut_index_kind(backend: PolygonCutIndexArg) -> PolygonCutIndexBackend {
+const fn polygon_cut_index_kind(backend: PolygonCutIndexArg) -> polygon_cut_index::Backend {
     match backend {
-        PolygonCutIndexArg::LineMapReference => PolygonCutIndexBackend::ReferenceLineMaps,
-        PolygonCutIndexArg::DynamicStabbing => PolygonCutIndexBackend::DynamicStabbing,
+        PolygonCutIndexArg::LineMapReference => polygon_cut_index::Backend::Oracle,
+        PolygonCutIndexArg::DynamicStabbing => polygon_cut_index::Backend::Experiment,
     }
 }
 

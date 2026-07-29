@@ -44,7 +44,7 @@ cuts, and canonical rectangles.
 
 ## v1.2 sparse production path
 
-The CompactOnly default is now `DynamicStabbingCutIndex` plus
+The CompactOnly default is now `polygon_cut_index::experiment::Index` plus
 `SparseOrthogonalSubdivision` plus `SparseSlabValidator`.  It preserves the
 policy above but does not build a coordinate Cartesian product.  The line-map
 cut index and `PreparedCoordinateArrangement` are permanent dense/reference

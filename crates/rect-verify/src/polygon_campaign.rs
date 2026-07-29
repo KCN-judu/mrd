@@ -14,10 +14,10 @@ use rect_dominance::{
 };
 use rect_oracle_sg::{
     EffectiveChordEndpointIndex, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
-    IndexedPolygonPairwiseEnumerator, PolygonCutIndexBackend, PolygonDissectionValidatorBackend,
-    PolygonRecoveryBackend, PolygonValidationError, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision, SparseSlabValidator,
-    SparseValidatorBackend, SubdivisionBuilderBackend, VerticalCutSegment, classify_clean_polygon,
+    IndexedPolygonPairwiseEnumerator, PolygonDissectionValidatorBackend, PolygonRecoveryBackend,
+    PolygonValidationError, PreparedCoordinateArrangement, SoltanGorpinevichSweepEnumerator,
+    SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
+    SubdivisionBuilderBackend, VerticalCutSegment, classify_clean_polygon, polygon_cut_index,
     validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
@@ -1452,7 +1452,7 @@ const fn reference_options() -> PolygonSolveOptions {
         validation_backend: polygon::Backend::Oracle,
         chord_backend: PolygonChordBackend::ReferencePairwise,
         completion_backend: PolygonCompletionBackend::CoordinateReference,
-        cut_index_backend: PolygonCutIndexBackend::ReferenceLineMaps,
+        cut_index_backend: polygon_cut_index::Backend::Oracle,
         recovery_backend: PolygonRecoveryBackend::DenseCoordinateArrangement,
         dissection_validator_backend: PolygonDissectionValidatorBackend::DenseArrangement,
         subdivision_builder_backend: SubdivisionBuilderBackend::ReferenceRangeScan,
@@ -1469,7 +1469,7 @@ const fn indexed_options() -> PolygonSolveOptions {
         validation_backend: polygon::Backend::Experiment,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
-        cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
+        cut_index_backend: polygon_cut_index::Backend::Experiment,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,

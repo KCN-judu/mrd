@@ -243,7 +243,7 @@ def assert_implementation_defaults() -> None:
         "validation_backend: polygon::Backend::Experiment",
         "chord_backend: PolygonChordBackend::SoltanGorpinevichSweep",
         "completion_backend: PolygonCompletionBackend::IndexedFrontier",
-        "cut_index_backend: PolygonCutIndexBackend::DynamicStabbing",
+        "cut_index_backend: polygon_cut_index::Backend::Experiment",
         "recovery_backend: PolygonRecoveryBackend::SparseSubdivision",
         "dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab",
         "subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep",

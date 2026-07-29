@@ -6,20 +6,18 @@ pub mod polygon_cut_index;
 pub mod polygon_sparse;
 
 pub use polygon::{
-    CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
-    HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonChordEnumerationMetrics, PolygonChordEnumerationResult, PolygonCompletionMetrics,
-    PolygonCompletionResult, PolygonSgError, PolygonValidationError,
-    ReferencePolygonPairwiseEnumerator, SoltanGorpinevichSweepEnumerator, SweepAxis,
-    SweepCertificate, SweepEventSummary, SweepOutputRecord, VerticalCutSegment,
-    audit_sweep_provenance, classify_clean_polygon, validate_polygon_dissection,
-    validate_polygon_dissection_count,
+    CoordinateCompressedCompletion, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
+    IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator, PolygonChordEnumerationMetrics,
+    PolygonChordEnumerationResult, PolygonCompletionMetrics, PolygonCompletionResult,
+    PolygonSgError, PolygonValidationError, ReferencePolygonPairwiseEnumerator,
+    SoltanGorpinevichSweepEnumerator, SweepAxis, SweepCertificate, SweepEventSummary,
+    SweepOutputRecord, VerticalCutSegment, audit_sweep_provenance, classify_clean_polygon,
+    validate_polygon_dissection, validate_polygon_dissection_count,
 };
 pub use polygon_arrangement::{
     ArrangementMetrics, IndexedArrangementValidator, PreparedCoordinateArrangement,
     ReferenceArrangementValidator,
 };
-pub use polygon_cut_index::{CutIndexMetrics, DynamicStabbingCutIndex, PolygonCutIndexBackend};
 pub use polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PolygonRecoveryPolicy,
     SparseOrthogonalSubdivision, SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics,

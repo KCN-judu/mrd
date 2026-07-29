@@ -14,10 +14,10 @@ use rect_dominance::{
 use rect_oracle_sg::{
     CleanHoleFreeCertificate, CoordinateCompressedCompletion, EffectiveChordEndpointIndex,
     GeneralPolygonPairwiseEnumerator, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
-    PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonCutIndexBackend,
-    PolygonDissectionValidatorBackend, PolygonRecoveryBackend, PreparedCoordinateArrangement,
-    SoltanGorpinevichSweepEnumerator, SparseOrthogonalSubdivision, SparseSlabValidator,
-    SparseValidatorBackend, SubdivisionBuilderBackend, SweepCertificate, classify_clean_polygon,
+    PolygonChordEnumerationMetrics, PolygonCompletionResult, PolygonDissectionValidatorBackend,
+    PolygonRecoveryBackend, PreparedCoordinateArrangement, SoltanGorpinevichSweepEnumerator,
+    SparseOrthogonalSubdivision, SparseSlabValidator, SparseValidatorBackend,
+    SubdivisionBuilderBackend, SweepCertificate, classify_clean_polygon, polygon_cut_index,
     validate_polygon_dissection,
 };
 use serde::{Deserialize, Serialize};
@@ -208,7 +208,7 @@ pub fn verify_polygon(
         validation_backend: polygon::Backend::Experiment,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
-        cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
+        cut_index_backend: polygon_cut_index::Backend::Experiment,
         recovery_backend: PolygonRecoveryBackend::SparseSubdivision,
         dissection_validator_backend: PolygonDissectionValidatorBackend::SparseSlab,
         subdivision_builder_backend: SubdivisionBuilderBackend::OrthogonalSweep,
@@ -290,7 +290,7 @@ pub fn verify_polygon(
             &indexed_families.vertical,
             &selected_horizontal,
             &selected_vertical,
-            PolygonCutIndexBackend::ReferenceLineMaps,
+            polygon_cut_index::Backend::Oracle,
             PolygonRecoveryBackend::DenseCoordinateArrangement,
             PolygonDissectionValidatorBackend::DenseArrangement,
         )
@@ -305,7 +305,7 @@ pub fn verify_polygon(
             &indexed_families.vertical,
             &selected_horizontal,
             &selected_vertical,
-            PolygonCutIndexBackend::DynamicStabbing,
+            polygon_cut_index::Backend::Experiment,
             PolygonRecoveryBackend::DenseCoordinateArrangement,
             PolygonDissectionValidatorBackend::DenseArrangement,
         )
@@ -320,7 +320,7 @@ pub fn verify_polygon(
             &indexed_families.vertical,
             &selected_horizontal,
             &selected_vertical,
-            PolygonCutIndexBackend::DynamicStabbing,
+            polygon_cut_index::Backend::Experiment,
             PolygonRecoveryBackend::SparseSubdivision,
             PolygonDissectionValidatorBackend::SparseSlab,
         )

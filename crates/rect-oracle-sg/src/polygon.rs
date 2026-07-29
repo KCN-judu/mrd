@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::EffectiveChordFamilies;
 use crate::polygon_arrangement::PreparedCoordinateArrangement;
-use crate::polygon_cut_index::{CompletionCutIndex, CutIndexMetrics, PolygonCutIndexBackend};
+use crate::polygon_cut_index;
 use crate::polygon_sparse::{
     PolygonDissectionValidatorBackend, PolygonRecoveryBackend, SparseOrthogonalSubdivision,
     SparseSlabMetrics, SparseSlabValidator, SparseSubdivisionMetrics, SparseValidatorBackend,
@@ -211,7 +211,7 @@ pub struct PolygonCompletionMetrics {
     pub arrangement_span_writes: usize,
     pub polygon_validator_rectangle_cell_tests: usize,
     pub arrangement_owned_bytes: usize,
-    pub cut_index: CutIndexMetrics,
+    pub cut_index: polygon_cut_index::Metrics,
     pub sparse_subdivision_vertices: usize,
     pub sparse_subdivision_half_edges: usize,
     pub sparse_subdivision_faces: usize,
@@ -234,208 +234,6 @@ pub struct PolygonCompletionResult {
     pub added_horizontal_cuts: Vec<HorizontalCutSegment>,
     pub added_vertical_cuts: Vec<VerticalCutSegment>,
     pub metrics: PolygonCompletionMetrics,
-}
-
-/// Authoritative dynamic exact index for polygon completion cuts.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct DynamicPolygonCutIndex {
-    horizontal_by_y: BTreeMap<i64, BTreeSet<(i64, i64)>>,
-    vertical_by_x: BTreeMap<i64, BTreeSet<(i64, i64)>>,
-}
-
-impl DynamicPolygonCutIndex {
-    #[must_use]
-    pub fn contains_horizontal_ray(&self, point: Point, east: bool) -> bool {
-        self.horizontal_by_y.get(&point.y).is_some_and(|segments| {
-            segments.iter().any(|&(left, right)| {
-                if east {
-                    left <= point.x && point.x < right
-                } else {
-                    left < point.x && point.x <= right
-                }
-            })
-        })
-    }
-
-    #[must_use]
-    pub fn contains_vertical_ray(&self, point: Point, north: bool) -> bool {
-        self.vertical_by_x.get(&point.x).is_some_and(|segments| {
-            segments.iter().any(|&(bottom, top)| {
-                if north {
-                    bottom <= point.y && point.y < top
-                } else {
-                    bottom < point.y && point.y <= top
-                }
-            })
-        })
-    }
-
-    pub fn insert_horizontal_with_intersections(
-        &mut self,
-        segment: HorizontalCutSegment,
-    ) -> (bool, Vec<Point>) {
-        let intersections = self
-            .vertical_by_x
-            .range(segment.left..=segment.right)
-            .filter_map(|(&x, intervals)| {
-                intervals
-                    .iter()
-                    .any(|&(bottom, top)| bottom <= segment.y && segment.y <= top)
-                    .then_some(Point::new(x, segment.y))
-            })
-            .collect::<Vec<_>>();
-        let inserted = self
-            .horizontal_by_y
-            .entry(segment.y)
-            .or_default()
-            .insert((segment.left, segment.right));
-        (inserted, intersections)
-    }
-
-    pub fn insert_vertical_with_intersections(
-        &mut self,
-        segment: VerticalCutSegment,
-    ) -> (bool, Vec<Point>) {
-        let intersections = self
-            .horizontal_by_y
-            .range(segment.bottom..=segment.top)
-            .filter_map(|(&y, intervals)| {
-                intervals
-                    .iter()
-                    .any(|&(left, right)| left <= segment.x && segment.x <= right)
-                    .then_some(Point::new(segment.x, y))
-            })
-            .collect::<Vec<_>>();
-        let inserted = self
-            .vertical_by_x
-            .entry(segment.x)
-            .or_default()
-            .insert((segment.bottom, segment.top));
-        (inserted, intersections)
-    }
-
-    #[must_use]
-    pub fn horizontal_segments(&self) -> Vec<HorizontalCutSegment> {
-        self.horizontal_by_y
-            .iter()
-            .flat_map(|(&y, intervals)| {
-                intervals
-                    .iter()
-                    .map(move |&(left, right)| HorizontalCutSegment { left, right, y })
-            })
-            .collect()
-    }
-
-    #[must_use]
-    pub fn vertical_segments(&self) -> Vec<VerticalCutSegment> {
-        self.vertical_by_x
-            .iter()
-            .flat_map(|(&x, intervals)| {
-                intervals
-                    .iter()
-                    .map(move |&(bottom, top)| VerticalCutSegment { x, bottom, top })
-            })
-            .collect()
-    }
-
-    pub(crate) fn nearest_blocker(
-        &self,
-        point: Point,
-        direction: PolygonDirection,
-    ) -> Option<Point> {
-        match direction {
-            PolygonDirection::East => {
-                let perpendicular = self
-                    .vertical_by_x
-                    .range((Excluded(point.x), Unbounded))
-                    .find_map(|(&x, intervals)| {
-                        intervals
-                            .iter()
-                            .any(|&(bottom, top)| bottom <= point.y && point.y <= top)
-                            .then_some(x)
-                    });
-                let collinear = self.horizontal_by_y.get(&point.y).and_then(|segments| {
-                    segments
-                        .iter()
-                        .filter_map(|&(left, _)| (left > point.x).then_some(left))
-                        .min()
-                });
-                perpendicular
-                    .into_iter()
-                    .chain(collinear)
-                    .min()
-                    .map(|x| Point::new(x, point.y))
-            }
-            PolygonDirection::West => {
-                let perpendicular = self
-                    .vertical_by_x
-                    .range((Unbounded, Excluded(point.x)))
-                    .rev()
-                    .find_map(|(&x, intervals)| {
-                        intervals
-                            .iter()
-                            .any(|&(bottom, top)| bottom <= point.y && point.y <= top)
-                            .then_some(x)
-                    });
-                let collinear = self.horizontal_by_y.get(&point.y).and_then(|segments| {
-                    segments
-                        .iter()
-                        .filter_map(|&(_, right)| (right < point.x).then_some(right))
-                        .max()
-                });
-                perpendicular
-                    .into_iter()
-                    .chain(collinear)
-                    .max()
-                    .map(|x| Point::new(x, point.y))
-            }
-            PolygonDirection::North => {
-                let perpendicular = self
-                    .horizontal_by_y
-                    .range((Excluded(point.y), Unbounded))
-                    .find_map(|(&y, intervals)| {
-                        intervals
-                            .iter()
-                            .any(|&(left, right)| left <= point.x && point.x <= right)
-                            .then_some(y)
-                    });
-                let collinear = self.vertical_by_x.get(&point.x).and_then(|segments| {
-                    segments
-                        .iter()
-                        .filter_map(|&(bottom, _)| (bottom > point.y).then_some(bottom))
-                        .min()
-                });
-                perpendicular
-                    .into_iter()
-                    .chain(collinear)
-                    .min()
-                    .map(|y| Point::new(point.x, y))
-            }
-            PolygonDirection::South => {
-                let perpendicular = self
-                    .horizontal_by_y
-                    .range((Unbounded, Excluded(point.y)))
-                    .rev()
-                    .find_map(|(&y, intervals)| {
-                        intervals
-                            .iter()
-                            .any(|&(left, right)| left <= point.x && point.x <= right)
-                            .then_some(y)
-                    });
-                let collinear = self.vertical_by_x.get(&point.x).and_then(|segments| {
-                    segments
-                        .iter()
-                        .filter_map(|&(_, top)| (top < point.y).then_some(top))
-                        .max()
-                });
-                perpendicular
-                    .into_iter()
-                    .chain(collinear)
-                    .max()
-                    .map(|y| Point::new(point.x, y))
-            }
-        }
-    }
 }
 
 /// Incremental indexed polygon completion backend.
@@ -2106,7 +1904,7 @@ struct PolygonFrontierCandidate {
 
 struct IndexedPolygonCompletionState<'a> {
     prepared: &'a PreparedPolygonContext,
-    cuts: CompletionCutIndex,
+    cuts: polygon_cut_index::Index,
     coordinate_universe: BTreeSet<i64>,
     candidates: BTreeSet<Point>,
     generations: BTreeMap<Point, u64>,
@@ -2118,14 +1916,14 @@ impl<'a> IndexedPolygonCompletionState<'a> {
         prepared: &'a PreparedPolygonContext,
         selected_horizontal: &[HorizontalCutSegment],
         selected_vertical: &[VerticalCutSegment],
-        cut_index_backend: PolygonCutIndexBackend,
+        cut_index_backend: polygon_cut_index::Backend,
         metrics: &mut PolygonCompletionMetrics,
     ) -> Result<Self, PolygonSgError> {
         let coordinate_universe =
             completion_coordinate_universe(prepared, selected_horizontal, selected_vertical);
         let mut state = Self {
             prepared,
-            cuts: CompletionCutIndex::new(cut_index_backend, coordinate_universe.clone())?,
+            cuts: polygon_cut_index::Index::new(cut_index_backend, coordinate_universe.clone())?,
             coordinate_universe,
             candidates: BTreeSet::new(),
             generations: BTreeMap::new(),
@@ -2488,7 +2286,7 @@ impl IndexedPolygonCompletion {
             vertical_chords,
             selected_horizontal,
             selected_vertical,
-            PolygonCutIndexBackend::DynamicStabbing,
+            polygon_cut_index::Backend::Experiment,
             PolygonRecoveryBackend::SparseSubdivision,
             PolygonDissectionValidatorBackend::SparseSlab,
         )
@@ -2511,7 +2309,7 @@ impl IndexedPolygonCompletion {
         vertical_chords: &[VerticalChord],
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
-        cut_index_backend: PolygonCutIndexBackend,
+        cut_index_backend: polygon_cut_index::Backend,
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
         self.complete_prepared_with_backends(
             prepared,
@@ -2540,7 +2338,7 @@ impl IndexedPolygonCompletion {
         vertical_chords: &[VerticalChord],
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
-        cut_index_backend: PolygonCutIndexBackend,
+        cut_index_backend: polygon_cut_index::Backend,
         recovery_backend: PolygonRecoveryBackend,
         validator_backend: PolygonDissectionValidatorBackend,
     ) -> Result<PolygonCompletionResult, PolygonSgError> {
@@ -2574,7 +2372,7 @@ impl IndexedPolygonCompletion {
         vertical_chords: &[VerticalChord],
         selected_horizontal: &[bool],
         selected_vertical: &[bool],
-        cut_index_backend: PolygonCutIndexBackend,
+        cut_index_backend: polygon_cut_index::Backend,
         recovery_backend: PolygonRecoveryBackend,
         validator_backend: PolygonDissectionValidatorBackend,
         subdivision_builder_backend: SubdivisionBuilderBackend,
@@ -3523,8 +3321,8 @@ mod tests {
     use crate::{EffectiveChordEnumerator, GridInteriorRunEnumerator};
 
     use super::{
-        CoordinateCompressedCompletion, DynamicPolygonCutIndex, GeneralPolygonPairwiseEnumerator,
-        HorizontalCutSegment, IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
+        CoordinateCompressedCompletion, GeneralPolygonPairwiseEnumerator, HorizontalCutSegment,
+        IndexedPolygonCompletion, IndexedPolygonPairwiseEnumerator,
         SoltanGorpinevichSweepEnumerator, SweepAxis, VerticalCutSegment,
         endpoint_has_collinear_edge, horizontal_satisfies_definition_7, sweep_interior_direction,
     };
@@ -4171,7 +3969,7 @@ mod tests {
     fn dynamic_cut_index_reports_new_intersections() {
         let horizontal = HorizontalCutSegment::new(1, 9, 5).unwrap();
         let vertical = VerticalCutSegment::new(5, 1, 9).unwrap();
-        let mut index = DynamicPolygonCutIndex::default();
+        let mut index = crate::polygon_cut_index::oracle::Index::default();
         assert!(index.insert_horizontal_with_intersections(horizontal).0);
         let (inserted, intersections) = index.insert_vertical_with_intersections(vertical);
         assert!(inserted);

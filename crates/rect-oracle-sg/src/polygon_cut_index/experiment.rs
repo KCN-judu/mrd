@@ -1,174 +1,11 @@
-//! Dynamic exact cut indexes for the polygon completion frontier.
-//!
-//! `DynamicPolygonCutIndex` in `polygon.rs` is retained as the deliberately
-//! simple line-map oracle.  The production index here uses the finite
-//! completion-coordinate universe proved in
-//! `docs/POLYGON_COMPLETION_COORDINATE_CLOSURE.md`.
+//! Coordinate-compressed cut index used by the experimental completion path.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound::{Excluded, Included, Unbounded};
 
+use super::Metrics;
+use crate::polygon::{HorizontalCutSegment, PolygonDirection, PolygonSgError, VerticalCutSegment};
 use rect_core::{MemoryEstimate, Point};
-use serde::{Deserialize, Serialize};
-
-use crate::polygon::{
-    DynamicPolygonCutIndex, HorizontalCutSegment, PolygonDirection, PolygonSgError,
-    VerticalCutSegment,
-};
-
-/// Selects the mutable cut index used by indexed polygon completion.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum PolygonCutIndexBackend {
-    /// Preserved map-of-lines implementation.  This is a correctness oracle.
-    ReferenceLineMaps,
-    /// Coordinate-compressed interval stabbing index with no line scans.
-    #[default]
-    DynamicStabbing,
-}
-
-impl PolygonCutIndexBackend {
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::ReferenceLineMaps => "line-map-reference",
-            Self::DynamicStabbing => "dynamic-stabbing",
-        }
-    }
-}
-
-/// Work performed by a mutable cut index.
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CutIndexMetrics {
-    pub insertions: usize,
-    pub canonical_node_insertions: usize,
-    pub stabbing_queries: usize,
-    pub tree_node_visits: usize,
-    pub ordered_set_queries: usize,
-    pub reported_intersections: usize,
-    pub coordinate_line_scans: usize,
-    pub interval_scans: usize,
-    pub logical_tree_node_count: usize,
-    pub materialized_tree_node_count: usize,
-    pub ordered_set_entry_count: usize,
-    pub owned_bytes: usize,
-    pub memory_estimate: MemoryEstimate,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum CompletionCutIndex {
-    Reference {
-        index: DynamicPolygonCutIndex,
-        metrics: CutIndexMetrics,
-    },
-    Dynamic(Box<DynamicStabbingCutIndex>),
-}
-
-impl CompletionCutIndex {
-    pub(crate) fn new(
-        backend: PolygonCutIndexBackend,
-        coordinates: BTreeSet<i64>,
-    ) -> Result<Self, PolygonSgError> {
-        match backend {
-            PolygonCutIndexBackend::ReferenceLineMaps => Ok(Self::Reference {
-                index: DynamicPolygonCutIndex::default(),
-                metrics: CutIndexMetrics::default(),
-            }),
-            PolygonCutIndexBackend::DynamicStabbing => Ok(Self::Dynamic(Box::new(
-                DynamicStabbingCutIndex::new(coordinates)?,
-            ))),
-        }
-    }
-
-    pub(crate) fn contains_horizontal_ray(&mut self, point: Point, east: bool) -> bool {
-        match self {
-            Self::Reference { index, metrics } => {
-                metrics.ordered_set_queries += 1;
-                index.contains_horizontal_ray(point, east)
-            }
-            Self::Dynamic(index) => index.contains_horizontal_ray(point, east),
-        }
-    }
-
-    pub(crate) fn contains_vertical_ray(&mut self, point: Point, north: bool) -> bool {
-        match self {
-            Self::Reference { index, metrics } => {
-                metrics.ordered_set_queries += 1;
-                index.contains_vertical_ray(point, north)
-            }
-            Self::Dynamic(index) => index.contains_vertical_ray(point, north),
-        }
-    }
-
-    pub(crate) fn insert_horizontal_with_intersections(
-        &mut self,
-        segment: HorizontalCutSegment,
-    ) -> Result<(bool, Vec<Point>), PolygonSgError> {
-        match self {
-            Self::Reference { index, metrics } => {
-                metrics.insertions += 1;
-                // The reference deliberately scans every opposite coordinate
-                // line in range; retain that fact in its diagnostics.
-                metrics.coordinate_line_scans += 1;
-                Ok(index.insert_horizontal_with_intersections(segment))
-            }
-            Self::Dynamic(index) => index.insert_horizontal_with_intersections(segment),
-        }
-    }
-
-    pub(crate) fn insert_vertical_with_intersections(
-        &mut self,
-        segment: VerticalCutSegment,
-    ) -> Result<(bool, Vec<Point>), PolygonSgError> {
-        match self {
-            Self::Reference { index, metrics } => {
-                metrics.insertions += 1;
-                metrics.coordinate_line_scans += 1;
-                Ok(index.insert_vertical_with_intersections(segment))
-            }
-            Self::Dynamic(index) => index.insert_vertical_with_intersections(segment),
-        }
-    }
-
-    pub(crate) fn nearest_blocker(
-        &mut self,
-        point: Point,
-        direction: PolygonDirection,
-    ) -> Option<Point> {
-        match self {
-            Self::Reference { index, metrics } => {
-                metrics.stabbing_queries += 1;
-                metrics.coordinate_line_scans += 1;
-                index.nearest_blocker(point, direction)
-            }
-            Self::Dynamic(index) => index.nearest_blocker(point, direction),
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn horizontal_segments(&self) -> Vec<HorizontalCutSegment> {
-        match self {
-            Self::Reference { index, .. } => index.horizontal_segments(),
-            Self::Dynamic(index) => index.horizontal_segments(),
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn vertical_segments(&self) -> Vec<VerticalCutSegment> {
-        match self {
-            Self::Reference { index, .. } => index.vertical_segments(),
-            Self::Dynamic(index) => index.vertical_segments(),
-        }
-    }
-
-    #[must_use]
-    pub(crate) fn metrics(&self) -> CutIndexMetrics {
-        match self {
-            Self::Reference { metrics, .. } => metrics.clone(),
-            Self::Dynamic(index) => index.metrics(),
-        }
-    }
-}
 
 /// Per-coordinate canonical intervals.  Updates touch only neighboring
 /// intervals, and point/ray lookups use predecessor/successor operations.
@@ -306,7 +143,7 @@ impl DynamicAxisStabbingIndex {
         high: i64,
         key: i64,
         id: usize,
-        metrics: &mut CutIndexMetrics,
+        metrics: &mut Metrics,
     ) -> Result<(), PolygonSgError> {
         let low = self.coordinate_index(low)?;
         let high = self.coordinate_index(high)?;
@@ -333,7 +170,7 @@ impl DynamicAxisStabbingIndex {
         high: usize,
         key: i64,
         id: usize,
-        metrics: &mut CutIndexMetrics,
+        metrics: &mut Metrics,
     ) {
         if low <= start && end <= high {
             self.nodes.entry(node).or_default().insert((key, id));
@@ -349,7 +186,7 @@ impl DynamicAxisStabbingIndex {
         }
     }
 
-    fn path_nodes(&self, coordinate: i64, metrics: &mut CutIndexMetrics) -> Option<Vec<usize>> {
+    fn path_nodes(&self, coordinate: i64, metrics: &mut Metrics) -> Option<Vec<usize>> {
         let mut node = 1;
         let mut start = 0;
         let mut end = self.coordinates.len().checked_sub(1)?;
@@ -377,7 +214,7 @@ impl DynamicAxisStabbingIndex {
         coordinate: i64,
         key: i64,
         increasing: bool,
-        metrics: &mut CutIndexMetrics,
+        metrics: &mut Metrics,
     ) -> Option<i64> {
         metrics.stabbing_queries += 1;
         self.path_nodes(coordinate, metrics)?
@@ -400,13 +237,7 @@ impl DynamicAxisStabbingIndex {
             .reduce(if increasing { i64::min } else { i64::max })
     }
 
-    fn report(
-        &self,
-        coordinate: i64,
-        low: i64,
-        high: i64,
-        metrics: &mut CutIndexMetrics,
-    ) -> Vec<usize> {
+    fn report(&self, coordinate: i64, low: i64, high: i64, metrics: &mut Metrics) -> Vec<usize> {
         let Some(path) = self.path_nodes(coordinate, metrics) else {
             return Vec::new();
         };
@@ -457,7 +288,7 @@ impl DynamicAxisStabbingIndex {
 /// Exact dynamic orthogonal index.  Segments are inserted only; the
 /// completion policy never deletes cuts.
 #[derive(Clone, Debug)]
-pub struct DynamicStabbingCutIndex {
+pub struct Index {
     horizontal: CollinearIntervalIndex,
     vertical: CollinearIntervalIndex,
     vertical_stabbing: DynamicAxisStabbingIndex,
@@ -467,10 +298,10 @@ pub struct DynamicStabbingCutIndex {
     seen_horizontal: BTreeSet<HorizontalCutSegment>,
     seen_vertical: BTreeSet<VerticalCutSegment>,
     universe: BTreeSet<i64>,
-    metrics: CutIndexMetrics,
+    metrics: Metrics,
 }
 
-impl DynamicStabbingCutIndex {
+impl Index {
     /// Builds an index over the statically closed completion-coordinate set.
     ///
     /// # Errors
@@ -491,7 +322,7 @@ impl DynamicStabbingCutIndex {
             seen_horizontal: BTreeSet::new(),
             seen_vertical: BTreeSet::new(),
             universe,
-            metrics: CutIndexMetrics::default(),
+            metrics: Metrics::default(),
         })
     }
 
@@ -508,17 +339,17 @@ impl DynamicStabbingCutIndex {
         self.ensure_coordinate(point.y)
     }
 
-    fn contains_horizontal_ray(&mut self, point: Point, east: bool) -> bool {
+    pub(super) fn contains_horizontal_ray(&mut self, point: Point, east: bool) -> bool {
         self.metrics.ordered_set_queries += 1;
         self.horizontal.contains_ray(point.y, point.x, east)
     }
 
-    fn contains_vertical_ray(&mut self, point: Point, north: bool) -> bool {
+    pub(super) fn contains_vertical_ray(&mut self, point: Point, north: bool) -> bool {
         self.metrics.ordered_set_queries += 1;
         self.vertical.contains_ray(point.x, point.y, north)
     }
 
-    fn insert_horizontal_with_intersections(
+    pub(super) fn insert_horizontal_with_intersections(
         &mut self,
         segment: HorizontalCutSegment,
     ) -> Result<(bool, Vec<Point>), PolygonSgError> {
@@ -555,7 +386,7 @@ impl DynamicStabbingCutIndex {
         Ok((true, intersections))
     }
 
-    fn insert_vertical_with_intersections(
+    pub(super) fn insert_vertical_with_intersections(
         &mut self,
         segment: VerticalCutSegment,
     ) -> Result<(bool, Vec<Point>), PolygonSgError> {
@@ -591,7 +422,11 @@ impl DynamicStabbingCutIndex {
         Ok((true, intersections))
     }
 
-    fn nearest_blocker(&mut self, point: Point, direction: PolygonDirection) -> Option<Point> {
+    pub(super) fn nearest_blocker(
+        &mut self,
+        point: Point,
+        direction: PolygonDirection,
+    ) -> Option<Point> {
         let blocker = match direction {
             PolygonDirection::East => {
                 let perpendicular =
@@ -644,11 +479,11 @@ impl DynamicStabbingCutIndex {
         blocker
     }
 
-    fn horizontal_segments(&self) -> Vec<HorizontalCutSegment> {
+    pub(super) fn horizontal_segments(&self) -> Vec<HorizontalCutSegment> {
         self.horizontal.horizontal_segments()
     }
 
-    fn vertical_segments(&self) -> Vec<VerticalCutSegment> {
+    pub(super) fn vertical_segments(&self) -> Vec<VerticalCutSegment> {
         self.vertical.vertical_segments()
     }
 
@@ -699,7 +534,7 @@ impl DynamicStabbingCutIndex {
             .saturating_add(self.horizontal_stabbing.entry_count());
     }
 
-    fn metrics(&self) -> CutIndexMetrics {
+    pub(super) fn metrics(&self) -> Metrics {
         self.metrics.clone()
     }
 }
@@ -712,11 +547,11 @@ mod tests {
 
     use crate::polygon::{HorizontalCutSegment, VerticalCutSegment};
 
-    use super::DynamicStabbingCutIndex;
+    use super::Index;
 
     #[test]
     fn dynamic_stabbing_reports_intersection_and_nearest_blocker() {
-        let mut index = DynamicStabbingCutIndex::new(BTreeSet::from([1, 2, 5, 9])).unwrap();
+        let mut index = Index::new(BTreeSet::from([1, 2, 5, 9])).unwrap();
         let horizontal = HorizontalCutSegment::new(1, 9, 5).unwrap();
         let vertical = VerticalCutSegment::new(5, 1, 9).unwrap();
         assert!(
@@ -751,7 +586,7 @@ mod tests {
 
     #[test]
     fn dynamic_stabbing_rejects_coordinates_outside_the_closed_universe() {
-        let mut index = DynamicStabbingCutIndex::new(BTreeSet::from([0, 1, 2])).unwrap();
+        let mut index = Index::new(BTreeSet::from([0, 1, 2])).unwrap();
         let error = index
             .insert_horizontal_with_intersections(HorizontalCutSegment::new(0, 3, 1).unwrap())
             .unwrap_err();

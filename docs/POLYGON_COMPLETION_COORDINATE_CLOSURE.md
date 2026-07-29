@@ -43,7 +43,7 @@ directly by a future compatible frontend.
 
 ## Runtime Contract
 
-`DynamicStabbingCutIndex` is initialized from this finite universe.  In debug
+`polygon_cut_index::experiment::Index` is initialized from this finite universe. In debug
 and audited paths, every inserted cut, generated candidate, reported
 intersection, and ray stop is checked against it.  A violation is a semantic
 error, not a request to extend the universe: it invalidates this proof's
