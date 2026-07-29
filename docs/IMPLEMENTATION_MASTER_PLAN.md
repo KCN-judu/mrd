@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: d11cb3f
-- Plan last updated: 2026-07-29T22:04:55Z
+- Last pushed SHA: 20ee78d7f791d6b6d133e70d12b55db0bc92095b
+- Plan last updated: 2026-07-29T22:27:30Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1068,24 +1068,34 @@ materializes the source graph and `ArcBindings` together. Structural tree
 weights remain separate from signed IPM gradients, so this step cannot silently
 invent a tree metric or an exact approximation from snapshot intervals.
 
-The selector is still absent. `Input` constructs neither a live tree chain nor
-its shifts, core/spanner embeddings, fundamental spanner/tree candidates, or
-the source-defined heap that returns the best candidate. It also cannot supply
-the exact quality/approximation certificate consumed by the next Lemma 4.4
-`Step`. `StableMinRatioLedger::edges()` remains an anonymous audit-coordinate
-slice; its validated stability-witness input is not a cycle-selection witness;
-and `source_min_ratio::execution::Executor` implements only supplied
+Commit `0bf9d37` completes the second, candidate-registry substep.
+`source_min_ratio::candidate::Registry` accepts only explicit fundamental
+spanner/tree compact cycles supplied by source maintenance, validates their
+shape and provenance, computes exact current absolute quality, and maintains a
+deterministic checked heap across insertions, replacements, and retirements.
+It orients a nonzero choice for a negative IPM gradient dot product. The
+registry never scans a graph for a cycle, and its finite heap counters make no
+complexity claim.
+
+The complete selector is still absent. Neither `Input` nor `Registry`
+constructs a live tree chain or shifts, core/spanner embeddings, or the
+fundamental candidate population. The registry also cannot supply the exact
+quality/approximation certificate consumed by the next Lemma 4.4 `Step`.
+`StableMinRatioLedger::edges()` remains an anonymous audit-coordinate slice;
+its validated stability-witness input is not a cycle-selection witness; and
+`source_min_ratio::execution::Executor` implements only supplied
 `Update`/`Query`/`Detect` transitions. Selecting by enumerating cycles,
 importing `dynamic_min_ratio`, or exposing the hidden witness would change this
 contract and violate the no-fallback boundary.
 
 The remaining construction must attach the materialized provenance to a live
-source tree chain and its explicit embeddings, maintain the fundamental
-spanner/tree candidate set and exact-quality heap prescribed by Algorithm 1,
-and return one compact cycle with the certificate required by `Step`. Evidence,
-the primary-source basis, and the next action are recorded in
+source tree chain and its explicit embeddings, construct and update the
+fundamental spanner/tree candidate population prescribed by Algorithm 1, and
+return one heap choice with the certificate required by `Step`. Evidence, the
+primary-source basis, and the next action are recorded in
 `docs/phase-reports/P09-5-candidate-selection-gap.md` and
-`docs/phase-reports/P09-5-ipm-provenance.md`. This blocks completion of the
+`docs/phase-reports/P09-5-ipm-provenance.md`, and
+`docs/phase-reports/P09-5-candidate-heap.md`. This blocks completion of the
 P9.5 backend, not P9.3.2d's deferred P9.6a proof debt. P9.5 remains
 `in_progress` for its already independent semantic/differential evidence, but
 `Backend::require_complete()` must continue to reject execution until P9.5a is
@@ -1099,12 +1109,13 @@ P9.5a is split before further implementation:
    signed gradient or select a cycle. Evidence:
    `docs/phase-reports/P09-5-ipm-provenance.md`.
 2. **P9.5a.2 - Maintained fundamental-candidate registry and exact-quality
-   heap. State: in_progress.** Model only source-maintained fundamental
+   heap. State: complete. Implementation SHA: `0bf9d37`.** Model only source-maintained fundamental
    spanner/tree candidates, compute their exact current quality from the
    provenance projection, and keep a deterministic checked heap over supplied
    candidate updates. The registry must reject undeclared, nondecodable, or
    duplicate candidates; it must not enumerate graph cycles or claim a
-   complexity bound.
+   complexity bound. Evidence:
+   `docs/phase-reports/P09-5-candidate-heap.md`.
 3. **P9.5a.3 - Live tree-chain/embedding and `Step` integration. State:
    planned.** Construct the source tree-chain, core/spanner embeddings, and
    candidate updates from the live IPM/source state; then convert the selected
@@ -1170,6 +1181,14 @@ keeps the signed gradient vector separate from positive tree-construction
 weights. Its compact-cycle decode test proves the materialized bindings survive
 one supplied tree-chain path; it does not choose that chain, enumerate cycles,
 or implement Theorem 5.1 selection or runtime.
+
+Commit `0bf9d37` adds the P9.5a.2 source-declared candidate registry. It
+tracks only explicit fundamental spanner/tree compact cycles, evaluates their
+exact absolute gradient-to-length ratio from `Input`, maintains a deterministic
+checked heap through source-driven replacement/retirement, and reverses a
+positive candidate for descent. It does not construct the source tree chain or
+embeddings that produce those declarations, invoke an Oracle, or connect a
+choice to a certified `Step`.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1346,6 +1365,7 @@ and AN19 runtime claims.
 | P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
 | P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
 | P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
-| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, compressed-circulation recovery differentials through a formal-polygon rectangle completion, and exact IPM/source/circulation provenance | 2026-07-29T20:25:33Z | pending | source candidate selection, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
-| P9.5a | blocked | d11cb3f | 91132c4 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md` | exact caller-supplied IPM/source/circulation provenance and jointly materialized graph/bindings | 2026-07-29T22:04:55Z | pending | source tree-chain/embedding construction, maintained fundamental candidate heap, and current exact update certificate remain; reference-cycle enumeration remains forbidden |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, compressed-circulation recovery differentials through a formal-polygon rectangle completion, exact IPM/source/circulation provenance, and exact source-declared candidate heap | 2026-07-29T20:25:33Z | pending | live source candidate construction, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5a.2 | complete | 20ee78d | 0bf9d37 | pending closeout | pending | `docs/phase-reports/P09-5-candidate-heap.md` | exact source-declared fundamental candidate validation, quality, orientation, deterministic stale-record heap, and no-enumeration tests | 2026-07-29T22:04:55Z | 2026-07-29T22:20:23Z | no live tree-chain/embedding candidate construction, `Step` certificate, or runtime claim |
+| P9.5a | blocked | d11cb3f | 91132c4, 0bf9d37 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md` | exact caller-supplied IPM/source/circulation provenance and source-declared fundamental candidate heap | 2026-07-29T22:20:23Z | pending | live source tree-chain/embedding construction and current exact `Step` certificate remain; reference-cycle enumeration remains forbidden |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

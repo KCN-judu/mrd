@@ -2,8 +2,9 @@
 
 ## Status
 
-**State: blocked.** Commit `91132c4` closes the provenance substep of P9.5a,
-but the source-defined compact-candidate selector is still absent. P9.5a is
+**State: blocked.** Commits `91132c4` and `0bf9d37` close the provenance and
+source-declared candidate-heap substeps of P9.5a, but the source-defined
+compact-candidate selector is still absent. P9.5a is
 independent of the P9.3.2d AN19 runtime proof debt: P9.3.2d remains deferred to
 low-priority P9.6a after the complete source-shaped flow backend exists. P9.5a
 instead blocks the backend from selecting the next exact source-shaped IPM
@@ -17,6 +18,7 @@ The audited production boundary has the following deliberate shape:
 | --- | --- | --- |
 | `graph::min_ratio_cycle::StableMinRatioLedger` | checks stable-witness validity, update quality, exact coordinate queries, and Detect accounting | neither `StableEdge` nor the consumed `StableWitness` input carries a compact-cycle selection or source-arc provenance |
 | `graph::source_min_ratio::input` | validates exact caller-supplied gradient/length/tree-weight vectors, assigns stable source-edge/circulation-arc provenance, and materializes `SourceDynamicGraph` with matching `ArcBindings` | does not infer an exact approximation from a snapshot interval, construct a tree chain, or choose a candidate |
+| `graph::source_min_ratio::candidate` | validates externally declared fundamental spanner/tree compact cycles, computes exact current quality, maintains a deterministic stale-record heap, and orients a nonzero choice for descent | does not construct the tree chain, core/spanner embeddings, or candidate population; it cannot produce a Lemma 4.4 certificate |
 | `graph::source_min_ratio::model` and `chain` | represent validated immutable source-tree branches and deterministic shifts | no constructor derives a tree-chain from a live IPM snapshot |
 | `graph::source_min_ratio::cycle` | decodes a supplied compact cycle through selected branches and checked arc bindings | no candidate generation or score computation |
 | `graph::source_min_ratio::query` | validates a supplied compact candidate against a checked ledger | no minimum-ratio selection query |
@@ -30,8 +32,10 @@ and do not identify a compact cycle. `input::Input` now supplies the exact
 source-edge/circulation-arc correspondence and materializes the matching graph
 and bindings in one checked operation. It deliberately takes caller-supplied
 exact approximation vectors rather than deriving a rational point from
-`CertifiedIpmSnapshot` intervals. Tree-branch, embedding, and candidate IDs
-are still unconnected to that provenance.
+`CertifiedIpmSnapshot` intervals. `candidate::Registry` now consumes exact
+declared compact candidates and evaluates their quality through that
+provenance, but tree-branch and embedding maintenance still cannot construct
+the candidate declarations.
 
 The existing `dynamic_min_ratio` and min-cost cycle implementations can
 enumerate candidates, but they are reference Oracles. The P9.5 source-flow
@@ -43,18 +47,18 @@ These references remain valid only for bounded test differentials.
 ## Required construction
 
 P9.5a must add a source-shaped selector with an explicit input/output
-certificate. The stable IPM/source/arc projection is complete; the remaining
-work must:
+certificate. The stable projection and the heap over supplied declarations are
+complete; the remaining work must:
 
 1. attach a tree-chain, selected shifts, and source core/spanner embeddings to
    the materialized graph with the same provenance;
-2. maintain the fundamental spanner cycles for rejected core edges and the
-   fundamental tree cycles at the terminal level;
-3. invoke the source-defined exact-quality heap operation that returns one
-   compact cycle without returning the stability-witness input;
-4. decode the candidate and certify its full exact direction against the
-   snapshot's current approximate gradients, lengths, and `kappa`; and
-5. reject unsupported source operations without choosing an enumerating,
+2. construct and update the fundamental spanner cycles for rejected core edges
+   and the fundamental tree cycles at the terminal level as declarations for
+   `candidate::Registry`;
+3. connect the exact heap choice to the decoded full direction and certify it
+   against the snapshot's current approximate gradients, lengths, and `kappa`;
+   and
+4. reject unsupported source operations without choosing an enumerating,
    Dinic, Push--Relabel, or min-cost fallback.
 
 The construction must make all ID mappings explicit. A conversion based only on
@@ -73,9 +77,9 @@ and Lemma A.2 define the associated fundamental chain cycles and relate
 their quality to the hidden witness.
 
 Accordingly, a production selector may not replace these maintained candidates
-with simple-cycle enumeration. The completed provenance bridge is necessary but
-not sufficient: it must feed the source tree-chain/embedding maintenance and
-the exact-quality heap described above.
+with simple-cycle enumeration. The completed provenance and heap are necessary
+but not sufficient: live source tree-chain/embedding maintenance must feed the
+declared candidate population.
 
 ## Rejected shortcuts
 
@@ -91,7 +95,7 @@ the exact-quality heap described above.
 ## Audit
 
 The static boundary and complete workspace audit passed for implementation SHA
-`91132c4`:
+`0bf9d37` after the provenance and candidate-heap substeps:
 
 | Command | Exit | Result |
 | --- | ---: | --- |
@@ -106,16 +110,17 @@ The static boundary and complete workspace audit passed for implementation SHA
 | `cargo build --workspace --release` | 0 | release build accepted |
 | `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
 
-The production change is limited to exact input provenance and its tests. It
-does not add a selector, a runtime claim, or a generated result file.
+The production changes establish exact input provenance and a heap over only
+externally declared candidates. They do not add live candidate construction, a
+complete selector, a runtime claim, or a generated result file.
 
 ## Next action
 
-Implement the source-maintained tree chain and its core/spanner embeddings over
-the materialized `Input`, then maintain the fundamental spanner/tree candidates
-and the exact-quality heap stated in Algorithm 1 and the proof of Lemma 5.11.
-The result must carry an exact certificate into `Step::from_compact_candidate`.
-Only then may P9.5 run the full no-fallback differential campaign and enable
+Implement the live source-maintained tree chain and its core/spanner embeddings
+over the materialized `Input`, then emit/replace the fundamental spanner/tree
+declarations consumed by `candidate::Registry`. Connect its selected compact
+cycle to an exact certificate for `Step::from_compact_candidate`. Only then may
+P9.5 run the full no-fallback differential campaign and enable
 `Backend::require_complete()`.
 
 P9.6a remains after that chain is complete. It is the separate low-priority

@@ -63,8 +63,9 @@ certificate for `Step`. It does not select or enumerate a cycle, expose the
 hidden stability witness, invoke `dynamic_min_ratio`, or establish Theorem 5.1
 or an AN19 runtime bound.
 
-The next P9.5a substep is to connect this provenance to the maintained
-tree-chain and explicit embeddings, then implement the source-specified
-fundamental-candidate heap and its exact certificate. P9.3.2d remains the
-separate low-priority P9.6a proof debt; it does not permit a selection shortcut
-and does not block this semantic integration work.
+The source-specified heap over explicit declarations is now implemented by
+`source_min_ratio::candidate::Registry`. The remaining P9.5a work is to connect
+this provenance to the maintained live tree-chain and explicit embeddings that
+produce those declarations, then certify its choice for `Step`. P9.3.2d remains
+the separate low-priority P9.6a proof debt; it does not permit a selection
+shortcut and does not block this semantic integration work.
