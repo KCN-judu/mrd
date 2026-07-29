@@ -5,6 +5,9 @@ use thiserror::Error;
 
 use crate::{Coord, DoubledPoint, Point};
 
+pub mod experiment;
+pub mod oracle;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct PolygonLoopId(pub usize);
 
@@ -56,26 +59,28 @@ pub struct RectilinearPolygon {
 /// Interchangeable exact structural validators for ordinary polygons.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum PolygonValidationBackend {
+pub enum Backend {
     /// The v0.9 explicit segment-pair audit.
     #[default]
-    ReferenceQuadratic,
+    #[serde(rename = "reference-quadratic")]
+    Oracle,
     /// The indexed deterministic orthogonal sweep introduced in v1.0.
-    OrthogonalSweep,
+    #[serde(rename = "orthogonal-sweep")]
+    Experiment,
 }
 
-impl PolygonValidationBackend {
+impl Backend {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::ReferenceQuadratic => "reference-quadratic",
-            Self::OrthogonalSweep => "orthogonal-sweep",
+            Self::Oracle => "reference-quadratic",
+            Self::Experiment => "orthogonal-sweep",
         }
     }
 }
 
 /// Exact polygon-validator interface retained by both reference and indexed paths.
-pub trait PolygonValidator {
+pub trait Validator {
     /// Audits one already normalized polygon.
     ///
     /// # Errors
@@ -84,20 +89,6 @@ pub trait PolygonValidator {
     fn validate(&self, polygon: &RectilinearPolygon) -> Result<(), PolygonError>;
 
     fn name(&self) -> &'static str;
-}
-
-/// The v0.9 explicit quadratic validator.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ReferenceQuadraticValidator;
-
-impl PolygonValidator for ReferenceQuadraticValidator {
-    fn validate(&self, polygon: &RectilinearPolygon) -> Result<(), PolygonError> {
-        polygon.validate()
-    }
-
-    fn name(&self) -> &'static str {
-        PolygonValidationBackend::ReferenceQuadratic.name()
-    }
 }
 
 impl RectilinearPolygon {
@@ -111,7 +102,7 @@ impl RectilinearPolygon {
     /// Returns a structured [`PolygonError`] for malformed or unsupported input.
     pub fn new(outer: OrthogonalLoop, holes: Vec<OrthogonalLoop>) -> Result<Self, PolygonError> {
         let polygon = Self::normalize_unvalidated(outer, holes)?;
-        ReferenceQuadraticValidator.validate(&polygon)?;
+        oracle::Validator.validate(&polygon)?;
         Ok(polygon)
     }
 

@@ -6,10 +6,10 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::polygon::Validator as _;
 use crate::{
     Boundary, BoundaryIndex, BoundaryIndexError, BoundaryLoopId, Coord, DoubledPoint, Point,
-    PolygonError, PolygonLoopId, PolygonValidationBackend, PolygonValidator, RectilinearPolygon,
-    ReferenceQuadraticValidator,
+    PolygonError, PolygonLoopId, RectilinearPolygon, polygon,
 };
 
 /// Selects the exact geometry-query implementation used by a polygon pipeline.
@@ -679,20 +679,6 @@ impl PolygonErrorCategory {
     }
 }
 
-/// Deterministic exact orthogonal range-sweep validator.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct OrthogonalSweepValidator;
-
-impl PolygonValidator for OrthogonalSweepValidator {
-    fn validate(&self, polygon: &RectilinearPolygon) -> Result<(), PolygonError> {
-        validate_polygon_sweep(polygon)
-    }
-
-    fn name(&self) -> &'static str {
-        PolygonValidationBackend::OrthogonalSweep.name()
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct SweepFailureKey {
     x: Coord,
@@ -704,7 +690,7 @@ struct SweepFailureKey {
     second_edge: usize,
 }
 
-fn validate_polygon_sweep(polygon: &RectilinearPolygon) -> Result<(), PolygonError> {
+pub(crate) fn validate_polygon_sweep(polygon: &RectilinearPolygon) -> Result<(), PolygonError> {
     validate_loop_linear(&polygon.outer, false, PolygonLoopId(0))?;
     for (index, boundary_loop) in polygon.holes.iter().enumerate() {
         validate_loop_linear(boundary_loop, true, PolygonLoopId(index + 1))?;
@@ -996,7 +982,7 @@ pub struct PreparedPolygonContext {
     reflex_by_y: BTreeMap<Coord, Vec<Point>>,
     abscissas: Vec<Coord>,
     ordinates: Vec<Coord>,
-    validation_backend: PolygonValidationBackend,
+    validation_backend: polygon::Backend,
     metrics: PolygonPreparationMetrics,
 }
 
@@ -1007,7 +993,7 @@ impl PreparedPolygonContext {
     ///
     /// Returns a structured polygon or boundary-index error.
     pub fn new(polygon: &RectilinearPolygon) -> Result<Self, PreparedPolygonError> {
-        Self::new_with_validator(polygon, PolygonValidationBackend::ReferenceQuadratic)
+        Self::new_with_validator(polygon, polygon::Backend::Oracle)
     }
 
     /// Builds all shared metadata with the selected exact structural validator.
@@ -1017,15 +1003,15 @@ impl PreparedPolygonContext {
     /// Returns a structured polygon or boundary-index error.
     pub fn new_with_validator(
         polygon: &RectilinearPolygon,
-        validation_backend: PolygonValidationBackend,
+        validation_backend: polygon::Backend,
     ) -> Result<Self, PreparedPolygonError> {
         let started = Instant::now();
         let polygon = RectilinearPolygon::normalize_unvalidated(
             polygon.outer.clone(),
             polygon.holes.clone(),
         )?;
-        if validation_backend == PolygonValidationBackend::ReferenceQuadratic {
-            ReferenceQuadraticValidator.validate(&polygon)?;
+        if validation_backend == polygon::Backend::Oracle {
+            polygon::oracle::Validator.validate(&polygon)?;
         } else {
             validate_loop_linear(&polygon.outer, false, PolygonLoopId(0))?;
             for (index, boundary_loop) in polygon.holes.iter().enumerate() {
@@ -1034,7 +1020,7 @@ impl PreparedPolygonContext {
         }
         let boundary = Boundary::from_polygon(&polygon);
         let edge_index = OrthogonalEdgeIndex::new(&boundary);
-        if validation_backend == PolygonValidationBackend::OrthogonalSweep {
+        if validation_backend == polygon::Backend::Experiment {
             validate_polygon_sweep_with_indexes(&polygon, &boundary, &edge_index)?;
         }
         let boundary_index = BoundaryIndex::new(&boundary)?;
@@ -1150,7 +1136,7 @@ impl PreparedPolygonContext {
     }
 
     #[must_use]
-    pub const fn validation_backend(&self) -> PolygonValidationBackend {
+    pub const fn validation_backend(&self) -> polygon::Backend {
         self.validation_backend
     }
 }
@@ -1165,12 +1151,10 @@ pub enum PreparedPolygonError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        OrthogonalLoop, Point, PolygonErrorCategory, PolygonValidationBackend, PolygonValidator,
-        RectilinearPolygon, ReferenceQuadraticValidator,
-    };
+    use crate::polygon::Validator as _;
+    use crate::{OrthogonalLoop, Point, PolygonErrorCategory, RectilinearPolygon, polygon};
 
-    use super::{OrthogonalDirection, OrthogonalSweepValidator, PreparedPolygonContext};
+    use super::{OrthogonalDirection, PreparedPolygonContext};
 
     fn rectangle(x0: i64, y0: i64, x1: i64, y1: i64) -> OrthogonalLoop {
         OrthogonalLoop::new(vec![
@@ -1188,8 +1172,8 @@ mod tests {
     }
 
     fn assert_validator_categories_match(polygon: &RectilinearPolygon) {
-        let reference = ReferenceQuadraticValidator.validate(polygon);
-        let indexed = OrthogonalSweepValidator.validate(polygon);
+        let reference = polygon::oracle::Validator.validate(polygon);
+        let indexed = polygon::experiment::Validator.validate(polygon);
         assert_eq!(
             reference
                 .as_ref()
@@ -1198,7 +1182,7 @@ mod tests {
             indexed.as_ref().err().map(PolygonErrorCategory::from_error),
             "reference={reference:?}, indexed={indexed:?}, polygon={polygon:?}"
         );
-        assert_eq!(indexed, OrthogonalSweepValidator.validate(polygon));
+        assert_eq!(indexed, polygon::experiment::Validator.validate(polygon));
     }
 
     #[test]
@@ -1214,15 +1198,10 @@ mod tests {
         assert_eq!(prepared.metrics().polygon_edge_index_build_count, 1);
         assert!(prepared.metrics().polygon_prepare_owned_bytes > 0);
 
-        let indexed = PreparedPolygonContext::new_with_validator(
-            &polygon,
-            PolygonValidationBackend::OrthogonalSweep,
-        )
-        .unwrap();
-        assert_eq!(
-            indexed.validation_backend(),
-            PolygonValidationBackend::OrthogonalSweep
-        );
+        let indexed =
+            PreparedPolygonContext::new_with_validator(&polygon, polygon::Backend::Experiment)
+                .unwrap();
+        assert_eq!(indexed.validation_backend(), polygon::Backend::Experiment);
         assert_eq!(indexed.metrics().polygon_prepare_build_count, 1);
         assert_eq!(indexed.metrics().polygon_normalization_count, 1);
         assert_eq!(indexed.metrics().polygon_validation_count, 1);

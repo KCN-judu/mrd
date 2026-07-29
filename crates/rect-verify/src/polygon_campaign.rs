@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use rect_core::{
     Boundary, ColorGrid, CoordinateRect, Diagnostics, OrthogonalLoop, Point,
-    PolygonDissectionResult, PolygonErrorCategory, PolygonValidationBackend,
-    PreparedPolygonContext, RectilinearPolygon,
+    PolygonDissectionResult, PolygonErrorCategory, PreparedPolygonContext, RectilinearPolygon,
+    polygon,
 };
 use rect_dominance::{
     ConflictRepresentationBackend, PolygonArrangementBackend, PolygonChordBackend,
@@ -529,22 +529,16 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
     let mut records = Vec::with_capacity(cases.len());
     let mut disagreements = 0;
     for (name, polygon) in cases {
-        let reference = PreparedPolygonContext::new_with_validator(
-            &polygon,
-            PolygonValidationBackend::ReferenceQuadratic,
-        )
-        .err()
-        .map(|error| error.to_string());
-        let indexed = PreparedPolygonContext::new_with_validator(
-            &polygon,
-            PolygonValidationBackend::OrthogonalSweep,
-        )
-        .err()
-        .map(|error| error.to_string());
-        let reference_category =
-            validator_category(&polygon, PolygonValidationBackend::ReferenceQuadratic);
-        let indexed_category =
-            validator_category(&polygon, PolygonValidationBackend::OrthogonalSweep);
+        let reference =
+            PreparedPolygonContext::new_with_validator(&polygon, polygon::Backend::Oracle)
+                .err()
+                .map(|error| error.to_string());
+        let indexed =
+            PreparedPolygonContext::new_with_validator(&polygon, polygon::Backend::Experiment)
+                .err()
+                .map(|error| error.to_string());
+        let reference_category = validator_category(&polygon, polygon::Backend::Oracle);
+        let indexed_category = validator_category(&polygon, polygon::Backend::Experiment);
         let sparse_category = indexed_category.clone();
         let deterministic_match = reference_category == indexed_category && reference == indexed;
         disagreements += usize::from(!deterministic_match);
@@ -560,7 +554,7 @@ pub fn polygon_negative_campaign(context: BenchmarkContext) -> PolygonNegativeRe
         .expect("rectangle fixture is valid");
     let prepared = PreparedPolygonContext::new_with_validator(
         &rectangle_polygon,
-        PolygonValidationBackend::OrthogonalSweep,
+        polygon::Backend::Experiment,
     )
     .expect("rectangle fixture prepares");
     let vertical = [1, 2, 3]
@@ -1046,16 +1040,12 @@ fn compare_polygon_backends(
     polygon: &RectilinearPolygon,
     raster: bool,
 ) -> Result<bool, PolygonBackendMismatch> {
-    let reference_prepared = PreparedPolygonContext::new_with_validator(
-        polygon,
-        PolygonValidationBackend::ReferenceQuadratic,
-    )
-    .map_err(|error| (error.to_string(), None, None, None))?;
-    let indexed_prepared = PreparedPolygonContext::new_with_validator(
-        polygon,
-        PolygonValidationBackend::OrthogonalSweep,
-    )
-    .map_err(|error| (error.to_string(), None, None, None))?;
+    let reference_prepared =
+        PreparedPolygonContext::new_with_validator(polygon, polygon::Backend::Oracle)
+            .map_err(|error| (error.to_string(), None, None, None))?;
+    let indexed_prepared =
+        PreparedPolygonContext::new_with_validator(polygon, polygon::Backend::Experiment)
+            .map_err(|error| (error.to_string(), None, None, None))?;
     if reference_prepared.polygon() != indexed_prepared.polygon()
         || reference_prepared.boundary().reflex_vertices
             != indexed_prepared.boundary().reflex_vertices
@@ -1459,7 +1449,7 @@ const fn reference_options() -> PolygonSolveOptions {
     PolygonSolveOptions {
         verification_mode: VerificationMode::CompactOnly,
         geometry_backend: rect_core::PolygonGeometryBackend::ReferenceScan,
-        validation_backend: PolygonValidationBackend::ReferenceQuadratic,
+        validation_backend: polygon::Backend::Oracle,
         chord_backend: PolygonChordBackend::ReferencePairwise,
         completion_backend: PolygonCompletionBackend::CoordinateReference,
         cut_index_backend: PolygonCutIndexBackend::ReferenceLineMaps,
@@ -1476,7 +1466,7 @@ const fn indexed_options() -> PolygonSolveOptions {
     PolygonSolveOptions {
         verification_mode: VerificationMode::CompactOnly,
         geometry_backend: rect_core::PolygonGeometryBackend::Indexed,
-        validation_backend: PolygonValidationBackend::OrthogonalSweep,
+        validation_backend: polygon::Backend::Experiment,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
         cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,
@@ -2027,7 +2017,7 @@ fn dissection_error_category(error: &PolygonValidationError) -> String {
     }
 }
 
-fn validator_category(polygon: &RectilinearPolygon, backend: PolygonValidationBackend) -> String {
+fn validator_category(polygon: &RectilinearPolygon, backend: polygon::Backend) -> String {
     PreparedPolygonContext::new_with_validator(polygon, backend).map_or_else(
         |error| match error {
             rect_core::PreparedPolygonError::Polygon(error) => {

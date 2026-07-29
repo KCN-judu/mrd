@@ -23,9 +23,9 @@ use path_tree::{
 };
 use rect_core::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, GridComponent,
-    PolygonDissectionResult, PolygonGeometryBackend, PolygonValidationBackend,
-    PreparedComponentContext, PreparedGridComponent, PreparedPolygonContext, PreparedPolygonError,
-    RectilinearPolygon, ValidationError, validate_dissection, validate_dissection_prepared,
+    PolygonDissectionResult, PolygonGeometryBackend, PreparedComponentContext,
+    PreparedGridComponent, PreparedPolygonContext, PreparedPolygonError, RectilinearPolygon,
+    ValidationError, polygon, validate_dissection, validate_dissection_prepared,
 };
 use rect_graph::{DinicBackend, FlowBackendKind, MaxFlowBackend, hopcroft_karp};
 use rect_oracle_sg::{
@@ -164,7 +164,7 @@ impl PolygonArrangementBackend {
 pub struct PolygonSolveOptions {
     pub verification_mode: VerificationMode,
     pub geometry_backend: PolygonGeometryBackend,
-    pub validation_backend: PolygonValidationBackend,
+    pub validation_backend: polygon::Backend,
     pub chord_backend: PolygonChordBackend,
     pub completion_backend: PolygonCompletionBackend,
     pub cut_index_backend: PolygonCutIndexBackend,
@@ -182,7 +182,7 @@ impl Default for PolygonSolveOptions {
         Self {
             verification_mode: VerificationMode::CompactOnly,
             geometry_backend: PolygonGeometryBackend::Indexed,
-            validation_backend: PolygonValidationBackend::OrthogonalSweep,
+            validation_backend: polygon::Backend::Experiment,
             chord_backend: PolygonChordBackend::SoltanGorpinevichSweep,
             completion_backend: PolygonCompletionBackend::IndexedFrontier,
             cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,

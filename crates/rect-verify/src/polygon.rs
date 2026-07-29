@@ -4,8 +4,7 @@ use std::collections::BTreeSet;
 
 use rect_core::{
     ColorGrid, CoordinateRect, DoubledPoint, HorizontalChord, PolygonDissectionResult,
-    PolygonGeometryBackend, PolygonValidationBackend, PreparedPolygonContext, RectilinearPolygon,
-    VerticalChord,
+    PolygonGeometryBackend, PreparedPolygonContext, RectilinearPolygon, VerticalChord, polygon,
 };
 use rect_dominance::{
     ConflictRepresentationBackend, PolygonArrangementBackend, PolygonChordBackend,
@@ -156,22 +155,20 @@ pub fn verify_polygon(
     polygon: &RectilinearPolygon,
     raster_limits: Option<RasterLimits>,
 ) -> Result<PolygonVerificationReport, PolygonVerificationError> {
-    let reference_prepared = PreparedPolygonContext::new_with_validator(
-        polygon,
-        PolygonValidationBackend::ReferenceQuadratic,
-    )
-    .map_err(|error| PolygonVerificationError::Backend {
-        backend: "reference-quadratic",
-        message: error.to_string(),
-    })?;
-    let indexed_prepared = PreparedPolygonContext::new_with_validator(
-        polygon,
-        PolygonValidationBackend::OrthogonalSweep,
-    )
-    .map_err(|error| PolygonVerificationError::Backend {
-        backend: "orthogonal-sweep",
-        message: error.to_string(),
-    })?;
+    let reference_prepared =
+        PreparedPolygonContext::new_with_validator(polygon, polygon::Backend::Oracle).map_err(
+            |error| PolygonVerificationError::Backend {
+                backend: "reference-quadratic",
+                message: error.to_string(),
+            },
+        )?;
+    let indexed_prepared =
+        PreparedPolygonContext::new_with_validator(polygon, polygon::Backend::Experiment).map_err(
+            |error| PolygonVerificationError::Backend {
+                backend: "orthogonal-sweep",
+                message: error.to_string(),
+            },
+        )?;
     let reference_families = GeneralPolygonPairwiseEnumerator
         .enumerate_prepared(&reference_prepared)
         .map_err(|error| PolygonVerificationError::Backend {
@@ -208,7 +205,7 @@ pub fn verify_polygon(
     let audited_options = PolygonSolveOptions {
         verification_mode: VerificationMode::FullyAudited,
         geometry_backend: PolygonGeometryBackend::Indexed,
-        validation_backend: PolygonValidationBackend::OrthogonalSweep,
+        validation_backend: polygon::Backend::Experiment,
         chord_backend: PolygonChordBackend::IndexedPairwise,
         completion_backend: PolygonCompletionBackend::IndexedFrontier,
         cut_index_backend: PolygonCutIndexBackend::DynamicStabbing,

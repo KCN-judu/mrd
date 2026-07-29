@@ -9,8 +9,8 @@ use clap::{Parser, Subcommand, ValueEnum};
 use rect_core::{
     ColorGrid, DissectionResult, FormalBoundaryIncidence, FormalRectilinearPolygon, GridComponent,
     Ornament, OrnamentSegment, OrthogonalLoop, Point, PolygonDissectionResult,
-    PolygonGeometryBackend, PolygonValidationBackend, RectilinearPolygon, SvgOverlay,
-    render_dissection_svg, render_polygon_dissection_svg,
+    PolygonGeometryBackend, RectilinearPolygon, SvgOverlay, polygon, render_dissection_svg,
+    render_polygon_dissection_svg,
 };
 use rect_dominance::{
     ChordEnumerator, ConflictRepresentationBackend, DominanceMode, PathTreeOrientationPolicy,
@@ -1504,10 +1504,8 @@ fn solve_command(
                     },
                     geometry_backend: polygon_geometry
                         .map_or(PolygonGeometryBackend::Indexed, polygon_geometry_kind),
-                    validation_backend: polygon_validator.map_or(
-                        PolygonValidationBackend::OrthogonalSweep,
-                        polygon_validator_kind,
-                    ),
+                    validation_backend: polygon_validator
+                        .map_or(polygon::Backend::Experiment, polygon_validator_kind),
                     chord_backend: polygon_chords.map_or(
                         PolygonChordBackend::SoltanGorpinevichSweep,
                         polygon_chords_kind,
@@ -1741,10 +1739,10 @@ const fn polygon_geometry_kind(backend: PolygonGeometryArg) -> PolygonGeometryBa
     }
 }
 
-const fn polygon_validator_kind(backend: PolygonValidatorArg) -> PolygonValidationBackend {
+const fn polygon_validator_kind(backend: PolygonValidatorArg) -> polygon::Backend {
     match backend {
-        PolygonValidatorArg::ReferenceQuadratic => PolygonValidationBackend::ReferenceQuadratic,
-        PolygonValidatorArg::OrthogonalSweep => PolygonValidationBackend::OrthogonalSweep,
+        PolygonValidatorArg::ReferenceQuadratic => polygon::Backend::Oracle,
+        PolygonValidatorArg::OrthogonalSweep => polygon::Backend::Experiment,
     }
 }
 

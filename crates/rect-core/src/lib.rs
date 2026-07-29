@@ -31,13 +31,13 @@ pub use geometry::{
 };
 pub use grid::{Cell, ColorGrid, ComponentId, GridComponent, GridError, PreparedGridComponent};
 pub use polygon::{
-    OrthogonalLoop, PolygonError, PolygonLoopId, PolygonValidationBackend, PolygonValidator,
-    PolygonVertexId, RectilinearDomain, RectilinearPolygon, ReferenceQuadraticValidator,
+    OrthogonalLoop, PolygonError, PolygonLoopId, PolygonVertexId, RectilinearDomain,
+    RectilinearPolygon,
 };
 pub use polygon_index::{
-    IndexedBoundaryEdge, OrthogonalDirection, OrthogonalEdgeIndex, OrthogonalSweepValidator,
-    PolygonErrorCategory, PolygonGeometryBackend, PolygonPreparationMetrics,
-    PreparedPolygonContext, PreparedPolygonError,
+    IndexedBoundaryEdge, OrthogonalDirection, OrthogonalEdgeIndex, PolygonErrorCategory,
+    PolygonGeometryBackend, PolygonPreparationMetrics, PreparedPolygonContext,
+    PreparedPolygonError,
 };
 pub use result::{
     Certificate, Diagnostics, DissectionResult, ExactRatio, ExecutionTrace, MemoryEstimate,
