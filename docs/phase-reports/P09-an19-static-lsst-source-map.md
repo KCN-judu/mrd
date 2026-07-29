@@ -495,10 +495,12 @@ fixed-snapshot cardinality substatus. The pre-closeout implementation HEAD was
 | paper-table generator twice | 0 | stable scope SHA-256 `539d98ed`; paper SHA-256 `031edcd4`; manifest SHA-256 `7eada86b` |
 
 No ignored test, production fallback, source-runtime mode, credential, private
-key, or absolute local path was added. The priority queue still uses exact
-linear minimum scans and can perform quadratically many comparisons in its
-certified item count, so this closeout does not change the P9.3.2d hard blocker
-or permit P9.3.3.
+key, or absolute local path was added. At this local-event-proof closeout, the
+trace queue still used exact linear minimum scans and could perform
+quadratically many comparisons in its certified item count. The later
+practical heap-bound closeout below supersedes that implementation fact with a
+stable binary heap, but does not change the P9.3.2d source blocker or permit
+P9.3.3.
 
 ## Runtime acceptance audit
 

@@ -82,9 +82,11 @@
   asymptotic runtime chain; empirical counts do not close the proof. An isolated
   exact all-radii engine and definition-level Oracle now agree on the bounded
   A--H campaign and emit complete charge traces. The fixed-snapshot semantic
-  event and queue-item cardinalities are structurally certified as `O(n+m)`.
-  The exact-comparison time of the priority queue, global amortization, and
-  production AN19 runtime remain unproved.
+  event and queue-item cardinalities are structurally certified as `O(n+m)`,
+  and the reduced engine's stable exact binary heap has a separately certified
+  `O((n+m) log(n+m))` counted-comparison bound. The source-equivalent
+  `O(m+n log log n)` priority-queue bound, global amortization, and production
+  AN19 runtime remain unproved.
 - The exact-cover oracle is exponential and intended for small components. The
   verification harness defaults to a 40-cell cutoff.
 - JSON colors are compared as exact `serde_json::Value` values. SVG output is a

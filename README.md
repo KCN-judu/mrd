@@ -234,8 +234,11 @@ A--H campaign differentially agrees on all 31 fixed snapshots in
 `results/an19-event-adversarial.json`. This establishes source-shaped semantics
 on the tested domain. A machine-checked structural certificate additionally
 proves at most `3n + 4m + 2` semantic events and `n + 2m + 2` queue items per
-fixed snapshot. It does not establish the priority-queue comparison bound,
-hierarchy-wide amortization, or claimed AN19 runtime.
+fixed snapshot. Reduced runs also carry a stable exact binary-heap certificate
+for at most `3 I ceil(log2(max(I,1))) + 2m` counted comparisons. This practical
+`O((n+m) log(n+m))` bound does not establish the source-equivalent
+`O(m+n log log n)` priority-queue bound, hierarchy-wide amortization, or
+claimed AN19 runtime.
 
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;

@@ -73,8 +73,11 @@ any semantic disagreement. `ProvedEventEngine` is a replaceable placeholder
 that returns an explicit unsupported error. The canonical trace and six charge
 maps support future proof or counterexample work, but their bounded A--H
 campaign is not itself a proof. A separate structural certificate now proves
-the fixed-snapshot semantic-event and queue-item cardinalities. It does not
-supply the missing priority-queue comparison or global amortization proof.
+the fixed-snapshot semantic-event and queue-item cardinalities. Reduced runs
+also certify the stable binary heap's counted comparisons by
+`3 I ceil(log2(max(I,1))) + 2m`. That practical
+`O((n+m) log(n+m))` result does not supply the missing source-equivalent
+priority-queue comparison or global amortization proof.
 
 ## Historical P6 next action
 
