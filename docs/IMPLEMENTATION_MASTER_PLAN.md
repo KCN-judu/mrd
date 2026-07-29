@@ -4,10 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.4c
+- Current phase: P9.4d
 - Current phase state: in_progress
-- Last completed phase: P9.4b
-- Last pushed SHA: 6debef761ce970c990dc1700bd7e804f132a63ab
+- Last completed phase: P9.4c
+- Last pushed SHA: 6264cb838200d312944d17960b687bb2988d4138
 - Plan last updated: 2026-07-29T20:15:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -1035,7 +1035,7 @@ amortized bound or unlock the `AlmostLinear` name.
    `docs/phase-reports/P09-4c-hidden-stability-query.md`. No approximate-query,
    dynamic-update, link-cut, Theorem 5.1, or runtime claim is made.
 4. **P9.4d - Update/query/detect execution, accounting, and audit. State:
-   planned.** Add explicit dynamic sparsification and link-cut execution
+   in_progress.** Add explicit dynamic sparsification and link-cut execution
    adapters, then record update/query/detect transitions, compact-cycle
    application, bounded-domain work counters, no-fallback static checks, and
    adversarial mutation/replay campaigns. State every rejected operation and
