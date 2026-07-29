@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.3.7
 - Last pushed SHA: ba3779e42db2db509e85870adf894bdc2eb93c1f
-- Plan last updated: 2026-07-30T00:00:00Z
+- Plan last updated: 2026-07-29T20:01:28Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -993,18 +993,25 @@ provides only its finite-domain semantic evidence; none may claim Theorem 5.1's
 amortized bound or unlock the `AlmostLinear` name.
 
 1. **P9.4a - Source contract and complete tree-chain representation. State:
-   in_progress.** Introduce the production `source_min_ratio::{model,chain}`
-   namespace. Model a checked, finite, multi-level tree chain with stable
-   branch IDs, immutable source-tree snapshots, and a deterministic shifted
-   single-branch selector. Keep structural validation, branch selection, and
-   transition planning pure; contain any mutable tree-maintenance state behind
-   a later explicit adapter. The P8 `dynamic_min_ratio` replay remains an
-   `oracle`/`experiment` baseline only, and no enumerating cycle routine may
-   be reachable from this production representation. Acceptance: malformed
-   levels, branches, shifts, source IDs, and certificates reject; valid
-   multi-level shifts select exactly one branch per level deterministically;
-   source-tree snapshots are immutable; and a static audit confirms no Oracle
-   fallback is in the new production path.
+   complete. Implementation SHA: `4ce313b`.** The production
+   `source_min_ratio::{model,chain}` namespace now models a checked, finite,
+   multi-level tree chain with stable branch IDs, immutable source-tree
+   snapshots, and a deterministic shifted single-branch selector. Structural
+   validation, branch selection, and transition planning are pure; mutable
+   tree-maintenance state remains reserved for a later explicit adapter. The
+   P8 `dynamic_min_ratio` replay remains an `oracle`/`experiment` baseline
+   only, and no enumerating cycle routine is reachable from this production
+   representation. The audit report is
+   `docs/phase-reports/P09-4a-tree-chain-contract.md`.
+
+   The completed contract rejects malformed levels, branches, shifts, source
+   IDs, and tree certificates; valid multi-level shifts select exactly one
+   branch per level independently of input storage order; source-tree snapshots
+   are immutable; and `tools/check_source_min_ratio_audit.py` verifies the
+   no-Oracle-fallback boundary. This is finite-domain semantic evidence only;
+   it does not implement a compact cycle, a hidden-stability query, link-cut
+   updates, Theorem 5.1's approximation, or any amortized bound.
+
 2. **P9.4b - Compact cycle and exact certificate decoding. State: planned.**
    Add a source-shaped compact cycle that references selected tree paths and
    off-tree arcs by stable IDs. Decode and validate it directly against the
