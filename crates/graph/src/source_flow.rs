@@ -6,6 +6,10 @@
 
 use thiserror::Error;
 
+use crate::{
+    CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, IpmTerminationCertificate,
+};
+
 /// Explicit status for the experimental source-shaped backend.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Status {
@@ -34,14 +38,33 @@ impl Backend {
     pub const fn require_complete(self) -> Result<(), Error> {
         Err(Error::Incomplete)
     }
+
+    /// Certifies the additive-half boundary without invoking any recovery Oracle.
+    ///
+    /// # Errors
+    ///
+    /// Returns the certified-IPM error when the supplied snapshot has not
+    /// reached the additive-half termination boundary.
+    pub fn certify_termination(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<IpmTerminationCertificate, Error> {
+        snapshot
+            .certify_additive_half_termination(network)
+            .map_err(Error::Ipm)
+    }
 }
 
 /// The source-shaped backend is not complete enough to execute.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
     /// Certified iteration and recovery integration has not been implemented.
     #[error("source-shaped flow backend is not yet complete")]
     Incomplete,
+    /// The certified IPM snapshot cannot establish its termination boundary.
+    #[error("certified IPM termination failed: {0}")]
+    Ipm(#[from] CertifiedIpmError),
 }
 
 #[cfg(test)]
