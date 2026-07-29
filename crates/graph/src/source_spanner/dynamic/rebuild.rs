@@ -34,6 +34,48 @@ pub struct Snapshot {
     pub embeddings: BTreeMap<EdgeId, Vec<EdgeId>>,
 }
 
+impl Snapshot {
+    /// Replays the stable-ID certificate against the current active graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a selected or embedded stable edge is inactive,
+    /// an active source edge lacks a path, or the mapped relative certificate
+    /// violates the exact static embedding contract.
+    pub fn verify(&self, input: &BatchState) -> Result<(), Error> {
+        let (graph, stable_ids) = input.active_graph().map_err(Error::Batch)?;
+        if self.embeddings.len() != stable_ids.len()
+            || self.embeddings.keys().copied().collect::<BTreeSet<_>>()
+                != stable_ids.iter().copied().collect()
+        {
+            return Err(Error::InvalidSnapshot);
+        }
+        let relative = stable_ids
+            .iter()
+            .enumerate()
+            .map(|(index, stable)| (*stable, EdgeId(index)))
+            .collect::<BTreeMap<_, _>>();
+        let selected = self
+            .selected
+            .iter()
+            .map(|stable| relative.get(stable).copied().ok_or(Error::InvalidSnapshot))
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        let paths = stable_ids
+            .iter()
+            .map(|stable| {
+                self.embeddings
+                    .get(stable)
+                    .ok_or(Error::InvalidSnapshot)?
+                    .iter()
+                    .map(|edge| relative.get(edge).copied().ok_or(Error::InvalidSnapshot))
+                    .collect()
+            })
+            .collect::<Result<Vec<Vec<_>>, _>>()?;
+        Embedding::new(&graph, &graph, Some(&selected), paths).map_err(Error::Model)?;
+        Ok(())
+    }
+}
+
 /// The current immutable source-shaped decremental spanner state.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct State {
@@ -50,6 +92,64 @@ pub struct Transition {
     pub added: BTreeSet<EdgeId>,
     pub removed: BTreeSet<EdgeId>,
     pub reembedded: BTreeSet<EdgeId>,
+}
+
+/// Exact cumulative finite replay measurements, not a Theorem 8.2 bound.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Accounting {
+    pub initialization_selected: u64,
+    pub batches: u64,
+    pub source_updates: u64,
+    pub encoded_size: u64,
+    pub deletions: u64,
+    pub splits: u64,
+    pub selected_added: u64,
+    pub selected_removed: u64,
+    pub reembedded: u64,
+}
+
+impl Accounting {
+    /// Starts exact accounting from a verified initialization snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the selected edge count cannot fit the source
+    /// accounting representation.
+    pub fn initialize(state: &State) -> Result<Self, Error> {
+        Ok(Self {
+            initialization_selected: u64::try_from(state.snapshot.selected.len())
+                .map_err(|_| Error::Overflow)?,
+            ..Self::default()
+        })
+    }
+
+    /// Returns accounting extended by one immutable source update transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when exact finite counters overflow.
+    pub fn record(self, transition: &Transition) -> Result<Self, Error> {
+        Ok(Self {
+            initialization_selected: self.initialization_selected,
+            batches: add(self.batches, 1)?,
+            source_updates: add(self.source_updates, transition.batch.encoding.updates)?,
+            encoded_size: add(self.encoded_size, transition.batch.encoding.encoded_size)?,
+            deletions: add(self.deletions, transition.batch.encoding.deletions)?,
+            splits: add(self.splits, transition.batch.encoding.splits)?,
+            selected_added: add(
+                self.selected_added,
+                u64::try_from(transition.added.len()).map_err(|_| Error::Overflow)?,
+            )?,
+            selected_removed: add(
+                self.selected_removed,
+                u64::try_from(transition.removed.len()).map_err(|_| Error::Overflow)?,
+            )?,
+            reembedded: add(
+                self.reembedded,
+                u64::try_from(transition.reembedded.len()).map_err(|_| Error::Overflow)?,
+            )?,
+        })
+    }
 }
 
 impl State {
@@ -142,10 +242,12 @@ fn snapshot(input: &BatchState, parameters: Parameters) -> Result<Snapshot, Erro
             .collect::<Result<Vec<_>, _>>()?;
         stable_embeddings.insert(*stable, path);
     }
-    Ok(Snapshot {
+    let result = Snapshot {
         selected,
         embeddings: stable_embeddings,
-    })
+    };
+    result.verify(input)?;
+    Ok(result)
 }
 
 fn identity(graph: &Graph) -> Result<Embedding, Error> {
@@ -178,6 +280,10 @@ fn reembedded(
         .collect()
 }
 
+fn add(left: u64, right: u64) -> Result<u64, Error> {
+    left.checked_add(right).ok_or(Error::Overflow)
+}
+
 /// A source-shaped finite decremental spanner replay cannot proceed.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum Error {
@@ -195,19 +301,24 @@ pub enum Error {
     UnembeddedWitness,
     #[error("active graph lost a stable edge identifier")]
     StableId,
+    #[error("stable dynamic snapshot is not an active embedding certificate")]
+    InvalidSnapshot,
     #[error("identity embedding is invalid: {0}")]
     Model(#[source] ModelError),
+    #[error("finite dynamic spanner accounting overflowed")]
+    Overflow,
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
-    use super::{Parameters, State, reembedded};
+    use super::{Accounting, Parameters, State, reembedded};
     use crate::{
         ExactRatio, FlowNodeId,
         source_spanner::{
             dynamic::batch::{Batch, Operation, State as BatchState},
+            dynamic::oracle::greedy,
             experiment::domain::ExhaustiveDomain,
             model::{Edge, EdgeId, Graph},
         },
@@ -262,6 +373,11 @@ mod tests {
         assert!(transition.removed.contains(&EdgeId(2)));
         assert_eq!(transition.batch.deleted_edges, BTreeSet::from([EdgeId(2)]));
         assert!(transition.reembedded.is_empty());
+        transition
+            .next
+            .snapshot
+            .verify(&transition.next.input)
+            .unwrap();
     }
 
     #[test]
@@ -284,6 +400,11 @@ mod tests {
             BTreeSet::from([EdgeId(0), EdgeId(1), EdgeId(2), EdgeId(3)])
         );
         assert!(transition.reembedded.is_empty());
+        transition
+            .next
+            .snapshot
+            .verify(&transition.next.input)
+            .unwrap();
     }
 
     #[test]
@@ -295,5 +416,62 @@ mod tests {
         ]);
 
         assert_eq!(reembedded(&before, &after), BTreeSet::from([EdgeId(2)]));
+    }
+
+    #[test]
+    fn records_initialization_and_update_recourse_without_a_runtime_claim() {
+        let initial = State::new(BatchState::new(&cycle()).unwrap(), parameters()).unwrap();
+        let transition = initial
+            .apply(&Batch {
+                operations: vec![Operation::Delete(EdgeId(2))],
+            })
+            .unwrap();
+        let accounting = Accounting::initialize(&initial)
+            .unwrap()
+            .record(&transition)
+            .unwrap();
+
+        assert_eq!(accounting.initialization_selected, 4);
+        assert_eq!(accounting.batches, 1);
+        assert_eq!(accounting.source_updates, 1);
+        assert_eq!(accounting.encoded_size, 1);
+        assert_eq!(accounting.deletions, 1);
+        assert_eq!(accounting.splits, 0);
+        assert_eq!(accounting.selected_removed, 1);
+        assert_eq!(accounting.reembedded, 0);
+    }
+
+    #[test]
+    fn differentially_replays_active_source_edges_against_the_greedy_oracle() {
+        let initial = State::new(BatchState::new(&cycle()).unwrap(), parameters()).unwrap();
+        let oracle_initial = greedy(&initial.input, parameters().maximum_hops).unwrap();
+        let transition = initial
+            .apply(&Batch {
+                operations: vec![Operation::Delete(EdgeId(2))],
+            })
+            .unwrap();
+        let oracle_next = greedy(&transition.next.input, parameters().maximum_hops).unwrap();
+
+        initial.snapshot.verify(&initial.input).unwrap();
+        oracle_initial.verify(&initial.input).unwrap();
+        transition
+            .next
+            .snapshot
+            .verify(&transition.next.input)
+            .unwrap();
+        oracle_next.verify(&transition.next.input).unwrap();
+        assert_ne!(initial.snapshot.selected, oracle_initial.selected);
+        assert_eq!(
+            transition
+                .next
+                .snapshot
+                .embeddings
+                .keys()
+                .copied()
+                .collect::<BTreeSet<_>>(),
+            oracle_next.embeddings.keys().copied().collect()
+        );
+        assert!(!transition.next.snapshot.selected.contains(&EdgeId(2)));
+        assert!(!oracle_next.selected.contains(&EdgeId(2)));
     }
 }
