@@ -4,10 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.3.3
-- Current phase state: complete
+- Current phase: P9.3.4
+- Current phase state: in_progress
 - Last completed phase: P9.3.3
-- Last pushed SHA: ee9743255a07e40b53275f55888219131a7a68e6
+- Last pushed SHA: 41be08c7bd5eb522ef07b87ede40145b6a73cb48
 - Plan last updated: 2026-07-29T17:01:06Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
@@ -817,10 +817,33 @@ P9.3 is split into the following source-gated subphases:
    `docs/phase-reports/P09-3-3-mwu-forest-collection.md`. This finite-instance
    certificate does not claim `O(log^7 n)` until a uniform source
    `W = O(log^4 n)` envelope and source-model word-bound audit pass.
-4. **P9.3.4 state: planned. Start gate: P9.3.3 implementation audit passed.**
-   Implement the deterministic static
-   spanner-with-embedding primitive delegated by Theorem 8.1, with exact
-   subgraph, path-length, vertex-congestion, and size certificates.
+4. **P9.3.4 state: in_progress. Start gate: P9.3.3 implementation audit passed.**
+   Implement the deterministic static spanner-with-embedding primitive of
+   Theorem 8.1. This phase is split before coding because Algorithm 4 depends
+   on three separately delegated constructions and its composition guarantee
+   cannot be inferred from an internal spanner certificate alone:
+
+   - **P9.3.4a state: in_progress.** Model unweighted simple `H'` and `J`,
+     the supplied `Pi(J -> H')`, `J~ subset J`, and composed `Pi(J -> H') o
+     Pi(J -> J~)` exactly. Add a bounded enumerating simple-path Oracle and
+     certificates for subgraph membership, path length, edge/vertex congestion,
+     maximum degree, and composition; no expander or sparsity claim.
+   - **P9.3.4b state: planned. Start gate: P9.3.4a audit passed.** Implement
+     and certify Theorem 8.4's deterministic bounded-degree witness expander,
+     including its checked expansion witness or an explicit source-domain
+     rejection where the constructive bound cannot be certified.
+   - **P9.3.4c state: planned. Start gate: P9.3.4b audit passed.** Implement
+     Theorem 8.5's deterministic edge-disjoint expander decomposition with
+     level, component, degree-floor, and partition certificates.
+   - **P9.3.4d state: planned. Start gate: P9.3.4c audit passed.** Implement
+     the deterministic Theorem 8.6 decremental expander path structure,
+     monotone pruned set, deletion trace, and bounded simple-path certificates.
+   - **P9.3.4e state: planned. Start gate: P9.3.4d audit passed.** Integrate
+     Algorithm 4's witness graph, both thresholded embedding loops, image
+     subgraph, composed embedding, and exact Theorem 8.1 certificates. Only
+     this subphase may claim a static source-shaped `Sparsify` implementation;
+     it still may not claim the source asymptotic bound without all operation
+     counters and predecessor-proof audits.
 5. **P9.3.5 state: planned. Start gate: P9.3.4 implementation audit passed.**
    Implement Theorem 8.2's deletion/vertex-split
    reduction, batch encoding, sparsity, spanner recourse, re-embedding sets,
@@ -989,3 +1012,5 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.2d-proof-debt | planned | ee97432 | pending | pending | pending | pending | hierarchy-wide amortization, source-equivalent exact event ordering, and final runtime verification | deferred | pending | low priority until the complete P9.5 flow backend exists |
 | P9.3.3 | in_progress | ee97432 | pending | pending | pending | pending | deterministic MWU collection of exactly `k` LSFs | 2026-07-29T16:29:53Z | pending | none |
 | P9.3.3 | complete | c2edf16 | 038f762 | pending closeout | pending | `docs/phase-reports/P09-3-3-mwu-forest-collection.md` | exact `k`-forest weighted-copy/AN19/LSF collection, envelope certificate, rational MWU proof, mutation and full-workspace audit | 2026-07-29T16:29:53Z | 2026-07-29T17:01:06Z | `O(log^7 n)` and AN19 runtime remain unclaimed pending the uniform envelope and deferred P9.3.2d proof debt |
+| P9.3.4 | in_progress | 41be08c | pending | pending | 41be08c | pending | deterministic static spanner-with-embedding primitive | 2026-07-29T17:01:06Z | pending | none |
+| P9.3.4a | in_progress | 41be08c | pending | pending | 41be08c | pending | exact static embedding-composition contracts and bounded simple-path Oracle | 2026-07-29T17:01:06Z | pending | none |

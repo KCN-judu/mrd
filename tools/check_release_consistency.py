@@ -149,7 +149,7 @@ def check_an19_status_docs() -> None:
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
             "P9.3.2d state: complete",
             "P9.3.3 state: complete",
-            "P9.3.4 state: planned. Start gate: P9.3.3 implementation audit passed.",
+            "P9.3.4 state: in_progress. Start gate: P9.3.3 implementation audit passed.",
             "P09-3-3-mwu-forest-collection.md",
             "an19_runtime_verified: false",
             "P9.3.2d proof debt does not block P9.3.3 through P9.5",
