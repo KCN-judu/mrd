@@ -1526,7 +1526,8 @@ mod tests {
             initial.initial_point.snapshot.optimal_cost(),
             ExactRatio::new(0, 1).unwrap()
         );
-        let normalized = initial.normalization.normalized.solve().unwrap();
+        let normalized =
+            crate::min_cost::experiment::solve(&initial.normalization.normalized).unwrap();
         let recovered = initial.normalization.recover_original(&normalized).unwrap();
         assert_eq!(recovered.cost, 7);
         assert_eq!(recovered.arc_flows, vec![1, -1, 2]);

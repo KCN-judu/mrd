@@ -38,9 +38,8 @@ pub use lsf_mwu::{ForestCollection, ForestCollectionError, ForestCollectionMetri
 pub use min_cost::{
     CirculationArcId, CirculationNetwork, CostedFlowRoundingResult, FlowRoundingStep,
     FractionalCirculation, InitialPointAugmentation, IsolationPerturbation,
-    IsolationRecoveryCertificate, IterativeRefinementResult, IterativeRefinementStep,
-    LowerBoundArc, LowerBoundCirculationNetwork, LowerBoundNormalization, MinCostCirculationError,
-    MinCostSolution, MinRatioCycle,
+    IsolationRecoveryCertificate, LowerBoundArc, LowerBoundCirculationNetwork,
+    LowerBoundNormalization, MinCostCirculationError, MinCostSolution,
 };
 pub use min_ratio_cycle::{
     ExactRatio, MinRatioEdgeId, StableEdge, StableMinRatioError, StableMinRatioLedger,
