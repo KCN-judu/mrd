@@ -1035,12 +1035,15 @@ amortized bound or unlock the `AlmostLinear` name.
    `docs/phase-reports/P09-4c-hidden-stability-query.md`. No approximate-query,
    dynamic-update, link-cut, Theorem 5.1, or runtime claim is made.
 4. **P9.4d - Update/query/detect execution, accounting, and audit. State:
-   in_progress.** Add explicit dynamic sparsification and link-cut execution
+   complete. Implementation SHA: `ef41f6c`.** Add explicit dynamic sparsification and link-cut execution
    adapters, then record update/query/detect transitions, compact-cycle
    application, bounded-domain work counters, no-fallback static checks, and
    adversarial mutation/replay campaigns. State every rejected operation and
    finite-domain limit. Do not claim an amortized, priority-queue, or AN19
-   runtime bound.
+   runtime bound. `source_min_ratio::execution::Executor` now forwards checked
+   ledger transitions, records successful calls, and explicitly rejects the two
+   unsupported source-grade operations. Evidence:
+   `docs/phase-reports/P09-4d-execution-accounting.md`.
 
 ### P9.5 - Integrated exact flow backend
 
