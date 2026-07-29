@@ -7,8 +7,8 @@
 - Current phase: P9.3.6
 - Current phase state: in_progress
 - Last completed phase: P9.3.5
-- Last pushed SHA: 35e4c8b4cd2c6705e07c39b816602ab9651b2751
-- Plan last updated: 2026-07-29T18:41:34Z
+- Last pushed SHA: 61afc100fbb00212685370a07a02ac470ede1bef
+- Plan last updated: 2026-07-29T18:49:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -916,7 +916,31 @@ P9.3 is split into the following source-gated subphases:
    Implement Theorem 1.2/Section 9's fully dynamic
    low-stretch spanning tree for bounded integral lengths, including contracted
    forests, embedded spanners, insertions/deletions, worst-case update work,
-   average stretch, and amortized tree recourse.
+   average stretch, and amortized tree recourse. It is split before coding into:
+   - **P9.3.6a state: in_progress. Start gate: P9.3.5 implementation audit
+     passed.** Implement and exactly audit one immutable Section 9.1 level:
+     consume an already certified partial forest, form the contracted graph
+     `H_i = G_i/F_i`, retain original edge and endpoint provenance, reject
+     intra-component loops explicitly, and derive each exact scaled length
+     `stretch_tilde(e) * length_Gi(e)`. No hierarchy recursion, spanner update,
+     or complexity claim belongs in this subphase.
+   - **P9.3.6b state: planned. Start gate: P9.3.6a contraction and provenance
+     differential passes.** Partition a contracted level into exact dyadic
+     stretch/length buckets, initialize its finite source-spanner embeddings,
+     and compose all mapped paths back to the preceding graph without losing
+     source-edge lineage. The finite bounded domain and all rejected cases must
+     remain explicit.
+   - **P9.3.6c state: planned. Start gate: P9.3.6b embedding certificate
+     passes.** Build a bounded-depth immutable chain of partial forests and
+     embedded spanners, derive `T_i = F_i union ... union F_d`, verify it is a
+     spanning tree, and record exact per-level stretch/congestion measurements.
+     The source asymptotic stretch induction remains unclaimed.
+   - **P9.3.6d state: planned. Start gate: P9.3.6c static chain differential
+     passes.** Replay insertions, deletions, and smaller-side vertex splits;
+     rebuild levels at explicit finite thresholds; record update work and tree
+     recourse; and compare each supported snapshot with the permanent bounded
+     low-stretch-tree Oracle. These counters are evidence, not an amortized
+     source bound.
 7. **P9.3.7 state: planned. Start gate: P9.3.6 implementation audit passed.**
    Run source traceability, adversarial update,
    certificate, counter, no-fallback, and bounded-weight audits. P9.3 cannot
