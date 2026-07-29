@@ -5,10 +5,10 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P9.3.3
-- Current phase state: in_progress
-- Last completed phase: P9.3.2
+- Current phase state: complete
+- Last completed phase: P9.3.3
 - Last pushed SHA: ee9743255a07e40b53275f55888219131a7a68e6
-- Plan last updated: 2026-07-29T16:29:53Z
+- Plan last updated: 2026-07-29T17:01:06Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -805,10 +805,18 @@ P9.3 is split into the following source-gated subphases:
      remains `AggregateRegressionOnly`, the priority-queue mode remains
      `ReducedLengthMonotone`, and the fixed `1024` aggregate ceiling is only a
      regression guard, not an asymptotic proof.
-3. **P9.3.3 state: in_progress. Start gate: P9.3.2d faithful implementation and differential audit passed.**
-   Implement Lemma 5.5's deterministic MWU
-   collection of exactly `k` LSFs and prove the uniform per-edge average
-   stretch bound while retaining the P8 weighted-Kruskal Oracle.
+3. **P9.3.3 state: complete. Implementation SHA: `038f762`.**
+   `source_lsf::experiment::mwu::Collection` builds exactly `k` source-shaped
+   LSFs using P9.3.2 weighted-copy expansion, AN19 static trees, and the
+   branch-free forest initializer. Its self-verifying rational MWU certificate
+   checks every source forest and supplied Lemma 5.4 envelope, then proves the
+   recorded uniform per-edge average-stretch bound. The rational update
+   `1 + x + x^2` retains the Appendix A.2 potential inequalities for checked
+   `x <= 1/10`; the P8 weighted-Kruskal collection remains a permanent Oracle,
+   never a fallback. Evidence is in
+   `docs/phase-reports/P09-3-3-mwu-forest-collection.md`. This finite-instance
+   certificate does not claim `O(log^7 n)` until a uniform source
+   `W = O(log^4 n)` envelope and source-model word-bound audit pass.
 4. **P9.3.4 state: planned. Start gate: P9.3.3 implementation audit passed.**
    Implement the deterministic static
    spanner-with-embedding primitive delegated by Theorem 8.1, with exact
@@ -980,3 +988,4 @@ After the phase has passed its full audit, been committed, and been pushed:
 | P9.3.2d | complete | 8f9ab06 | 7ea13da through 02c8385 | pending | pending | existing AN19 source-map and local-bound reports | implementation and semantic differential gates complete | 2026-07-28T16:31:47Z | 2026-07-29T16:29:53Z | DOI 10.1137/17M1115575 omits the needed proof; runtime remains unverified |
 | P9.3.2d-proof-debt | planned | ee97432 | pending | pending | pending | pending | hierarchy-wide amortization, source-equivalent exact event ordering, and final runtime verification | deferred | pending | low priority until the complete P9.5 flow backend exists |
 | P9.3.3 | in_progress | ee97432 | pending | pending | pending | pending | deterministic MWU collection of exactly `k` LSFs | 2026-07-29T16:29:53Z | pending | none |
+| P9.3.3 | complete | c2edf16 | 038f762 | pending closeout | pending | `docs/phase-reports/P09-3-3-mwu-forest-collection.md` | exact `k`-forest weighted-copy/AN19/LSF collection, envelope certificate, rational MWU proof, mutation and full-workspace audit | 2026-07-29T16:29:53Z | 2026-07-29T17:01:06Z | `O(log^7 n)` and AN19 runtime remain unclaimed pending the uniform envelope and deferred P9.3.2d proof debt |
