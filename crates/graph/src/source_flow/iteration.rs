@@ -804,9 +804,9 @@ mod tests {
         Session, SourceSelected, Step, select_population_choice,
     };
     use crate::{
-        CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
-        FractionalCirculation, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge, StableEdge,
-        StableMinRatioLedger, StableWitness,
+        CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
+        FlowNodeId, FractionalCirculation, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge,
+        StableEdge, StableMinRatioLedger, StableWitness,
         source_min_ratio::{
             candidate::{CandidateId, Choice, Kind},
             chain::Chain,
@@ -1416,7 +1416,7 @@ mod tests {
     }
 
     #[test]
-    fn fixed_factory_rebuilds_and_recertifies_each_supported_snapshot() {
+    fn fixed_factory_rejects_a_successor_when_its_coordinates_stop_certifying() {
         let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
         let factory = FixedProjectionFactory::new(
             input,
@@ -1424,16 +1424,16 @@ mod tests {
             spanner_parameters(),
             ExactRatio::new(1, 2).unwrap(),
         );
-        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 32);
 
         assert_eq!(
             driver.run(&network),
-            Err(Error::IterationLimit {
-                maximum_iterations: 2
-            })
+            Err(Error::Ipm(CertifiedIpmError::GradientApproximation {
+                edge: 0
+            }))
         );
-        assert_eq!(driver.factory().preparation_count(), 2);
-        assert_eq!(driver.records().len(), 2);
+        assert_eq!(driver.factory().preparation_count(), 25);
+        assert_eq!(driver.records().len(), 25);
         assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
         assert_eq!(
             driver.records()[0].approximation.edge_count,
