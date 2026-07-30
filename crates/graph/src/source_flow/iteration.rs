@@ -20,7 +20,9 @@ use crate::{
         cycle::{ArcBindings, Cycle, Error as CompactCycleError},
         input::Input,
         query::decode_candidate,
-        spanner::{Error as SpannerError, Snapshot as SpannerSnapshot},
+        spanner::{
+            Error as SpannerError, Parameters as SpannerParameters, Snapshot as SpannerSnapshot,
+        },
         terminal::{Error as TerminalError, Tree as TerminalTree},
     },
 };
@@ -207,6 +209,73 @@ where
     }
 }
 
+/// Rebuilds a fresh source projection from one externally supplied immutable
+/// exact coordinate set.
+///
+/// This is a deliberately finite policy boundary. It does not infer exact
+/// coordinates from IPM intervals, update the coordinate set after a session
+/// transition, or promise that a bounded driver will terminate. It does ensure
+/// that every snapshot it accepts gets a newly built terminal tree, spanner
+/// snapshot, and Theorem 4.3 certificate before candidate selection.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FixedProjectionFactory {
+    input: Input,
+    ledger: StableMinRatioLedger,
+    parameters: SpannerParameters,
+    kappa: ExactRatio,
+    preparations: u64,
+}
+
+impl FixedProjectionFactory {
+    /// Creates a policy that rebuilds source state from one fixed exact input.
+    #[must_use]
+    pub const fn new(
+        input: Input,
+        ledger: StableMinRatioLedger,
+        parameters: SpannerParameters,
+        kappa: ExactRatio,
+    ) -> Self {
+        Self {
+            input,
+            ledger,
+            parameters,
+            kappa,
+            preparations: 0,
+        }
+    }
+
+    /// Returns the number of successful snapshot-bound preparations.
+    #[must_use]
+    pub const fn preparation_count(&self) -> u64 {
+        self.preparations
+    }
+}
+
+impl Factory for FixedProjectionFactory {
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error> {
+        let terminal = TerminalTree::build(self.input.clone(), network, self.parameters.root)?;
+        let spanner = SpannerSnapshot::build(self.input.clone(), network, self.parameters)?;
+        let projection = Projection::new(
+            snapshot.clone(),
+            self.input.clone(),
+            self.ledger.clone(),
+            terminal,
+            spanner,
+            self.kappa,
+            network,
+        )?;
+        self.preparations = self
+            .preparations
+            .checked_add(1)
+            .ok_or(Error::IterationCountOverflow)?;
+        Ok(projection)
+    }
+}
+
 /// One accepted transition in a source-iteration run.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Record {
@@ -262,6 +331,12 @@ impl<F> Driver<F> {
     #[must_use]
     pub fn records(&self) -> &[Record] {
         &self.records
+    }
+
+    /// Returns the source-projection policy and its immutable state.
+    #[must_use]
+    pub const fn factory(&self) -> &F {
+        &self.factory
     }
 
     /// Returns the session after the caller has finished inspecting the run.
@@ -725,8 +800,8 @@ mod tests {
     use std::{cell::Cell, collections::BTreeSet, rc::Rc};
 
     use super::{
-        CompactCandidate, Driver, Error, PopulationChoice, Projection, Session, SourceSelected,
-        Step, select_population_choice,
+        CompactCandidate, Driver, Error, FixedProjectionFactory, PopulationChoice, Projection,
+        Session, SourceSelected, Step, select_population_choice,
     };
     use crate::{
         CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
@@ -1338,6 +1413,36 @@ mod tests {
         assert_eq!(driver.records()[1].sequence, 1);
         assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
         assert_eq!(driver.records()[0].input, driver.records()[1].input);
+    }
+
+    #[test]
+    fn fixed_factory_rebuilds_and_recertifies_each_supported_snapshot() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let factory = FixedProjectionFactory::new(
+            input,
+            ledger(),
+            spanner_parameters(),
+            ExactRatio::new(1, 2).unwrap(),
+        );
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+
+        assert_eq!(
+            driver.run(&network),
+            Err(Error::IterationLimit {
+                maximum_iterations: 2
+            })
+        );
+        assert_eq!(driver.factory().preparation_count(), 2);
+        assert_eq!(driver.records().len(), 2);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
+        assert_eq!(
+            driver.records()[0].approximation.edge_count,
+            network.arc_count()
+        );
+        assert_eq!(
+            driver.records()[1].approximation.edge_count,
+            network.arc_count()
+        );
     }
 
     #[test]

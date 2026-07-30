@@ -404,13 +404,14 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::Cell, rc::Rc};
-
     use graph::{
         BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
         FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioLedger,
         StableWitness,
-        source_flow::{Backend, iteration},
+        source_flow::{
+            Backend,
+            iteration::{self, FixedProjectionFactory},
+        },
         source_min_ratio::{
             input::Input,
             spanner::{Parameters as SpannerParameters, Snapshot as SpannerSnapshot},
@@ -660,26 +661,6 @@ mod tests {
         (snapshot, nonterminal_projection_input(circulation))
     }
 
-    fn fresh_nonterminal_projection(
-        snapshot: CertifiedIpmSnapshot,
-        input: Input,
-        network: &CirculationNetwork,
-    ) -> iteration::Projection {
-        let terminal = TerminalTree::build(input.clone(), network, FlowNodeId(0)).unwrap();
-        let spanner =
-            SpannerSnapshot::build(input.clone(), network, source_spanner_parameters()).unwrap();
-        iteration::Projection::new(
-            snapshot,
-            input,
-            source_ledger(),
-            terminal,
-            spanner,
-            ratio(1, 2),
-            network,
-        )
-        .unwrap()
-    }
-
     #[test]
     fn recovers_reference_flow_value_matching_and_cover() {
         let (graph, partition) = two_by_two_partition();
@@ -862,13 +843,12 @@ mod tests {
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
         let expected_input = input.clone();
-        let factory = move |current: &CertifiedIpmSnapshot, network: &CirculationNetwork| {
-            Ok::<_, iteration::Error>(fresh_nonterminal_projection(
-                current.clone(),
-                input.clone(),
-                network,
-            ))
-        };
+        let factory = FixedProjectionFactory::new(
+            input,
+            source_ledger(),
+            source_spanner_parameters(),
+            ratio(1, 2),
+        );
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 1)
             .unwrap();
@@ -879,6 +859,7 @@ mod tests {
                 maximum_iterations: 1,
             }))
         );
+        assert_eq!(driver.factory().preparation_count(), 1);
         assert_eq!(driver.records().len(), 1);
         let record = &driver.records()[0];
         assert_eq!(record.sequence, 0);
@@ -918,16 +899,12 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
-        let preparations = Rc::new(Cell::new(0));
-        let observed = Rc::clone(&preparations);
-        let factory = move |current: &CertifiedIpmSnapshot, network: &CirculationNetwork| {
-            observed.set(observed.get() + 1);
-            Ok::<_, iteration::Error>(fresh_nonterminal_projection(
-                current.clone(),
-                input.clone(),
-                network,
-            ))
-        };
+        let factory = FixedProjectionFactory::new(
+            input,
+            source_ledger(),
+            source_spanner_parameters(),
+            ratio(1, 2),
+        );
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -938,7 +915,7 @@ mod tests {
                 maximum_iterations: 2,
             }))
         );
-        assert_eq!(preparations.get(), 2);
+        assert_eq!(driver.factory().preparation_count(), 2);
         assert_eq!(driver.records().len(), 2);
         assert_eq!(driver.records()[0].sequence, 0);
         assert_eq!(driver.records()[1].sequence, 1);

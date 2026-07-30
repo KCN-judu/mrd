@@ -37,6 +37,8 @@ REQUIRED = {
         "pub struct SourceSelected",
         "pub struct Projection",
         "pub trait Factory",
+        "pub struct FixedProjectionFactory",
+        "pub const fn preparation_count",
         "pub struct Driver",
         "certify_approximations",
         "pub fn run",
