@@ -41,8 +41,8 @@ pub fn single_level(
     if !domain.contains(graph.node_count()) || !phi.is_positive() || !connected(graph)? {
         return Err(Error::OutsideCertifiedDomain);
     }
-    let level = ceil_log2(graph.edge_count().div_ceil(graph.node_count()));
-    let capacity = (1_u64 << level)
+    let minimum_level = ceil_log2(graph.edge_count().div_ceil(graph.node_count()));
+    let capacity = (1_u64 << minimum_level)
         .checked_mul(u64::try_from(graph.node_count()).map_err(|_| Error::Overflow)?)
         .ok_or(Error::Overflow)?;
     if u64::try_from(graph.edge_count()).map_err(|_| Error::Overflow)? > capacity {
@@ -50,12 +50,12 @@ pub fn single_level(
     }
     let degrees = degrees(graph)?;
     let minimum_degree = *degrees.iter().min().ok_or(Error::InvalidCertificate)?;
-    let required = phi
-        .checked_mul_integer(1_i128 << level)
+    let minimum_level_required = phi
+        .checked_mul_integer(1_i128 << minimum_level)
         .map_err(map_ratio)?;
     if !ExactRatio::new(i128::from(minimum_degree), 1)
         .map_err(map_ratio)?
-        .at_least(required)
+        .at_least(minimum_level_required)
         .map_err(map_ratio)?
     {
         return Err(Error::DegreeSandwichViolation);
@@ -64,6 +64,18 @@ pub fn single_level(
     if !expansion.at_least(phi).map_err(map_ratio)? {
         return Err(Error::InvalidCertificate);
     }
+    let maximum_level = ceil_log2(graph.node_count());
+    let level = (minimum_level..=maximum_level)
+        .filter(|level| {
+            phi.checked_mul_integer(1_i128 << level)
+                .and_then(|required| {
+                    ExactRatio::new(i128::from(minimum_degree), 1)
+                        .and_then(|degree| degree.at_least(required))
+                })
+                .unwrap_or(false)
+        })
+        .next_back()
+        .ok_or(Error::DegreeSandwichViolation)?;
     Ok(Decomposition {
         level,
         phi,
@@ -118,7 +130,7 @@ mod tests {
             ExhaustiveDomain { maximum_nodes: 8 },
         )
         .unwrap();
-        assert_eq!(decomposition.level, 1);
+        assert_eq!(decomposition.level, 2);
         assert_eq!(decomposition.components.len(), 1);
         assert_eq!(
             decomposition.components[0].edges.len(),

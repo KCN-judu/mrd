@@ -4,7 +4,7 @@ use crate::{ExactRatio, FlowNodeId};
 
 use super::super::{
     experiment::{
-        complete::build as build_complete,
+        circulant,
         decomposition::Decomposition,
         domain::{Error as ExperimentError, ExhaustiveDomain},
     },
@@ -15,7 +15,8 @@ use super::super::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Component {
     pub level: u32,
-    pub weight: ExactRatio,
+    /// Source-required degree weights `deg_{J_i[X]}(v) / (phi * 2^i)`.
+    pub degree_weights: Vec<ExactRatio>,
     pub vertices: Vec<FlowNodeId>,
     pub source_edges: Vec<EdgeId>,
     pub witness_edges: Vec<EdgeId>,
@@ -50,23 +51,48 @@ pub fn build(
     {
         return Err(Error::UnsupportedDecomposition);
     }
-    let weight = decomposition
+    let scale = decomposition
         .phi
         .checked_mul_integer(1_i128 << decomposition.level)
         .map_err(|_| Error::Overflow)?;
-    let witness =
-        build_complete(&vec![weight; source.node_count()], domain).map_err(Error::Experiment)?;
-    let witness_edges = (0..witness.graph.edge_count()).map(EdgeId).collect();
+    let degree_weights = degrees(source)?
+        .into_iter()
+        .map(|degree| {
+            ExactRatio::new(i128::from(degree), 1)
+                .and_then(|value| value.checked_mul(scale.reciprocal()?))
+                .map_err(|_| Error::Overflow)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let graph = if decomposition.level == 0 {
+        source.clone()
+    } else {
+        circulant::build(&degree_weights, domain)
+            .map_err(Error::Experiment)?
+            .graph
+    };
+    let witness_edges = (0..graph.edge_count()).map(EdgeId).collect();
     Ok(Union {
-        graph: witness.graph,
+        graph,
         components: vec![Component {
             level: decomposition.level,
-            weight,
+            degree_weights,
             vertices: component.vertices.clone(),
             source_edges: component.edges.clone(),
             witness_edges,
         }],
     })
+}
+
+fn degrees(graph: &Graph) -> Result<Vec<u64>, Error> {
+    let mut result = vec![0_u64; graph.node_count()];
+    for index in 0..graph.edge_count() {
+        let edge = graph.edge(EdgeId(index)).ok_or(Error::InvalidCertificate)?;
+        result[edge.first.0] = result[edge.first.0].checked_add(1).ok_or(Error::Overflow)?;
+        result[edge.second.0] = result[edge.second.0]
+            .checked_add(1)
+            .ok_or(Error::Overflow)?;
+    }
+    Ok(result)
 }
 
 impl Union {
@@ -105,24 +131,37 @@ pub enum Error {
 mod tests {
     use super::build;
     use crate::{
-        ExactRatio,
-        source_spanner::experiment::{
-            complete::build as build_complete, decomposition::single_level,
-            domain::ExhaustiveDomain,
+        ExactRatio, FlowNodeId,
+        source_spanner::{
+            experiment::{decomposition::single_level, domain::ExhaustiveDomain},
+            model::{Edge, Graph},
         },
     };
 
     #[test]
     fn constructs_a_weighted_single_component_witness_union() {
         let domain = ExhaustiveDomain { maximum_nodes: 8 };
-        let source = build_complete(&[ExactRatio::new(1, 1).unwrap(); 4], domain)
-            .unwrap()
-            .graph;
+        let source = Graph::new(
+            5,
+            (0..5)
+                .flat_map(|first| {
+                    ((first + 1)..5).map(move |second| Edge {
+                        first: FlowNodeId(first),
+                        second: FlowNodeId(second),
+                    })
+                })
+                .collect(),
+        )
+        .unwrap();
         let decomposition = single_level(&source, ExactRatio::new(1, 2).unwrap(), domain).unwrap();
         let union = build(&source, &decomposition, domain).unwrap();
         assert_eq!(union.components.len(), 1);
-        assert_eq!(union.components[0].weight, ExactRatio::new(1, 1).unwrap());
+        assert_eq!(
+            union.components[0].degree_weights,
+            vec![ExactRatio::new(1, 1).unwrap(); 5]
+        );
         assert_eq!(union.components[0].source_edges.len(), source.edge_count());
+        assert!(union.graph.edge_count() < source.edge_count());
         union.verify(&source, &decomposition, domain).unwrap();
     }
 }

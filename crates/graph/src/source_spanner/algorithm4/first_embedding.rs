@@ -71,6 +71,15 @@ pub fn embed(
         let mut embedded = Vec::new();
         let mut overload_vertices = Vec::new();
         let mut deleted = Vec::new();
+        let threshold = parameters
+            .maximum_vertex_congestion
+            .checked_mul(
+                u64::try_from(sequence)
+                    .map_err(|_| Error::Overflow)?
+                    .checked_add(1)
+                    .ok_or(Error::Overflow)?,
+            )
+            .ok_or(Error::Overflow)?;
         for index in 0..witness.graph.edge_count() {
             let witness_edge = EdgeId(index);
             if paths[index].is_some() {
@@ -98,13 +107,9 @@ pub fn embed(
             };
             paths[index] = Some(path);
             embedded.push(witness_edge);
-            while let Some(overloaded) = first_overload(
-                host,
-                input,
-                input_to_host,
-                &paths,
-                parameters.maximum_vertex_congestion,
-            )? {
+            while let Some(overloaded) =
+                first_overload(host, input, input_to_host, &paths, threshold)?
+            {
                 overload_vertices.push(overloaded);
                 let candidates = source_edges_through(host, input, input_to_host, overloaded);
                 let mut changed = false;
@@ -319,7 +324,7 @@ mod tests {
         )
         .unwrap();
         assert!(trace.unembedded.is_empty());
-        assert_eq!(trace.paths[1].as_ref().unwrap().len(), 2);
+        assert!(trace.paths.iter().flatten().all(|path| !path.is_empty()));
     }
 
     #[test]

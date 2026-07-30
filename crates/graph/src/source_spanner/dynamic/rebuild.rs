@@ -9,6 +9,7 @@ use super::{
         algorithm4::{
             finalize,
             first_embedding::{self, Parameters as FirstParameters},
+            second_embedding::{self, Parameters as SecondParameters},
             witness,
         },
         experiment::{decomposition::single_level, domain::ExhaustiveDomain},
@@ -224,8 +225,21 @@ fn snapshot(input: &BatchState, parameters: Parameters) -> Result<Snapshot, Erro
     if !first.unembedded.is_empty() {
         return Err(Error::UnembeddedWitness);
     }
-    let output =
-        finalize::finish(&graph, &graph, &identity, &witness, &first).map_err(Error::Finalize)?;
+    let second = second_embedding::embed(
+        &graph,
+        &witness,
+        SecondParameters {
+            maximum_hops: parameters.maximum_hops,
+            maximum_edge_congestion: parameters.maximum_vertex_congestion,
+            maximum_rounds: parameters.maximum_rounds,
+        },
+    )
+    .map_err(Error::SecondEmbedding)?;
+    if !second.unembedded.is_empty() {
+        return Err(Error::UnembeddedInput);
+    }
+    let output = finalize::finish(&graph, &graph, &identity, &witness, &first, &second)
+        .map_err(Error::Finalize)?;
     let selected = output
         .image
         .iter()
@@ -295,10 +309,14 @@ pub enum Error {
     Witness(#[source] super::super::algorithm4::witness::Error),
     #[error("finite first embedding is invalid: {0}")]
     FirstEmbedding(#[source] first_embedding::Error),
+    #[error("finite second embedding is invalid: {0}")]
+    SecondEmbedding(#[source] second_embedding::Error),
     #[error("finite Algorithm 4 finalization is invalid: {0}")]
     Finalize(#[source] finalize::Error),
     #[error("finite Algorithm 4 left witness edges unembedded")]
     UnembeddedWitness,
+    #[error("finite Algorithm 4 left source input edges unembedded")]
+    UnembeddedInput,
     #[error("active graph lost a stable edge identifier")]
     StableId,
     #[error("stable dynamic snapshot is not an active embedding certificate")]

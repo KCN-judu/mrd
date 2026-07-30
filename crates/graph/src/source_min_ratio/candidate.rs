@@ -15,7 +15,7 @@ use crate::{CirculationArcId, CirculationNetwork, ExactRatio, SourceEdgeId, Stab
 
 use super::{
     chain::{Chain, Shifts},
-    cycle::{Cycle, Error as CycleError, Segment},
+    cycle::{Cycle, Direction, EmbeddingEdge, Error as CycleError, Segment},
     input::{Error as InputError, Input, Materialization},
     model::LevelId,
 };
@@ -390,7 +390,7 @@ fn evaluate(
     candidate: Fundamental,
     generation: u64,
 ) -> Result<Entry, Error> {
-    validate_shape(&candidate, context.chain)?;
+    validate_shape(&candidate, &context.materialization.graph, context.chain)?;
     let decoded = candidate.cycle.decode(
         &context.materialization.graph,
         context.chain,
@@ -427,7 +427,11 @@ fn evaluate(
     })
 }
 
-fn validate_shape(candidate: &Fundamental, chain: &Chain) -> Result<(), Error> {
+fn validate_shape(
+    candidate: &Fundamental,
+    graph: &crate::SourceDynamicGraph,
+    chain: &Chain,
+) -> Result<(), Error> {
     let anchor_count = candidate
         .cycle
         .segments
@@ -442,9 +446,9 @@ fn validate_shape(candidate: &Fundamental, chain: &Chain) -> Result<(), Error> {
     if anchor_count != 1 {
         return Err(Error::InvalidAnchor(candidate.id));
     }
-    let Kind::FundamentalTree { .. } = candidate.kind else {
-        return Ok(());
-    };
+    if let Kind::FundamentalSpanner { rejected } = candidate.kind {
+        return validate_spanner_path(candidate, graph, rejected);
+    }
     let terminal = chain
         .levels()
         .last()
@@ -456,13 +460,52 @@ fn validate_shape(candidate: &Fundamental, chain: &Chain) -> Result<(), Error> {
         .iter()
         .filter_map(|segment| match segment {
             Segment::TreePath { selection, .. } => Some(selection.level),
-            Segment::OffTree { .. } => None,
+            Segment::OffTree { .. } | Segment::SpannerPath { .. } => None,
         })
         .collect::<Vec<LevelId>>();
     if candidate.cycle.segments.len() != 2 || tree_paths.as_slice() != [terminal] {
         return Err(Error::InvalidTerminalTree(candidate.id));
     }
     Ok(())
+}
+
+fn validate_spanner_path(
+    candidate: &Fundamental,
+    graph: &crate::SourceDynamicGraph,
+    rejected: SourceEdgeId,
+) -> Result<(), Error> {
+    let [
+        Segment::SpannerPath { edges },
+        Segment::OffTree { source, direction },
+    ] = candidate.cycle.segments.as_slice()
+    else {
+        return Err(Error::InvalidSpannerPath(candidate.id));
+    };
+    if *source != rejected || edges.is_empty() || edges.iter().any(|edge| edge.source == rejected) {
+        return Err(Error::InvalidSpannerPath(candidate.id));
+    }
+    let anchor = graph
+        .edge(rejected)
+        .ok_or(Error::InvalidSpannerPath(candidate.id))?;
+    let (mut current, target) = match direction {
+        Direction::Reverse => (anchor.first, anchor.second),
+        Direction::Forward => (anchor.second, anchor.first),
+    };
+    for EmbeddingEdge { source, direction } in edges {
+        let edge = graph
+            .edge(*source)
+            .ok_or(Error::InvalidSpannerPath(candidate.id))?;
+        current = match direction {
+            Direction::Forward if edge.first == current => edge.second,
+            Direction::Reverse if edge.second == current => edge.first,
+            _ => return Err(Error::InvalidSpannerPath(candidate.id)),
+        };
+    }
+    if current == target {
+        Ok(())
+    } else {
+        Err(Error::InvalidSpannerPath(candidate.id))
+    }
 }
 
 fn aggregate(
@@ -488,6 +531,8 @@ pub enum Error {
     UnknownCandidate(CandidateId),
     #[error("source candidate {0:?} does not contain its unique fundamental edge")]
     InvalidAnchor(CandidateId),
+    #[error("fundamental spanner candidate {0:?} has an invalid maintained embedding path")]
+    InvalidSpannerPath(CandidateId),
     #[error(
         "terminal fundamental tree candidate {0:?} is not one terminal tree path plus one edge"
     )]
@@ -519,7 +564,7 @@ mod tests {
         CirculationNetwork, ExactRatio, FlowNodeId, SourceEdgeId,
         source_min_ratio::{
             chain::Chain,
-            cycle::{Cycle, Direction, Segment},
+            cycle::{Cycle, Direction, EmbeddingEdge, Segment},
             input::Input,
             model::{Branch, BranchId, Level, LevelId, Tree},
         },
@@ -593,10 +638,21 @@ mod tests {
                 },
                 cycle: Cycle {
                     segments: vec![
-                        Segment::TreePath {
-                            selection: selected[0],
-                            from: FlowNodeId(0),
-                            to: FlowNodeId(3),
+                        Segment::SpannerPath {
+                            edges: vec![
+                                EmbeddingEdge {
+                                    source: SourceEdgeId(0),
+                                    direction: Direction::Forward,
+                                },
+                                EmbeddingEdge {
+                                    source: SourceEdgeId(1),
+                                    direction: Direction::Forward,
+                                },
+                                EmbeddingEdge {
+                                    source: SourceEdgeId(2),
+                                    direction: Direction::Forward,
+                                },
+                            ],
                         },
                         Segment::OffTree {
                             source: SourceEdgeId(3),
@@ -719,6 +775,37 @@ mod tests {
         assert_eq!(
             Registry::new(&context, vec![nonterminal]),
             Err(Error::InvalidTerminalTree(CandidateId(9)))
+        );
+    }
+
+    #[test]
+    fn rejects_a_tree_path_masquerading_as_a_spanner_embedding() {
+        let (input, materialization, chain, shifts, network) =
+            setup(&[ratio(-1), ratio(-1), ratio(-5), ratio(0), ratio(0)]);
+        let context = Context::new(&input, &materialization, &chain, &shifts, &network).unwrap();
+        let (mut spanner, terminal) = candidates(&chain, &shifts);
+        spanner.cycle.segments[0] = terminal.cycle.segments[0].clone();
+
+        assert_eq!(
+            Registry::new(&context, vec![spanner]),
+            Err(Error::InvalidSpannerPath(CandidateId(3)))
+        );
+    }
+
+    #[test]
+    fn rejects_a_noncontiguous_spanner_embedding() {
+        let (input, materialization, chain, shifts, network) =
+            setup(&[ratio(-1), ratio(-1), ratio(-5), ratio(0), ratio(0)]);
+        let context = Context::new(&input, &materialization, &chain, &shifts, &network).unwrap();
+        let (mut spanner, _) = candidates(&chain, &shifts);
+        let Segment::SpannerPath { edges } = &mut spanner.cycle.segments[0] else {
+            unreachable!();
+        };
+        edges.swap(0, 1);
+
+        assert_eq!(
+            Registry::new(&context, vec![spanner]),
+            Err(Error::InvalidSpannerPath(CandidateId(3)))
         );
     }
 

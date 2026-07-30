@@ -2,4 +2,5 @@
 
 pub mod finalize;
 pub mod first_embedding;
+pub mod second_embedding;
 pub mod witness;

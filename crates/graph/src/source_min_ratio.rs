@@ -11,4 +11,5 @@ pub mod execution;
 pub mod input;
 pub mod model;
 pub mod query;
+pub mod spanner;
 pub mod terminal;

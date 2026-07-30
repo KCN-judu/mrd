@@ -13,15 +13,28 @@ MODULES = {
     "model": ROOT / "crates/graph/src/source_min_ratio/model.rs",
     "chain": ROOT / "crates/graph/src/source_min_ratio/chain.rs",
     "cycle": ROOT / "crates/graph/src/source_min_ratio/cycle.rs",
+    "spanner": ROOT / "crates/graph/src/source_min_ratio/spanner.rs",
     "terminal": ROOT / "crates/graph/src/source_min_ratio/terminal.rs",
 }
 REQUIRED = {
-    "root": ("pub mod candidate", "pub mod input", "pub mod chain", "pub mod model"),
-    "candidate": ("pub struct Registry", "pub fn best", "FundamentalSpanner"),
+    "root": ("pub mod candidate", "pub mod input", "pub mod chain", "pub mod model", "pub mod spanner"),
+    "candidate": (
+        "pub struct Registry",
+        "pub fn best",
+        "FundamentalSpanner",
+        "validate_spanner_path",
+    ),
     "input": ("pub struct Input", "pub fn materialize", "ArcBindings::new"),
     "model": ("struct BranchId", "struct Tree", "struct Level"),
     "chain": ("fn validate_tree", "pub fn initial_shifts", "pub fn shift"),
-    "cycle": ("struct ArcBindings", "pub fn decode", "validate_signed_circulation"),
+    "cycle": (
+        "struct ArcBindings",
+        "struct EmbeddingEdge",
+        "SpannerPath",
+        "pub fn decode",
+        "validate_signed_circulation",
+    ),
+    "spanner": ("pub struct Snapshot", "FundamentalSpanner", "SpannerPath", "source_lsst"),
     "terminal": ("pub struct Tree", "pub fn build", "Lsst::construct", "FundamentalTree"),
 }
 FORBIDDEN = (
@@ -55,7 +68,7 @@ def main() -> None:
         for forbidden in FORBIDDEN:
             if forbidden in source:
                 fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
-    print("source_min_ratio audit: finite tree-chain boundary has no Oracle fallback")
+    print("source_min_ratio audit: finite tree-chain and sparsified-core boundaries have no Oracle fallback")
 
 
 if __name__ == "__main__":

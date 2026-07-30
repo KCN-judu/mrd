@@ -23,6 +23,15 @@ pub enum Direction {
     Reverse,
 }
 
+/// One oriented source edge in an explicitly maintained spanner embedding.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EmbeddingEdge {
+    /// Stable source edge ID retained by the selected spanner.
+    pub source: SourceEdgeId,
+    /// Traversal orientation relative to the source edge.
+    pub direction: Direction,
+}
+
 impl Direction {
     const fn signed(self) -> i8 {
         match self {
@@ -60,6 +69,11 @@ pub enum Segment {
         from: FlowNodeId,
         /// Path end.
         to: FlowNodeId,
+    },
+    /// An explicit source edge path maintained by a sparsified core graph.
+    SpannerPath {
+        /// Ordered source-edge embedding path.
+        edges: Vec<EmbeddingEdge>,
     },
 }
 
@@ -132,6 +146,16 @@ impl Cycle {
                         from: *to,
                         to: *from,
                     },
+                    Segment::SpannerPath { edges } => Segment::SpannerPath {
+                        edges: edges
+                            .iter()
+                            .rev()
+                            .map(|edge| EmbeddingEdge {
+                                source: edge.source,
+                                direction: edge.direction.reversed(),
+                            })
+                            .collect(),
+                    },
                 })
                 .collect(),
         }
@@ -170,6 +194,14 @@ impl Cycle {
                     }
                     let branch = chain.branch(*selection).map_err(Error::Chain)?;
                     decoded.extend(path(graph, branch, *from, *to, bindings)?);
+                }
+                Segment::SpannerPath { edges } => {
+                    decoded.extend(
+                        edges
+                            .iter()
+                            .map(|edge| Ok((bindings.arc(edge.source)?, edge.direction.signed())))
+                            .collect::<Result<Vec<_>, Error>>()?,
+                    );
                 }
             }
         }

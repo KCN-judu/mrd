@@ -1,14 +1,15 @@
 //! Algorithm 4 Task 3 and final finite image/composition audit.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     super::model::{Audit, Candidate, EdgeId, Embedding, Error as ModelError, Graph},
     first_embedding::Trace,
+    second_embedding,
     witness::Union,
 };
 
-/// Task 3's direct finite `J -> W` embedding and Algorithm 4 output evidence.
+/// Task 3's finite `J -> W` embedding and Algorithm 4 output evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Output {
     pub image: BTreeSet<EdgeId>,
@@ -17,40 +18,74 @@ pub struct Output {
     pub audit: Audit,
 }
 
-/// Finishes Algorithm 4 when the finite Task 2 witness paths are complete.
+/// Finishes Algorithm 4 when the finite Task 2 and Task 3 paths are complete.
 ///
 /// # Errors
 ///
-/// Returns an error for an unembedded witness edge, an input edge absent from
-/// the finite witness, or a failed image/composition certificate.
+/// Returns an error for an unembedded witness or input edge, or a failed
+/// image/composition certificate.
 pub fn finish(
     host: &Graph,
     input: &Graph,
     input_to_host: &Embedding,
     witness: &Union,
     first: &Trace,
+    second: &second_embedding::Trace,
 ) -> Result<Output, Error> {
-    if !first.unembedded.is_empty() || first.paths.len() != witness.graph.edge_count() {
+    if !first.unembedded.is_empty()
+        || !second.unembedded.is_empty()
+        || first.paths.len() != witness.graph.edge_count()
+        || second.paths.len() != input.edge_count()
+    {
         return Err(Error::UnembeddedWitness);
     }
-    let mut input_to_witness_paths = Vec::with_capacity(input.edge_count());
     let mut input_to_image_paths = Vec::with_capacity(input.edge_count());
     let mut image = BTreeSet::new();
     for index in 0..input.edge_count() {
-        let input_edge = input.edge(EdgeId(index)).ok_or(Error::InvalidWitness)?;
-        let witness_edge = matching_edge(&witness.graph, input_edge.first, input_edge.second)
-            .ok_or(Error::MissingWitnessPath)?;
-        let witness_path = first
+        let input_edge = input_edge(input, index)?;
+        let witness_path = second
             .paths
-            .get(witness_edge.0)
+            .get(index)
             .and_then(Option::as_ref)
             .ok_or(Error::UnembeddedWitness)?;
-        image.extend(witness_path.iter().copied());
-        input_to_witness_paths.push(vec![witness_edge]);
-        input_to_image_paths.push(witness_path.clone());
+        let mut image_path = Vec::new();
+        let mut witness_current = input_edge.first;
+        for witness_edge in witness_path {
+            let edge = witness
+                .graph
+                .edge(*witness_edge)
+                .ok_or(Error::InvalidWitness)?;
+            let path = first
+                .paths
+                .get(witness_edge.0)
+                .and_then(Option::as_ref)
+                .ok_or(Error::UnembeddedWitness)?;
+            if edge.first == witness_current {
+                image_path.extend(path.iter().copied());
+                witness_current = edge.second;
+            } else if edge.second == witness_current {
+                image_path.extend(path.iter().rev().copied());
+                witness_current = edge.first;
+            } else {
+                return Err(Error::InvalidWitness);
+            }
+        }
+        let image_path = loop_erase(input, input_edge.first, image_path)?;
+        image.extend(image_path.iter().copied());
+        input_to_image_paths.push(image_path);
     }
-    let input_to_witness = Embedding::new(input, &witness.graph, None, input_to_witness_paths)
-        .map_err(Error::Model)?;
+    let input_to_witness = Embedding::new(
+        input,
+        &witness.graph,
+        None,
+        second
+            .paths
+            .iter()
+            .cloned()
+            .collect::<Option<Vec<Vec<EdgeId>>>>()
+            .ok_or(Error::UnembeddedWitness)?,
+    )
+    .map_err(Error::Model)?;
     let input_to_image =
         Embedding::new(input, input, Some(&image), input_to_image_paths).map_err(Error::Model)?;
     let candidate = Candidate {
@@ -66,17 +101,46 @@ pub fn finish(
     })
 }
 
-fn matching_edge(
-    graph: &Graph,
-    first: crate::FlowNodeId,
-    second: crate::FlowNodeId,
-) -> Option<EdgeId> {
-    (0..graph.edge_count()).map(EdgeId).find(|edge_id| {
-        graph.edge(*edge_id).is_some_and(|edge| {
-            (edge.first == first && edge.second == second)
-                || (edge.first == second && edge.second == first)
-        })
-    })
+fn input_edge(input: &Graph, index: usize) -> Result<super::super::model::Edge, Error> {
+    input.edge(EdgeId(index)).ok_or(Error::InvalidWitness)
+}
+
+/// Removes closed subwalks while preserving the exact endpoints of a composed
+/// Algorithm 4 embedding path.
+fn loop_erase(
+    input: &Graph,
+    start: crate::FlowNodeId,
+    walk: Vec<EdgeId>,
+) -> Result<Vec<EdgeId>, Error> {
+    let mut positions = BTreeMap::from([(start, 0_usize)]);
+    let mut vertices = vec![start];
+    let mut result = Vec::new();
+    let mut current = start;
+    for edge_id in walk {
+        let edge = input.edge(edge_id).ok_or(Error::InvalidWitness)?;
+        let next = if edge.first == current {
+            edge.second
+        } else if edge.second == current {
+            edge.first
+        } else {
+            return Err(Error::InvalidWitness);
+        };
+        if let Some(position) = positions.get(&next).copied() {
+            for vertex in vertices.drain(position + 1..) {
+                positions.remove(&vertex);
+            }
+            result.truncate(position);
+        } else {
+            result.push(edge_id);
+            vertices.push(next);
+            positions.insert(next, result.len());
+        }
+        current = next;
+    }
+    if result.is_empty() {
+        return Err(Error::InvalidWitness);
+    }
+    Ok(result)
 }
 
 /// Task 3 cannot produce a valid finite Algorithm 4 output.
@@ -84,8 +148,6 @@ fn matching_edge(
 pub enum Error {
     #[error("Algorithm 4 Task 3 has an unembedded witness edge")]
     UnembeddedWitness,
-    #[error("Algorithm 4 Task 3 witness omits an input edge")]
-    MissingWitnessPath,
     #[error("Algorithm 4 Task 3 witness is invalid")]
     InvalidWitness,
     #[error("Algorithm 4 Task 3 embedding audit failed: {0}")]
@@ -99,7 +161,8 @@ mod tests {
         ExactRatio, FlowNodeId,
         source_spanner::{
             algorithm4::{
-                first_embedding::{Parameters, embed},
+                first_embedding::{Parameters as FirstParameters, embed as first_embed},
+                second_embedding::{Parameters as SecondParameters, embed as second_embed},
                 witness,
             },
             experiment::{decomposition::single_level, domain::ExhaustiveDomain},
@@ -107,27 +170,17 @@ mod tests {
         },
     };
 
-    fn cycle() -> Graph {
+    fn complete() -> Graph {
         Graph::new(
-            4,
-            vec![
-                Edge {
-                    first: FlowNodeId(0),
-                    second: FlowNodeId(1),
-                },
-                Edge {
-                    first: FlowNodeId(1),
-                    second: FlowNodeId(2),
-                },
-                Edge {
-                    first: FlowNodeId(2),
-                    second: FlowNodeId(3),
-                },
-                Edge {
-                    first: FlowNodeId(0),
-                    second: FlowNodeId(3),
-                },
-            ],
+            5,
+            (0..5)
+                .flat_map(|first| {
+                    ((first + 1)..5).map(move |second| Edge {
+                        first: FlowNodeId(first),
+                        second: FlowNodeId(second),
+                    })
+                })
+                .collect(),
         )
         .unwrap()
     }
@@ -145,26 +198,36 @@ mod tests {
     }
 
     #[test]
-    fn builds_the_image_and_composed_embedding() {
+    fn builds_a_sparse_image_and_composed_embedding() {
         let domain = ExhaustiveDomain { maximum_nodes: 8 };
-        let input = cycle();
+        let input = complete();
         let direct = identity(&input);
         let decomposition = single_level(&input, ExactRatio::new(1, 2).unwrap(), domain).unwrap();
         let witness = witness::build(&input, &decomposition, domain).unwrap();
-        let first = embed(
+        let first = first_embed(
             &input,
             &input,
             &direct,
             &witness,
-            Parameters {
-                maximum_hops: 2,
+            FirstParameters {
+                maximum_hops: 4,
                 maximum_vertex_congestion: 100,
                 maximum_rounds: 1,
             },
         )
         .unwrap();
-        let output = finish(&input, &input, &direct, &witness, &first).unwrap();
-        assert_eq!(output.image.len(), input.edge_count());
-        assert_eq!(output.audit.composed.maximum_path_length, 1);
+        let second = second_embed(
+            &input,
+            &witness,
+            SecondParameters {
+                maximum_hops: 4,
+                maximum_edge_congestion: 100,
+                maximum_rounds: 1,
+            },
+        )
+        .unwrap();
+        let output = finish(&input, &input, &direct, &witness, &first, &second).unwrap();
+        assert!(output.image.len() < input.edge_count());
+        assert!(output.audit.composed.maximum_path_length > 1);
     }
 }
