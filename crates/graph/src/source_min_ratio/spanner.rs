@@ -210,6 +210,12 @@ impl Snapshot {
         &self.input
     }
 
+    /// Returns the jointly materialized source graph and circulation bindings.
+    #[must_use]
+    pub const fn materialization(&self) -> &Materialization {
+        &self.materialization
+    }
+
     /// Returns the explicit singleton rooted forest used to form `C(G,F)`.
     #[must_use]
     pub const fn forest(&self) -> &LsfStructuralCertificate {

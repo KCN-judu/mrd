@@ -29,10 +29,11 @@ REQUIRED = {
         "pub struct Step",
         "from_compact_candidate",
         "from_terminal_candidate",
+        "from_maintained_candidates",
         "decode_candidate",
         "pub fn apply",
         "IpmDetectLedger",
-        "MismatchedTerminalCoordinates",
+        "MismatchedCandidateCoordinates",
     ),
     "compressed": (
         "pub struct Circulation",
