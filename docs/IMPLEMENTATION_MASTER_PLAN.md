@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.4
 - Last pushed SHA: 2796465c9b87346c9ec816c583e06f07746a2782
-- Plan last updated: 2026-07-30T03:41:01Z
+- Plan last updated: 2026-07-30T03:47:21Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -40,6 +40,26 @@ uses responsibility-bearing package names and explicit `oracle` and
 changes ownership paths and names only. P9.3.2d's implementation is now
 accepted as a faithful source-shaped implementation with explicitly deferred
 proof debt; the refactor itself does not verify the AN19 runtime.
+
+## P9.3.2d Runtime-Proof Deferral
+
+**Implementation path: nonblocking. Proof path: deferred, low priority.** The
+formal SIAM journal version of Abraham--Neiman, DOI `10.1137/17M1115575`, was
+checked. It does not provide the required proof converting original
+power-of-two edge-length classes into a bounded number or order of exact
+reduced-event classes for
+`c_x(u,v) = ell(u,v) + d(x,u) - d(x,v)`. The repository therefore first
+implements and differentially audits the complete source-shaped flow-solver
+chain through P9.5, including its backend-completeness gate. After that chain
+is complete, P9.6a returns to the missing reduced-event ordering and
+hierarchy-wide amortization proof as explicitly deferred proof debt.
+
+This deferral is deliberately not a license for a complexity claim. Until
+P9.6a is completed, the backend must not be named `AlmostLinear`, report
+`an19_runtime_verified: true`, or claim the AN19 asymptotic runtime. Finite
+tests, exact Oracles, workspace-scan ledgers, local event certificates, and
+the full P9.5 semantic flow campaign establish implementation evidence only;
+they are not a proof of the missing conversion or downstream runtime bound.
 
 ## Global Rules
 
