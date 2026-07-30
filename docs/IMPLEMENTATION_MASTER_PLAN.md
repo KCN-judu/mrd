@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.4
 - Last pushed SHA: 2796465c9b87346c9ec816c583e06f07746a2782
-- Plan last updated: 2026-07-30T03:47:21Z
+- Plan last updated: 2026-07-30T03:55:16Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1320,7 +1320,12 @@ It is split into the following completed substeps:
      nonterminal witness, and must establish an explicit fresh-projection
      policy for every nonterminal snapshot it claims can terminate. Do not
      consider `Backend::require_complete()` until that policy and the complete
-     output differential both pass.
+     output differential both pass. Commit `45849b1` establishes a bounded
+     two-snapshot reconstruction witness: each accepted nonterminal update
+     causes one fresh, independently certified `Projection` preparation, but
+     the successor remains nonterminal under `IterationLimit { maximum_iterations:
+     2 }`. Evidence:
+     `docs/phase-reports/P09-5e-3-fresh-projection-policy.md`.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1661,5 +1666,5 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | pending | pending | pending | pending | combined terminal recovery and nonterminal fresh-projection policy/differential campaign | 2026-07-30T03:41:01Z | pending | no complete multi-snapshot termination policy yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot nonterminal projection reconstruction/certification witness | 2026-07-30T03:41:01Z | pending | no complete multi-snapshot termination policy or broad output differential yet; `Backend::require_complete()` remains unavailable |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
