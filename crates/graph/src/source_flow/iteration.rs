@@ -257,14 +257,11 @@ impl Factory for FixedProjectionFactory {
         snapshot: &CertifiedIpmSnapshot,
         network: &CirculationNetwork,
     ) -> Result<Projection, Error> {
-        let terminal = TerminalTree::build(self.input.clone(), network, self.parameters.root)?;
-        let spanner = SpannerSnapshot::build(self.input.clone(), network, self.parameters)?;
-        let projection = Projection::new(
-            snapshot.clone(),
+        let projection = rebuild_projection(
+            snapshot,
             self.input.clone(),
-            self.ledger.clone(),
-            terminal,
-            spanner,
+            &self.ledger,
+            self.parameters,
             self.kappa,
             network,
         )?;
@@ -274,6 +271,121 @@ impl Factory for FixedProjectionFactory {
             .ok_or(Error::IterationCountOverflow)?;
         Ok(projection)
     }
+}
+
+/// Rebuilds projections from externally supplied exact coordinates in a fixed
+/// execution order.
+///
+/// Every coordinate set is immutable fixture or source-maintained data owned
+/// by the caller. The factory consumes one set only after it certifies the
+/// current snapshot, so it cannot infer rationals from fixed-point intervals,
+/// reuse a stale set, or silently substitute a fallback. This is a finite
+/// source-input boundary, not a dynamic coordinate reconstruction theorem.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScheduledProjectionFactory {
+    inputs: Vec<Input>,
+    ledger: StableMinRatioLedger,
+    parameters: SpannerParameters,
+    kappa: ExactRatio,
+    next_input: usize,
+    preparations: u64,
+}
+
+impl ScheduledProjectionFactory {
+    /// Creates a finite exact-coordinate schedule with stable source identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an empty schedule or when two supplied coordinate
+    /// sets use different source/circulation identities. Coordinates may vary
+    /// between entries; each is still independently certified on preparation.
+    pub fn new(
+        inputs: Vec<Input>,
+        ledger: StableMinRatioLedger,
+        parameters: SpannerParameters,
+        kappa: ExactRatio,
+    ) -> Result<Self, Error> {
+        let Some(first) = inputs.first() else {
+            return Err(Error::EmptyProjectionSchedule);
+        };
+        for (index, input) in inputs.iter().enumerate().skip(1) {
+            if !first.has_same_source_identity(input) {
+                return Err(Error::ProjectionScheduleIdentityMismatch { index });
+            }
+        }
+        Ok(Self {
+            inputs,
+            ledger,
+            parameters,
+            kappa,
+            next_input: 0,
+            preparations: 0,
+        })
+    }
+
+    /// Returns the number of snapshot-bound preparations that succeeded.
+    #[must_use]
+    pub const fn preparation_count(&self) -> u64 {
+        self.preparations
+    }
+
+    /// Returns the number of exact coordinate sets not yet consumed.
+    #[must_use]
+    pub fn remaining_count(&self) -> usize {
+        self.inputs.len().saturating_sub(self.next_input)
+    }
+}
+
+impl Factory for ScheduledProjectionFactory {
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error> {
+        let input = self.inputs.get(self.next_input).cloned().ok_or(
+            Error::ProjectionScheduleExhausted {
+                supplied: self.inputs.len(),
+            },
+        )?;
+        let projection = rebuild_projection(
+            snapshot,
+            input,
+            &self.ledger,
+            self.parameters,
+            self.kappa,
+            network,
+        )?;
+        self.next_input = self
+            .next_input
+            .checked_add(1)
+            .ok_or(Error::IterationCountOverflow)?;
+        self.preparations = self
+            .preparations
+            .checked_add(1)
+            .ok_or(Error::IterationCountOverflow)?;
+        Ok(projection)
+    }
+}
+
+fn rebuild_projection(
+    snapshot: &CertifiedIpmSnapshot,
+    input: Input,
+    ledger: &StableMinRatioLedger,
+    parameters: SpannerParameters,
+    kappa: ExactRatio,
+    network: &CirculationNetwork,
+) -> Result<Projection, Error> {
+    let terminal = TerminalTree::build(input.clone(), network, parameters.root)?;
+    let spanner = SpannerSnapshot::build(input.clone(), network, parameters)?;
+    Projection::new(
+        snapshot.clone(),
+        input,
+        ledger.clone(),
+        terminal,
+        spanner,
+        kappa,
+        network,
+    )
 }
 
 /// One accepted transition in a source-iteration run.
@@ -791,6 +903,12 @@ pub enum Error {
     InvalidArc,
     #[error("source iteration reached its explicit limit of {maximum_iterations} updates")]
     IterationLimit { maximum_iterations: u64 },
+    #[error("the exact projection schedule is empty")]
+    EmptyProjectionSchedule,
+    #[error("exact projection schedule entry {index} has different source/circulation identities")]
+    ProjectionScheduleIdentityMismatch { index: usize },
+    #[error("the exact projection schedule exhausted its {supplied} supplied coordinate sets")]
+    ProjectionScheduleExhausted { supplied: usize },
     #[error("source iteration record count exceeds the supported exact domain")]
     IterationCountOverflow,
 }
@@ -801,7 +919,7 @@ mod tests {
 
     use super::{
         CompactCandidate, Driver, Error, FixedProjectionFactory, PopulationChoice, Projection,
-        Session, SourceSelected, Step, select_population_choice,
+        ScheduledProjectionFactory, Session, SourceSelected, Step, select_population_choice,
     };
     use crate::{
         CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
@@ -1443,6 +1561,78 @@ mod tests {
             driver.records()[1].approximation.edge_count,
             network.arc_count()
         );
+    }
+
+    #[test]
+    fn scheduled_factory_recertifies_independently_supplied_successor_coordinates() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let initial = projection_for(snapshot.clone(), input.clone(), &network);
+        let mut session = Session::new(snapshot).unwrap();
+        session
+            .apply_source_selected(&network, initial.selected())
+            .unwrap();
+
+        let mut gradients = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.gradient)
+            .collect::<Vec<_>>();
+        gradients[4] = gradients[4]
+            .checked_add(ExactRatio::new(1, 1_000_000).unwrap())
+            .unwrap();
+        let lengths = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.length)
+            .collect::<Vec<_>>();
+        let successor = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
+
+        let factory = ScheduledProjectionFactory::new(
+            vec![input.clone(), successor.clone()],
+            ledger(),
+            spanner_parameters(),
+            ExactRatio::new(1, 2).unwrap(),
+        )
+        .unwrap();
+        let mut driver = Driver::new(
+            Session::new(initial.snapshot().clone()).unwrap(),
+            factory,
+            2,
+        );
+
+        assert_eq!(
+            driver.run(&network),
+            Err(Error::IterationLimit {
+                maximum_iterations: 2,
+            })
+        );
+        assert_eq!(driver.factory().preparation_count(), 2);
+        assert_eq!(driver.factory().remaining_count(), 0);
+        assert_eq!(driver.records()[0].input, input);
+        assert_eq!(driver.records()[1].input, successor);
+        assert_ne!(successor, input);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
+    }
+
+    #[test]
+    fn scheduled_factory_rejects_coordinate_reuse_after_exhaustion() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let factory = ScheduledProjectionFactory::new(
+            vec![input],
+            ledger(),
+            spanner_parameters(),
+            ExactRatio::new(1, 2).unwrap(),
+        )
+        .unwrap();
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+
+        assert_eq!(
+            driver.run(&network),
+            Err(Error::ProjectionScheduleExhausted { supplied: 1 })
+        );
+        assert_eq!(driver.records().len(), 1);
+        assert_eq!(driver.factory().preparation_count(), 1);
+        assert_eq!(driver.factory().remaining_count(), 0);
     }
 
     #[test]

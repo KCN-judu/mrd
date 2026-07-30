@@ -410,13 +410,9 @@ mod tests {
         StableWitness,
         source_flow::{
             Backend,
-            iteration::{self, FixedProjectionFactory},
+            iteration::{self, FixedProjectionFactory, ScheduledProjectionFactory},
         },
-        source_min_ratio::{
-            input::Input,
-            spanner::{Parameters as SpannerParameters, Snapshot as SpannerSnapshot},
-            terminal::Tree as TerminalTree,
-        },
+        source_min_ratio::{input::Input, spanner::Parameters as SpannerParameters},
         source_spanner::experiment::domain::ExhaustiveDomain,
     };
 
@@ -629,6 +625,20 @@ mod tests {
     fn nonterminal_projection_input(circulation: &Circulation) -> Input {
         let mut gradients = vec![ratio(0, 1); circulation.network().arc_count()];
         gradients[circulation.return_arc.0] = ratio(-400, 3);
+        let lengths = vec![
+            ratio(11, 4),
+            ratio(4, 1),
+            ratio(8, 1),
+            ratio(5, 1),
+            ratio(8, 1),
+        ];
+        assert_eq!(lengths.len(), circulation.network().arc_count());
+        Input::new(circulation.network(), &gradients, &lengths, &lengths).unwrap()
+    }
+
+    fn nonterminal_successor_projection_input(circulation: &Circulation) -> Input {
+        let mut gradients = vec![ratio(0, 1); circulation.network().arc_count()];
+        gradients[circulation.return_arc.0] = ratio(-399_999_997, 3_000_000);
         let lengths = vec![
             ratio(11, 4),
             ratio(4, 1),
@@ -928,6 +938,45 @@ mod tests {
             driver.records()[1].approximation.edge_count,
             circulation.network().arc_count()
         );
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn scheduled_coordinates_recertify_distinct_compressed_successor_snapshots() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, initial) = nonterminal_source_fixture(&circulation);
+        let successor = nonterminal_successor_projection_input(&circulation);
+        assert_ne!(initial, successor);
+        let factory = ScheduledProjectionFactory::new(
+            vec![initial.clone(), successor.clone()],
+            source_ledger(),
+            source_spanner_parameters(),
+            ratio(1, 2),
+        )
+        .unwrap();
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 2)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 2,
+            }))
+        );
+        assert_eq!(driver.factory().preparation_count(), 2);
+        assert_eq!(driver.factory().remaining_count(), 0);
+        assert_eq!(driver.records()[0].input, initial);
+        assert_eq!(driver.records()[1].input, successor);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
         assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
         assert_eq!(
             driver
