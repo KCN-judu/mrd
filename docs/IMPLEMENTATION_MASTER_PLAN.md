@@ -1161,9 +1161,15 @@ P9.5a is split before further implementation:
        against the exact circulation projection. Unsupported finite-domain
        inputs reject explicitly. Evidence:
        `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md`.
-     - **P9.5a.3.2b - Cross-snapshot maintenance. State: planned.** Carry
-       source-driven embedding changes into registry replacement and retirement
-       operations with stable IDs and exact transition evidence.
+     - **P9.5a.3.2b - Cross-snapshot maintenance. State: complete.
+       Implementation SHA: `9238b37`.** Immutable `spanner::Transition` rebuilds
+       one supported same-network source snapshot, derives stable-ID insert,
+       refresh, retire, and embedding-change sets, then synchronizes a registry
+       only when it exactly matches the prior declared population. Retained
+       candidates are re-scored even if their embedding did not change. This is
+       finite immutable recourse, not general dynamic maintenance or a runtime
+       claim. Evidence:
+       `docs/phase-reports/P09-5a-3-2b-finite-core-recourse.md`.
    - **P9.5a.3.3 - Certified `Step` selection differential. State: in_progress.**
      Connect the maintained heap choice to the current approximation and
      `Step::from_compact_candidate`, then differentially validate the
@@ -1441,5 +1447,6 @@ and AN19 runtime claims.
 | P9.5a.3.1 | complete | 0bf9d37 | abb77ac | pending closeout | pending | `docs/phase-reports/P09-5-terminal-tree-projection.md` | exact AN19-shaped source tree, checked terminal branch, and one declaration per non-tree source edge | 2026-07-29T22:27:30Z | 2026-07-29T22:38:34Z | no core/spanner embeddings, cross-snapshot candidate maintenance, `Step` certificate, or runtime claim |
 | P9.5a | in_progress | d11cb3f | 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md`, `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | exact provenance, source-declared heap, terminal declarations, finite rejected-core declarations, and a terminal-only exact-coordinate `Step` bridge | 2026-07-29T22:38:34Z | 2026-07-30T00:00:00Z | cross-snapshot candidate maintenance and complete-candidate differential remain; reference-cycle enumeration remains forbidden |
 | P9.5a.3.2a | complete | 5afa4c7 | cdb2ce9 | d825236 | d825236 | `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | finite sparse Algorithm 4 image, immutable core/spanner snapshot, explicit rejected-edge embedding cycles, exact decode, and registry selection | 2026-07-30T08:49:19Z | 2026-07-30T00:00:00Z | one finite immutable snapshot only; cross-snapshot maintenance remains P9.5a.3.2b |
+| P9.5a.3.2b | complete | d825236 | 9238b37 | pending closeout | pending | `docs/phase-reports/P09-5a-3-2b-finite-core-recourse.md` | immutable same-network snapshot recourse, exact stable-ID candidate insert/refresh/retire/re-embed sets, and registry synchronization | 2026-07-30T00:00:00Z | 2026-07-30T00:00:00Z | finite same-network snapshots only; terminal/core merge remains P9.5a.3.3b |
 | P9.5a.3.3a | complete | abb77ac | 5afa4c7 | pending closeout | pending | `docs/phase-reports/P09-5-terminal-step-bridge.md` | exact terminal-coordinate equality, terminal-registry-only choice, compact decoding, empty/zero-quality no-step path, and no-fallback audit | 2026-07-30T08:49:19Z | 2026-07-30T08:49:19Z | core/spanner population and cross-snapshot maintenance remain outside this terminal-only bridge |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
