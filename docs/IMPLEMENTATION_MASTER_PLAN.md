@@ -1202,6 +1202,19 @@ P9.5a is split before further implementation:
        selector without fallback. Evidence:
        `docs/phase-reports/P09-5a-3-4-terminal-recourse.md`.
 
+4. **P9.5b - One source-selected certified iteration. State: in_progress.**
+   Connect one matching immutable source projection to one `Session::apply`
+   transition through an explicit input carrying the current
+   `CertifiedIpmSnapshot`, exact `Input`, terminal and rejected-core snapshots,
+   `StableMinRatioLedger`, and `kappa`. The source input supplies exact
+   candidate coordinates; `Session` must still certify them against its current
+   fixed-point snapshot before changing state. A stale certified snapshot,
+   unequal source inputs, absent source candidate, or failed Lemma 4.4 check
+   must reject without mutating the session. This is a single exact semantic
+   transition only: it neither derives exact coordinates from intervals nor
+   enables `Backend::require_complete()`. Evidence will be recorded in a
+   dedicated P9.5b phase report after focused and full audits.
+
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
 legacy recovery paths, and certify the non-Oracle additive-half termination

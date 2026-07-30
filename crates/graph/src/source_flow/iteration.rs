@@ -57,6 +57,27 @@ pub struct CompactCandidate<'a> {
     pub bindings: &'a ArcBindings,
 }
 
+/// One explicit request to select and apply a source-maintained direction.
+///
+/// Exact source coordinates belong to `input`, not to the certified IPM
+/// intervals. The session independently certifies those supplied coordinates
+/// before its state can change.
+#[derive(Clone, Copy, Debug)]
+pub struct SourceSelected<'a> {
+    /// The exact snapshot this source projection was prepared for.
+    pub snapshot: &'a CertifiedIpmSnapshot,
+    /// Exact current source/IPM coordinates with stable arc provenance.
+    pub input: &'a Input,
+    /// Already validated hidden-stability state.
+    pub ledger: &'a StableMinRatioLedger,
+    /// Source-maintained terminal candidate population.
+    pub terminal: &'a TerminalTree,
+    /// Source-maintained rejected-core candidate population.
+    pub spanner: &'a SpannerSnapshot,
+    /// Source update-quality parameter.
+    pub kappa: ExactRatio,
+}
+
 impl Step {
     /// Forms an exact update request from the best source-declared candidate
     /// across one matching terminal and rejected-core population.
@@ -219,6 +240,33 @@ impl Step {
     }
 }
 
+impl SourceSelected<'_> {
+    /// Selects the best maintained candidate using this exact source projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the declared source input differs from either
+    /// population, their candidate contexts reject, or no nonzero source
+    /// candidate is available.
+    fn step(self, network: &CirculationNetwork) -> Result<Step, Error> {
+        if self.input != self.terminal.input() || self.input != self.spanner.input() {
+            return Err(Error::MismatchedSelectedInput);
+        }
+        let gradients = self.input.arcs().iter().map(|arc| arc.gradient).collect();
+        let lengths = self.input.arcs().iter().map(|arc| arc.length).collect();
+        Step::from_maintained_candidates(
+            self.ledger,
+            self.terminal,
+            self.spanner,
+            network,
+            gradients,
+            lengths,
+            self.kappa,
+        )?
+        .ok_or(Error::NoSourceCandidate)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum PopulationChoice {
     Terminal(Choice),
@@ -289,6 +337,15 @@ pub struct Outcome {
     pub metrics: IpmUpdateMetrics,
 }
 
+/// The selected source declaration and its accepted certified transition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectedOutcome {
+    /// Exact direction decoded from the winning source candidate.
+    pub step: Step,
+    /// Certified IPM transition outcome.
+    pub outcome: Outcome,
+}
+
 /// Session-local IPM state and explicit Detect accounting.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Session {
@@ -338,6 +395,31 @@ impl Session {
         })
     }
 
+    /// Selects and applies one direction from matching source-maintained state.
+    ///
+    /// The supplied source projection is deliberately not reconstructed from
+    /// IPM intervals. Its exact coordinates are selected from `Input`, then
+    /// passed through [`Self::apply`], which certifies the approximation and
+    /// records Detect accounting before committing the successor snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the request belongs to another certified snapshot,
+    /// its source inputs disagree, no candidate is available, or the existing
+    /// certified update transition rejects the selected direction.
+    pub fn apply_source_selected(
+        &mut self,
+        network: &CirculationNetwork,
+        selected: SourceSelected<'_>,
+    ) -> Result<SelectedOutcome, Error> {
+        if &self.snapshot != selected.snapshot {
+            return Err(Error::StaleCertifiedSnapshot);
+        }
+        let step = selected.step(network)?;
+        let outcome = self.apply(network, &step)?;
+        Ok(SelectedOutcome { step, outcome })
+    }
+
     /// Runs the exact source Detect threshold over accumulated updates.
     ///
     /// # Errors
@@ -373,8 +455,14 @@ pub enum Error {
     Candidate(#[from] CandidateError),
     #[error("terminal and rejected-core snapshots have different exact source inputs")]
     MismatchedCandidateSnapshots,
+    #[error("selected source input does not match both maintained populations")]
+    MismatchedSelectedInput,
     #[error("caller approximation coordinates differ from the source input")]
     MismatchedCandidateCoordinates,
+    #[error("selected source state belongs to a stale certified IPM snapshot")]
+    StaleCertifiedSnapshot,
+    #[error("the maintained source populations contain no nonzero candidate")]
+    NoSourceCandidate,
     #[error("terminal and rejected-core populations reuse candidate ID {0:?}")]
     DuplicateCandidateId(CandidateId),
     #[error("decoded compact cycle refers to an invalid circulation arc")]
@@ -385,10 +473,14 @@ pub enum Error {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{CompactCandidate, Error, PopulationChoice, Step, select_population_choice};
+    use super::{
+        CompactCandidate, Error, PopulationChoice, Session, SourceSelected, Step,
+        select_population_choice,
+    };
     use crate::{
-        CirculationNetwork, ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId,
-        SourceWeightedEdge, StableEdge, StableMinRatioLedger, StableWitness,
+        CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
+        FractionalCirculation, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge, StableEdge,
+        StableMinRatioLedger, StableWitness,
         source_min_ratio::{
             candidate::{CandidateId, Choice, Kind},
             chain::Chain,
@@ -444,6 +536,32 @@ mod tests {
         network
     }
 
+    fn selected_source_network() -> CirculationNetwork {
+        let mut network = CirculationNetwork::new(5);
+        let edges = [
+            (0, 1, 4, 1),
+            (1, 2, 2, 0),
+            (2, 3, 2, 0),
+            (3, 4, 2, 0),
+            (4, 0, 4, 0),
+            (0, 2, 2, 0),
+            (2, 4, 2, 0),
+            (1, 3, 2, 0),
+            (3, 0, 2, 0),
+        ];
+        for (first, second, capacity, cost) in edges {
+            network
+                .add_arc(
+                    FlowNodeId(first),
+                    FlowNodeId(second),
+                    capacity,
+                    i128::from(cost),
+                )
+                .unwrap();
+        }
+        network
+    }
+
     fn spanner_parameters() -> Parameters {
         Parameters {
             root: FlowNodeId(0),
@@ -454,6 +572,48 @@ mod tests {
             maximum_vertex_congestion: 100,
             maximum_rounds: 1,
         }
+    }
+
+    fn selected_iteration_fixture() -> (
+        CirculationNetwork,
+        CertifiedIpmSnapshot,
+        Input,
+        TerminalTree,
+        SpannerSnapshot,
+        StableMinRatioLedger,
+    ) {
+        let network = selected_source_network();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &FractionalCirculation {
+                arc_flows: vec![
+                    ratio(2),
+                    ratio(1),
+                    ratio(1),
+                    ratio(1),
+                    ratio(2),
+                    ratio(1),
+                    ratio(1),
+                    ratio(1),
+                    ratio(1),
+                ],
+                cost: ratio(2),
+            },
+            ratio(0),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let mut gradients = vec![ratio(0); network.arc_count()];
+        gradients[0] = ratio(90);
+        let mut lengths = vec![ratio(2); network.arc_count()];
+        lengths[0] = ratio(1);
+        lengths[4] = ratio(1);
+        let input = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
+        let terminal = TerminalTree::build(input.clone(), &network, FlowNodeId(0)).unwrap();
+        let spanner =
+            SpannerSnapshot::build(input.clone(), &network, spanner_parameters()).unwrap();
+        (network, snapshot, input, terminal, spanner, ledger())
     }
 
     #[test]
@@ -788,5 +948,82 @@ mod tests {
             select_population_choice(Some(choice(8)), Some(choice(7))).unwrap(),
             Some(PopulationChoice::Spanner(selected)) if selected.id == CandidateId(7)
         ));
+    }
+
+    #[test]
+    fn applies_one_source_selected_certified_iteration() {
+        let (network, snapshot, input, terminal, spanner, ledger) = selected_iteration_fixture();
+        let mut session = Session::new(snapshot.clone()).unwrap();
+        let selected = SourceSelected {
+            snapshot: &snapshot,
+            input: &input,
+            ledger: &ledger,
+            terminal: &terminal,
+            spanner: &spanner,
+            kappa: ExactRatio::new(1, 2).unwrap(),
+        };
+
+        let accepted = session.apply_source_selected(&network, selected).unwrap();
+
+        assert_eq!(accepted.outcome.eta, ExactRatio::new(1, 18_000).unwrap());
+        assert!(
+            accepted
+                .step
+                .direction
+                .iter()
+                .any(|coordinate| !coordinate.is_zero())
+        );
+        assert_eq!(session.snapshot().update_metrics().iterations, 1);
+        assert_eq!(session.detect_metrics().iterations, 0);
+    }
+
+    #[test]
+    fn rejects_stale_or_mismatched_selected_source_without_state_change() {
+        let (network, snapshot, input, terminal, spanner, ledger) = selected_iteration_fixture();
+        let selected = SourceSelected {
+            snapshot: &snapshot,
+            input: &input,
+            ledger: &ledger,
+            terminal: &terminal,
+            spanner: &spanner,
+            kappa: ExactRatio::new(1, 2).unwrap(),
+        };
+        let mut session = Session::new(snapshot.clone()).unwrap();
+        session.apply_source_selected(&network, selected).unwrap();
+        let after_update = session.snapshot().clone();
+        assert_eq!(
+            session.apply_source_selected(&network, selected),
+            Err(Error::StaleCertifiedSnapshot)
+        );
+        assert_eq!(session.snapshot(), &after_update);
+
+        let mut mismatched_gradients = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.gradient)
+            .collect::<Vec<_>>();
+        mismatched_gradients[0] = ratio(39);
+        let lengths = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.length)
+            .collect::<Vec<_>>();
+        let mismatched_input =
+            Input::new(&network, &mismatched_gradients, &lengths, &lengths).unwrap();
+        let mismatched = SourceSelected {
+            snapshot: &snapshot,
+            input: &mismatched_input,
+            ledger: &ledger,
+            terminal: &terminal,
+            spanner: &spanner,
+            kappa: ExactRatio::new(1, 2).unwrap(),
+        };
+        let mut fresh_session = Session::new(snapshot.clone()).unwrap();
+        let before = fresh_session.snapshot().clone();
+        assert_eq!(
+            fresh_session.apply_source_selected(&network, mismatched),
+            Err(Error::MismatchedSelectedInput)
+        );
+        assert_eq!(fresh_session.snapshot(), &before);
     }
 }
