@@ -2,8 +2,8 @@
 
 ## Status
 
-**State: in_progress.** Commits `91132c4`, `0bf9d37`, `abb77ac`, `5afa4c7`,
-`cdb2ce9`, `9238b37`, and `98a7d0e` close the provenance, source-declared
+**State: complete as finite source candidate selection.** Commits `91132c4`, `0bf9d37`, `abb77ac`, `5afa4c7`,
+`cdb2ce9`, `9238b37`, `98a7d0e`, and `b73b0fa` close the provenance, source-declared
 candidate heap, single-snapshot terminal-tree projection, terminal-only `Step`
 bridge, finite rejected-core declarations, finite same-network core recourse,
 matching-snapshot terminal/core selector, and finite terminal recourse substeps
@@ -11,8 +11,8 @@ of P9.5a. The remaining work is complete backend integration, not candidate
 selection or finite same-network maintenance.
 P9.5a is independent of the P9.3.2d AN19 runtime proof debt:
 P9.3.2d remains deferred to low-priority P9.6a after the complete
-source-shaped flow backend exists. P9.5a instead blocks the backend from
-selecting the next exact source-shaped IPM direction.
+source-shaped flow backend exists. P9.5a now supplies one exact
+source-selected IPM direction; complete backend integration remains P9.5 work.
 
 ## Audit evidence
 
@@ -29,7 +29,7 @@ The audited production boundary has the following deliberate shape:
 | `graph::source_min_ratio::cycle` | decodes a supplied compact cycle through selected branches and checked arc bindings | no candidate generation or score computation |
 | `graph::source_min_ratio::query` | validates a supplied compact candidate against a checked ledger | no minimum-ratio selection query |
 | `graph::source_min_ratio::execution` | applies supplied ledger transitions and records finite accounting | no dynamic sparsification, link-cut maintenance, or cycle search |
-| `graph::source_flow::iteration` | converts a supplied compact candidate to an exact direction and selects the best terminal/core declaration across matching current or successor snapshots | no full IPM iteration driver or complete backend |
+| `graph::source_flow::iteration` | selects the best terminal/core declaration, applies one exact source-selected certified update, and rejects stale snapshots/inputs | no full IPM iteration driver or complete backend |
 
 `StableMinRatioLedger::edges()` intentionally exposes only the checked
 coordinates used by an independent audit. `StableWitness` is consumed during
@@ -127,22 +127,13 @@ do not add a complete backend, a runtime claim, or a generated result file.
 
 ## Next action
 
-The finite Algorithm 4 replay now satisfies the declaration requirement:
-positive-level circulant witnesses and independent Task 3 paths produce
-rejected-core edges on K5, and `spanner::Snapshot` records each compact
-embedding cycle. P9.5a.3.3b now combines that population with terminal
-declarations on matching immutable snapshots and runs a no-fallback `Step`
-differential. The next action is the full compressed MRD
+The finite Algorithm 4 replay, terminal/core recourse, and combined selection
+now satisfy P9.5a's declared-candidate requirement. P9.5b applies one matching
+complete selection through `Session::apply`, while P9.5c recovers a terminated
+session through the compressed matching/cover map. The next action is a
+complete source iteration driver and broad compressed MRD
 flow/cut/cover/chord/rectangle campaign. Only after that campaign may P9.5
 enable `Backend::require_complete()`.
-
-P9.5a.3.4 is complete for supported same-network snapshots. Its immutable
-terminal transition and exact registry recourse now let matching terminal and
-core successor snapshots enter the combined selector. P9.5b now sends one
-matching complete selection through `Session::apply` with explicit current
-snapshot and `Input` identity checks; `P09-5b-source-selected-iteration.md`
-records its focused and full audit. The next action is a complete
-termination/recovery driver and compressed MRD integration.
 
 P9.6a remains after that chain is complete. It is the separate low-priority
 task to prove or replace the AN19 reduced-event ordering and hierarchy-wide

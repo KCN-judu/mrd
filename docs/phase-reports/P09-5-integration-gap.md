@@ -131,6 +131,13 @@ population, then reuses the certified Lemma 4.4 transition and Detect
 accounting. The source coordinates remain caller-supplied exact `Input`
 coordinates, never values inferred from fixed-point intervals.
 
+Commit `3527d70` completes the terminal handoff from a source-flow session to
+the compressed matching/cover recovery map. Each `CertifiedIpmSnapshot` now
+retains exact network identity, including demands and ordered arc endpoints,
+capacities, and costs; a same-sized changed network rejects before update or
+recovery. `Circulation::recover_source_session` uses only the local terminal
+recovery boundary followed by its existing exact cover map.
+
 P9.5 remains open. MRD compressed-network differential evidence for flow, cut,
 cover, chords, and rectangles, and an end-to-end no-fallback audit are still
 absent.
@@ -177,9 +184,9 @@ completed exact input projection and supplied-candidate heap:
 This audit did not expose `StableWitness`, add a heuristic selector, enumerate
 fundamental cycles, or import `dynamic_min_ratio`. Those routes would only make
 the existing test path look complete while leaving the P9.5 production semantic
-contract unimplemented. P9.5 and P9.5a therefore remain `in_progress`; the
-remaining cross-snapshot and complete-backend work blocks the complete
-backend, and P9.6 remains gated on its completion. P9.3.2d remains the
+contract unimplemented. P9.5a is complete, while P9.5 remains `in_progress`:
+the remaining complete iteration driver and broad backend campaign block the
+complete backend, and P9.6 remains gated on its completion. P9.3.2d remains the
 separate, low-priority P9.6a proof debt after the complete flow-solver chain is
 available.
 
