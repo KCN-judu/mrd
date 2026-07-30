@@ -11,9 +11,12 @@ or any of its asymptotic bounds.
 
 `source_spanner::algorithm4::witness` accepts only the existing certified
 single-level, single-component decomposition. It verifies that the component
-covers every source vertex and edge, constructs the deterministic finite
-witness, and records the exact layer weight `phi * 2^level`, vertices, source
-edges, and witness-edge provenance. General multi-level decompositions reject.
+covers every source vertex and edge, records the source-required per-vertex
+weight `deg_{J_i[X]}(v) / (phi * 2^i)`, and keeps `J_0` directly only at level
+zero. At a positive level it invokes the canonical finite circulant witness,
+which exhaustively checks the degree sandwich and a positive expansion floor.
+General multi-level decompositions reject; this is not the general CGLNPS20
+constructor or a runtime claim.
 
 ## Task 2
 
@@ -26,28 +29,41 @@ not complete the loop; there is no Oracle fallback.
 
 ## Task 3 And Image
 
-`algorithm4::finalize` handles the current finite witness's direct `J -> W`
-branch, composes it with the stored `W -> J` paths, constructs the image
-subgraph, and runs the existing independent `Audit::verify` for the direct and
-composed embeddings. It rejects a missing witness edge or unembedded Task 2
+`algorithm4::second_embedding` independently replays the finite `J -> W`
+loop, including hop limits, exact edge-congestion thresholds, deletions, and
+round traces. `algorithm4::finalize` then orients each Task 3 witness path,
+composes it through the stored Task 2 `W -> J` paths (reversing a Task 2 path
+when needed), loop-erases only closed local subwalks, constructs the image
+subgraph, and runs the independent `Audit::verify` for the direct and composed
+embeddings. It rejects a missing witness edge or an unembedded Task 2 or Task 3
 path.
 
 ## Limits
 
 This is not a general `Sparsify` implementation. The accepted decomposition is
-one level and one component on the at-most-20-node exhaustive domain; its
-witness is complete, so the Task 3 path loop currently takes only direct
-witness edges. General multi-level loop scheduling, source expander pruning,
-and Theorem 8.1 congestion, sparsity, length, and runtime guarantees remain
-unimplemented and unclaimed.
+one level and one component in an explicit exhaustive finite domain. Positive
+levels use only the certified canonical circulant, so a finite image can be
+strictly smaller than its input. General multi-level loop scheduling, source
+expander pruning, and Theorem 8.1 congestion, sparsity, length, and runtime
+guarantees remain unimplemented and unclaimed.
 
 ## Focused Evidence
 
-- A four-cycle produces a finite complete witness with exact layer weight one.
-- Task 2 embeds all witness edges with direct and two-hop paths under an ample
+- A positive-level K5 fixture produces a sparse five-edge circulant witness
+  from ten input edges while preserving the exact degree sandwich.
+- Task 2 embeds all witness edges with direct and bounded paths under an ample
   threshold, and separately records threshold-induced source-edge deletions.
-- Task 3 reconstructs the image subgraph and verifies a composed maximum path
-  length of one for the identity host fixture.
+- Task 3 independently embeds every K5 input edge through the witness; the
+  finalized image is strictly smaller than K5 and has a composed path longer
+  than one edge.
+
+## P9.5a.3.2a Follow-On
+
+Implementation commit `cdb2ce9` consumes this finite replay through
+`source_min_ratio::spanner::Snapshot`. It converts every rejected core edge
+into an explicit, oriented compact `SpannerPath` plus its rejected anchor edge.
+This establishes finite declaration semantics only. It neither maintains those
+paths across snapshots nor proves Algorithm 4's general guarantees.
 
 ## Audit
 

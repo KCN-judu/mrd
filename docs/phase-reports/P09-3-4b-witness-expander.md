@@ -10,24 +10,26 @@ claim.
 
 ## Construction
 
-`graph::source_spanner::experiment::complete` accepts at most 20 vertices and
-positive exact weights only when the complete graph's degree `n - 1` satisfies
-`w_v <= n - 1 <= 18 w_v` for every vertex. It constructs the complete graph
-deterministically, enumerates every nontrivial vertex cut, computes the exact
-minimum conductance-style expansion ratio, and stores the degree vector,
-expansion, and number of checked cuts. `Witness::verify` recomputes every
-measurement without trusting stored values.
+The historic `graph::source_spanner::experiment::complete` fixture remains
+available, but Algorithm 4 now uses
+`graph::source_spanner::experiment::circulant` for positive levels. It tries
+canonical circulant degrees in increasing order, accepts the first graph whose
+per-vertex degree satisfies `w_v <= degree_v <= 18 w_v`, then enumerates every
+nontrivial vertex cut to certify its exact positive expansion floor. The
+certificate records the graph, degree vector, expansion, and checked-cut count;
+`Witness::verify` reconstructs every field rather than trusting stored values.
 
-Inputs outside the 20-vertex exhaustive domain or outside the degree sandwich
-are explicitly rejected. This restriction is intentional: no unverified
-degree rounding, randomized sampling, or generic expander claim is introduced.
+Inputs outside the supplied exhaustive domain or outside the degree sandwich
+are explicitly rejected. This restriction is intentional: no unverified degree
+rounding, randomized sampling, generic expander claim, or CGLNPS20 runtime
+claim is introduced.
 
 ## Evidence
 
-- A four-vertex unit-weight witness has degree three, exact expansion `2/3`,
-  and 14 checked nontrivial cuts.
-- A 20-vertex unit-weight request fails the upper degree sandwich; a graph over
-  the supplied finite domain fails before enumeration.
+- A five-vertex unit-weight request selects the five-edge cycle, has degree two,
+  and passes the exhaustive positive-expansion certificate.
+- A five-vertex degree-four request selects the complete graph only because its
+  degree sandwich requires it.
 
 ## Audit
 

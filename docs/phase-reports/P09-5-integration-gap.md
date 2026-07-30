@@ -40,7 +40,16 @@ materializes `SourceDynamicGraph` and its `ArcBindings` together. The compact
 decode test proves that provenance survives one supplied chain. It neither
 derives exact approximations from snapshot intervals nor constructs the source
 tree chain, core/spanner embeddings, candidate heap, or Lemma 4.4 quality
-certificate; P9.5a therefore remains blocked on selection semantics.
+certificate; P9.5a therefore remained incomplete on selection semantics.
+
+Commit `cdb2ce9` closes the finite P9.5a.3.2a declaration gap. It replaces the
+degenerate complete witness with an exactly certified positive-level circulant,
+replays an independent `J -> W` embedding, and exposes the resulting finite
+Section 9.1 rejected-core paths through `source_min_ratio::spanner::Snapshot`.
+Each path becomes an explicit oriented `SpannerPath` and anchor-edge compact
+cycle, which the exact registry decodes and scores. This is deliberately one
+immutable snapshot; it does not supply cross-snapshot recourse, a merged
+terminal/core population, a `Step` bridge, or an AN19 runtime claim.
 
 Commit `0bf9d37` adds the P9.5a.2 exact registry over source-declared compact
 candidates. It validates fundamental spanner/tree shapes, decodes them through
@@ -115,10 +124,10 @@ claim.
 
 The focused audit began at `d11cb3f`; implementation SHA `91132c4` closes its
 provenance row, `0bf9d37` closes its supplied-candidate heap row, `abb77ac`
-closes its terminal-tree declaration row, and `5afa4c7` closes its
-terminal-only `Step` bridge. The missing live selector remains a concrete semantic
-construction, not a license to reuse an Oracle and not the deferred P9.3.2d
-runtime proof debt.
+closes its terminal-tree declaration row, `5afa4c7` closes its terminal-only
+`Step` bridge, and `cdb2ce9` closes the finite rejected-core declaration row.
+The missing live selector remains a concrete semantic construction, not a
+license to reuse an Oracle and not the deferred P9.3.2d runtime proof debt.
 
 | Observed boundary | Evidence | Consequence |
 | --- | --- | --- |
@@ -126,6 +135,7 @@ runtime proof debt.
 | `source_min_ratio::input::Input` | It validates caller-supplied exact current coordinates and constructs an orientation-preserving source-edge/circulation-arc binding with the source graph. | Stable arc provenance is now available; it still does not create a tree chain, embeddings, a candidate set, or a selection certificate. |
 | `source_min_ratio::candidate::Registry` | It accepts only declared fundamental spanner/tree compact cycles, computes their exact current quality, and chooses the best nonzero candidate with deterministic stale-record handling. | It cannot discover candidate declarations from a graph, construct source embeddings, or certify the chosen direction as a `Step`. |
 | `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings, cross-snapshot candidate maintenance, or `Step` certificate. |
+| `source_min_ratio::spanner::Snapshot` | It constructs one exact finite singleton-core chain, translates every rejected core edge's selected spanner path, and emits an explicit oriented compact cycle. | It is immutable and one-snapshot only; it does not merge terminal candidates, perform replacement/retirement, or create a `Step`. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
 | `source_flow::iteration::Step::from_terminal_candidate` | It checks that the caller's current coordinates exactly equal the immutable terminal `Input`, obtains the terminal declaration heap's best nonzero choice, and decodes it into a full exact circulation direction. | It cannot select core/spanner candidates or stand in for the complete maintained population. |
@@ -134,10 +144,10 @@ runtime proof debt.
 The missing P9.5a construction must do all of the following using the completed
 exact input projection and supplied-candidate heap:
 
-1. Extend the stable source graph/circulation-arc provenance from the terminal
-   tree to core/spanner embeddings and their compact-cycle segments.
-2. Construct and update fundamental spanner declarations and maintain terminal
-   declarations from that live source state for `candidate::Registry`.
+1. Maintain finite core/spanner and terminal declarations across supported
+   snapshots through stable `candidate::Registry` replacement/retirement.
+2. Merge those declarations into one live source population with exact
+   provenance and stable identities.
 3. Extend the completed terminal-only coordinate check and `Step` bridge to
    the complete maintained population, certifying the selected compact
    direction with the current approximation gradients, lengths, and `kappa`
@@ -149,8 +159,9 @@ exact input projection and supplied-candidate heap:
 This audit did not expose `StableWitness`, add a heuristic selector, enumerate
 fundamental cycles, or import `dynamic_min_ratio`. Those routes would only make
 the existing test path look complete while leaving the P9.5 production semantic
-contract unimplemented. P9.5 therefore remains `in_progress`; P9.5a blocks the
-complete backend and P9.6 remains gated on its completion. P9.3.2d remains the
+contract unimplemented. P9.5 and P9.5a therefore remain `in_progress`; the
+remaining cross-snapshot and combined-population work blocks the complete
+backend, and P9.6 remains gated on its completion. P9.3.2d remains the
 separate, low-priority P9.6a proof debt after the complete flow-solver chain is
 available.
 

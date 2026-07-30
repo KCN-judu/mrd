@@ -10,11 +10,10 @@ source runtime claim.
 ## Construction
 
 `graph::source_spanner::experiment::decomposition::single_level` accepts only
-a connected simple graph with two through twenty vertices and a positive exact
-`phi`. It chooses the deterministic level
-`ceil(log2(ceil(m / n)))`, checks `m <= 2^level n`, and accepts only when the
-minimum degree is at least `phi * 2^level` and the exact expansion is at least
-`phi`.
+a connected simple graph in the supplied finite domain and a positive exact
+`phi`. It starts at `ceil(log2(ceil(m / n)))`, checks capacity, then selects
+the greatest level through `ceil(log2(n))` whose exact degree floor remains at
+least `phi * 2^level`; it also requires exact expansion at least `phi`.
 
 The returned `Decomposition` has exactly one explicit `Component`. Its ordered
 vertex list is the complete source vertex set and its ordered edge list is the
@@ -31,12 +30,12 @@ There is no old flat compatibility re-export.
 
 ## Explicit Limits
 
-The construction rejects disconnected inputs, nonpositive `phi`, domains over
-twenty vertices, and every input requiring a multi-level decomposition. The
-single-level partition is intentionally trivial. It neither supplies a
-general edge-disjoint expander decomposition nor proves the source's work or
-depth bounds. P9.3.4d still owns Theorem 8.6 decremental paths; P9.3.4e still
-owns Algorithm 4 integration.
+The construction rejects disconnected inputs, nonpositive `phi`, inputs
+outside the supplied exhaustive domain, and every input requiring a multi-level
+decomposition. The single-level partition is intentionally trivial. It neither
+supplies a general edge-disjoint expander decomposition nor proves the source's
+work or depth bounds. P9.3.4d still owns Theorem 8.6 decremental paths;
+P9.3.4e still owns Algorithm 4 integration.
 
 ## Focused Evidence
 

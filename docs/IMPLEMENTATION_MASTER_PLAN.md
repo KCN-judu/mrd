@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: 7367bb14e2577e36006b3b55b15c79194d3aa0c7
-- Plan last updated: 2026-07-29T23:57:41Z
+- Last pushed SHA: edbf1be199cc6132af4e49e07a49c60ac0a1c901
+- Plan last updated: 2026-07-30T00:00:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -830,21 +830,24 @@ P9.3 is split into the following source-gated subphases:
      bounded enumerating simple-path Oracle remains isolated. Evidence is in
      `docs/phase-reports/P09-3-4a-static-embedding-contract.md`; no expander,
      sparsity, or Theorem 8.1 bound is claimed.
-   - **P9.3.4b state: complete. Implementation SHAs: `77878a8`, `cc54c10`.**
-     `source_spanner::experiment::complete` constructs a deterministic
-     complete-graph witness for the explicitly certified at-most-20-node domain
-     when every exact weight satisfies `w <= n-1 <= 18w`. Every nontrivial cut
-     is enumerated and recomputed by the certificate verifier; all other inputs
-     reject explicitly. Evidence is in
+   - **P9.3.4b state: complete. Implementation SHAs: `77878a8`, `cc54c10`,
+     `cdb2ce9`.** `source_spanner::experiment::circulant` now supplies the
+     positive-level Algorithm 4 witness: it selects the first canonical
+     circulant degree satisfying the exact source degree sandwich and an
+     exhaustive positive expansion certificate. The older complete witness
+     remains an experiment fixture, not the Algorithm 4 construction. Inputs
+     outside the explicitly certified finite domain reject. Evidence is in
      `docs/phase-reports/P09-3-4b-witness-expander.md`. This is not the general
      CGLNPS20 construction and carries no source runtime claim.
    - **P9.3.4c state: complete. Implementation SHAs: `f9dd410`,
      `bce0f14`.** `source_spanner::experiment::{decomposition,domain}`
-     implements a one-level, connected, at-most-20-node exhaustive certificate
-     with explicit component, edge-partition, degree-floor, and expansion
-     evidence. Every source edge occurs exactly once and verification rebuilds
-     all stored fields. Multi-level and general instances reject instead of
-     claiming a generic CGLNPS20 construction or runtime bound. Evidence is
+     implements a one-level, connected finite certificate with explicit
+     component, edge-partition, degree-floor, and expansion evidence. It chooses
+     the greatest source-valid level from the capacity lower bound through
+     `ceil(log2(n))`, so positive-level finite witnesses can be sparse. Every
+     source edge occurs exactly once and verification rebuilds all stored fields.
+     Multi-level and general instances reject instead of claiming a generic
+     CGLNPS20 construction or runtime bound. Evidence is
      `docs/phase-reports/P09-3-4c-expander-decomposition.md`.
    - **P9.3.4d state: complete. Implementation SHAs: `d5d80cc`,
      `f097cd4`, `838a321`.** `source_spanner::decremental` provides exact
@@ -869,11 +872,12 @@ P9.3 is split into the following source-gated subphases:
        its decremental bounds stay unclaimed unless a source-backed proof and
        matching counters are added.
    - **P9.3.4e state: complete. Implementation SHAs: `93a0aa2`, `08a854c`,
-     `3a637ac`.** arXiv:2309.16629v1 Algorithm 4 (pp. 41--42) was reread
-     before coding. `source_spanner::algorithm4` now supplies a certified
-     finite replay with witness provenance, `W -> J` threshold/deletion traces,
-     direct finite `J -> W`, the image subgraph, and an exact composition audit.
-     Evidence is `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md`.
+     `3a637ac`, `cdb2ce9`.** arXiv:2309.16629v1 Algorithm 4 (pp. 41--42) was
+     reread before coding. `source_spanner::algorithm4` now supplies a
+     certified finite replay with degree-weighted witness provenance, `W -> J`
+     threshold/deletion traces, an independent `J -> W` path loop, the image
+     subgraph, and an exact composition audit. Evidence is
+     `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md`.
      - **P9.3.4e1 state: complete. Implementation SHA: `93a0aa2`.**
        `source_spanner::algorithm4::witness` builds the finite witness union
        from the certified single level and retains component weight, vertices,
@@ -882,12 +886,13 @@ P9.3 is split into the following source-gated subphases:
        `source_spanner::algorithm4::first_embedding` replays the finite
        `W -> J` loop with stable bounded paths, composed congestion thresholds,
        deletion traces, and explicit unembedded witness edges.
-     - **P9.3.4e3 state: complete. Implementation SHA: `3a637ac`.**
-       `source_spanner::algorithm4::finalize` builds the finite direct `J -> W`
-       branch, image subgraph, and composed embedding with the independent exact
-       audit. This is limited to the certified one-level, one-component finite
-       domain. General loops, Theorem 8.6 pruning, and Theorem 8.1 bounds remain
-       unimplemented and unclaimed.
+     - **P9.3.4e3 state: complete. Implementation SHAs: `3a637ac`,
+       `cdb2ce9`.** `source_spanner::algorithm4::{second_embedding,finalize}`
+       independently replays `J -> W`, composes each oriented witness path
+       through its `W -> J` path, loop-erases only the resulting local walk, and
+       validates the image and composed embedding. This is limited to the
+       certified one-level, one-component finite domain. General loops, Theorem
+       8.6 pruning, and Theorem 8.1 bounds remain unimplemented and unclaimed.
 5. **P9.3.5 state: complete. Start gate: P9.3.4 implementation audit
    passed. Implementation SHAs: `1d18dee`, `7282e92`, `9d7bed7`.** The finite
    implementation of Theorem 8.2's deletion/vertex-split reduction records
@@ -1059,7 +1064,7 @@ networks. The complete solver may exist before the deferred P9.3.2d proof debt
 is resolved, but it must not be named `AlmostLinear` and must report
 `an19_runtime_verified: false` until all source complexity assumptions pass.
 
-**P9.5a - Source compact-candidate selection construction. State: blocked.**
+**P9.5a - Source compact-candidate selection construction. State: in_progress.**
 Commit `91132c4` completes the first, provenance-only substep. Its immutable
 `source_min_ratio::input::Input` accepts one circulation network plus exact
 caller-supplied gradient, length, and positive structural tree-weight vectors;
@@ -1077,14 +1082,20 @@ It orients a nonzero choice for a negative IPM gradient dot product. The
 registry never scans a graph for a cycle, and its finite heap counters make no
 complexity claim.
 
-The complete selector is still absent. Neither `Input` nor `Registry`
-constructs a live tree chain or shifts, core/spanner embeddings, or the
-complete fundamental candidate population. `terminal::Tree` now supplies one
-checked terminal branch and `Step::from_terminal_candidate` can decode its
-best declaration only after exact coordinate equality with that immutable
-`Input`; this deliberately narrow bridge does not make the terminal-only
-population a complete source selector. The registry still cannot supply the
-core/spanner provenance or the complete current-selection certificate consumed
+Commit `cdb2ce9` closes the finite immutable core/spanner declaration substep.
+`source_min_ratio::spanner::Snapshot` contracts a checked singleton forest,
+builds the finite Section 9.1 chain, translates its stable selected-edge paths,
+and emits one `FundamentalSpanner` per rejected core edge. Each declaration is
+exactly an oriented, contiguous `SpannerPath` plus its rejected anchor edge;
+the registry rejects a tree path or a discontinuous path masquerading as that
+embedding. This is a one-snapshot finite construction, not dynamic recourse.
+
+The complete selector is still absent. No production component maintains the
+core/spanner and terminal populations across snapshots, and
+`Step::from_terminal_candidate` still accepts only the terminal registry after
+exact coordinate equality with its immutable `Input`. This deliberately narrow
+bridge does not make either finite population a complete source selector. The
+registry still cannot supply the complete current-selection certificate consumed
 by the next Lemma 4.4 `Step`.
 `StableMinRatioLedger::edges()` remains an anonymous audit-coordinate slice;
 its validated stability-witness input is not a cycle-selection witness; and
@@ -1141,13 +1152,15 @@ P9.5a is split before further implementation:
      replacement/retirement updates to the registry across supported snapshots.
      It is split before implementation:
      - **P9.5a.3.2a - Finite core/spanner snapshot declarations. State:
-       blocked.** The current checked finite Algorithm 4 replay maps every
-       witness pair to its matching direct input edge, so its image retains all
-       input edges and supplies no rejected-core population. Do not represent
-       this as a spanner selector. Implement a source-supported sparsifier that
-       can produce rejected core edges, or another source-supported construction
-       with the same fundamental-cycle provenance, before declaring candidates.
-       Unsupported finite-domain inputs must reject explicitly.
+       complete. Implementation SHA: `cdb2ce9`.** Positive-level Algorithm 4
+       witnesses use the canonical certified circulant, and Task 3 independently
+       embeds `J -> W`; therefore the K5 finite fixture yields a strict image
+       subgraph and rejected core edges. An immutable `spanner::Snapshot`
+       exposes each selected path as an explicit oriented `SpannerPath` plus its
+       rejected anchor, then verifies every declaration and registry choice
+       against the exact circulation projection. Unsupported finite-domain
+       inputs reject explicitly. Evidence:
+       `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md`.
      - **P9.5a.3.2b - Cross-snapshot maintenance. State: planned.** Carry
        source-driven embedding changes into registry replacement and retirement
        operations with stable IDs and exact transition evidence.
@@ -1404,7 +1417,7 @@ and AN19 runtime claims.
 | P9.3.4a | in_progress | 41be08c | pending | pending | 41be08c | pending | exact static embedding-composition contracts and bounded simple-path Oracle | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4a | complete | 91a3e3c | e0b7bc1 | pending closeout | pending | `docs/phase-reports/P09-3-4a-static-embedding-contract.md` | exact graph/subgraph/direct-and-composed embedding audits and isolated bounded simple-path Oracle | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | Theorem 8.4 witness expander, Theorem 8.5 decomposition, Theorem 8.6 paths, and Algorithm 4 remain |
 | P9.3.4b | in_progress | a71dcee | pending | pending | a71dcee | pending | deterministic bounded-degree witness expander and expansion certificate | 2026-07-29T17:01:06Z | pending | none |
-| P9.3.4b | complete | a71dcee | 77878a8, cc54c10 | pending closeout | pending | `docs/phase-reports/P09-3-4b-witness-expander.md` | finite-domain complete witness, exact degree sandwich, exhaustive cut-expansion certificate, explicit domain rejection, and full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:01:06Z | general CGLNPS20 construction intentionally not claimed; Theorem 8.5-8.6 and Algorithm 4 remain |
+| P9.3.4b | complete | a71dcee | 77878a8, cc54c10, cdb2ce9 | pending closeout | pending | `docs/phase-reports/P09-3-4b-witness-expander.md` | finite canonical circulant witness, exact degree sandwich, exhaustive cut-expansion certificate, explicit domain rejection, and full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-30T00:00:00Z | general CGLNPS20 construction intentionally not claimed; Theorem 8.5-8.6 and Algorithm 4 remain |
 | P9.3.4c | in_progress | 64ce6f4 | pending | pending | 64ce6f4 | pending | deterministic edge-disjoint expander decomposition with exact layer certificates | 2026-07-29T17:01:06Z | pending | none |
 | P9.3.4c | complete | 64ce6f4 | f9dd410, bce0f14 | pending closeout | pending | `docs/phase-reports/P09-3-4c-expander-decomposition.md` | finite-domain one-level decomposition with explicit component, exact edge partition, degree-floor, and exhaustive expansion certificates; full-workspace audit | 2026-07-29T17:01:06Z | 2026-07-29T17:49:14Z | general/multi-level CGLNPS20 construction and its runtime are intentionally not claimed; Theorem 8.6 and Algorithm 4 remain |
 | P9.3.4d1 | complete | d5bb65d | d5d80cc | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | immutable deletion state, monotone isolated-vertex prune set, and replayable accepted/rejected deletion trace | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | not the source expander-cut pruning rule |
@@ -1413,8 +1426,8 @@ and AN19 runtime claims.
 | P9.3.4d | complete | d5bb65d | d5d80cc, f097cd4, 838a321 | pending closeout | pending | `docs/phase-reports/P09-3-4d-decremental-expander-paths.md` | exact decremental-path semantics, trace, production BFS, and independent bounded certificate; full-workspace audit | 2026-07-29T17:51:52Z | 2026-07-29T18:02:38Z | general Theorem 8.6 construction and bounds intentionally unclaimed; Algorithm 4 remains |
 | P9.3.4e1 | complete | e396484 | 93a0aa2 | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite Task 1 witness union with exact level weight and source/witness provenance | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | single-level/single-component finite input only |
 | P9.3.4e2 | complete | e396484 | 08a854c | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite `W -> J` bounded path loop with congestion threshold, deletions, and unembedded-edge trace | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | no general expander-pruning or iteration-bound claim |
-| P9.3.4e3 | complete | e396484 | 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite direct `J -> W`, image, composed embedding, and exact audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | direct branch only for the complete finite witness |
-| P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-29T18:19:17Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
+| P9.3.4e3 | complete | e396484 | 3a637ac, cdb2ce9 | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | independent finite `J -> W`, image, composed embedding, and exact audit | 2026-07-29T18:06:36Z | 2026-07-30T00:00:00Z | finite certified domain only; general Theorem 8.1 bounds remain unclaimed |
+| P9.3.4e | complete | e396484 | 93a0aa2, 08a854c, 3a637ac, cdb2ce9 | pending closeout | pending | `docs/phase-reports/P09-3-4e-algorithm4-sparsify.md` | finite source-shaped Algorithm 4 replay with sparse positive-level witnesses and full-workspace audit | 2026-07-29T18:06:36Z | 2026-07-30T00:00:00Z | general Theorem 8.1 construction/bounds intentionally unclaimed; P9.3.5 remains |
 | P9.3.5 | complete | e396484 | 1d18dee, 7282e92, 9d7bed7 | pending closeout | pending | `docs/phase-reports/P09-3-5-dynamic-sparsify.md` | source-shaped deletion/split batches, finite Algorithm 4 rebuild, stable-ID recourse, independent greedy Oracle, and exact update accounting | 2026-07-29T18:24:15Z | 2026-07-29T18:41:34Z | finite one-level connected domain only; no general Theorem 8.2 sparsity, recourse, or runtime claim |
 | P9.3.6 | complete | 4714ee3 | 8a69733, a9ac727, 6985234, 4a3ad34 | pending closeout | pending | `docs/phase-reports/P09-3-6-dynamic-low-stretch-tree.md` | finite Section 9.1 contraction, exact buckets, static terminal tree, immutable source update replay, recourse, and bounded Oracle differential | 2026-07-29T18:49:00Z | 2026-07-29T19:03:00Z | explicit finite integral connected domain; every replay rebuilds; no source Theorem 1.2 stretch or runtime claim |
 | P9.3.7 | complete | 6b3bb73 | 66d7920 | pending closeout | pending | `docs/phase-reports/P09-3-7-finite-tree-audit.md` | source trace, no-fallback static audit, adversarial immutable update history, exact weight/bound/certificate rejection evidence | 2026-07-29T19:03:00Z | 2026-07-29T19:45:43Z | finite-domain semantics only; P9.3.2d proof debt continues to prohibit AN19 complexity claims |
@@ -1423,10 +1436,10 @@ and AN19 runtime claims.
 | P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
 | P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
 | P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
-| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37, abb77ac, 5afa4c7 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md` | source-flow no-fallback boundary, additive-half certificate, exact terminal, augmented, and lower-bound recovery, explicit no-Oracle feasibility validation, certified iteration, P9.4 compact-direction bridge, compressed-circulation recovery differentials through a formal-polygon rectangle completion, exact IPM/source/circulation provenance, exact source-declared candidate heap, a single-snapshot terminal-tree declaration projection, and an exact-coordinate terminal-to-`Step` bridge | 2026-07-29T20:25:33Z | pending | source-supported rejected-core candidate construction, cross-snapshot maintenance, complete-candidate differential, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md`, `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | source-flow no-fallback boundary, exact source/circulation provenance, source-declared heap, terminal and finite rejected-core declarations, and a terminal-only exact-coordinate `Step` bridge | 2026-07-29T20:25:33Z | 2026-07-30T00:00:00Z | cross-snapshot candidate maintenance, complete-candidate differential, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
 | P9.5a.2 | complete | 20ee78d | 0bf9d37 | pending closeout | pending | `docs/phase-reports/P09-5-candidate-heap.md` | exact source-declared fundamental candidate validation, quality, orientation, deterministic stale-record heap, and no-enumeration tests | 2026-07-29T22:04:55Z | 2026-07-29T22:20:23Z | no live tree-chain/embedding candidate construction, `Step` certificate, or runtime claim |
 | P9.5a.3.1 | complete | 0bf9d37 | abb77ac | pending closeout | pending | `docs/phase-reports/P09-5-terminal-tree-projection.md` | exact AN19-shaped source tree, checked terminal branch, and one declaration per non-tree source edge | 2026-07-29T22:27:30Z | 2026-07-29T22:38:34Z | no core/spanner embeddings, cross-snapshot candidate maintenance, `Step` certificate, or runtime claim |
-| P9.5a | blocked | d11cb3f | 91132c4, 0bf9d37, abb77ac, 5afa4c7 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md` | exact caller-supplied IPM/source/circulation provenance, source-declared fundamental candidate heap, single-snapshot terminal-tree declarations, and an exact-coordinate terminal-to-`Step` bridge | 2026-07-29T22:38:34Z | pending | source-supported rejected-core candidate construction, cross-snapshot candidate maintenance, and complete-candidate differential remain; reference-cycle enumeration remains forbidden |
-| P9.5a.3.2a | blocked | 5afa4c7 | pending | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`; `docs/phase-reports/P09-5-terminal-step-bridge.md` | finite Algorithm 4 replay inspected against the candidate-declaration requirement | 2026-07-30T08:49:19Z | pending | first embedding retains matching direct input edges, leaving no rejected-core population; require a source-supported sparsifier or equivalent construction |
+| P9.5a | in_progress | d11cb3f | 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md`, `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | exact provenance, source-declared heap, terminal declarations, finite rejected-core declarations, and a terminal-only exact-coordinate `Step` bridge | 2026-07-29T22:38:34Z | 2026-07-30T00:00:00Z | cross-snapshot candidate maintenance and complete-candidate differential remain; reference-cycle enumeration remains forbidden |
+| P9.5a.3.2a | complete | 5afa4c7 | cdb2ce9 | pending closeout | pending | `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | finite sparse Algorithm 4 image, immutable core/spanner snapshot, explicit rejected-edge embedding cycles, exact decode, and registry selection | 2026-07-30T08:49:19Z | 2026-07-30T00:00:00Z | one finite immutable snapshot only; cross-snapshot maintenance remains P9.5a.3.2b |
 | P9.5a.3.3a | complete | abb77ac | 5afa4c7 | pending closeout | pending | `docs/phase-reports/P09-5-terminal-step-bridge.md` | exact terminal-coordinate equality, terminal-registry-only choice, compact decoding, empty/zero-quality no-step path, and no-fallback audit | 2026-07-30T08:49:19Z | 2026-07-30T08:49:19Z | core/spanner population and cross-snapshot maintenance remain outside this terminal-only bridge |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

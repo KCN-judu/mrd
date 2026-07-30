@@ -2,14 +2,15 @@
 
 ## Status
 
-**State: blocked.** Commits `91132c4`, `0bf9d37`, `abb77ac`, and `5afa4c7`
-close the provenance, source-declared candidate heap, single-snapshot
-terminal-tree projection, and terminal-only `Step` bridge substeps of P9.5a,
-but the source-defined compact-candidate selector is still absent. P9.5a is
-independent of the P9.3.2d AN19 runtime proof debt: P9.3.2d remains deferred to
-low-priority P9.6a after the complete source-shaped flow backend exists. P9.5a
-instead blocks the backend from selecting the next exact source-shaped IPM
-direction.
+**State: in_progress.** Commits `91132c4`, `0bf9d37`, `abb77ac`, `5afa4c7`,
+and `cdb2ce9` close the provenance, source-declared candidate heap,
+single-snapshot terminal-tree projection, terminal-only `Step` bridge, and
+finite rejected-core declaration substeps of P9.5a. Cross-snapshot candidate
+maintenance and the complete source-defined compact-candidate selector are
+still absent. P9.5a is independent of the P9.3.2d AN19 runtime proof debt:
+P9.3.2d remains deferred to low-priority P9.6a after the complete
+source-shaped flow backend exists. P9.5a instead blocks the backend from
+selecting the next exact source-shaped IPM direction.
 
 ## Audit evidence
 
@@ -20,7 +21,8 @@ The audited production boundary has the following deliberate shape:
 | `graph::min_ratio_cycle::StableMinRatioLedger` | checks stable-witness validity, update quality, exact coordinate queries, and Detect accounting | neither `StableEdge` nor the consumed `StableWitness` input carries a compact-cycle selection or source-arc provenance |
 | `graph::source_min_ratio::input` | validates exact caller-supplied gradient/length/tree-weight vectors, assigns stable source-edge/circulation-arc provenance, and materializes `SourceDynamicGraph` with matching `ArcBindings` | does not infer an exact approximation from a snapshot interval, construct a tree chain, or choose a candidate |
 | `graph::source_min_ratio::candidate` | validates externally declared fundamental spanner/tree compact cycles, computes exact current quality, maintains a deterministic stale-record heap, and orients a nonzero choice for descent | does not construct the tree chain, core/spanner embeddings, or candidate population; it cannot produce a Lemma 4.4 certificate |
-| `graph::source_min_ratio::terminal` | constructs one AN19-shaped static terminal tree for a live exact `Input`, retains the tree certificate, forms a one-level checked chain, and declares every non-tree source edge as its terminal fundamental cycle | no core/spanner embedding provenance or cross-snapshot replacement/retirement |
+| `graph::source_min_ratio::spanner` | builds one immutable finite Section 9.1 singleton-core snapshot, translates selected stable paths, and declares every rejected core edge as an oriented, contiguous `SpannerPath` plus anchor edge | no cross-snapshot replacement/retirement, terminal population merge, `Step`, or runtime claim |
+| `graph::source_min_ratio::terminal` | constructs one AN19-shaped static terminal tree for a live exact `Input`, retains the tree certificate, forms a one-level checked chain, and declares every non-tree source edge as its terminal fundamental cycle | no core/spanner population merge or cross-snapshot replacement/retirement |
 | `graph::source_min_ratio::model` and `chain` | represent validated immutable source-tree branches and deterministic shifts | no constructor derives a tree-chain from a live IPM snapshot |
 | `graph::source_min_ratio::cycle` | decodes a supplied compact cycle through selected branches and checked arc bindings | no candidate generation or score computation |
 | `graph::source_min_ratio::query` | validates a supplied compact candidate against a checked ledger | no minimum-ratio selection query |
@@ -37,9 +39,11 @@ exact approximation vectors rather than deriving a rational point from
 `CertifiedIpmSnapshot` intervals. `candidate::Registry` now consumes exact
 declared compact candidates and evaluates their quality through that
 provenance. `terminal::Tree` now constructs the terminal branch and its
-non-tree declarations directly from a static source-tree certificate, but
-core/spanner embedding maintenance still cannot construct or update the full
-candidate population.
+non-tree declarations directly from a static source-tree certificate.
+`spanner::Snapshot` additionally constructs a finite rejected-core population
+from the source Section 9.1 chain and rejects both tree-path and
+noncontiguous-path substitutions. Cross-snapshot maintenance and the complete
+combined population remain absent.
 
 The existing `dynamic_min_ratio` and min-cost cycle implementations can
 enumerate candidates, but they are reference Oracles. The P9.5 source-flow
@@ -51,15 +55,14 @@ These references remain valid only for bounded test differentials.
 ## Required construction
 
 P9.5a must add a source-shaped selector with an explicit input/output
-certificate. The stable projection, terminal-tree declarations, and heap over
-supplied declarations are complete; the remaining work must:
+certificate. The stable projection, finite terminal/rejected-core declarations,
+and heap over supplied declarations are complete; the remaining work must:
 
-1. attach source core/spanner embeddings to the materialized graph with the
-   same provenance and extend the tree chain beyond its current terminal
-   branch where required;
-2. construct and update fundamental spanner cycles for rejected core edges and
-   maintain terminal declarations across supported snapshots through
-   `candidate::Registry` replacement/retirement;
+1. maintain the now-explicit source core/spanner embeddings and terminal
+   declarations across supported snapshots through `candidate::Registry`
+   replacement/retirement;
+2. merge the current terminal and rejected-core declarations into one checked
+   population with stable identities and exact source provenance;
 3. extend the completed terminal-only exact-coordinate bridge to the complete
    maintained population and certify its selected compact direction with the
    current approximation gradients, lengths, and `kappa`; and
@@ -116,23 +119,21 @@ The static boundary and complete workspace audit passed for implementation SHA
 | `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
 
 The production changes establish exact input provenance, a heap over only
-externally declared candidates, and a static source-shaped terminal tree with
-one declaration per non-tree edge. They do not add core/spanner embedding
-maintenance, a complete selector, a runtime claim, or a generated result file.
+externally declared candidates, static terminal declarations, and immutable
+finite rejected-core declarations with exact compact-cycle decoding. They do
+not add cross-snapshot embedding maintenance, a complete selector, a runtime
+claim, or a generated result file.
 
 ## Next action
 
-The current finite Algorithm 4 replay cannot satisfy the first requirement:
-its first embedding maps each witness pair to the matching direct input edge,
-so its finite image retains all input edges and generates no rejected-core
-population. Do not recast that replay as a spanner selector. The next action
-is a source-supported sparsifier that can produce rejected core edges, or an
-equivalent source-supported construction with exact fundamental-cycle
-provenance; then emit/replace those declarations and maintain the terminal
-ones through `candidate::Registry`. The completed terminal-only bridge remains
-available to exercise the `Step` boundary without an Oracle fallback. Only then
-may P9.5 run the full no-fallback differential campaign and enable
-`Backend::require_complete()`.
+The finite Algorithm 4 replay now satisfies the single-snapshot declaration
+requirement: positive-level circulant witnesses and independent Task 3 paths
+produce rejected-core edges on K5, and `spanner::Snapshot` records each compact
+embedding cycle. Do not recast this as a complete selector. The next action is
+P9.5a.3.2b: maintain those declarations and terminal declarations through
+source-driven cross-snapshot replacement/retirement, then merge the population
+into a no-fallback `Step` differential. Only after that campaign may P9.5
+enable `Backend::require_complete()`.
 
 P9.6a remains after that chain is complete. It is the separate low-priority
 task to prove or replace the AN19 reduced-event ordering and hierarchy-wide
