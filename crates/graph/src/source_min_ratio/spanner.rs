@@ -6,7 +6,7 @@
 //! rejected core edge into its explicitly maintained spanner embedding cycle.
 //! It makes no dynamic recourse, Theorem 5.1, or runtime claim.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
@@ -56,6 +56,22 @@ pub struct Snapshot {
     shifts: Shifts,
     candidates: Vec<Fundamental>,
     parameters: Parameters,
+}
+
+/// One immutable source-snapshot transition and its exact candidate recourse.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transition {
+    /// Rebuilt exact source state for the new IPM coordinate projection.
+    pub next: Snapshot,
+    /// Candidate IDs newly declared by the rebuilt finite core.
+    pub inserted: BTreeSet<CandidateId>,
+    /// Retained IDs that must be re-scored in the new coordinate snapshot.
+    pub refreshed: BTreeSet<CandidateId>,
+    /// Candidate IDs no longer declared by the rebuilt finite core.
+    pub retired: BTreeSet<CandidateId>,
+    /// Retained IDs whose maintained embedding cycle changed.
+    pub reembedded: BTreeSet<CandidateId>,
+    previous_candidates: Vec<Fundamental>,
 }
 
 impl Snapshot {
@@ -142,6 +158,52 @@ impl Snapshot {
         }
     }
 
+    /// Rebuilds one supported IPM/source projection and derives exact stable-ID
+    /// candidate recourse without mutating either snapshot or a candidate heap.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the rebuilt source projection changes a stable
+    /// source identity or leaves the explicit finite domain.
+    pub fn transition(
+        &self,
+        input: Input,
+        network: &CirculationNetwork,
+    ) -> Result<Transition, Error> {
+        let next = Self::build(input, network, self.parameters)?;
+        validate_stable_source_shape(&self.materialization, &next.materialization)?;
+        let before = candidates_by_id(&self.candidates)?;
+        let after = candidates_by_id(&next.candidates)?;
+        let inserted = after
+            .keys()
+            .filter(|id| !before.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let refreshed = after
+            .keys()
+            .filter(|id| before.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let retired = before
+            .keys()
+            .filter(|id| !after.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let reembedded = refreshed
+            .iter()
+            .filter(|id| before.get(id) != after.get(id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        Ok(Transition {
+            next,
+            inserted,
+            refreshed,
+            retired,
+            reembedded,
+            previous_candidates: self.candidates.clone(),
+        })
+    }
+
     /// Returns the exact projection that owns this source snapshot.
     #[must_use]
     pub const fn input(&self) -> &Input {
@@ -201,6 +263,47 @@ impl Snapshot {
     pub fn registry(&self, network: &CirculationNetwork) -> Result<Registry, Error> {
         let context = self.context(network)?;
         Ok(Registry::new(&context, self.candidates.clone())?)
+    }
+}
+
+impl Transition {
+    /// Applies this source-declared recourse to the exact candidate registry.
+    ///
+    /// Every retained declaration is replaced, including unchanged embeddings,
+    /// because its exact gradient and length coordinates may have changed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the supplied registry is not exactly the source
+    /// population that produced this transition or if the next snapshot cannot
+    /// validate its circulation provenance.
+    pub fn apply(
+        &self,
+        registry: &mut Registry,
+        network: &CirculationNetwork,
+    ) -> Result<(), Error> {
+        let active = registry
+            .candidates()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        if active != self.previous_candidates {
+            return Err(Error::MismatchedRegistry);
+        }
+        let context = self.next.context(network)?;
+        for id in &self.retired {
+            registry.retire(*id)?;
+        }
+        for candidate in &self.next.candidates {
+            if self.refreshed.contains(&candidate.id) {
+                registry.replace(&context, candidate.clone())?;
+            } else if self.inserted.contains(&candidate.id) {
+                registry.insert(&context, candidate.clone())?;
+            } else {
+                return Err(Error::InvalidTransition);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -284,6 +387,38 @@ fn declarations(
     Ok(candidates)
 }
 
+fn candidates_by_id(
+    candidates: &[Fundamental],
+) -> Result<BTreeMap<CandidateId, Fundamental>, Error> {
+    let mut result = BTreeMap::new();
+    for candidate in candidates {
+        if result.insert(candidate.id, candidate.clone()).is_some() {
+            return Err(Error::DuplicateCandidate(candidate.id));
+        }
+    }
+    Ok(result)
+}
+
+fn validate_stable_source_shape(
+    before: &Materialization,
+    after: &Materialization,
+) -> Result<(), Error> {
+    if before.graph.node_count() != after.graph.node_count()
+        || before.graph.edge_count() != after.graph.edge_count()
+    {
+        return Err(Error::SourceIdentityChanged);
+    }
+    for index in 0..before.graph.edge_count() {
+        let id = SourceEdgeId(index);
+        let previous = before.graph.edge(id).ok_or(Error::SourceIdentityChanged)?;
+        let next = after.graph.edge(id).ok_or(Error::SourceIdentityChanged)?;
+        if previous.first != next.first || previous.second != next.second {
+            return Err(Error::SourceIdentityChanged);
+        }
+    }
+    Ok(())
+}
+
 fn embedding_edges(
     graph: &crate::SourceDynamicGraph,
     rejected: SourceEdgeId,
@@ -344,13 +479,21 @@ pub enum Error {
     InvalidEmbedding(SourceEdgeId),
     #[error("finite sparsified-core snapshot differs from a fresh rebuild")]
     MismatchedSnapshot,
+    #[error("finite source snapshot changed a stable source identity")]
+    SourceIdentityChanged,
+    #[error("finite source snapshot contains duplicate candidate {0:?}")]
+    DuplicateCandidate(CandidateId),
+    #[error("candidate registry does not match the prior source snapshot")]
+    MismatchedRegistry,
+    #[error("finite source snapshot transition is internally inconsistent")]
+    InvalidTransition,
     #[error("finite sparsified-core arithmetic overflowed")]
     Overflow,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Parameters, Snapshot};
+    use super::{Error, Parameters, Snapshot};
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId,
         source_min_ratio::{candidate::Kind, input::Input},
@@ -381,16 +524,32 @@ mod tests {
         }
     }
 
+    fn input(network: &CirculationNetwork, gradient: i128) -> Input {
+        input_with_lengths(
+            network,
+            gradient,
+            &vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()],
+        )
+    }
+
+    fn input_with_lengths(
+        network: &CirculationNetwork,
+        gradient: i128,
+        lengths: &[ExactRatio],
+    ) -> Input {
+        Input::new(
+            network,
+            &vec![ExactRatio::new(gradient, 1).unwrap(); network.arc_count()],
+            lengths,
+            &vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()],
+        )
+        .unwrap()
+    }
+
     #[test]
     fn emits_rejected_core_cycles_from_a_checked_sparse_embedding() {
         let network = network();
-        let input = Input::new(
-            &network,
-            &vec![ExactRatio::new(-1, 1).unwrap(); network.arc_count()],
-            &vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()],
-            &vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()],
-        )
-        .unwrap();
+        let input = input(&network, -1);
         let snapshot = Snapshot::build(input, &network, parameters()).unwrap();
         assert_eq!(snapshot.candidates().len(), 5);
         assert!(
@@ -416,5 +575,56 @@ mod tests {
         assert_eq!(registry.candidates().len(), 5);
         assert!(registry.best().unwrap().is_some());
         snapshot.verify(&network).unwrap();
+    }
+
+    #[test]
+    fn refreshes_the_full_population_when_only_coordinates_change() {
+        let network = network();
+        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let mut registry = snapshot.registry(&network).unwrap();
+        let transition = snapshot.transition(input(&network, 1), &network).unwrap();
+
+        assert!(transition.inserted.is_empty());
+        assert!(transition.retired.is_empty());
+        assert!(transition.reembedded.is_empty());
+        assert_eq!(transition.refreshed.len(), snapshot.candidates().len());
+        transition.apply(&mut registry, &network).unwrap();
+        assert_eq!(registry.accounting().replaced, 5);
+        assert!(registry.best().unwrap().is_some());
+        transition.next.verify(&network).unwrap();
+    }
+
+    #[test]
+    fn rejects_applying_recourse_to_a_nonmatching_registry() {
+        let network = network();
+        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let mut registry = snapshot.registry(&network).unwrap();
+        registry.retire(snapshot.candidates()[0].id).unwrap();
+        let transition = snapshot.transition(input(&network, 1), &network).unwrap();
+
+        assert_eq!(
+            transition.apply(&mut registry, &network),
+            Err(Error::MismatchedRegistry)
+        );
+    }
+
+    #[test]
+    fn applies_source_declared_insertions_and_retires_after_a_bucket_change() {
+        let network = network();
+        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let mut registry = snapshot.registry(&network).unwrap();
+        let mut lengths = vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()];
+        lengths[0] = ExactRatio::new(2, 1).unwrap();
+        let transition = snapshot
+            .transition(input_with_lengths(&network, -1, &lengths), &network)
+            .unwrap();
+
+        assert!(!transition.inserted.is_empty() || !transition.retired.is_empty());
+        transition.apply(&mut registry, &network).unwrap();
+        assert_eq!(
+            registry.candidates(),
+            transition.next.candidates().iter().collect::<Vec<_>>()
+        );
+        transition.next.verify(&network).unwrap();
     }
 }

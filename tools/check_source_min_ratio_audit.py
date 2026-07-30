@@ -34,7 +34,14 @@ REQUIRED = {
         "pub fn decode",
         "validate_signed_circulation",
     ),
-    "spanner": ("pub struct Snapshot", "FundamentalSpanner", "SpannerPath", "source_lsst"),
+    "spanner": (
+        "pub struct Snapshot",
+        "pub struct Transition",
+        "pub fn transition",
+        "FundamentalSpanner",
+        "SpannerPath",
+        "source_lsst",
+    ),
     "terminal": ("pub struct Tree", "pub fn build", "Lsst::construct", "FundamentalTree"),
 }
 FORBIDDEN = (
