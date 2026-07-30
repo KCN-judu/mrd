@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     "root": ROOT / "crates/graph/src/source_flow.rs",
+    "coordinates": ROOT / "crates/graph/src/source_flow/coordinates.rs",
     "recovery": ROOT / "crates/graph/src/source_flow/recovery.rs",
     "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
     "compressed": ROOT / "crates/dominance/src/compressed_flow/experiment/source.rs",
@@ -16,6 +17,7 @@ REQUIRED = {
     "root": (
         "pub mod recovery",
         "pub mod iteration",
+        "pub mod coordinates",
         "pub fn recover_terminated",
         "recover_augmented_terminated",
         "recover_lower_bounded_terminated",
@@ -24,6 +26,12 @@ REQUIRED = {
         "verify_feasible_solution",
         "recover_original_feasible",
         "an19_runtime_verified: false",
+    ),
+    "coordinates": (
+        "pub fn reciprocal_slack_input",
+        "snapshot.flow()",
+        "snapshot.optimal_cost()",
+        "network.fractional_slacks",
     ),
     "recovery": ("pub fn round", "validate_signed_circulation", "verify_fractional_solution"),
     "iteration": (
@@ -38,6 +46,7 @@ REQUIRED = {
         "pub struct Projection",
         "pub trait Factory",
         "pub struct FixedProjectionFactory",
+        "pub struct ReciprocalSlackProjectionFactory",
         "pub const fn preparation_count",
         "pub struct Driver",
         "certify_approximations",
@@ -69,6 +78,10 @@ FORBIDDEN = (
     "dynamic_min_ratio",
     ".verify_solution(",
 )
+COORDINATE_FORBIDDEN = (
+    "snapshot.lengths()",
+    "snapshot.gradients()",
+)
 
 
 def production_source(path: Path) -> str:
@@ -89,6 +102,10 @@ def main() -> None:
         for forbidden in FORBIDDEN:
             if forbidden in source:
                 fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
+        if name == "coordinates":
+            for forbidden in COORDINATE_FORBIDDEN:
+                if forbidden in source:
+                    fail(f"forbidden interval read {forbidden!r} in {path.relative_to(ROOT)}")
     print("source_flow audit: no reference-flow or recovery fallback dependency")
 
 

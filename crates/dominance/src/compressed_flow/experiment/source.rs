@@ -410,7 +410,10 @@ mod tests {
         StableWitness,
         source_flow::{
             Backend,
-            iteration::{self, FixedProjectionFactory, ScheduledProjectionFactory},
+            iteration::{
+                self, FixedProjectionFactory, ReciprocalSlackProjectionFactory,
+                ScheduledProjectionFactory,
+            },
         },
         source_min_ratio::{input::Input, spanner::Parameters as SpannerParameters},
         source_spanner::experiment::domain::ExhaustiveDomain,
@@ -978,6 +981,38 @@ mod tests {
         assert_eq!(driver.records()[1].input, successor);
         assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
         assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn reciprocal_slack_coordinates_rebuild_each_compressed_successor_snapshot() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, _) = nonterminal_source_fixture(&circulation);
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory =
+            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 2)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 2,
+            }))
+        );
+        assert_eq!(driver.factory().preparation_count(), 2);
+        assert_eq!(driver.records().len(), 2);
+        assert_ne!(driver.records()[0].input, driver.records()[1].input);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
         assert_eq!(
             driver
                 .session()

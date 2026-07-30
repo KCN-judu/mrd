@@ -12,6 +12,7 @@ use crate::{
     MinCostCirculationError, MinCostSolution,
 };
 
+pub mod coordinates;
 pub mod iteration;
 pub mod recovery;
 

@@ -14,6 +14,7 @@ use crate::{
     IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate, IpmUpdateMetrics,
     MinCostCirculationError, MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError,
     StableMinRatioLedger,
+    source_flow::coordinates,
     source_min_ratio::{
         candidate::{CandidateId, Choice, Error as CandidateError, Registry},
         chain::{Chain, Shifts},
@@ -289,6 +290,67 @@ pub struct ScheduledProjectionFactory {
     kappa: ExactRatio,
     next_input: usize,
     preparations: u64,
+}
+
+/// Rebuilds exact source coordinates from the current exact IPM flow.
+///
+/// This policy derives its rationals only from the snapshot's exact flow,
+/// optimum, and immutable network data. It does not read any fixed-point
+/// coordinate interval; every reconstructed input still passes through
+/// [`Projection::new`] before source selection. It is a finite semantic
+/// construction, not a source runtime or termination claim.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReciprocalSlackProjectionFactory {
+    ledger: StableMinRatioLedger,
+    parameters: SpannerParameters,
+    kappa: ExactRatio,
+    preparations: u64,
+}
+
+impl ReciprocalSlackProjectionFactory {
+    /// Creates a policy that reconstructs one exact rational input per snapshot.
+    #[must_use]
+    pub const fn new(
+        ledger: StableMinRatioLedger,
+        parameters: SpannerParameters,
+        kappa: ExactRatio,
+    ) -> Self {
+        Self {
+            ledger,
+            parameters,
+            kappa,
+            preparations: 0,
+        }
+    }
+
+    /// Returns the number of snapshot-bound preparations that succeeded.
+    #[must_use]
+    pub const fn preparation_count(&self) -> u64 {
+        self.preparations
+    }
+}
+
+impl Factory for ReciprocalSlackProjectionFactory {
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error> {
+        let input = coordinates::reciprocal_slack_input(snapshot, network)?;
+        let projection = rebuild_projection(
+            snapshot,
+            input,
+            &self.ledger,
+            self.parameters,
+            self.kappa,
+            network,
+        )?;
+        self.preparations = self
+            .preparations
+            .checked_add(1)
+            .ok_or(Error::IterationCountOverflow)?;
+        Ok(projection)
+    }
 }
 
 impl ScheduledProjectionFactory {
@@ -871,6 +933,8 @@ impl Session {
 /// One supplied iteration step could not be certified or accounted for.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
+    #[error("exact source-coordinate reconstruction failed: {0}")]
+    Coordinates(#[from] coordinates::Error),
     #[error(transparent)]
     Ipm(#[from] CertifiedIpmError),
     #[error("compact source-cycle decoding failed: {0}")]
@@ -919,7 +983,8 @@ mod tests {
 
     use super::{
         CompactCandidate, Driver, Error, FixedProjectionFactory, PopulationChoice, Projection,
-        ScheduledProjectionFactory, Session, SourceSelected, Step, select_population_choice,
+        ReciprocalSlackProjectionFactory, ScheduledProjectionFactory, Session, SourceSelected,
+        Step, select_population_choice,
     };
     use crate::{
         CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
@@ -1633,6 +1698,30 @@ mod tests {
         assert_eq!(driver.records().len(), 1);
         assert_eq!(driver.factory().preparation_count(), 1);
         assert_eq!(driver.factory().remaining_count(), 0);
+    }
+
+    #[test]
+    fn reciprocal_slack_factory_reconstructs_each_successor_without_intervals() {
+        let (network, snapshot, _, _, _, _) = selected_iteration_fixture();
+        let mut parameters = spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory = ReciprocalSlackProjectionFactory::new(
+            ledger(),
+            parameters,
+            ExactRatio::new(1, 2).unwrap(),
+        );
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+
+        assert_eq!(
+            driver.run(&network),
+            Err(Error::IterationLimit {
+                maximum_iterations: 2,
+            })
+        );
+        assert_eq!(driver.factory().preparation_count(), 2);
+        assert_eq!(driver.records().len(), 2);
+        assert_ne!(driver.records()[0].input, driver.records()[1].input);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
     }
 
     #[test]
