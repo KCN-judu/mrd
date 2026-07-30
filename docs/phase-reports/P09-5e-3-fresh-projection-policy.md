@@ -3,7 +3,7 @@
 ## Status
 
 **State: in progress.** Implementation commits: `45849b1`, `c902c37`,
-`5391ada`.
+`5391ada`, `20f8a18`.
 
 This report records one bounded, nonterminal part of the P9.5e.3 campaign. It
 does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
@@ -13,6 +13,7 @@ does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
 | Issue | Observed | Required contract | Evidence and acceptance |
 | --- | --- | --- | --- |
 | Fresh state after an accepted source update | P9.5e.2 constructed one projection and stopped at one update, so it did not demonstrate preparation for a successor snapshot. | `Driver` must request and independently certify a new `Projection` for each nonterminal snapshot before selection. | `FixedProjectionFactory` rebuilds two separately snapshot-bound projections for the one-by-one compressed circulation, and the two stored records carry unequal certified snapshots. |
+| Exact coordinate update and reuse | `FixedProjectionFactory` can recertify unchanged coordinates only until they become stale. | A finite source fixture may supply distinct exact coordinates per successor snapshot, but it must consume them in order, reject exhaustion, and certify each entry before selection. | `ScheduledProjectionFactory` owns a caller-supplied immutable sequence of identity-compatible `Input` values. The compressed `1 x 1` fixture uses distinct first and successor coordinates, consumes both, and returns the explicit iteration limit instead of reusing either. |
 | Bounded witness versus termination | The two supported updates do not reach the additive-half boundary. | An iteration limit must remain a failure result, and recovery must not run for a nonterminal successor. | `Circulation::run_source` returns `IterationLimit { maximum_iterations: 2 }`; the final snapshot still rejects additive-half certification. |
 | Backend completeness | Terminal recovery and one bounded nonterminal path exist, but no general policy prepares a terminating projection sequence for all supported compressed inputs. | Do not enable a complete backend from bounded evidence. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
 
@@ -47,6 +48,18 @@ retains exactly 25 records and the policy's preparation counter is 25. This
 proves a transparent coordinate-staleness boundary for the fixed policy; it is
 not a bound on the number of valid updates for arbitrary inputs.
 
+`ScheduledProjectionFactory` now supplies the complementary finite policy. It
+accepts a nonempty, caller-owned sequence of immutable exact `Input` values
+with one stable source/circulation identity, rebuilds and certifies a projection
+from exactly one entry per request, and advances only after that preparation
+succeeds. An empty schedule, an identity mismatch, or exhaustion rejects
+explicitly; neither an older coordinate set nor a fixed-point interval endpoint
+can be substituted. The compressed `1 x 1` fixture supplies a literal successor
+return-arc gradient of `-399999997/3000000` rather than reusing its initial
+`-400/3`. Both entries certify their distinct successive snapshots and lead to
+two accepted source updates before the deliberate iteration limit. The final
+snapshot remains nonterminal and recovery is not called.
+
 The exact source coordinates remain the P9.5e.2 fixture values:
 
 ```text
@@ -65,8 +78,8 @@ the unscaled rational coordinates.
 | --- | ---: | --- |
 | `git diff --check` | 0 | no whitespace errors |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
-| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 7 focused compressed-source tests passed |
-| `cargo test -p graph source_flow -- --nocapture` | 0 | 22 focused source-flow tests passed |
+| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 8 focused compressed-source tests passed |
+| `cargo test -p graph source_flow -- --nocapture` | 0 | 24 focused source-flow tests passed |
 | `python3 tools/check_source_flow_audit.py` | 0 | no reference-flow or recovery fallback dependency |
 | `python3 tools/check_source_min_ratio_audit.py` | 0 | source tree-chain/core boundary has no Oracle fallback |
 | `python3 tools/check_biclique_bound.py` | 0 | compact biclique bound accepted |
@@ -82,7 +95,12 @@ the unscaled rational coordinates.
 general dynamic coordinate-maintenance or termination policy. It supports only
 snapshots for which its caller-supplied fixed coordinates, ledger, and finite
 source structures continue to certify; the 25-update source-flow regression
-shows the exact coordinate-staleness failure when that condition ends. P9.5e.3
+shows the exact coordinate-staleness failure when that condition ends.
+
+`ScheduledProjectionFactory` proves only that a finite, independently supplied
+coordinate trace can be consumed without stale reuse. It is not the missing
+source-supported construction of that trace and it does not prove that any
+nonterminal compressed instance reaches additive-half termination. P9.5e.3
 still needs a source-supported policy that updates exact coordinates for every
 nonterminal snapshot it claims can reach additive-half termination, plus
 combined compressed-MRD differentials for flow, matching, cover, chord flags,

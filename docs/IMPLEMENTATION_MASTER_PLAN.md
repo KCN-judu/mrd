@@ -1331,7 +1331,15 @@ It is split into the following completed substeps:
      policy. Commit `5391ada` proves the failure boundary explicitly: on the
      finite source-flow fixture, 25 fixed-coordinate preparations are accepted
      and the next rejects at the exact gradient certificate. The remaining
-     policy must update its exact coordinates rather than reusing them. Evidence:
+     policy must update its exact coordinates rather than reusing them. Commit
+     `20f8a18` adds `ScheduledProjectionFactory`, a caller-owned immutable
+     sequence that consumes and certifies one identity-compatible exact `Input`
+     per snapshot, rejects exhaustion rather than reuse, and never derives a
+     coordinate from an IPM interval. The `1 x 1` compressed fixture now uses
+     two distinct literal input coordinates over two nonterminal snapshots; it
+     still returns an iteration limit and performs no recovery. This finite
+     schedule is not a source-supported coordinate construction or a
+     termination proof. Evidence:
      `docs/phase-reports/P09-5e-3-fresh-projection-policy.md`.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
@@ -1673,5 +1681,5 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot compressed witness, fixed-coordinate production factory, and explicit 25-update coordinate-staleness rejection | 2026-07-30T03:41:01Z | pending | no complete multi-snapshot termination policy or broad output differential yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot compressed witness, fixed and scheduled exact-coordinate factories, and explicit 25-update coordinate-staleness rejection | 2026-07-30T03:41:01Z | pending | no source-supported terminating coordinate construction or broad output differential yet; `Backend::require_complete()` remains unavailable |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
