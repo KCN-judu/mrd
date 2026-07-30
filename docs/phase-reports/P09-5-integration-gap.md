@@ -122,6 +122,15 @@ Commit `b73b0fa` subsequently adds immutable terminal recourse with the same
 source-identity predicate used by the core transition. Updated terminal and
 core snapshots are accepted together by the combined selector.
 
+Commit `4043a85` adds the next semantic bridge: one explicit
+`SourceSelected` request carries a current certified snapshot, exact source
+coordinates, maintained terminal/core state, a checked ledger, and `kappa`
+into `Session::apply_source_selected`. The session rejects stale snapshots and
+unequal source inputs without mutation, selects from the complete maintained
+population, then reuses the certified Lemma 4.4 transition and Detect
+accounting. The source coordinates remain caller-supplied exact `Input`
+coordinates, never values inferred from fixed-point intervals.
+
 P9.5 remains open. MRD compressed-network differential evidence for flow, cut,
 cover, chords, and rectangles, and an end-to-end no-fallback audit are still
 absent.

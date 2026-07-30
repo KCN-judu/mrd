@@ -1202,7 +1202,8 @@ P9.5a is split before further implementation:
        selector without fallback. Evidence:
        `docs/phase-reports/P09-5a-3-4-terminal-recourse.md`.
 
-4. **P9.5b - One source-selected certified iteration. State: in_progress.**
+4. **P9.5b - One source-selected certified iteration. State: complete.
+   Implementation SHA: `4043a85`.**
    Connect one matching immutable source projection to one `Session::apply`
    transition through an explicit input carrying the current
    `CertifiedIpmSnapshot`, exact `Input`, terminal and rejected-core snapshots,
@@ -1212,8 +1213,9 @@ P9.5a is split before further implementation:
    unequal source inputs, absent source candidate, or failed Lemma 4.4 check
    must reject without mutating the session. This is a single exact semantic
    transition only: it neither derives exact coordinates from intervals nor
-   enables `Backend::require_complete()`. Evidence will be recorded in a
-   dedicated P9.5b phase report after focused and full audits.
+   enables `Backend::require_complete()`. Focused stale-input and
+   stale-snapshot regressions plus the full workspace audit are recorded in
+   `docs/phase-reports/P09-5b-source-selected-iteration.md`.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1316,6 +1318,16 @@ IDs are still refreshed for their new coordinates. The successor terminal and
 core snapshots pass through the complete `Step` selector in a no-fallback
 regression. This is finite recourse, not a general dynamic data structure,
 complete backend, or AN19 runtime claim.
+
+Commit `4043a85` closes P9.5b's one-step source-selected IPM transition.
+`SourceSelected` carries the exact current source `Input`, matching terminal
+and core snapshots, checked ledger, current certified snapshot, and `kappa`.
+`Session::apply_source_selected` rejects stale snapshots and unequal source
+inputs before selecting a maintained candidate, then delegates to the existing
+certified `Session::apply` transition. The exact candidate coordinates are
+never derived from IPM intervals. This is a single checked transition, not a
+complete backend driver; `Backend::require_complete()` remains unavailable and
+the compressed MRD campaign remains required.
 
 ### P9.6 - Phase-wide source and complexity audit
 

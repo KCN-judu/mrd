@@ -138,8 +138,11 @@ enable `Backend::require_complete()`.
 
 P9.5a.3.4 is complete for supported same-network snapshots. Its immutable
 terminal transition and exact registry recourse now let matching terminal and
-core successor snapshots enter the combined selector. The next action is the
-complete certified source-flow iteration and compressed MRD integration.
+core successor snapshots enter the combined selector. P9.5b now sends one
+matching complete selection through `Session::apply` with explicit current
+snapshot and `Input` identity checks; `P09-5b-source-selected-iteration.md`
+records its focused and full audit. The next action is a complete
+termination/recovery driver and compressed MRD integration.
 
 P9.6a remains after that chain is complete. It is the separate low-priority
 task to prove or replace the AN19 reduced-event ordering and hierarchy-wide
