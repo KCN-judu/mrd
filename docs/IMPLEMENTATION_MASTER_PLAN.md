@@ -1231,6 +1231,21 @@ It is split into the following completed substeps:
    compressed-session differentials plus the full audit are recorded in
    `docs/phase-reports/P09-5c-terminal-session-recovery.md`.
 
+6. **P9.5d - Certified multi-step source iteration driver. State:
+   in_progress.** Introduce a narrow external `ProjectionFactory` boundary
+   that prepares one exact source projection for each current certified IPM
+   snapshot. Every prepared projection must carry its own snapshot identity,
+   exact `Input`, terminal and rejected-core source populations, ledger, and
+   `kappa`; construction must rerun the Theorem 4.3 approximation checks
+   before candidate selection. A bounded driver must re-request a projection
+   after each accepted update, record every accepted transition, stop only at
+   the additive-half certificate, and reject a stale, uncertifiable, or
+   exhausted preparation without mutating the session. It must not materialize
+   exact coordinates by guessing from `DyadicInterval`s, select a fallback
+   flow, or enable `Backend::require_complete()`. The next subphase will run
+   this driver over the compressed MRD flow/cut/cover/chord/rectangle
+   differential population.
+
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
 legacy recovery paths, and certify the non-Oracle additive-half termination

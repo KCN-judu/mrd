@@ -151,6 +151,30 @@ impl Backend {
     ) -> Result<iteration::Session, Error> {
         iteration::Session::new(snapshot).map_err(Error::Iteration)
     }
+
+    /// Starts a bounded run that requests one certified source projection per
+    /// current IPM snapshot.
+    ///
+    /// This composes only the exact iteration contract. It does not select a
+    /// reference backend, infer coordinates from fixed-point intervals, or
+    /// make this experimental backend complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the initial snapshot cannot initialize exact
+    /// Detect accounting.
+    pub fn begin_source_iterations<F: iteration::Factory>(
+        self,
+        snapshot: CertifiedIpmSnapshot,
+        factory: F,
+        maximum_iterations: u64,
+    ) -> Result<iteration::Driver<F>, Error> {
+        Ok(iteration::Driver::new(
+            self.begin_iterations(snapshot)?,
+            factory,
+            maximum_iterations,
+        ))
+    }
 }
 
 /// An exact integral recovery paired with its terminal certificate.
@@ -217,6 +241,35 @@ mod tests {
         let backend = Backend;
         assert!(!backend.status().an19_runtime_verified);
         assert_eq!(backend.require_complete(), Err(Error::Incomplete));
+    }
+
+    #[test]
+    fn begins_a_bounded_source_driver_without_marking_the_backend_complete() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let quarter = ExactRatio::new(1, 4).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &FractionalCirculation {
+                arc_flows: vec![quarter; 2],
+                cost: quarter,
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let factory = |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| {
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 0)
+            .unwrap();
+
+        let completion = driver.run(&network).unwrap();
+        assert!(completion.records.is_empty());
+        assert_eq!(Backend.require_complete(), Err(Error::Incomplete));
     }
 
     #[test]

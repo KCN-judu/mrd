@@ -10,9 +10,10 @@ use std::collections::BTreeSet;
 use thiserror::Error;
 
 use crate::{
-    CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
-    IpmApproximationCertificate, IpmDetectLedger, IpmUpdateMetrics, MinCostCirculationError,
-    MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError, StableMinRatioLedger,
+    CertifiedFixedPoint, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
+    IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate, IpmUpdateMetrics,
+    MinCostCirculationError, MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError,
+    StableMinRatioLedger,
     source_min_ratio::{
         candidate::{CandidateId, Choice, Error as CandidateError, Registry},
         chain::{Chain, Shifts},
@@ -76,6 +77,250 @@ pub struct SourceSelected<'a> {
     pub spanner: &'a SpannerSnapshot,
     /// Source update-quality parameter.
     pub kappa: ExactRatio,
+}
+
+/// One exact source projection, certified for one immutable IPM snapshot.
+///
+/// The caller owns construction of its exact coordinates. This type only
+/// accepts them after certifying the Theorem 4.3 approximation hypotheses and
+/// rebuilding both maintained candidate populations. It never guesses an
+/// exact coordinate from a fixed-point interval.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Projection {
+    snapshot: CertifiedIpmSnapshot,
+    input: Input,
+    ledger: StableMinRatioLedger,
+    terminal: TerminalTree,
+    spanner: SpannerSnapshot,
+    kappa: ExactRatio,
+    approximation: IpmApproximationCertificate,
+}
+
+impl Projection {
+    /// Certifies one externally prepared exact source projection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the snapshot belongs to another network, the
+    /// exact coordinates cannot certify Theorem 4.3, or either maintained
+    /// candidate population differs from the supplied source input.
+    pub fn new(
+        snapshot: CertifiedIpmSnapshot,
+        input: Input,
+        ledger: StableMinRatioLedger,
+        terminal: TerminalTree,
+        spanner: SpannerSnapshot,
+        kappa: ExactRatio,
+        network: &CirculationNetwork,
+    ) -> Result<Self, Error> {
+        snapshot.verify_network(network)?;
+        if input != *terminal.input() || input != *spanner.input() {
+            return Err(Error::MismatchedPreparedInput);
+        }
+        let gradients = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.gradient)
+            .collect::<Vec<_>>();
+        let lengths = input
+            .arcs()
+            .iter()
+            .map(|arc| arc.length)
+            .collect::<Vec<_>>();
+        let mut arithmetic = CertifiedFixedPoint::new(snapshot.fixed_point_config())
+            .map_err(CertifiedIpmError::from)?;
+        let approximation =
+            snapshot.certify_approximations(&gradients, &lengths, kappa, &mut arithmetic)?;
+        terminal.verify(network)?;
+        spanner.verify(network)?;
+        Ok(Self {
+            snapshot,
+            input,
+            ledger,
+            terminal,
+            spanner,
+            kappa,
+            approximation,
+        })
+    }
+
+    /// Returns the immutable snapshot this source state was prepared for.
+    #[must_use]
+    pub const fn snapshot(&self) -> &CertifiedIpmSnapshot {
+        &self.snapshot
+    }
+
+    /// Returns the exact coordinate projection used by this source state.
+    #[must_use]
+    pub const fn input(&self) -> &Input {
+        &self.input
+    }
+
+    /// Returns the pre-selection Theorem 4.3 certificate.
+    #[must_use]
+    pub const fn approximation(&self) -> IpmApproximationCertificate {
+        self.approximation
+    }
+
+    fn selected(&self) -> SourceSelected<'_> {
+        SourceSelected {
+            snapshot: &self.snapshot,
+            input: &self.input,
+            ledger: &self.ledger,
+            terminal: &self.terminal,
+            spanner: &self.spanner,
+            kappa: self.kappa,
+        }
+    }
+}
+
+/// External effect boundary that prepares source state for the current IPM
+/// snapshot.
+///
+/// A factory may maintain source data structures outside this module, but it
+/// must return a fresh [`Projection`] for every requested snapshot. Returning
+/// a projection for an earlier snapshot is rejected before the session changes.
+pub trait Factory {
+    /// Prepares one exact source projection for `snapshot` and `network`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the external source state cannot prepare a fresh
+    /// exact projection that satisfies [`Projection::new`].
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error>;
+}
+
+impl<F> Factory for F
+where
+    F: FnMut(&CertifiedIpmSnapshot, &CirculationNetwork) -> Result<Projection, Error>,
+{
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error> {
+        self(snapshot, network)
+    }
+}
+
+/// One accepted transition in a source-iteration run.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Record {
+    /// Zero-based accepted-transition index.
+    pub sequence: u64,
+    /// Exact snapshot that the source projection certified before this update.
+    pub snapshot: CertifiedIpmSnapshot,
+    /// Exact source coordinates that produced the selected direction.
+    pub input: Input,
+    /// Independently checked Theorem 4.3 approximation evidence.
+    pub approximation: IpmApproximationCertificate,
+    /// Selected compact direction and the accepted certified update.
+    pub selected: SelectedOutcome,
+}
+
+/// Additive-half termination evidence and the complete accepted driver trace.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Completion {
+    /// Certificate for the final session snapshot.
+    pub termination: IpmTerminationCertificate,
+    /// Every source-selected transition accepted before termination.
+    pub records: Vec<Record>,
+}
+
+/// Bounded execution of fresh source projections over one IPM session.
+#[derive(Debug)]
+pub struct Driver<F> {
+    session: Session,
+    factory: F,
+    maximum_iterations: u64,
+    records: Vec<Record>,
+}
+
+impl<F> Driver<F> {
+    /// Starts a bounded source-iteration run from an existing session.
+    #[must_use]
+    pub fn new(session: Session, factory: F, maximum_iterations: u64) -> Self {
+        Self {
+            session,
+            factory,
+            maximum_iterations,
+            records: Vec::new(),
+        }
+    }
+
+    /// Returns the current session, including any accepted transitions.
+    #[must_use]
+    pub const fn session(&self) -> &Session {
+        &self.session
+    }
+
+    /// Returns accepted transitions in their deterministic execution order.
+    #[must_use]
+    pub fn records(&self) -> &[Record] {
+        &self.records
+    }
+
+    /// Returns the session after the caller has finished inspecting the run.
+    #[must_use]
+    pub fn into_session(self) -> Session {
+        self.session
+    }
+}
+
+impl<F: Factory> Driver<F> {
+    /// Drives fresh source projections until additive-half termination.
+    ///
+    /// The explicit iteration limit prevents an uncertified nonterminating
+    /// source policy from being mistaken for a solver. Factory and selection
+    /// failures leave the session at its last accepted snapshot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid terminal certificate, projection,
+    /// source selection, certified update, or exhausted iteration limit.
+    pub fn run(&mut self, network: &CirculationNetwork) -> Result<Completion, Error> {
+        loop {
+            match self
+                .session
+                .snapshot()
+                .certify_additive_half_termination(network)
+            {
+                Ok(termination) => {
+                    return Ok(Completion {
+                        termination,
+                        records: self.records.clone(),
+                    });
+                }
+                Err(CertifiedIpmError::NotAtAdditiveHalfBoundary) => {}
+                Err(error) => return Err(Error::Ipm(error)),
+            }
+            if u64::try_from(self.records.len()).map_err(|_| Error::IterationCountOverflow)?
+                >= self.maximum_iterations
+            {
+                return Err(Error::IterationLimit {
+                    maximum_iterations: self.maximum_iterations,
+                });
+            }
+
+            let projection = self.factory.prepare(self.session.snapshot(), network)?;
+            let sequence =
+                u64::try_from(self.records.len()).map_err(|_| Error::IterationCountOverflow)?;
+            let record = Record {
+                sequence,
+                snapshot: projection.snapshot.clone(),
+                input: projection.input.clone(),
+                approximation: projection.approximation,
+                selected: self
+                    .session
+                    .apply_source_selected(network, projection.selected())?,
+            };
+            self.records.push(record);
+        }
+    }
 }
 
 impl Step {
@@ -457,6 +702,8 @@ pub enum Error {
     MismatchedCandidateSnapshots,
     #[error("selected source input does not match both maintained populations")]
     MismatchedSelectedInput,
+    #[error("prepared source input does not match both maintained populations")]
+    MismatchedPreparedInput,
     #[error("caller approximation coordinates differ from the source input")]
     MismatchedCandidateCoordinates,
     #[error("selected source state belongs to a stale certified IPM snapshot")]
@@ -467,15 +714,19 @@ pub enum Error {
     DuplicateCandidateId(CandidateId),
     #[error("decoded compact cycle refers to an invalid circulation arc")]
     InvalidArc,
+    #[error("source iteration reached its explicit limit of {maximum_iterations} updates")]
+    IterationLimit { maximum_iterations: u64 },
+    #[error("source iteration record count exceeds the supported exact domain")]
+    IterationCountOverflow,
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::{cell::Cell, collections::BTreeSet, rc::Rc};
 
     use super::{
-        CompactCandidate, Error, PopulationChoice, Session, SourceSelected, Step,
-        select_population_choice,
+        CompactCandidate, Driver, Error, PopulationChoice, Projection, Session, SourceSelected,
+        Step, select_population_choice,
     };
     use crate::{
         CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
@@ -614,6 +865,25 @@ mod tests {
         let spanner =
             SpannerSnapshot::build(input.clone(), &network, spanner_parameters()).unwrap();
         (network, snapshot, input, terminal, spanner, ledger())
+    }
+
+    fn projection_for(
+        snapshot: CertifiedIpmSnapshot,
+        input: Input,
+        network: &CirculationNetwork,
+    ) -> Projection {
+        let terminal = TerminalTree::build(input.clone(), network, FlowNodeId(0)).unwrap();
+        let spanner = SpannerSnapshot::build(input.clone(), network, spanner_parameters()).unwrap();
+        Projection::new(
+            snapshot,
+            input,
+            ledger(),
+            terminal,
+            spanner,
+            ExactRatio::new(1, 2).unwrap(),
+            network,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -1025,5 +1295,88 @@ mod tests {
             Err(Error::MismatchedSelectedInput)
         );
         assert_eq!(fresh_session.snapshot(), &before);
+    }
+
+    #[test]
+    fn certifies_each_prepared_projection_before_selection() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let projection = projection_for(snapshot.clone(), input.clone(), &network);
+
+        assert_eq!(projection.snapshot(), &snapshot);
+        assert_eq!(projection.input(), &input);
+        assert_eq!(projection.approximation().edge_count, network.arc_count());
+        assert_eq!(
+            projection.approximation().factor_two_length_checks,
+            u64::try_from(network.arc_count()).unwrap()
+        );
+        assert_eq!(
+            projection.approximation().scaled_gradient_checks,
+            u64::try_from(network.arc_count()).unwrap()
+        );
+    }
+
+    #[test]
+    fn drives_fresh_projections_until_the_explicit_limit() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let preparations = Rc::new(Cell::new(0));
+        let observed = Rc::clone(&preparations);
+        let factory = move |current: &CertifiedIpmSnapshot, active: &CirculationNetwork| {
+            observed.set(observed.get() + 1);
+            Ok(projection_for(current.clone(), input.clone(), active))
+        };
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+
+        assert_eq!(
+            driver.run(&network),
+            Err(Error::IterationLimit {
+                maximum_iterations: 2
+            })
+        );
+        assert_eq!(preparations.get(), 2);
+        assert_eq!(driver.records().len(), 2);
+        assert_eq!(driver.records()[0].sequence, 0);
+        assert_eq!(driver.records()[1].sequence, 1);
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
+        assert_eq!(driver.records()[0].input, driver.records()[1].input);
+    }
+
+    #[test]
+    fn rejects_a_reused_projection_after_the_first_update_without_mutation() {
+        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let stale = projection_for(snapshot.clone(), input, &network);
+        let factory = move |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| Ok(stale.clone());
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
+
+        assert_eq!(driver.run(&network), Err(Error::StaleCertifiedSnapshot));
+        assert_eq!(driver.records().len(), 1);
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 1);
+    }
+
+    #[test]
+    fn stops_without_requesting_a_projection_at_additive_half_termination() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let quarter = ExactRatio::new(1, 4).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &network,
+            &FractionalCirculation {
+                arc_flows: vec![quarter; 2],
+                cost: quarter,
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let factory = |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| {
+            Err::<Projection, Error>(Error::NoSourceCandidate)
+        };
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 0);
+
+        let completion = driver.run(&network).unwrap();
+        assert!(completion.records.is_empty());
+        assert!(driver.records().is_empty());
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 0);
     }
 }
