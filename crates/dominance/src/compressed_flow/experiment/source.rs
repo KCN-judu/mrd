@@ -404,6 +404,8 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::Cell, rc::Rc};
+
     use graph::{
         BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
         FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioLedger,
@@ -902,6 +904,54 @@ mod tests {
                 .any(|coordinate| !coordinate.is_zero())
         );
         assert_eq!(driver.session().snapshot().update_metrics().iterations, 1);
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn rebuilds_and_recertifies_the_compressed_projection_for_each_nonterminal_snapshot() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, input) = nonterminal_source_fixture(&circulation);
+        let preparations = Rc::new(Cell::new(0));
+        let observed = Rc::clone(&preparations);
+        let factory = move |current: &CertifiedIpmSnapshot, network: &CirculationNetwork| {
+            observed.set(observed.get() + 1);
+            Ok::<_, iteration::Error>(fresh_nonterminal_projection(
+                current.clone(),
+                input.clone(),
+                network,
+            ))
+        };
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 2)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 2,
+            }))
+        );
+        assert_eq!(preparations.get(), 2);
+        assert_eq!(driver.records().len(), 2);
+        assert_eq!(driver.records()[0].sequence, 0);
+        assert_eq!(driver.records()[1].sequence, 1);
+        assert_ne!(driver.records()[0].snapshot, driver.records()[1].snapshot);
+        assert_eq!(
+            driver.records()[0].approximation.edge_count,
+            circulation.network().arc_count()
+        );
+        assert_eq!(
+            driver.records()[1].approximation.edge_count,
+            circulation.network().arc_count()
+        );
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 2);
         assert_eq!(
             driver
                 .session()
