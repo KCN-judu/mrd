@@ -6,9 +6,9 @@
 `cdb2ce9`, `9238b37`, and `98a7d0e` close the provenance, source-declared
 candidate heap, single-snapshot terminal-tree projection, terminal-only `Step`
 bridge, finite rejected-core declarations, finite same-network core recourse,
-and matching-snapshot terminal/core selector substeps of P9.5a. The remaining
-work is live terminal maintenance and complete backend integration, not a
-current-snapshot compact-candidate selector.
+matching-snapshot terminal/core selector, and finite terminal recourse substeps
+of P9.5a. The remaining work is complete backend integration, not candidate
+selection or finite same-network maintenance.
 P9.5a is independent of the P9.3.2d AN19 runtime proof debt:
 P9.3.2d remains deferred to low-priority P9.6a after the complete
 source-shaped flow backend exists. P9.5a instead blocks the backend from
@@ -23,13 +23,13 @@ The audited production boundary has the following deliberate shape:
 | `graph::min_ratio_cycle::StableMinRatioLedger` | checks stable-witness validity, update quality, exact coordinate queries, and Detect accounting | neither `StableEdge` nor the consumed `StableWitness` input carries a compact-cycle selection or source-arc provenance |
 | `graph::source_min_ratio::input` | validates exact caller-supplied gradient/length/tree-weight vectors, assigns stable source-edge/circulation-arc provenance, and materializes `SourceDynamicGraph` with matching `ArcBindings` | does not infer an exact approximation from a snapshot interval, construct a tree chain, or choose a candidate |
 | `graph::source_min_ratio::candidate` | validates externally declared fundamental spanner/tree compact cycles, computes exact current quality, maintains a deterministic stale-record heap, and orients a nonzero choice for descent | does not construct the tree chain, core/spanner embeddings, or candidate population; it cannot produce a Lemma 4.4 certificate |
-| `graph::source_min_ratio::spanner` | builds one immutable finite Section 9.1 singleton-core snapshot, translates selected stable paths, declares every rejected core edge as an oriented, contiguous `SpannerPath` plus anchor edge, and derives same-network stable-ID recourse | no terminal cross-snapshot maintenance, general dynamic maintenance, or runtime claim |
-| `graph::source_min_ratio::terminal` | constructs one AN19-shaped static terminal tree for a live exact `Input`, retains the tree certificate, forms a one-level checked chain, and declares every non-tree source edge as its terminal fundamental cycle | no core/spanner population merge or cross-snapshot replacement/retirement |
+| `graph::source_min_ratio::spanner` | builds one immutable finite Section 9.1 singleton-core snapshot, translates selected stable paths, declares every rejected core edge as an oriented, contiguous `SpannerPath` plus anchor edge, and derives same-network stable-ID recourse | no general dynamic maintenance or runtime claim |
+| `graph::source_min_ratio::terminal` | constructs one AN19-shaped static terminal tree, declares every non-tree terminal fundamental cycle, and derives immutable same-network recourse | no general dynamic maintenance or runtime claim |
 | `graph::source_min_ratio::model` and `chain` | represent validated immutable source-tree branches and deterministic shifts | no constructor derives a tree-chain from a live IPM snapshot |
 | `graph::source_min_ratio::cycle` | decodes a supplied compact cycle through selected branches and checked arc bindings | no candidate generation or score computation |
 | `graph::source_min_ratio::query` | validates a supplied compact candidate against a checked ledger | no minimum-ratio selection query |
 | `graph::source_min_ratio::execution` | applies supplied ledger transitions and records finite accounting | no dynamic sparsification, link-cut maintenance, or cycle search |
-| `graph::source_flow::iteration` | converts a supplied compact candidate to an exact direction and selects the best terminal/core declaration across matching immutable snapshots | no terminal cross-snapshot maintenance, full IPM iteration driver, or complete backend |
+| `graph::source_flow::iteration` | converts a supplied compact candidate to an exact direction and selects the best terminal/core declaration across matching current or successor snapshots | no full IPM iteration driver or complete backend |
 
 `StableMinRatioLedger::edges()` intentionally exposes only the checked
 coordinates used by an independent audit. `StableWitness` is consumed during
@@ -123,8 +123,7 @@ The production changes establish exact input provenance, a heap over only
 externally declared candidates, static terminal declarations, immutable finite
 rejected-core declarations, same-network core recourse, and exact combined
 current-snapshot selection with context-preserving compact-cycle decoding. They
-do not add terminal cross-snapshot maintenance, a complete backend, a runtime
-claim, or a generated result file.
+do not add a complete backend, a runtime claim, or a generated result file.
 
 ## Next action
 
@@ -133,9 +132,14 @@ positive-level circulant witnesses and independent Task 3 paths produce
 rejected-core edges on K5, and `spanner::Snapshot` records each compact
 embedding cycle. P9.5a.3.3b now combines that population with terminal
 declarations on matching immutable snapshots and runs a no-fallback `Step`
-differential. The next action is terminal cross-snapshot maintenance followed
-by the full compressed MRD flow/cut/cover/chord/rectangle campaign. Only after
-that campaign may P9.5 enable `Backend::require_complete()`.
+differential. The next action is the full compressed MRD
+flow/cut/cover/chord/rectangle campaign. Only after that campaign may P9.5
+enable `Backend::require_complete()`.
+
+P9.5a.3.4 is complete for supported same-network snapshots. Its immutable
+terminal transition and exact registry recourse now let matching terminal and
+core successor snapshots enter the combined selector. The next action is the
+complete certified source-flow iteration and compressed MRD integration.
 
 P9.6a remains after that chain is complete. It is the separate low-priority
 task to prove or replace the AN19 reduced-event ordering and hierarchy-wide

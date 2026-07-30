@@ -118,9 +118,13 @@ winner only through its producing compact-cycle context. A K5 no-fallback
 differential independently scores the two choices and verifies the resulting
 `Step`; mixed source snapshots reject explicitly.
 
-P9.5 remains open. Terminal cross-snapshot maintenance, MRD compressed-network
-differential evidence for flow, cut, cover, chords, and rectangles, and an
-end-to-end no-fallback audit are still absent.
+Commit `b73b0fa` subsequently adds immutable terminal recourse with the same
+source-identity predicate used by the core transition. Updated terminal and
+core snapshots are accepted together by the combined selector.
+
+P9.5 remains open. MRD compressed-network differential evidence for flow, cut,
+cover, chords, and rectangles, and an end-to-end no-fallback audit are still
+absent.
 `Backend::require_complete()` therefore continues to reject execution and
 `an19_runtime_verified` remains false. P9.3.2d's missing AN19 proof is a
 separate low-priority debt: it does not block these semantic integration tasks,
@@ -143,23 +147,21 @@ deferred P9.3.2d runtime proof debt.
 | `StableMinRatioLedger` | Its public `edges()` slice contains only anonymous `StableEdge` coordinates; `StableWitness` is consumed at construction and only checked stability floors are retained. | Neither coordinate identity nor the witness input identifies a `source_min_ratio::cycle::Cycle`. |
 | `source_min_ratio::input::Input` | It validates caller-supplied exact current coordinates and constructs an orientation-preserving source-edge/circulation-arc binding with the source graph. | Stable arc provenance is now available; it still does not create a tree chain, embeddings, a candidate set, or a selection certificate. |
 | `source_min_ratio::candidate::Registry` | It accepts only declared fundamental spanner/tree compact cycles, computes their exact current quality, and chooses the best nonzero candidate with deterministic stale-record handling. | It cannot discover candidate declarations from a graph, construct source embeddings, or certify the chosen direction as a `Step`. |
-| `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings or cross-snapshot candidate maintenance. |
-| `source_min_ratio::spanner::Snapshot` | It constructs one exact finite singleton-core chain, translates every rejected core edge's selected spanner path, and emits an explicit oriented compact cycle. | It supports finite same-network recourse but has no terminal cross-snapshot integration or general dynamic claim. |
+| `source_min_ratio::terminal::Tree` | It materializes an exact source tree, declares every non-tree terminal cycle, and has immutable same-network recourse. | It has no general dynamic maintenance or approximation/runtime claim. |
+| `source_min_ratio::spanner::Snapshot` | It constructs one exact finite singleton-core chain, translates every rejected core edge's selected spanner path, and emits an explicit oriented compact cycle. | It supports finite same-network recourse but has no general dynamic claim. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
-| `source_flow::iteration::Step::from_maintained_candidates` | It checks terminal/core exact input equality and caller coordinates, compares both independently evaluated registries, then decodes the winner through its own context. | It covers matching immutable snapshots only; it has no terminal transition or complete backend driver. |
+| `source_flow::iteration::Step::from_maintained_candidates` | It checks terminal/core exact input equality and caller coordinates, compares both independently evaluated registries, then decodes the winner through its own context. | It covers matching immutable current or successor snapshots only; it has no complete backend driver. |
 | Permanent references | `dynamic_min_ratio` and the min-cost cycle paths enumerate candidates; the P9.5 source-flow audit rejects `dynamic_min_ratio`, `min_cost::oracle`, and `min_cost::experiment`. | They may remain test Oracles but cannot become the production selector. |
 
 The remaining P9.5a construction must do all of the following using the
 completed exact input projection and supplied-candidate heap:
 
-1. Maintain terminal declarations across supported snapshots and coordinate
-   them with the completed finite core `Transition`.
-2. Integrate the selected exact compact direction into the certified iteration,
+1. Integrate the selected exact compact direction into the certified iteration,
    recovery, and compressed MRD differential path.
-3. Preserve the completed exact current-snapshot coordinate, provenance, and
+2. Preserve the completed exact current-snapshot coordinate, provenance, and
    context checks through those transitions.
-4. Keep the stability-witness input out of the query result, retain exact
+3. Keep the stability-witness input out of the query result, retain exact
    arithmetic, and reject rather than fall back when the source construction is
    unavailable.
 

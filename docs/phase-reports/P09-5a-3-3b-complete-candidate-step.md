@@ -59,10 +59,11 @@ or a runtime result.
 
 ## Limits And Next Action
 
-The terminal snapshot has no cross-snapshot transition and `Backend` still
-rejects complete execution. P9.5 therefore remains in progress pending live
-terminal/core maintenance, the full compressed MRD flow/cut/cover/chord/
-rectangle differential, and end-to-end no-fallback integration. P9.3.2d
+At this commit the terminal snapshot had no cross-snapshot transition. Commit
+`b73b0fa` subsequently adds finite same-network terminal recourse. `Backend`
+still rejects complete execution, so P9.5 remains in progress pending the full
+compressed MRD flow/cut/cover/chord/rectangle differential and end-to-end
+no-fallback integration. P9.3.2d
 remains separate low-priority P9.6a proof debt: DOI `10.1137/17M1115575` does
 not provide the reduced-event ordering/counting conversion. That debt does not
 block this semantic work, but it still prohibits `AlmostLinear`,
