@@ -2,7 +2,8 @@
 
 ## Status
 
-**State: in progress.** Implementation commits: `45849b1`, `c902c37`.
+**State: in progress.** Implementation commits: `45849b1`, `c902c37`,
+`5391ada`.
 
 This report records one bounded, nonterminal part of the P9.5e.3 campaign. It
 does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
@@ -38,6 +39,14 @@ circulation arc. The driver then returns the explicit iteration-limit error.
 The successor still fails `certify_additive_half_termination`, so `run_source`
 never enters the terminal matching/cover recovery path.
 
+A second bounded source-flow regression probes the policy beyond those two
+updates. On the existing 5-node exact source fixture, fixed coordinates certify
+25 successive preparations and updates. The following preparation rejects with
+`GradientApproximation { edge: 0 }` before a 26th source selection. The driver
+retains exactly 25 records and the policy's preparation counter is 25. This
+proves a transparent coordinate-staleness boundary for the fixed policy; it is
+not a bound on the number of valid updates for arbitrary inputs.
+
 The exact source coordinates remain the P9.5e.2 fixture values:
 
 ```text
@@ -72,12 +81,14 @@ the unscaled rational coordinates.
 `FixedProjectionFactory` is a fresh-projection reconstruction policy, not a
 general dynamic coordinate-maintenance or termination policy. It supports only
 snapshots for which its caller-supplied fixed coordinates, ledger, and finite
-source structures continue to certify. P9.5e.3 still needs a source-supported
-policy that can prepare every nonterminal snapshot it claims can reach
-additive-half termination, plus combined compressed-MRD differentials for
-flow, matching, cover, chord flags, and rectangle decomposition over a broader
-supported population. Until that semantic and no-fallback campaign passes,
-`Backend::require_complete()` remains unavailable.
+source structures continue to certify; the 25-update source-flow regression
+shows the exact coordinate-staleness failure when that condition ends. P9.5e.3
+still needs a source-supported policy that updates exact coordinates for every
+nonterminal snapshot it claims can reach additive-half termination, plus
+combined compressed-MRD differentials for flow, matching, cover, chord flags,
+and rectangle decomposition over a broader supported population. Until that
+semantic and no-fallback campaign passes, `Backend::require_complete()` remains
+unavailable.
 
 P9.3.2d remains separate low-priority P9.6a proof debt. The formal SIAM source
 with DOI `10.1137/17M1115575` does not provide the required reduced-event
