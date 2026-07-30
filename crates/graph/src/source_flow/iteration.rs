@@ -734,6 +734,43 @@ mod tests {
     }
 
     #[test]
+    fn selects_from_matching_terminal_and_core_successor_snapshots() {
+        let network = complete_network();
+        let initial_gradients = vec![ratio(-1); network.arc_count()];
+        let next_gradients = vec![ratio(1); network.arc_count()];
+        let lengths = vec![ratio(1); network.arc_count()];
+        let initial = Input::new(&network, &initial_gradients, &lengths, &lengths).unwrap();
+        let next = Input::new(&network, &next_gradients, &lengths, &lengths).unwrap();
+        let terminal = TerminalTree::build(initial.clone(), &network, FlowNodeId(0)).unwrap();
+        let spanner = SpannerSnapshot::build(initial, &network, spanner_parameters()).unwrap();
+        let terminal_transition = terminal.transition(next.clone(), &network).unwrap();
+        let spanner_transition = spanner.transition(next, &network).unwrap();
+        let actual_ledger = ledger();
+
+        assert_eq!(
+            terminal_transition.refreshed.len(),
+            terminal.candidates().len()
+        );
+        assert_eq!(
+            spanner_transition.refreshed.len(),
+            spanner.candidates().len()
+        );
+        assert!(
+            Step::from_maintained_candidates(
+                &actual_ledger,
+                &terminal_transition.next,
+                &spanner_transition.next,
+                &network,
+                next_gradients,
+                lengths,
+                ExactRatio::new(1, 2).unwrap(),
+            )
+            .unwrap()
+            .is_some()
+        );
+    }
+
+    #[test]
     fn resolves_equal_complete_population_quality_by_stable_candidate_id() {
         let choice = |id| Choice {
             id: CandidateId(id),

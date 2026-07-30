@@ -171,7 +171,9 @@ impl Snapshot {
         network: &CirculationNetwork,
     ) -> Result<Transition, Error> {
         let next = Self::build(input, network, self.parameters)?;
-        validate_stable_source_shape(&self.materialization, &next.materialization)?;
+        if !self.input.has_same_source_identity(next.input()) {
+            return Err(Error::SourceIdentityChanged);
+        }
         let before = candidates_by_id(&self.candidates)?;
         let after = candidates_by_id(&next.candidates)?;
         let inserted = after
@@ -403,26 +405,6 @@ fn candidates_by_id(
         }
     }
     Ok(result)
-}
-
-fn validate_stable_source_shape(
-    before: &Materialization,
-    after: &Materialization,
-) -> Result<(), Error> {
-    if before.graph.node_count() != after.graph.node_count()
-        || before.graph.edge_count() != after.graph.edge_count()
-    {
-        return Err(Error::SourceIdentityChanged);
-    }
-    for index in 0..before.graph.edge_count() {
-        let id = SourceEdgeId(index);
-        let previous = before.graph.edge(id).ok_or(Error::SourceIdentityChanged)?;
-        let next = after.graph.edge(id).ok_or(Error::SourceIdentityChanged)?;
-        if previous.first != next.first || previous.second != next.second {
-            return Err(Error::SourceIdentityChanged);
-        }
-    }
-    Ok(())
 }
 
 fn embedding_edges(

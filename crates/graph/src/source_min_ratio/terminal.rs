@@ -5,7 +5,7 @@
 //! terminal fundamental-cycle declaration. It deliberately does not construct
 //! core/spanner embeddings, enumerate graph cycles, or assert a runtime bound.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
@@ -14,7 +14,7 @@ use crate::{CirculationNetwork, FlowNodeId, SourceEdgeId};
 use super::{
     candidate::{CandidateId, Context, Error as CandidateError, Fundamental, Kind, Registry},
     chain::{Chain, Error as ChainError, Selection, Shifts},
-    cycle::{Cycle, Direction, Segment},
+    cycle::{Cycle, Direction, Error as CycleError, Segment},
     input::{Error as InputError, Input, Materialization},
     model::{Branch, BranchId, Level, LevelId, Tree as SourceTree},
 };
@@ -31,6 +31,23 @@ pub struct Tree {
     shifts: Shifts,
     candidates: Vec<Fundamental>,
     root: FlowNodeId,
+}
+
+/// One immutable terminal source-snapshot transition and its exact candidate
+/// recourse.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transition {
+    /// Rebuilt exact terminal state for the new coordinate projection.
+    pub next: Tree,
+    /// Stable candidate IDs newly declared by the rebuilt terminal tree.
+    pub inserted: BTreeSet<CandidateId>,
+    /// Retained IDs that must be re-scored in the new coordinate snapshot.
+    pub refreshed: BTreeSet<CandidateId>,
+    /// Candidate IDs no longer declared by the rebuilt terminal tree.
+    pub retired: BTreeSet<CandidateId>,
+    /// Retained IDs whose decoded terminal path changed.
+    pub reembedded: BTreeSet<CandidateId>,
+    previous_candidates: Vec<Fundamental>,
 }
 
 impl Tree {
@@ -96,6 +113,60 @@ impl Tree {
         }
     }
 
+    /// Rebuilds one supported exact terminal projection and derives stable-ID
+    /// candidate recourse without mutating either snapshot or registry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the rebuilt projection changes the source or
+    /// circulation identities, or when an exact terminal path cannot be
+    /// decoded for comparison.
+    pub fn transition(
+        &self,
+        input: Input,
+        network: &CirculationNetwork,
+    ) -> Result<Transition, Error> {
+        let next = Self::build(input, network, self.root)?;
+        if !self.input.has_same_source_identity(next.input()) {
+            return Err(Error::SourceIdentityChanged);
+        }
+        let before = candidates_by_id(&self.candidates)?;
+        let after = candidates_by_id(&next.candidates)?;
+        let inserted = after
+            .keys()
+            .filter(|id| !before.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let refreshed = after
+            .keys()
+            .filter(|id| before.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let retired = before
+            .keys()
+            .filter(|id| !after.contains_key(*id))
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let mut reembedded = BTreeSet::new();
+        for id in &refreshed {
+            let prior = before.get(id).ok_or(Error::InvalidTransition)?;
+            let replacement = after.get(id).ok_or(Error::InvalidTransition)?;
+            if decoded_candidate(self, prior, network)?
+                != decoded_candidate(&next, replacement, network)?
+            {
+                reembedded.insert(*id);
+            }
+        }
+        Ok(Transition {
+            next,
+            inserted,
+            refreshed,
+            retired,
+            reembedded,
+            previous_candidates: self.candidates.clone(),
+        })
+    }
+
     /// Returns the exact input projection that originated this tree snapshot.
     #[must_use]
     pub const fn input(&self) -> &Input {
@@ -151,8 +222,8 @@ impl Tree {
 
     /// Creates the exact heap over this source-maintained terminal population.
     ///
-    /// This does not add core/spanner candidates or perform cross-snapshot
-    /// maintenance; those remain separate construction work.
+    /// This does not add core/spanner candidates. Cross-snapshot terminal
+    /// maintenance is represented by [`Transition`].
     ///
     /// # Errors
     ///
@@ -161,6 +232,47 @@ impl Tree {
     pub fn registry(&self, network: &CirculationNetwork) -> Result<Registry, Error> {
         let context = self.context(network)?;
         Ok(Registry::new(&context, self.candidates.clone())?)
+    }
+}
+
+impl Transition {
+    /// Applies this source-declared terminal recourse to the exact candidate
+    /// registry that produced it.
+    ///
+    /// Every retained declaration is replaced, even when its compact form is
+    /// unchanged, because its exact gradient or length coordinate may differ.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the registry is not exactly the prior terminal
+    /// population or the next snapshot no longer has exact provenance.
+    pub fn apply(
+        &self,
+        registry: &mut Registry,
+        network: &CirculationNetwork,
+    ) -> Result<(), Error> {
+        let active = registry
+            .candidates()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        if active != self.previous_candidates {
+            return Err(Error::MismatchedRegistry);
+        }
+        let context = self.next.context(network)?;
+        for id in &self.retired {
+            registry.retire(*id)?;
+        }
+        for candidate in &self.next.candidates {
+            if self.refreshed.contains(&candidate.id) {
+                registry.replace(&context, candidate.clone())?;
+            } else if self.inserted.contains(&candidate.id) {
+                registry.insert(&context, candidate.clone())?;
+            } else {
+                return Err(Error::InvalidTransition);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -208,6 +320,32 @@ fn declarations(
     Ok(candidates)
 }
 
+fn candidates_by_id(
+    candidates: &[Fundamental],
+) -> Result<BTreeMap<CandidateId, Fundamental>, Error> {
+    let mut result = BTreeMap::new();
+    for candidate in candidates {
+        if result.insert(candidate.id, candidate.clone()).is_some() {
+            return Err(Error::DuplicateCandidate(candidate.id));
+        }
+    }
+    Ok(result)
+}
+
+fn decoded_candidate(
+    snapshot: &Tree,
+    candidate: &Fundamental,
+    network: &CirculationNetwork,
+) -> Result<Vec<(crate::CirculationArcId, i8)>, Error> {
+    Ok(candidate.cycle.decode(
+        &snapshot.materialization.graph,
+        &snapshot.chain,
+        &snapshot.shifts,
+        &snapshot.materialization.bindings,
+        network,
+    )?)
+}
+
 /// A terminal-tree projection or declaration could not be constructed.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
@@ -219,17 +357,27 @@ pub enum Error {
     Chain(#[from] ChainError),
     #[error("terminal candidate evaluation failed: {0}")]
     Candidate(#[from] CandidateError),
+    #[error("terminal compact-cycle decoding failed: {0}")]
+    Cycle(#[from] CycleError),
     #[error("terminal source tree has no selected branch")]
     MissingSelection,
     #[error("terminal source tree refers to missing source edge {0:?}")]
     MissingSourceEdge(SourceEdgeId),
     #[error("rebuilt terminal source snapshot differs from stored evidence")]
     MismatchedSnapshot,
+    #[error("terminal source snapshot changed a stable source identity")]
+    SourceIdentityChanged,
+    #[error("terminal source snapshot contains duplicate candidate {0:?}")]
+    DuplicateCandidate(CandidateId),
+    #[error("terminal candidate registry does not match the prior source snapshot")]
+    MismatchedRegistry,
+    #[error("terminal source snapshot transition is internally inconsistent")]
+    InvalidTransition,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Tree;
+    use super::{Error, Tree};
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId, SourceEdgeId,
         source_min_ratio::{candidate::Kind, input::Input},
@@ -245,6 +393,24 @@ mod tests {
         network.add_arc(FlowNodeId(1), FlowNodeId(2), 3, 0).unwrap();
         network.add_arc(FlowNodeId(0), FlowNodeId(2), 3, 0).unwrap();
         network
+    }
+
+    fn input(network: &CirculationNetwork, gradient: i128) -> Input {
+        input_with_lengths(network, gradient, &vec![ratio(1); network.arc_count()])
+    }
+
+    fn input_with_lengths(
+        network: &CirculationNetwork,
+        gradient: i128,
+        lengths: &[ExactRatio],
+    ) -> Input {
+        Input::new(
+            network,
+            &vec![ratio(gradient); network.arc_count()],
+            lengths,
+            &vec![ratio(1); network.arc_count()],
+        )
+        .unwrap()
     }
 
     #[test]
@@ -304,5 +470,64 @@ mod tests {
             tree.hierarchy().tree_edges,
             [SourceEdgeId(0), SourceEdgeId(1)].into()
         );
+    }
+
+    #[test]
+    fn refreshes_the_full_terminal_population_when_only_coordinates_change() {
+        let network = network();
+        let tree = Tree::build(input(&network, -1), &network, FlowNodeId(0)).unwrap();
+        let mut registry = tree.registry(&network).unwrap();
+        let transition = tree.transition(input(&network, 1), &network).unwrap();
+
+        assert!(transition.inserted.is_empty());
+        assert!(transition.retired.is_empty());
+        assert!(transition.reembedded.is_empty());
+        assert_eq!(transition.refreshed.len(), tree.candidates().len());
+        transition.apply(&mut registry, &network).unwrap();
+        assert_eq!(registry.accounting().replaced, 1);
+        assert_eq!(
+            registry.candidates(),
+            transition.next.candidates().iter().collect::<Vec<_>>()
+        );
+        transition.next.verify(&network).unwrap();
+    }
+
+    #[test]
+    fn rejects_applying_terminal_recourse_to_a_nonmatching_registry() {
+        let network = network();
+        let tree = Tree::build(input(&network, -1), &network, FlowNodeId(0)).unwrap();
+        let mut registry = tree.registry(&network).unwrap();
+        registry.retire(tree.candidates()[0].id).unwrap();
+        let transition = tree.transition(input(&network, 1), &network).unwrap();
+
+        assert_eq!(
+            transition.apply(&mut registry, &network),
+            Err(Error::MismatchedRegistry)
+        );
+    }
+
+    #[test]
+    fn applies_terminal_insertions_and_retires_after_a_tree_change() {
+        let network = network();
+        let tree = Tree::build(input(&network, -1), &network, FlowNodeId(0)).unwrap();
+        let mut registry = tree.registry(&network).unwrap();
+        let transition = tree
+            .transition(
+                input_with_lengths(&network, -1, &[ratio(8), ratio(1), ratio(1)]),
+                &network,
+            )
+            .unwrap();
+
+        assert!(
+            !transition.inserted.is_empty()
+                || !transition.retired.is_empty()
+                || !transition.reembedded.is_empty()
+        );
+        transition.apply(&mut registry, &network).unwrap();
+        assert_eq!(
+            registry.candidates(),
+            transition.next.candidates().iter().collect::<Vec<_>>()
+        );
+        transition.next.verify(&network).unwrap();
     }
 }

@@ -122,6 +122,24 @@ impl Input {
             .filter(|arc| arc.circulation == circulation)
     }
 
+    /// Returns whether two projections retain the same source/circulation
+    /// identities while allowing their exact coordinates to differ.
+    ///
+    /// This is the transition boundary for immutable source snapshots: it
+    /// checks the source IDs, circulation IDs, and directed endpoints, but not
+    /// gradients, lengths, or structural tree weights.
+    #[must_use]
+    pub fn has_same_source_identity(&self, other: &Self) -> bool {
+        self.node_count == other.node_count
+            && self.arcs.len() == other.arcs.len()
+            && self.arcs.iter().zip(&other.arcs).all(|(first, second)| {
+                first.source == second.source
+                    && first.circulation == second.circulation
+                    && first.first == second.first
+                    && first.second == second.second
+            })
+    }
+
     /// Constructs the source structural graph and its bindings as one checked
     /// operation.
     ///
@@ -303,5 +321,44 @@ mod tests {
             Input::new(&network, &[ratio(0); 2], &[ratio(1); 3], &[ratio(1); 3],),
             Err(Error::DimensionMismatch)
         );
+    }
+
+    #[test]
+    fn separates_stable_source_identity_from_current_coordinates() {
+        let network = network();
+        let first = Input::new(
+            &network,
+            &[ratio(-3), ratio(2), ratio(1)],
+            &[ratio(2), ratio(3), ratio(5)],
+            &[ratio(7), ratio(11), ratio(13)],
+        )
+        .unwrap();
+        let refreshed = Input::new(
+            &network,
+            &[ratio(9), ratio(-4), ratio(6)],
+            &[ratio(19), ratio(23), ratio(29)],
+            &[ratio(31), ratio(37), ratio(41)],
+        )
+        .unwrap();
+        assert!(first.has_same_source_identity(&refreshed));
+
+        let mut changed_network = CirculationNetwork::new(3);
+        changed_network
+            .add_arc(FlowNodeId(0), FlowNodeId(2), 2, 3)
+            .unwrap();
+        changed_network
+            .add_arc(FlowNodeId(1), FlowNodeId(2), 2, -2)
+            .unwrap();
+        changed_network
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1)
+            .unwrap();
+        let changed = Input::new(
+            &changed_network,
+            &[ratio(-3), ratio(2), ratio(1)],
+            &[ratio(2), ratio(3), ratio(5)],
+            &[ratio(7), ratio(11), ratio(13)],
+        )
+        .unwrap();
+        assert!(!first.has_same_source_identity(&changed));
     }
 }
