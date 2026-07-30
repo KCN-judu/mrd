@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: d825236410d50461009c02c934b5b4692e606d1d
-- Plan last updated: 2026-07-30T02:33:46Z
+- Last pushed SHA: bba146cb545b28ad4fb8735ef79fce307710d1a8
+- Plan last updated: 2026-07-30T03:36:56Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1278,11 +1278,21 @@ It is split into the following completed substeps:
      chord, and formal rectangle inputs. Evidence:
      `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`.
    - **P9.5e.2 - Nonterminal compressed projection campaign. State:
-     in_progress.** Supply and certify a fresh exact projection for every
-     nonterminal compressed snapshot, drive at least one source-selected
-     transition per applicable fixture, then either reach additive-half
-     termination or record an explicit bounded nontermination witness. No
-     interval endpoint may be silently treated as an exact coordinate.
+     complete. Implementation SHA: `58bf417`.** A supported one-by-one
+     compressed circulation now supplies independently chosen exact rational
+     coordinates to a fresh `Projection`: lengths
+     `11/4, 4, 8, 5, 8` and return-arc gradient `-400/3`. The constructor,
+     rather than an interval endpoint, reruns the Theorem 4.3 certificate for
+     all five arcs. Its `1/4` strictly interior circulation is explicitly
+     nonterminal; one source-selected update is recorded before the bounded
+     driver returns `IterationLimit { maximum_iterations: 1 }`. The successor
+     remains nonterminal, so no recovery is attempted or claimed. The
+     structural chain scales the rational input only for its integral finite
+     construction; candidate scoring retains the original coordinates. The
+     fixed current spanner subset accepts this fixture as single-edge bucket
+     components. This establishes one applicable compressed nonterminal path,
+     not the broad chord/rectangle campaign. Evidence:
+     `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md`.
    - **P9.5e.3 - Full compressed MRD closeout campaign. State: planned.** Run
      the combined driver/recovery/chord/rectangle differential population and
      no-fallback audit before considering `Backend::require_complete()`.
@@ -1425,6 +1435,16 @@ fixtures exercise explicit biclique, Theorem 8 chord, and formal rectangle
 completion differentials against retained references. This terminal composition
 does not prepare a projection or execute a source-selected update, so P9.5e.2
 remains active and `Backend::require_complete()` remains unavailable.
+
+Commit `58bf417` closes P9.5e.2's exact-coordinate gap. `Input` now derives a
+pure common-denominator structural graph for finite tree/spanner construction,
+while all candidate contexts retain their unscaled exact source coordinates.
+The explicit one-by-one compressed nonterminal fixture selects a source cycle,
+certifies and records one Lemma 4.4 update, then retains its nonterminal state
+under a one-step `IterationLimit` witness. The fixture uses no
+`DyadicInterval` endpoint and no reference backend. P9.5e.3 remains required
+for the full compressed MRD differential and `Backend::require_complete()`
+remains unavailable.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1613,7 +1633,7 @@ and AN19 runtime claims.
 | P9.5b | complete | 9be04dc | 4043a85 | 3728886 | 3728886 | `docs/phase-reports/P09-5b-source-selected-iteration.md` | exact source-selected candidate step, snapshot/input identity rejection, and certified Session update | 2026-07-30T01:24:35Z | 2026-07-30T02:00:00Z | no multi-step driver or complete backend |
 | P9.5c | complete | 3728886 | 3527d70 | pending closeout | pending | `docs/phase-reports/P09-5c-terminal-session-recovery.md` | snapshot-network identity plus terminated session to compressed matching/cover recovery | 2026-07-30T02:00:00Z | 2026-07-30T02:33:46Z | no iteration driver or broad MRD campaign |
 | P9.5d | complete | ae7a626 | 0410b79 | pending closeout | pending | `docs/phase-reports/P09-5d-source-iteration-driver.md` | snapshot-bound exact projection factory, bounded fresh-projection driver, accepted-step trace, stale-projection rejection, and full-workspace audit | 2026-07-30T02:33:46Z | 2026-07-30T03:13:00Z | no compressed MRD driver differential or complete backend |
-| P9.5e | in_progress | 0410b79 | 90f51ae | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | terminal compressed source-driver matching/cover/chord/rectangle differential | 2026-07-30T03:13:00Z | pending | nonterminal exact projection campaign and complete-backend gate remain |
+| P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
-| P9.5e.2 | in_progress | 90f51ae | pending | pending | pending | pending | fresh exact projections and source-selected nonterminal steps on compressed fixtures | 2026-07-30T03:38:00Z | pending | no direct interval-coordinate materialization or fallback |
+| P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
