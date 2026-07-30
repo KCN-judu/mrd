@@ -49,6 +49,8 @@ REQUIRED = {
         "pub struct Circulation",
         "pub fn recover_certified",
         "pub fn recover_source_session",
+        "pub fn run_source",
+        "SourceIteration",
         "recover_terminated",
         "verify_feasible_solution",
     ),

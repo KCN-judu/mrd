@@ -9,7 +9,10 @@ use std::collections::VecDeque;
 use graph::{
     CirculationArcId, CirculationNetwork, FlowNodeId, MinCostCirculationError, MinCostSolution,
     VertexCover,
-    source_flow::{Backend, Error as SourceFlowError, iteration::Session},
+    source_flow::{
+        Backend, Error as SourceFlowError,
+        iteration::{Completion, Driver, Error as IterationError, Factory, Session},
+    },
 };
 use thiserror::Error;
 
@@ -42,6 +45,15 @@ pub struct Solution {
     pub flow_value: usize,
     pub matching: Vec<(usize, usize)>,
     pub vertex_cover: VertexCover,
+}
+
+/// One completed source-driver run and its recovered compressed certificate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Run {
+    /// Exact additive-half completion and every accepted source transition.
+    pub completion: Completion,
+    /// Recovered matching and Konig cover for this compressed circulation.
+    pub solution: Solution,
 }
 
 impl Circulation {
@@ -226,6 +238,27 @@ impl Circulation {
         self.recover_certified(&terminal.rounding.solution)
     }
 
+    /// Runs a certified source driver and recovers its compressed certificate.
+    ///
+    /// The driver owns exact projection preparation and cannot reach this
+    /// handoff until it certifies additive-half termination. This method only
+    /// composes that terminal session with the existing local recovery path;
+    /// it does not select a flow or use a reference backend.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the driver cannot reach additive-half termination
+    /// on this exact circulation or terminal recovery cannot reconstruct a
+    /// valid compressed matching and cover.
+    pub fn run_source<F: Factory>(&self, driver: &mut Driver<F>) -> Result<Run, Error> {
+        let completion = driver.run(&self.network).map_err(Error::SourceIteration)?;
+        let solution = self.recover_source_session(driver.session())?;
+        Ok(Run {
+            completion,
+            solution,
+        })
+    }
+
     fn flow(solution: &MinCostSolution, arc: CirculationArcId) -> Result<i128, Error> {
         solution
             .arc_flows
@@ -333,6 +366,8 @@ fn active_endpoints(
 pub enum Error {
     #[error("source-flow session recovery failed: {0}")]
     SourceFlow(#[source] SourceFlowError),
+    #[error("source-flow iteration failed: {0}")]
+    SourceIteration(#[source] IterationError),
     #[error(transparent)]
     Network(#[from] MinCostCirculationError),
     #[error("compressed network node count overflowed usize")]
@@ -370,11 +405,12 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use graph::{
-        BipartiteGraph, CertifiedIpmSnapshot, ExactRatio, FixedPointConfig, FractionalCirculation,
-        source_flow::Backend,
+        BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
+        FixedPointConfig, FlowNodeId, FractionalCirculation,
+        source_flow::{Backend, iteration},
     };
 
-    use super::Circulation;
+    use super::{Circulation, Error};
     use crate::{
         biclique::{Block, Partition},
         compressed_flow::oracle,
@@ -432,12 +468,116 @@ mod tests {
         .unwrap()
     }
 
+    fn ratio(numerator: i128, denominator: i128) -> ExactRatio {
+        ExactRatio::new(numerator, denominator).unwrap()
+    }
+
+    fn terminal_source_fixture(
+        circulation: &Circulation,
+    ) -> (CertifiedIpmSnapshot, graph::MinCostSolution) {
+        let reference = graph::min_cost::experiment::solve(circulation.network()).unwrap();
+        let block_count = i128::try_from(circulation.blocks.len()).unwrap();
+        let horizontal_count = i128::try_from(circulation.horizontal_arcs.len()).unwrap();
+        let vertical_count = i128::try_from(circulation.vertical_arcs.len()).unwrap();
+        let scale = block_count.max(horizontal_count).max(vertical_count).max(1);
+        let alpha = ratio(1, 16 * block_count * scale);
+        let zero = ratio(0, 1);
+        let mut interior = vec![zero; circulation.network().arc_count()];
+
+        for block in &circulation.blocks {
+            assert!(!block.left.is_empty());
+            assert!(!block.right.is_empty());
+            let left_count = i128::try_from(block.left.len()).unwrap();
+            let right_count = i128::try_from(block.right.len()).unwrap();
+            let per_right = alpha.checked_mul(ratio(left_count, right_count)).unwrap();
+            for (&left, &arc) in block.left.iter().zip(&block.left_arcs) {
+                interior[arc.0] = interior[arc.0].checked_add(alpha).unwrap();
+                let outer = circulation.horizontal_arcs[left];
+                interior[outer.0] = interior[outer.0].checked_add(alpha).unwrap();
+            }
+            for (&right, &arc) in block.right.iter().zip(&block.right_arcs) {
+                interior[arc.0] = interior[arc.0].checked_add(per_right).unwrap();
+                let outer = circulation.vertical_arcs[right];
+                interior[outer.0] = interior[outer.0].checked_add(per_right).unwrap();
+            }
+        }
+        let return_flow = circulation
+            .horizontal_arcs
+            .iter()
+            .copied()
+            .try_fold(zero, |sum, arc| sum.checked_add(interior[arc.0]))
+            .unwrap();
+        interior[circulation.return_arc.0] = return_flow;
+        for (arc, flow) in interior.iter().enumerate() {
+            assert!(flow.is_positive(), "arc {arc} has no strict interior flow");
+        }
+        let interior_cost = circulation.network().fractional_cost(&interior).unwrap();
+        circulation
+            .network()
+            .verify_fractional_solution(&FractionalCirculation {
+                arc_flows: interior.clone(),
+                cost: interior_cost,
+            })
+            .unwrap();
+
+        let optimum = ratio(reference.cost, 1);
+        let difference = interior_cost.checked_sub(optimum).unwrap();
+        assert!(difference.is_positive());
+        let candidate_epsilon = ratio(
+            difference.denominator(),
+            difference.numerator().checked_mul(128).unwrap(),
+        );
+        let epsilon = if ratio(1, 1).at_least(candidate_epsilon).unwrap() {
+            candidate_epsilon
+        } else {
+            ratio(1, 2)
+        };
+        let retained = ratio(1, 1).checked_sub(epsilon).unwrap();
+        let arc_flows = reference
+            .arc_flows
+            .iter()
+            .copied()
+            .zip(interior)
+            .map(|(optimal, strictly_interior)| {
+                ratio(optimal, 1)
+                    .checked_mul(retained)
+                    .unwrap()
+                    .checked_add(strictly_interior.checked_mul(epsilon).unwrap())
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let cost = circulation.network().fractional_cost(&arc_flows).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            circulation.network(),
+            &FractionalCirculation { arc_flows, cost },
+            optimum,
+            1_024,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        snapshot
+            .certify_additive_half_termination(circulation.network())
+            .unwrap();
+        (snapshot, reference)
+    }
+
+    fn terminal_driver() -> impl iteration::Factory {
+        |_: &CertifiedIpmSnapshot, _: &graph::CirculationNetwork| {
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        }
+    }
+
     #[test]
     fn recovers_reference_flow_value_matching_and_cover() {
         let (graph, partition) = two_by_two_partition();
         let circulation = Circulation::from_partition(2, 2, &partition).unwrap();
-        let terminal = graph::min_cost::experiment::solve(circulation.network()).unwrap();
-        let recovered = circulation.recover_certified(&terminal).unwrap();
+        let (snapshot, _) = terminal_source_fixture(&circulation);
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, terminal_driver(), 0)
+            .unwrap();
+        let run = circulation.run_source(&mut driver).unwrap();
+        assert!(run.completion.records.is_empty());
+        let recovered = run.solution;
         let reference = oracle::audit(&graph, &partition).unwrap();
 
         assert_eq!(recovered.flow_value, reference.matching_size);
@@ -470,8 +610,13 @@ mod tests {
         partition.verify_dominance_blocks(&embedding).unwrap();
 
         let circulation = Circulation::from_partition(3, 3, &partition).unwrap();
-        let terminal = graph::min_cost::experiment::solve(circulation.network()).unwrap();
-        let recovered = circulation.recover_certified(&terminal).unwrap();
+        let (snapshot, _) = terminal_source_fixture(&circulation);
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, terminal_driver(), 0)
+            .unwrap();
+        let run = circulation.run_source(&mut driver).unwrap();
+        assert!(run.completion.records.is_empty());
+        let recovered = run.solution;
         let reference = oracle::audit(&graph, &partition).unwrap();
 
         assert_eq!(recovered.flow_value, reference.matching_size);
@@ -498,8 +643,13 @@ mod tests {
             &partition,
         )
         .unwrap();
-        let terminal = graph::min_cost::experiment::solve(circulation.network()).unwrap();
-        let recovered = circulation.recover_certified(&terminal).unwrap();
+        let (snapshot, _) = terminal_source_fixture(&circulation);
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, terminal_driver(), 0)
+            .unwrap();
+        let run = circulation.run_source(&mut driver).unwrap();
+        assert!(run.completion.records.is_empty());
+        let recovered = run.solution;
         assert_eq!(recovered.flow_value, analysis.explicit_matching.size);
 
         let selected_horizontal = recovered
@@ -548,10 +698,48 @@ mod tests {
         )
         .unwrap();
 
-        let session = Backend.begin_iterations(snapshot).unwrap();
-        let recovered = circulation.recover_source_session(&session).unwrap();
+        let factory = |_: &CertifiedIpmSnapshot, _: &graph::CirculationNetwork| {
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 0)
+            .unwrap();
+        let run = circulation.run_source(&mut driver).unwrap();
+        assert!(run.completion.records.is_empty());
+        let recovered = run.solution;
         assert_eq!(recovered.flow_value, 2);
         assert_eq!(recovered.matching.len(), 2);
         assert_eq!(recovered.vertex_cover.size, 2);
+    }
+
+    #[test]
+    fn source_driver_rejects_a_terminal_snapshot_for_another_circulation() {
+        let partition = complete_two_by_two_partition();
+        let circulation = Circulation::from_partition(2, 2, &partition).unwrap();
+        let mut other = CirculationNetwork::new(2);
+        other.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        other.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let quarter = ratio(1, 4);
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &other,
+            &FractionalCirculation {
+                arc_flows: vec![quarter; 2],
+                cost: quarter,
+            },
+            ratio(0, 1),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, terminal_driver(), 0)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::Ipm(
+                CertifiedIpmError::NetworkMismatch
+            )))
+        );
     }
 }

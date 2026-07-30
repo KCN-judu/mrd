@@ -1263,7 +1263,25 @@ It is split into the following completed substeps:
    selection, iteration, recovery, or coordinate preparation. Differentially
    compare matching value, cover, chord flags, and rectangle decomposition
    against the retained bounded references. Keep `Backend::require_complete()`
-   unavailable until this campaign and its no-fallback audit pass.
+   unavailable until this campaign and its no-fallback audit pass. It is split
+   into the following substeps:
+   - **P9.5e.1 - Terminal compressed-driver differential. State:
+     in_progress.** Compose the driver and source recovery over independently
+     constructed strictly interior additive-half fixtures for an explicit
+     biclique graph, a Theorem 8 chord graph, and a formal polygon rectangle
+     completion. The test-only reference solver may construct expected values
+     and terminal fixtures, but production code must remain source-only. This
+     verifies terminal handoff composition, not nonterminal projection
+     preparation.
+   - **P9.5e.2 - Nonterminal compressed projection campaign. State:
+     planned.** Supply and certify a fresh exact projection for every
+     nonterminal compressed snapshot, drive at least one source-selected
+     transition per applicable fixture, then either reach additive-half
+     termination or record an explicit bounded nontermination witness. No
+     interval endpoint may be silently treated as an exact coordinate.
+   - **P9.5e.3 - Full compressed MRD closeout campaign. State: planned.** Run
+     the combined driver/recovery/chord/rectangle differential population and
+     no-fallback audit before considering `Backend::require_complete()`.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
