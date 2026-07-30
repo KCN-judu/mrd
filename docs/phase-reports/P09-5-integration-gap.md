@@ -111,7 +111,14 @@ formal optimum formula. The test supplies its terminal circulation through the
 permanent min-cost implementation under `#[cfg(test)]`; it is a differential
 of recovery and completion semantics, not source-flow candidate selection.
 
-P9.5 remains open. Source candidate selection, MRD compressed-network
+Commit `98a7d0e` adds current-snapshot source candidate selection. It requires
+terminal and rejected-core snapshots to share one exact input and current
+network, compares their independently evaluated registries, and decodes the
+winner only through its producing compact-cycle context. A K5 no-fallback
+differential independently scores the two choices and verifies the resulting
+`Step`; mixed source snapshots reject explicitly.
+
+P9.5 remains open. Terminal cross-snapshot maintenance, MRD compressed-network
 differential evidence for flow, cut, cover, chords, and rectangles, and an
 end-to-end no-fallback audit are still absent.
 `Backend::require_complete()` therefore continues to reject execution and
@@ -125,33 +132,33 @@ claim.
 The focused audit began at `d11cb3f`; implementation SHA `91132c4` closes its
 provenance row, `0bf9d37` closes its supplied-candidate heap row, `abb77ac`
 closes its terminal-tree declaration row, `5afa4c7` closes its terminal-only
-`Step` bridge, and `cdb2ce9` closes the finite rejected-core declaration row.
-The missing live selector remains a concrete semantic construction, not a
-license to reuse an Oracle and not the deferred P9.3.2d runtime proof debt.
+`Step` bridge, `cdb2ce9` closes the finite rejected-core declaration row,
+`9238b37` closes finite core recourse, and `98a7d0e` closes matching immutable
+snapshot selection. The remaining live maintenance and backend integration are
+concrete semantic constructions, not a license to reuse an Oracle and not the
+deferred P9.3.2d runtime proof debt.
 
 | Observed boundary | Evidence | Consequence |
 | --- | --- | --- |
 | `StableMinRatioLedger` | Its public `edges()` slice contains only anonymous `StableEdge` coordinates; `StableWitness` is consumed at construction and only checked stability floors are retained. | Neither coordinate identity nor the witness input identifies a `source_min_ratio::cycle::Cycle`. |
 | `source_min_ratio::input::Input` | It validates caller-supplied exact current coordinates and constructs an orientation-preserving source-edge/circulation-arc binding with the source graph. | Stable arc provenance is now available; it still does not create a tree chain, embeddings, a candidate set, or a selection certificate. |
 | `source_min_ratio::candidate::Registry` | It accepts only declared fundamental spanner/tree compact cycles, computes their exact current quality, and chooses the best nonzero candidate with deterministic stale-record handling. | It cannot discover candidate declarations from a graph, construct source embeddings, or certify the chosen direction as a `Step`. |
-| `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings, cross-snapshot candidate maintenance, or `Step` certificate. |
-| `source_min_ratio::spanner::Snapshot` | It constructs one exact finite singleton-core chain, translates every rejected core edge's selected spanner path, and emits an explicit oriented compact cycle. | It is immutable and one-snapshot only; it does not merge terminal candidates, perform replacement/retirement, or create a `Step`. |
+| `source_min_ratio::terminal::Tree` | It materializes an exact source tree from one live `Input`, retains the AN19-shaped certificate, and declares every non-tree terminal fundamental cycle. | It has no core/spanner embeddings or cross-snapshot candidate maintenance. |
+| `source_min_ratio::spanner::Snapshot` | It constructs one exact finite singleton-core chain, translates every rejected core edge's selected spanner path, and emits an explicit oriented compact cycle. | It supports finite same-network recourse but has no terminal cross-snapshot integration or general dynamic claim. |
 | `source_min_ratio::query::decode_candidate` | The API accepts a caller-supplied compact `Cycle`; its result contains decoded circulation arcs only. | It validates an already selected candidate and cannot select one. |
 | `source_min_ratio::execution::Executor` | It forwards supplied `Update`, `Query`, and `Detect` ledger transitions and rejects unsupported source-grade operations. | It has no minimum-ratio query or compact-candidate search operation. |
-| `source_flow::iteration::Step::from_terminal_candidate` | It checks that the caller's current coordinates exactly equal the immutable terminal `Input`, obtains the terminal declaration heap's best nonzero choice, and decodes it into a full exact circulation direction. | It cannot select core/spanner candidates or stand in for the complete maintained population. |
+| `source_flow::iteration::Step::from_maintained_candidates` | It checks terminal/core exact input equality and caller coordinates, compares both independently evaluated registries, then decodes the winner through its own context. | It covers matching immutable snapshots only; it has no terminal transition or complete backend driver. |
 | Permanent references | `dynamic_min_ratio` and the min-cost cycle paths enumerate candidates; the P9.5 source-flow audit rejects `dynamic_min_ratio`, `min_cost::oracle`, and `min_cost::experiment`. | They may remain test Oracles but cannot become the production selector. |
 
-The missing P9.5a construction must do all of the following using the completed
-exact input projection and supplied-candidate heap:
+The remaining P9.5a construction must do all of the following using the
+completed exact input projection and supplied-candidate heap:
 
-1. Maintain finite core/spanner and terminal declarations across supported
-   snapshots through stable `candidate::Registry` replacement/retirement.
-2. Merge those declarations into one live source population with exact
-   provenance and stable identities.
-3. Extend the completed terminal-only coordinate check and `Step` bridge to
-   the complete maintained population, certifying the selected compact
-   direction with the current approximation gradients, lengths, and `kappa`
-   required by the Lemma 4.4 transition.
+1. Maintain terminal declarations across supported snapshots and coordinate
+   them with the completed finite core `Transition`.
+2. Integrate the selected exact compact direction into the certified iteration,
+   recovery, and compressed MRD differential path.
+3. Preserve the completed exact current-snapshot coordinate, provenance, and
+   context checks through those transitions.
 4. Keep the stability-witness input out of the query result, retain exact
    arithmetic, and reject rather than fall back when the source construction is
    unavailable.
@@ -160,7 +167,7 @@ This audit did not expose `StableWitness`, add a heuristic selector, enumerate
 fundamental cycles, or import `dynamic_min_ratio`. Those routes would only make
 the existing test path look complete while leaving the P9.5 production semantic
 contract unimplemented. P9.5 and P9.5a therefore remain `in_progress`; the
-remaining cross-snapshot and combined-population work blocks the complete
+remaining cross-snapshot and complete-backend work blocks the complete
 backend, and P9.6 remains gated on its completion. P9.3.2d remains the
 separate, low-priority P9.6a proof debt after the complete flow-solver chain is
 available.

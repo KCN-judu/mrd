@@ -3,8 +3,11 @@
 ## State
 
 **Complete for supported immutable same-network snapshots.** Implementation
-commit `9238b37` closes P9.5a.3.2b. It does not implement a general dynamic
-source graph, terminal/core candidate merge, or a complete `Step` selector.
+commit `9238b37` closes P9.5a.3.2b. At that commit it did not implement a
+general dynamic source graph, terminal/core candidate merge, or a complete
+`Step` selector. Commit `98a7d0e` subsequently adds the matching-immutable-
+snapshot merge and `Step` bridge; terminal cross-snapshot maintenance remains
+outside both substeps.
 
 ## Implementation
 
@@ -58,6 +61,7 @@ The P9.3.2d proof debt remains low-priority P9.6a work; DOI
 
 ## Next Action
 
-P9.5a.3.3b must combine the terminal and core candidate populations, bridge the
-best source-declared choice to `Step`, and differentially validate that complete
-no-fallback transition against bounded permanent Oracles.
+P9.5a.3.3b now combines the terminal and core candidate populations for
+matching immutable snapshots, bridges the best source-declared choice to
+`Step`, and supplies a K5 no-fallback differential. The next action is live
+terminal/core cross-snapshot maintenance followed by full backend integration.

@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.4
 - Last pushed SHA: d825236410d50461009c02c934b5b4692e606d1d
-- Plan last updated: 2026-07-30T00:00:00Z
+- Plan last updated: 2026-07-30T01:05:47Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1090,13 +1090,14 @@ exactly an oriented, contiguous `SpannerPath` plus its rejected anchor edge;
 the registry rejects a tree path or a discontinuous path masquerading as that
 embedding. This is a one-snapshot finite construction, not dynamic recourse.
 
-The complete selector is still absent. No production component maintains the
-core/spanner and terminal populations across snapshots, and
-`Step::from_terminal_candidate` still accepts only the terminal registry after
-exact coordinate equality with its immutable `Input`. This deliberately narrow
-bridge does not make either finite population a complete source selector. The
-registry still cannot supply the complete current-selection certificate consumed
-by the next Lemma 4.4 `Step`.
+Commit `98a7d0e` closes the current-snapshot selector bridge. Its
+`Step::from_maintained_candidates` requires terminal and core snapshots to
+share one exact `Input` and current network, evaluates their independent
+declaration registries, rejects an overlapping stable ID, and selects the
+highest exact quality with stable-ID tie breaking. It then decodes the winning
+cycle only through the terminal or spanner tree-chain context that produced it.
+This is a finite immutable-population selector, not cross-snapshot terminal
+maintenance or a complete source-flow backend.
 `StableMinRatioLedger::edges()` remains an anonymous audit-coordinate slice;
 its validated stability-witness input is not a cycle-selection witness; and
 `source_min_ratio::execution::Executor` implements only supplied
@@ -1181,9 +1182,14 @@ P9.5a is split before further implementation:
        `Input`, select only the terminal declaration heap, and decode it through
        `Step::from_compact_candidate`. Evidence:
        `docs/phase-reports/P09-5-terminal-step-bridge.md`.
-     - **P9.5a.3.3b - Complete candidate differential. State: planned.**
-       Exercise the full maintained terminal/spanner population through the
-       source-flow transition and bounded permanent Oracles without fallback.
+     - **P9.5a.3.3b - Complete candidate differential. State: complete for
+       matching immutable snapshots. Implementation SHA: `98a7d0e`.** The
+       terminal and rejected-core registries now compete by exact quality and
+       stable ID while retaining their separate checked decode contexts.
+       Coordinate, snapshot, and candidate-ID mismatches reject explicitly.
+       A K5 no-fallback differential independently scores the two registry
+       choices and requires the resulting `Step` to match direct decoding.
+       Evidence: `docs/phase-reports/P09-5a-3-3b-complete-candidate-step.md`.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1266,6 +1272,16 @@ choice into an exact circulation direction through the existing compact-cycle
 boundary. An empty or zero-quality terminal population returns no step. This
 does not create core/spanner declarations, invoke an enumerating Oracle, or
 complete the P9.5 selector.
+
+Commit `98a7d0e` closes P9.5a.3.3b for matching immutable snapshots. It
+combines the independently maintained terminal and rejected-core registries
+without mixing their compact-cycle contexts, rejects mismatched source inputs,
+current coordinates, and candidate-ID spaces, then decodes only the winning
+source declaration. The K5 differential independently compares the two exact
+registry choices with the public step result; additional regressions reject
+mixed snapshots and verify stable-ID tie breaking. It does not maintain the
+terminal population across updates, enable `Backend::require_complete()`, or
+make an AN19 runtime claim.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1442,11 +1458,12 @@ and AN19 runtime claims.
 | P9.4c | complete | 70a80f5 | 0e2a423 | 6264cb8 | 6264cb8 | `docs/phase-reports/P09-4c-hidden-stability-query.md` | hidden-stability query contract, direct compact decoding, and exact finite-domain differential | 2026-07-29T20:12:57Z | 2026-07-29T20:18:21Z | no approximate search, witness discovery, dynamic data structure, Theorem 5.1, or runtime claim |
 | P9.4d | complete | 6264cb8 | ef41f6c | de4df98 | de4df98 | `docs/phase-reports/P09-4d-execution-accounting.md` | checked update/query/detect forwarding, finite counters, explicit unsupported-operation rejection, and no-fallback audit | 2026-07-29T20:18:21Z | 2026-07-29T20:23:52Z | no dynamic sparsification, link-cut maintenance, approximation, amortized, Theorem 5.1, or runtime claim |
 | P9.4 | complete | ba3779e | 4ce313b, 70a80f5, 0e2a423, ef41f6c | 79f09bc | 79f09bc | `docs/phase-reports/P09-4-dynamic-min-ratio-summary.md` | finite-domain source-tree chain, compact cycle decoding, hidden-stability query boundary, and execution accounting | 2026-07-29T20:01:28Z | 2026-07-29T20:25:33Z | source-grade dynamic structures and all runtime claims remain unimplemented |
-| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9 | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md`, `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | source-flow no-fallback boundary, exact source/circulation provenance, source-declared heap, terminal and finite rejected-core declarations, and a terminal-only exact-coordinate `Step` bridge | 2026-07-29T20:25:33Z | 2026-07-30T00:00:00Z | cross-snapshot candidate maintenance, complete-candidate differential, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
+| P9.5 | in_progress | 79f09bc | 3397fbe, b6f40e1, d28a68a, 094a289, b34be66, 1a95a59, 8d7975b, 6179f22, 08eaae4, 0359194, 40bb2f1, 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9, 9238b37, 98a7d0e | pending | d11cb3f | `docs/phase-reports/P09-5-integration-gap.md`, `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5a-3-3b-complete-candidate-step.md` | source-flow no-fallback boundary, exact provenance, terminal and finite rejected-core declarations, immutable core recourse, and combined exact candidate-to-`Step` selection | 2026-07-29T20:25:33Z | 2026-07-30T01:05:47Z | terminal cross-snapshot maintenance, broad MRD flow/cut/cover/chord/rectangle campaign, and end-to-end no-fallback closeout remain; P9.3.2d proof debt is nonblocking |
 | P9.5a.2 | complete | 20ee78d | 0bf9d37 | pending closeout | pending | `docs/phase-reports/P09-5-candidate-heap.md` | exact source-declared fundamental candidate validation, quality, orientation, deterministic stale-record heap, and no-enumeration tests | 2026-07-29T22:04:55Z | 2026-07-29T22:20:23Z | no live tree-chain/embedding candidate construction, `Step` certificate, or runtime claim |
 | P9.5a.3.1 | complete | 0bf9d37 | abb77ac | pending closeout | pending | `docs/phase-reports/P09-5-terminal-tree-projection.md` | exact AN19-shaped source tree, checked terminal branch, and one declaration per non-tree source edge | 2026-07-29T22:27:30Z | 2026-07-29T22:38:34Z | no core/spanner embeddings, cross-snapshot candidate maintenance, `Step` certificate, or runtime claim |
-| P9.5a | in_progress | d11cb3f | 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9 | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5-ipm-provenance.md`, `docs/phase-reports/P09-5-candidate-heap.md`, `docs/phase-reports/P09-5-terminal-tree-projection.md`, `docs/phase-reports/P09-5-terminal-step-bridge.md`, `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | exact provenance, source-declared heap, terminal declarations, finite rejected-core declarations, and a terminal-only exact-coordinate `Step` bridge | 2026-07-29T22:38:34Z | 2026-07-30T00:00:00Z | cross-snapshot candidate maintenance and complete-candidate differential remain; reference-cycle enumeration remains forbidden |
+| P9.5a | in_progress | d11cb3f | 91132c4, 0bf9d37, abb77ac, 5afa4c7, cdb2ce9, 9238b37, 98a7d0e | pending | pending | `docs/phase-reports/P09-5-candidate-selection-gap.md`, `docs/phase-reports/P09-5a-3-3b-complete-candidate-step.md` | exact provenance, source-declared heap, terminal and finite rejected-core declarations, immutable core recourse, and combined exact candidate selection | 2026-07-29T22:38:34Z | 2026-07-30T01:05:47Z | terminal cross-snapshot maintenance and complete backend integration remain; reference-cycle enumeration remains forbidden |
 | P9.5a.3.2a | complete | 5afa4c7 | cdb2ce9 | d825236 | d825236 | `docs/phase-reports/P09-5a-3-2a-finite-core-spanner-snapshot.md` | finite sparse Algorithm 4 image, immutable core/spanner snapshot, explicit rejected-edge embedding cycles, exact decode, and registry selection | 2026-07-30T08:49:19Z | 2026-07-30T00:00:00Z | one finite immutable snapshot only; cross-snapshot maintenance remains P9.5a.3.2b |
-| P9.5a.3.2b | complete | d825236 | 9238b37 | pending closeout | pending | `docs/phase-reports/P09-5a-3-2b-finite-core-recourse.md` | immutable same-network snapshot recourse, exact stable-ID candidate insert/refresh/retire/re-embed sets, and registry synchronization | 2026-07-30T00:00:00Z | 2026-07-30T00:00:00Z | finite same-network snapshots only; terminal/core merge remains P9.5a.3.3b |
+| P9.5a.3.2b | complete | d825236 | 9238b37 | pending closeout | pending | `docs/phase-reports/P09-5a-3-2b-finite-core-recourse.md` | immutable same-network snapshot recourse, exact stable-ID candidate insert/refresh/retire/re-embed sets, and registry synchronization | 2026-07-30T00:00:00Z | 2026-07-30T00:00:00Z | finite same-network core only; P9.5a.3.3b adds current-snapshot merge, while terminal cross-snapshot maintenance remains |
 | P9.5a.3.3a | complete | abb77ac | 5afa4c7 | pending closeout | pending | `docs/phase-reports/P09-5-terminal-step-bridge.md` | exact terminal-coordinate equality, terminal-registry-only choice, compact decoding, empty/zero-quality no-step path, and no-fallback audit | 2026-07-30T08:49:19Z | 2026-07-30T08:49:19Z | core/spanner population and cross-snapshot maintenance remain outside this terminal-only bridge |
+| P9.5a.3.3b | complete | d63d02c | 98a7d0e | pending closeout | pending | `docs/phase-reports/P09-5a-3-3b-complete-candidate-step.md` | exact terminal/core snapshot identity, independent registry scoring, stable-ID tie handling, context-preserving compact decoding, K5 no-fallback differential, and mismatch rejection | 2026-07-30T01:05:47Z | 2026-07-30T01:05:47Z | matching immutable snapshots only; terminal cross-snapshot maintenance and complete backend integration remain |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
