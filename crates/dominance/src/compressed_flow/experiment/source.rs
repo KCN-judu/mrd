@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use graph::{
     CirculationArcId, CirculationNetwork, FlowNodeId, MinCostCirculationError, MinCostSolution,
     VertexCover,
+    source_flow::{Backend, Error as SourceFlowError, iteration::Session},
 };
 use thiserror::Error;
 
@@ -206,6 +207,25 @@ impl Circulation {
         })
     }
 
+    /// Recovers a matching and Konig cover from one terminated source-flow
+    /// session without selecting a reference flow backend.
+    ///
+    /// `Backend::recover_terminated` first verifies that the session snapshot
+    /// certifies this exact circulation network, then checks additive-half
+    /// termination and applies the local exact recovery boundary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the session snapshot is not certified for this
+    /// circulation, has not reached additive-half termination, recovery fails,
+    /// or the resulting integral flow cannot recover a compressed certificate.
+    pub fn recover_source_session(&self, session: &Session) -> Result<Solution, Error> {
+        let terminal = Backend
+            .recover_terminated(session.snapshot(), &self.network)
+            .map_err(Error::SourceFlow)?;
+        self.recover_certified(&terminal.rounding.solution)
+    }
+
     fn flow(solution: &MinCostSolution, arc: CirculationArcId) -> Result<i128, Error> {
         solution
             .arc_flows
@@ -311,6 +331,8 @@ fn active_endpoints(
 /// A source-flow-compatible compressed-network transformation failed.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum Error {
+    #[error("source-flow session recovery failed: {0}")]
+    SourceFlow(#[source] SourceFlowError),
     #[error(transparent)]
     Network(#[from] MinCostCirculationError),
     #[error("compressed network node count overflowed usize")]
@@ -526,12 +548,8 @@ mod tests {
         )
         .unwrap();
 
-        let terminal = Backend
-            .recover_terminated(&snapshot, circulation.network())
-            .unwrap();
-        let recovered = circulation
-            .recover_certified(&terminal.rounding.solution)
-            .unwrap();
+        let session = Backend.begin_iterations(snapshot).unwrap();
+        let recovered = circulation.recover_source_session(&session).unwrap();
         assert_eq!(recovered.flow_value, 2);
         assert_eq!(recovered.matching.len(), 2);
         assert_eq!(recovered.vertex_cover.size, 2);

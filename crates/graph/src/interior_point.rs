@@ -22,6 +22,7 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CertifiedIpmSnapshot {
     fixed_point_config: FixedPointConfig,
+    network: NetworkIdentity,
     flow: FractionalCirculation,
     optimal_cost: ExactRatio,
     maximum_abs_input: i128,
@@ -78,6 +79,50 @@ pub struct IpmDetectLedger {
     fixed_point_config: FixedPointConfig,
     accumulated_changes: Vec<DyadicInterval>,
     metrics: IpmUpdateMetrics,
+}
+
+/// Immutable identity of the exact circulation model certified by a snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct NetworkIdentity {
+    node_count: usize,
+    demands: Vec<i128>,
+    arcs: Vec<NetworkArc>,
+}
+
+/// One directed exact circulation arc retained in a snapshot identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct NetworkArc {
+    from: crate::FlowNodeId,
+    to: crate::FlowNodeId,
+    capacity: i128,
+    cost: i128,
+}
+
+impl NetworkIdentity {
+    fn from_network(network: &CirculationNetwork) -> Result<Self, CertifiedIpmError> {
+        let arcs = (0..network.arc_count())
+            .map(|index| {
+                let arc = CirculationArcId(index);
+                let (from, to) = network
+                    .arc_endpoints(arc)
+                    .ok_or(CertifiedIpmError::InvalidSourceDomain)?;
+                let (capacity, cost) = network
+                    .arc_capacity_cost(arc)
+                    .ok_or(CertifiedIpmError::InvalidSourceDomain)?;
+                Ok(NetworkArc {
+                    from,
+                    to,
+                    capacity,
+                    cost,
+                })
+            })
+            .collect::<Result<Vec<_>, CertifiedIpmError>>()?;
+        Ok(Self {
+            node_count: network.node_count(),
+            demands: network.demands().to_vec(),
+            arcs,
+        })
+    }
 }
 
 impl IpmDetectLedger {
@@ -322,6 +367,7 @@ impl CertifiedIpmSnapshot {
     ) -> Result<Self, CertifiedIpmError> {
         network.verify_input_domain(maximum_abs_input)?;
         network.verify_fractional_solution(flow)?;
+        let network_identity = NetworkIdentity::from_network(network)?;
         if !optimal_cost.is_integral() {
             return Err(CertifiedIpmError::InvalidSourceDomain);
         }
@@ -406,6 +452,7 @@ impl CertifiedIpmSnapshot {
 
         Ok(Self {
             fixed_point_config,
+            network: network_identity,
             flow: flow.clone(),
             optimal_cost,
             maximum_abs_input,
@@ -422,6 +469,22 @@ impl CertifiedIpmSnapshot {
     #[must_use]
     pub const fn fixed_point_config(&self) -> FixedPointConfig {
         self.fixed_point_config
+    }
+
+    /// Verifies that an operation receives the exact network this snapshot
+    /// certified, including demands, ordered directed endpoints, capacities,
+    /// and costs.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the candidate network differs from the certified
+    /// network identity.
+    pub fn verify_network(&self, network: &CirculationNetwork) -> Result<(), CertifiedIpmError> {
+        if self.network == NetworkIdentity::from_network(network)? {
+            Ok(())
+        } else {
+            Err(CertifiedIpmError::NetworkMismatch)
+        }
     }
 
     #[must_use]
@@ -488,6 +551,7 @@ impl CertifiedIpmSnapshot {
         &self,
         network: &CirculationNetwork,
     ) -> Result<IpmTerminationCertificate, CertifiedIpmError> {
+        self.verify_network(network)?;
         let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
         let half = arithmetic.enclose_ratio(1, 2)?;
         let log_half = arithmetic.logarithm(&half)?;
@@ -634,6 +698,7 @@ impl CertifiedIpmSnapshot {
         kappa: ExactRatio,
         direction: &[ExactRatio],
     ) -> Result<CertifiedIpmUpdate, CertifiedIpmError> {
+        self.verify_network(network)?;
         network.verify_input_domain(self.maximum_abs_input)?;
         network.verify_fractional_circulation(direction)?;
         if direction.len() != self.flow.arc_flows.len() {
@@ -761,6 +826,8 @@ pub enum CertifiedIpmError {
     NotStrictlyInterior,
     #[error("the approximation vector dimensions do not match the graph")]
     DimensionMismatch,
+    #[error("the supplied circulation network differs from the certified snapshot network")]
+    NetworkMismatch,
     #[error("edge {edge} does not have a certified factor-two length approximation")]
     LengthApproximation { edge: usize },
     #[error("edge {edge} exceeds the certified scaled-gradient error")]

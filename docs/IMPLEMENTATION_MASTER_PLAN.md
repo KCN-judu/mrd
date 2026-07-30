@@ -1118,10 +1118,12 @@ action are recorded in
 `docs/phase-reports/P09-5-terminal-step-bridge.md`. This blocks completion of
 the P9.5 backend, not P9.3.2d's deferred P9.6a proof debt. P9.5 remains
 `in_progress` for its already independent semantic/differential evidence, but
-`Backend::require_complete()` must continue to reject execution until P9.5a is
-implemented and audited.
+`Backend::require_complete()` must continue to reject execution until the
+remaining terminal handoff and complete compressed-MRD campaign are implemented
+and audited.
 
-P9.5a is split before further implementation:
+**P9.5a - Source compact-candidate selection construction. State: complete.**
+It is split into the following completed substeps:
 
 1. **P9.5a.1 - Exact IPM/source/arc provenance. State: complete. Implementation
    SHA: `91132c4`.** Construct the checked `Input` projection and joint source
@@ -1137,11 +1139,11 @@ P9.5a is split before further implementation:
    complexity bound. Evidence:
    `docs/phase-reports/P09-5-candidate-heap.md`.
 3. **P9.5a.3 - Live tree-chain/embedding and `Step` integration. State:
-   in_progress.** Construct the source tree-chain, core/spanner embeddings, and
+   complete.** Construct the source tree-chain, core/spanner embeddings, and
    candidate updates from the live IPM/source state; then convert the selected
    candidate to a certified Lemma 4.4 `Step` and run the no-fallback
-   differential. This is the remaining selector gate for
-   `Backend::require_complete()`. It is split before implementation:
+   differential. This closes the finite selector gate but does not enable
+   `Backend::require_complete()`. It is split into the completed substeps:
    - **P9.5a.3.1 - Terminal-tree projection and declarations. State:
      complete. Implementation SHA: `abb77ac`.** Materialize one exact AN19-shaped static tree from a live
      `Input`, preserve its source certificate, form a one-level checked chain,
@@ -1216,6 +1218,15 @@ P9.5a is split before further implementation:
    enables `Backend::require_complete()`. Focused stale-input and
    stale-snapshot regressions plus the full workspace audit are recorded in
    `docs/phase-reports/P09-5b-source-selected-iteration.md`.
+
+5. **P9.5c - Terminal source-session recovery handoff. State: in_progress.**
+   Compose an already additive-half-certified `source_flow::iteration::Session`
+   with the compressed circulation's existing exact recovery map, yielding the
+   recovered matching and Konig cover through one no-fallback operation. This
+   must prove the session snapshot belongs to the same circulation before
+   recovery and must not run an Oracle, infer a terminal state, or claim a
+   complete iteration driver. `Backend::require_complete()` remains unavailable
+   until the full compressed-MRD differential campaign passes.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited

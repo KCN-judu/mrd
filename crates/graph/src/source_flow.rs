@@ -208,8 +208,8 @@ pub enum Error {
 mod tests {
     use super::{Backend, Error, iteration};
     use crate::{
-        CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
-        FractionalCirculation, LowerBoundCirculationNetwork,
+        CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
+        FlowNodeId, FractionalCirculation, LowerBoundCirculationNetwork,
     };
 
     #[test]
@@ -240,6 +240,40 @@ mod tests {
         let recovered = Backend.recover_terminated(&snapshot, &network).unwrap();
         assert_eq!(recovered.rounding.solution.arc_flows, vec![0, 0]);
         assert_eq!(recovered.rounding.solution.cost, 0);
+    }
+
+    #[test]
+    fn rejects_terminal_recovery_for_a_different_certified_network() {
+        let mut certified = CirculationNetwork::new(2);
+        certified
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1)
+            .unwrap();
+        certified
+            .add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0)
+            .unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &certified,
+            &FractionalCirculation {
+                arc_flows: vec![ExactRatio::new(1, 4).unwrap(); 2],
+                cost: ExactRatio::new(1, 4).unwrap(),
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            4,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        let mut mismatched = CirculationNetwork::new(2);
+        mismatched
+            .add_arc(FlowNodeId(0), FlowNodeId(1), 2, 0)
+            .unwrap();
+        mismatched
+            .add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0)
+            .unwrap();
+
+        assert_eq!(
+            Backend.recover_terminated(&snapshot, &mismatched),
+            Err(Error::Ipm(CertifiedIpmError::NetworkMismatch))
+        );
     }
 
     #[test]

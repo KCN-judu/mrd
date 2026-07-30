@@ -41,6 +41,8 @@ REQUIRED = {
     "compressed": (
         "pub struct Circulation",
         "pub fn recover_certified",
+        "pub fn recover_source_session",
+        "recover_terminated",
         "verify_feasible_solution",
     ),
 }
