@@ -3,7 +3,7 @@
 ## Status
 
 **State: in progress.** Implementation commits: `45849b1`, `c902c37`,
-`5391ada`, `20f8a18`.
+`5391ada`, `20f8a18`, `8668461`.
 
 This report records one bounded, nonterminal part of the P9.5e.3 campaign. It
 does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
@@ -14,6 +14,7 @@ does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
 | --- | --- | --- | --- |
 | Fresh state after an accepted source update | P9.5e.2 constructed one projection and stopped at one update, so it did not demonstrate preparation for a successor snapshot. | `Driver` must request and independently certify a new `Projection` for each nonterminal snapshot before selection. | `FixedProjectionFactory` rebuilds two separately snapshot-bound projections for the one-by-one compressed circulation, and the two stored records carry unequal certified snapshots. |
 | Exact coordinate update and reuse | `FixedProjectionFactory` can recertify unchanged coordinates only until they become stale. | A finite source fixture may supply distinct exact coordinates per successor snapshot, but it must consume them in order, reject exhaustion, and certify each entry before selection. | `ScheduledProjectionFactory` owns a caller-supplied immutable sequence of identity-compatible `Input` values. The compressed `1 x 1` fixture uses distinct first and successor coordinates, consumes both, and returns the explicit iteration limit instead of reusing either. |
+| Independent current-snapshot coordinates | A scheduled fixture demonstrates consumption but not reconstruction from the current exact flow. | Rebuild source coordinates from independently reconstructible exact data without selecting a fixed-point interval endpoint. | `ReciprocalSlackProjectionFactory` derives only from the retained exact flow, exact optimum, and immutable network capacities/costs. `Projection::new` independently proves its Theorem 4.3 error contract before selection. A static audit rejects accesses to `snapshot.lengths()` and `snapshot.gradients()` in the coordinate module. |
 | Bounded witness versus termination | The two supported updates do not reach the additive-half boundary. | An iteration limit must remain a failure result, and recovery must not run for a nonterminal successor. | `Circulation::run_source` returns `IterationLimit { maximum_iterations: 2 }`; the final snapshot still rejects additive-half certification. |
 | Backend completeness | Terminal recovery and one bounded nonterminal path exist, but no general policy prepares a terminating projection sequence for all supported compressed inputs. | Do not enable a complete backend from bounded evidence. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
 
@@ -60,6 +61,25 @@ return-arc gradient of `-399999997/3000000` rather than reusing its initial
 two accepted source updates before the deliberate iteration limit. The final
 snapshot remains nonterminal and recovery is not called.
 
+`ReciprocalSlackProjectionFactory` removes the finite fixture schedule from the
+two-snapshot coordinate path. For current exact flow `f`, exact optimum `F*`,
+and `m` arcs, it rebuilds the rational input
+
+```text
+length_tilde(e) = 1 / f_e + 1 / (u_e - f_e)
+gradient_tilde(e) = 20 m c_e / (c^T f - F*)
+```
+
+from `CertifiedIpmSnapshot::flow`, `optimal_cost`, and the immutable
+circulation network only. It neither reads the snapshot's fixed-point length
+or gradient intervals nor chooses an interval endpoint. The omitted barrier
+gradient is not assumed negligible: `Projection::new` must certify the exact
+factor-two and scaled-gradient inequalities before a source candidate can be
+selected. The general source-flow and compressed `1 x 1` regressions each
+accept two distinct successor inputs constructed this way. The compressed
+fixture uses an explicit finite source-structure exponent limit of `64`; the
+smaller prior limit rejects the successor as outside that structural domain.
+
 The exact source coordinates remain the P9.5e.2 fixture values:
 
 ```text
@@ -78,8 +98,8 @@ the unscaled rational coordinates.
 | --- | ---: | --- |
 | `git diff --check` | 0 | no whitespace errors |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
-| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 8 focused compressed-source tests passed |
-| `cargo test -p graph source_flow -- --nocapture` | 0 | 24 focused source-flow tests passed |
+| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 9 focused compressed-source tests passed |
+| `cargo test -p graph source_flow -- --nocapture` | 0 | 26 focused source-flow tests passed |
 | `python3 tools/check_source_flow_audit.py` | 0 | no reference-flow or recovery fallback dependency |
 | `python3 tools/check_source_min_ratio_audit.py` | 0 | source tree-chain/core boundary has no Oracle fallback |
 | `python3 tools/check_biclique_bound.py` | 0 | compact biclique bound accepted |
@@ -107,6 +127,14 @@ combined compressed-MRD differentials for flow, matching, cover, chord flags,
 and rectangle decomposition over a broader supported population. Until that
 semantic and no-fallback campaign passes, `Backend::require_complete()` remains
 unavailable.
+
+`ReciprocalSlackProjectionFactory` supplies the coordinate reconstruction part
+of that policy for its accepted finite domain, but not the complete structural
+domain: the current source hierarchy still has bounded exact-rational length
+and exponent parameters. It remains necessary to prove or construct a
+successor-safe finite structural range, run an actual nonterminal-to-terminal
+source session, and then compare its flow, matching, cover, chord, and
+rectangle outputs against the permanent references.
 
 P9.3.2d remains separate low-priority P9.6a proof debt. The formal SIAM source
 with DOI `10.1137/17M1115575` does not provide the required reduced-event

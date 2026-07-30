@@ -1339,8 +1339,36 @@ It is split into the following completed substeps:
      two distinct literal input coordinates over two nonterminal snapshots; it
      still returns an iteration limit and performs no recovery. This finite
      schedule is not a source-supported coordinate construction or a
-     termination proof. Evidence:
+     termination proof. Commit `8668461` adds the complementary
+     `ReciprocalSlackProjectionFactory`: it reconstructs rational reciprocal
+     slack lengths and the exact objective gradient term from the snapshot's
+     exact flow, exact optimum, and immutable network, then independently
+     reruns Theorem 4.3 certification. It does not access IPM coordinate
+     intervals; `check_source_flow_audit.py` enforces that boundary. The
+     general source-flow and compressed `1 x 1` fixtures each accept two such
+     fresh successor projections on an explicit exponent-64 finite structural
+     domain. This is coordinate reconstruction evidence only, not a
+     source-supported terminating structural range or a termination proof.
+     Evidence:
      `docs/phase-reports/P09-5e-3-fresh-projection-policy.md`.
+
+     P9.5e.3 is further split:
+     - **P9.5e.3a - Exact-coordinate policies. State: complete for the
+       supported two-snapshot fixtures.** `FixedProjectionFactory`,
+       `ScheduledProjectionFactory`, and `ReciprocalSlackProjectionFactory`
+       respectively establish staleness rejection, immutable external schedule
+       consumption, and interval-independent exact-flow reconstruction. No
+       item claims a terminating source session.
+     - **P9.5e.3b - Successor-safe finite structural domain. State:
+       in_progress.** Extend or replace the current finite hierarchy's exact
+       rational length/exponent range so every successor claimed by the
+       reciprocal policy can rebuild terminal and core populations without
+       overflow or a fallback.
+     - **P9.5e.3c - Complete compressed-MRD output differential. State:
+       planned.** After P9.5e.3b reaches a genuine terminal source session,
+       compare flow, matching, cover, chord flags, and rectangle decomposition
+       across the supported compressed-MRD population before considering the
+       complete-backend gate.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1681,5 +1709,8 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot compressed witness, fixed and scheduled exact-coordinate factories, and explicit 25-update coordinate-staleness rejection | 2026-07-30T03:41:01Z | pending | no source-supported terminating coordinate construction or broad output differential yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot compressed witness, fixed/scheduled/reciprocal exact-coordinate factories, and explicit 25-update coordinate-staleness rejection | 2026-07-30T03:41:01Z | pending | no source-supported terminating structural range or broad output differential yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3a | complete | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | two-snapshot fresh exact coordinate schedules and interval-independent reciprocal reconstruction | 2026-07-30T03:41:01Z | 2026-07-30T04:39:00Z | finite fixtures only; no terminating source session |
+| P9.5e.3b | in_progress | 8668461 | pending | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | successor-safe finite rational source-tree/core domain | 2026-07-30T04:39:00Z | pending | current finite structural parameters do not yet cover every dynamic reciprocal-slack successor |
+| P9.5e.3c | planned | pending | pending | pending | pending | pending | terminal compressed-MRD flow/matching/cover/chord/rectangle differential | after P9.5e.3b | pending | no complete backend gate or runtime claim |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
