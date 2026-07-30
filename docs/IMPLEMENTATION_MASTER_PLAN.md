@@ -1231,8 +1231,8 @@ It is split into the following completed substeps:
    compressed-session differentials plus the full audit are recorded in
    `docs/phase-reports/P09-5c-terminal-session-recovery.md`.
 
-6. **P9.5d - Certified multi-step source iteration driver. State:
-   in_progress.** Introduce a narrow external `ProjectionFactory` boundary
+6. **P9.5d - Certified multi-step source iteration driver. State: complete.
+   Implementation SHA: `0410b79`.** Introduce a narrow external `ProjectionFactory` boundary
    that prepares one exact source projection for each current certified IPM
    snapshot. Every prepared projection must carry its own snapshot identity,
    exact `Input`, terminal and rejected-core source populations, ledger, and
@@ -1244,7 +1244,26 @@ It is split into the following completed substeps:
    exact coordinates by guessing from `DyadicInterval`s, select a fallback
    flow, or enable `Backend::require_complete()`. The next subphase will run
    this driver over the compressed MRD flow/cut/cover/chord/rectangle
-   differential population.
+   differential population. `source_flow::iteration::Projection` owns the
+   snapshot-bound exact source state and certifies its Theorem 4.3 input before
+   selection; `Driver` retains every accepted exact projection and direction,
+   requests a fresh projection after each update, checks additive-half before
+   each request, and returns an explicit limit error instead of claiming
+   termination. Focused fresh/stale/terminal regressions, the source-flow
+   static audit, and the full workspace audit are recorded in
+   `docs/phase-reports/P09-5d-source-iteration-driver.md`.
+
+7. **P9.5e - Compressed MRD source-driver differential. State:
+   in_progress.** Use P9.5d's exact external projection boundary to execute
+   terminated source sessions over compressed MRD instances, then recover the
+   matching, Konig cover, selected chords, and rectangles through the existing
+   no-fallback handoff. Each fixture must provide a fresh, independently
+   certified exact source projection for every nonterminal snapshot; the test
+   Oracle may establish expected results but must not participate in production
+   selection, iteration, recovery, or coordinate preparation. Differentially
+   compare matching value, cover, chord flags, and rectangle decomposition
+   against the retained bounded references. Keep `Backend::require_complete()`
+   unavailable until this campaign and its no-fallback audit pass.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1365,6 +1384,16 @@ circulation can recover a matching and Konig cover directly from an already
 terminal source session through the local exact recovery path. This does not
 drive iterations or enable the complete backend; the full source iteration and
 compressed MRD campaign remain P9.5 work.
+
+Commit `0410b79` closes P9.5d's bounded multi-step driver. A projection is an
+owned, snapshot-bound exact source state that checks source input identity,
+network identity, both maintained populations, and Theorem 4.3 before it can
+select a candidate. The driver asks its external factory for a new projection
+after every accepted update, records the exact pre-update projection and
+direction, checks additive-half termination before each request, and rejects a
+stale projection or explicit iteration-limit exhaustion without a fallback.
+This is an exact orchestration boundary, not a coordinate selector, source
+runtime claim, or complete compressed-MRD solver.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1552,4 +1581,6 @@ and AN19 runtime claims.
 | P9.5a.3.4 | complete | 91ec25e | b73b0fa | pending closeout | pending | `docs/phase-reports/P09-5a-3-4-terminal-recourse.md` | shared pure source identity, immutable terminal insert/refresh/retire/re-embed transition, exact registry guard, tree-change and successor-selector regressions | 2026-07-30T01:16:45Z | 2026-07-30T01:24:35Z | supported same-network snapshots only; complete backend integration remains |
 | P9.5b | complete | 9be04dc | 4043a85 | 3728886 | 3728886 | `docs/phase-reports/P09-5b-source-selected-iteration.md` | exact source-selected candidate step, snapshot/input identity rejection, and certified Session update | 2026-07-30T01:24:35Z | 2026-07-30T02:00:00Z | no multi-step driver or complete backend |
 | P9.5c | complete | 3728886 | 3527d70 | pending closeout | pending | `docs/phase-reports/P09-5c-terminal-session-recovery.md` | snapshot-network identity plus terminated session to compressed matching/cover recovery | 2026-07-30T02:00:00Z | 2026-07-30T02:33:46Z | no iteration driver or broad MRD campaign |
+| P9.5d | complete | ae7a626 | 0410b79 | pending closeout | pending | `docs/phase-reports/P09-5d-source-iteration-driver.md` | snapshot-bound exact projection factory, bounded fresh-projection driver, accepted-step trace, stale-projection rejection, and full-workspace audit | 2026-07-30T02:33:46Z | 2026-07-30T03:13:00Z | no compressed MRD driver differential or complete backend |
+| P9.5e | in_progress | 0410b79 | pending | pending | pending | pending | compressed MRD source-driver matching/cover/chord/rectangle differential | 2026-07-30T03:13:00Z | pending | no production fallback; complete-backend gate remains unavailable |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
