@@ -1265,16 +1265,20 @@ It is split into the following completed substeps:
    against the retained bounded references. Keep `Backend::require_complete()`
    unavailable until this campaign and its no-fallback audit pass. It is split
    into the following substeps:
-   - **P9.5e.1 - Terminal compressed-driver differential. State:
-     in_progress.** Compose the driver and source recovery over independently
+   - **P9.5e.1 - Terminal compressed-driver differential. State: complete.
+     Implementation SHA: `90f51ae`.** Compose the driver and source recovery over independently
      constructed strictly interior additive-half fixtures for an explicit
      biclique graph, a Theorem 8 chord graph, and a formal polygon rectangle
      completion. The test-only reference solver may construct expected values
      and terminal fixtures, but production code must remain source-only. This
      verifies terminal handoff composition, not nonterminal projection
-     preparation.
+     preparation. `compressed_flow::experiment::source::Circulation::run_source`
+     now returns the exact driver completion plus recovered compressed solution;
+     test-only strict-interior interpolation differentials cover explicit,
+     chord, and formal rectangle inputs. Evidence:
+     `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`.
    - **P9.5e.2 - Nonterminal compressed projection campaign. State:
-     planned.** Supply and certify a fresh exact projection for every
+     in_progress.** Supply and certify a fresh exact projection for every
      nonterminal compressed snapshot, drive at least one source-selected
      transition per applicable fixture, then either reach additive-half
      termination or record an explicit bounded nontermination witness. No
@@ -1412,6 +1416,15 @@ direction, checks additive-half termination before each request, and rejects a
 stale projection or explicit iteration-limit exhaustion without a fallback.
 This is an exact orchestration boundary, not a coordinate selector, source
 runtime claim, or complete compressed-MRD solver.
+
+Commit `90f51ae` closes P9.5e.1's terminal compressed-driver handoff. The
+compressed circulation now drives an already certified `source_flow` driver to
+additive-half termination and recovers its matching and Konig cover through
+the existing local source recovery only. Test-only strict-interior terminal
+fixtures exercise explicit biclique, Theorem 8 chord, and formal rectangle
+completion differentials against retained references. This terminal composition
+does not prepare a projection or execute a source-selected update, so P9.5e.2
+remains active and `Backend::require_complete()` remains unavailable.
 
 ### P9.6 - Phase-wide source and complexity audit
 
@@ -1600,5 +1613,7 @@ and AN19 runtime claims.
 | P9.5b | complete | 9be04dc | 4043a85 | 3728886 | 3728886 | `docs/phase-reports/P09-5b-source-selected-iteration.md` | exact source-selected candidate step, snapshot/input identity rejection, and certified Session update | 2026-07-30T01:24:35Z | 2026-07-30T02:00:00Z | no multi-step driver or complete backend |
 | P9.5c | complete | 3728886 | 3527d70 | pending closeout | pending | `docs/phase-reports/P09-5c-terminal-session-recovery.md` | snapshot-network identity plus terminated session to compressed matching/cover recovery | 2026-07-30T02:00:00Z | 2026-07-30T02:33:46Z | no iteration driver or broad MRD campaign |
 | P9.5d | complete | ae7a626 | 0410b79 | pending closeout | pending | `docs/phase-reports/P09-5d-source-iteration-driver.md` | snapshot-bound exact projection factory, bounded fresh-projection driver, accepted-step trace, stale-projection rejection, and full-workspace audit | 2026-07-30T02:33:46Z | 2026-07-30T03:13:00Z | no compressed MRD driver differential or complete backend |
-| P9.5e | in_progress | 0410b79 | pending | pending | pending | pending | compressed MRD source-driver matching/cover/chord/rectangle differential | 2026-07-30T03:13:00Z | pending | no production fallback; complete-backend gate remains unavailable |
+| P9.5e | in_progress | 0410b79 | 90f51ae | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | terminal compressed source-driver matching/cover/chord/rectangle differential | 2026-07-30T03:13:00Z | pending | nonterminal exact projection campaign and complete-backend gate remain |
+| P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
+| P9.5e.2 | in_progress | 90f51ae | pending | pending | pending | pending | fresh exact projections and source-selected nonterminal steps on compressed fixtures | 2026-07-30T03:38:00Z | pending | no direct interval-coordinate materialization or fallback |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
