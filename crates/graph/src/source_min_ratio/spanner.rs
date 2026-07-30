@@ -10,13 +10,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use thiserror::Error;
 
-use crate::{CirculationNetwork, ExactRatio, FlowNodeId, SourceEdgeId};
+use crate::{CirculationNetwork, ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId};
 
 use super::{
     candidate::{CandidateId, Context, Error as CandidateError, Fundamental, Kind, Registry},
     chain::{Chain, Error as ChainError, Shifts},
     cycle::{Cycle, Direction, EmbeddingEdge, Segment},
-    input::{Error as InputError, Input, Materialization},
+    input::{Error as InputError, Input, Materialization, StructuralGraph},
     model::{Branch, BranchId, Level, LevelId, Tree},
 };
 
@@ -50,6 +50,7 @@ pub struct Parameters {
 pub struct Snapshot {
     input: Input,
     materialization: Materialization,
+    structural: StructuralGraph,
     forest: LsfStructuralCertificate,
     source_chain: SourceChain,
     chain: Chain,
@@ -81,15 +82,16 @@ impl Snapshot {
     /// # Errors
     ///
     /// Returns an error outside the already certified finite source domain, on
-    /// nonintegral lengths, or when the retained core embedding cannot be
-    /// mapped to one explicit compact source cycle.
+    /// an unrepresentable structural normalization, or when the retained core
+    /// embedding cannot be mapped to one explicit compact source cycle.
     pub fn build(
         input: Input,
         network: &CirculationNetwork,
         parameters: Parameters,
     ) -> Result<Self, Error> {
         let materialization = input.materialize(network)?;
-        if parameters.root.0 >= materialization.graph.node_count()
+        let structural = input.normalize_structure()?;
+        if parameters.root.0 >= structural.graph.node_count()
             || parameters.maximum_absolute_exponent == 0
             || !parameters.phi.is_positive()
             || parameters.maximum_hops == 0
@@ -98,10 +100,10 @@ impl Snapshot {
         {
             return Err(Error::InvalidParameters);
         }
-        let maximum_integral_length = maximum_integral_length(&materialization)?;
-        let forest = singleton_forest(&materialization)?;
+        let maximum_integral_length = maximum_integral_length(&structural.graph)?;
+        let forest = singleton_forest(&structural.graph)?;
         let source_chain = SourceChain::build(
-            &materialization.graph,
+            &structural.graph,
             &forest,
             SourceChainParameters {
                 root: parameters.root,
@@ -134,6 +136,7 @@ impl Snapshot {
         Ok(Self {
             input,
             materialization,
+            structural,
             forest,
             source_chain,
             chain,
@@ -216,6 +219,12 @@ impl Snapshot {
     #[must_use]
     pub const fn materialization(&self) -> &Materialization {
         &self.materialization
+    }
+
+    /// Returns the normalized graph used only by the finite structural chain.
+    #[must_use]
+    pub const fn structural(&self) -> &StructuralGraph {
+        &self.structural
     }
 
     /// Returns the explicit singleton rooted forest used to form `C(G,F)`.
@@ -315,29 +324,26 @@ impl Transition {
     }
 }
 
-fn singleton_forest(materialization: &Materialization) -> Result<LsfStructuralCertificate, Error> {
+fn singleton_forest(graph: &SourceDynamicGraph) -> Result<LsfStructuralCertificate, Error> {
     let one = ExactRatio::new(1, 1).map_err(|_| Error::Overflow)?;
     Ok(LsfStructuralCertificate {
         forest_edges: BTreeSet::new(),
-        roots: (0..materialization.graph.node_count())
-            .map(FlowNodeId)
-            .collect(),
-        pieces: (0..materialization.graph.node_count())
+        roots: (0..graph.node_count()).map(FlowNodeId).collect(),
+        pieces: (0..graph.node_count())
             .map(|node| LsfPiece {
                 vertices: BTreeSet::from([FlowNodeId(node)]),
                 forest_edges: BTreeSet::new(),
             })
             .collect(),
-        stretch_overestimates: vec![one; materialization.graph.edge_count()],
+        stretch_overestimates: vec![one; graph.edge_count()],
         piece_volume_limit: 1,
     })
 }
 
-fn maximum_integral_length(materialization: &Materialization) -> Result<i128, Error> {
+fn maximum_integral_length(graph: &SourceDynamicGraph) -> Result<i128, Error> {
     let mut maximum = 0_i128;
-    for index in 0..materialization.graph.edge_count() {
-        let edge = materialization
-            .graph
+    for index in 0..graph.edge_count() {
+        let edge = graph
             .edge(SourceEdgeId(index))
             .ok_or(Error::MissingSourceEdge(SourceEdgeId(index)))?;
         if edge.length.denominator() != 1 || !edge.length.is_positive() {
@@ -562,6 +568,50 @@ mod tests {
         let mut registry = snapshot.registry(&network).unwrap();
         assert_eq!(registry.candidates().len(), 5);
         assert!(registry.best().unwrap().is_some());
+        snapshot.verify(&network).unwrap();
+    }
+
+    #[test]
+    fn preserves_rational_scoring_coordinates_while_normalizing_structure() {
+        let network = network();
+        let rational_lengths = vec![ExactRatio::new(1, 2).unwrap(); network.arc_count()];
+        let snapshot = Snapshot::build(
+            input_with_lengths(&network, -1, &rational_lengths),
+            &network,
+            parameters(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            snapshot
+                .materialization()
+                .graph
+                .edge(crate::SourceEdgeId(0))
+                .unwrap()
+                .length,
+            ExactRatio::new(1, 2).unwrap()
+        );
+        assert_eq!(
+            snapshot.structural().length_scale,
+            ExactRatio::new(2, 1).unwrap()
+        );
+        assert_eq!(
+            snapshot
+                .structural()
+                .graph
+                .edge(crate::SourceEdgeId(0))
+                .unwrap()
+                .length,
+            ExactRatio::new(1, 1).unwrap()
+        );
+        assert!(
+            snapshot
+                .registry(&network)
+                .unwrap()
+                .best()
+                .unwrap()
+                .is_some()
+        );
         snapshot.verify(&network).unwrap();
     }
 

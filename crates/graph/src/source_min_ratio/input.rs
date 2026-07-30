@@ -50,6 +50,18 @@ pub struct Materialization {
     pub bindings: ArcBindings,
 }
 
+/// A positive common-scale structural graph derived from one exact input.
+///
+/// The graph is for finite tree/spanner construction only. Candidate scoring
+/// and IPM certification continue to use the unscaled [`Input`] coordinates.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StructuralGraph {
+    /// Source graph with every edge length made integral by `length_scale`.
+    pub graph: SourceDynamicGraph,
+    /// Exact positive factor applied uniformly to lengths and tree weights.
+    pub length_scale: ExactRatio,
+}
+
 impl Input {
     /// Validates one exact current-coordinate projection.
     ///
@@ -174,6 +186,74 @@ impl Input {
         let bindings = ArcBindings::new(&graph, network, bindings)?;
         Ok(Materialization { graph, bindings })
     }
+
+    /// Builds an exact globally scaled graph for finite structural algorithms.
+    ///
+    /// Every scaled length is integral, while a single positive scale preserves
+    /// source IDs, endpoints, and all exact length/weight ratios. This does not
+    /// replace the unscaled coordinates retained by [`Self::materialize`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a common denominator or scaled coordinate cannot
+    /// be represented in the exact source domain.
+    pub fn normalize_structure(&self) -> Result<StructuralGraph, Error> {
+        let denominator = self.arcs.iter().try_fold(1_i128, |scale, arc| {
+            checked_lcm(scale, arc.length.denominator())
+        })?;
+        let length_scale = ExactRatio::new(denominator, 1).map_err(|_| Error::Overflow)?;
+        let mut maximum_abs_coordinate = 1_i128;
+        let mut edges = Vec::with_capacity(self.arcs.len());
+        for arc in &self.arcs {
+            let length = arc
+                .length
+                .checked_mul(length_scale)
+                .map_err(|_| Error::Overflow)?;
+            if length.denominator() != 1 || !length.is_positive() {
+                return Err(Error::InvalidStructuralNormalization {
+                    arc: arc.circulation.0,
+                });
+            }
+            let weight = arc
+                .tree_weight
+                .checked_mul(length_scale)
+                .map_err(|_| Error::Overflow)?;
+            maximum_abs_coordinate = maximum_abs_coordinate
+                .max(coordinate_bound(length)?)
+                .max(coordinate_bound(weight)?);
+            edges.push(SourceWeightedEdge {
+                first: arc.first,
+                second: arc.second,
+                length,
+                weight,
+            });
+        }
+        let graph = SourceDynamicGraph::new(self.node_count, edges, maximum_abs_coordinate)?;
+        Ok(StructuralGraph {
+            graph,
+            length_scale,
+        })
+    }
+}
+
+fn checked_lcm(first: i128, second: i128) -> Result<i128, Error> {
+    if first <= 0 || second <= 0 {
+        return Err(Error::Overflow);
+    }
+    let divisor = gcd(first, second);
+    first
+        .checked_div(divisor)
+        .and_then(|reduced| reduced.checked_mul(second))
+        .ok_or(Error::Overflow)
+}
+
+fn gcd(mut first: i128, mut second: i128) -> i128 {
+    while second != 0 {
+        let remainder = first % second;
+        first = second;
+        second = remainder;
+    }
+    first
 }
 
 fn coordinate_bound(value: ExactRatio) -> Result<i128, Error> {
@@ -201,6 +281,8 @@ pub enum Error {
     NetworkChanged,
     #[error("source coordinate accounting overflowed")]
     Overflow,
+    #[error("scaled structural length for circulation arc {arc} is invalid")]
+    InvalidStructuralNormalization { arc: usize },
     #[error("source graph construction failed: {0}")]
     Graph(#[from] SourceLsstError),
     #[error("source/circulation bindings failed: {0}")]
@@ -213,7 +295,7 @@ mod tests {
 
     use super::{Error, Input};
     use crate::{
-        CirculationNetwork, ExactRatio, FlowNodeId,
+        CirculationNetwork, ExactRatio, FlowNodeId, SourceEdgeId,
         source_min_ratio::{
             chain::Chain,
             cycle::{Cycle, Direction, Segment},
@@ -360,5 +442,45 @@ mod tests {
         )
         .unwrap();
         assert!(!first.has_same_source_identity(&changed));
+    }
+
+    #[test]
+    fn normalizes_rational_lengths_for_the_structural_graph_only() {
+        let network = network();
+        let input = Input::new(
+            &network,
+            &[ratio(-3), ratio(2), ratio(1)],
+            &[
+                ExactRatio::new(1, 2).unwrap(),
+                ExactRatio::new(3, 4).unwrap(),
+                ExactRatio::new(5, 6).unwrap(),
+            ],
+            &[ratio(7), ratio(11), ratio(13)],
+        )
+        .unwrap();
+
+        let structural = input.normalize_structure().unwrap();
+
+        assert_eq!(structural.length_scale, ratio(12));
+        assert_eq!(
+            structural.graph.edge(SourceEdgeId(0)).unwrap().length,
+            ratio(6)
+        );
+        assert_eq!(
+            structural.graph.edge(SourceEdgeId(1)).unwrap().length,
+            ratio(9)
+        );
+        assert_eq!(
+            structural.graph.edge(SourceEdgeId(2)).unwrap().length,
+            ratio(10)
+        );
+        assert_eq!(
+            structural.graph.edge(SourceEdgeId(1)).unwrap().weight,
+            ratio(132)
+        );
+        assert_eq!(
+            input.arc(crate::CirculationArcId(0)).unwrap().length,
+            ExactRatio::new(1, 2).unwrap()
+        );
     }
 }

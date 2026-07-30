@@ -406,8 +406,15 @@ pub enum Error {
 mod tests {
     use graph::{
         BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
-        FixedPointConfig, FlowNodeId, FractionalCirculation,
+        FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioLedger,
+        StableWitness,
         source_flow::{Backend, iteration},
+        source_min_ratio::{
+            input::Input,
+            spanner::{Parameters as SpannerParameters, Snapshot as SpannerSnapshot},
+            terminal::Tree as TerminalTree,
+        },
+        source_spanner::experiment::domain::ExhaustiveDomain,
     };
 
     use super::{Circulation, Error};
@@ -439,6 +446,16 @@ mod tests {
                 id: BicliqueId(0),
                 left: vec![0, 1],
                 right: vec![0, 1],
+            }],
+        }
+    }
+
+    fn single_edge_partition() -> Partition {
+        Partition {
+            blocks: vec![Block {
+                id: BicliqueId(0),
+                left: vec![0],
+                right: vec![0],
             }],
         }
     }
@@ -565,6 +582,100 @@ mod tests {
         |_: &CertifiedIpmSnapshot, _: &graph::CirculationNetwork| {
             Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
         }
+    }
+
+    fn source_ledger() -> StableMinRatioLedger {
+        StableMinRatioLedger::new(
+            2,
+            vec![
+                StableEdge {
+                    from: FlowNodeId(0),
+                    to: FlowNodeId(1),
+                    gradient: -1,
+                    length: 1,
+                },
+                StableEdge {
+                    from: FlowNodeId(1),
+                    to: FlowNodeId(0),
+                    gradient: 0,
+                    length: 1,
+                },
+            ],
+            ratio(1, 4),
+            ratio(1, 2),
+            StableWitness {
+                circulation: vec![1, 1],
+                upper_bounds: vec![1, 1],
+            },
+        )
+        .unwrap()
+    }
+
+    fn source_spanner_parameters() -> SpannerParameters {
+        SpannerParameters {
+            root: FlowNodeId(0),
+            maximum_absolute_exponent: 7,
+            phi: ratio(1, 2),
+            domain: ExhaustiveDomain { maximum_nodes: 8 },
+            maximum_hops: 4,
+            maximum_vertex_congestion: 100,
+            maximum_rounds: 1,
+        }
+    }
+
+    fn nonterminal_projection_input(circulation: &Circulation) -> Input {
+        let mut gradients = vec![ratio(0, 1); circulation.network().arc_count()];
+        gradients[circulation.return_arc.0] = ratio(-400, 3);
+        let lengths = vec![
+            ratio(11, 4),
+            ratio(4, 1),
+            ratio(8, 1),
+            ratio(5, 1),
+            ratio(8, 1),
+        ];
+        assert_eq!(lengths.len(), circulation.network().arc_count());
+        Input::new(circulation.network(), &gradients, &lengths, &lengths).unwrap()
+    }
+
+    fn nonterminal_source_fixture(circulation: &Circulation) -> (CertifiedIpmSnapshot, Input) {
+        let quarter = ratio(1, 4);
+        let arc_flows = vec![quarter; circulation.network().arc_count()];
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            circulation.network(),
+            &FractionalCirculation {
+                cost: circulation.network().fractional_cost(&arc_flows).unwrap(),
+                arc_flows,
+            },
+            ratio(-1, 1),
+            2,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot.certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+        (snapshot, nonterminal_projection_input(circulation))
+    }
+
+    fn fresh_nonterminal_projection(
+        snapshot: CertifiedIpmSnapshot,
+        input: Input,
+        network: &CirculationNetwork,
+    ) -> iteration::Projection {
+        let terminal = TerminalTree::build(input.clone(), network, FlowNodeId(0)).unwrap();
+        let spanner =
+            SpannerSnapshot::build(input.clone(), network, source_spanner_parameters()).unwrap();
+        iteration::Projection::new(
+            snapshot,
+            input,
+            source_ledger(),
+            terminal,
+            spanner,
+            ratio(1, 2),
+            network,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -740,6 +851,63 @@ mod tests {
             Err(Error::SourceIteration(iteration::Error::Ipm(
                 CertifiedIpmError::NetworkMismatch
             )))
+        );
+    }
+
+    #[test]
+    fn records_a_nonterminal_compressed_source_update_with_an_explicit_limit_witness() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, input) = nonterminal_source_fixture(&circulation);
+        let expected_input = input.clone();
+        let factory = move |current: &CertifiedIpmSnapshot, network: &CirculationNetwork| {
+            Ok::<_, iteration::Error>(fresh_nonterminal_projection(
+                current.clone(),
+                input.clone(),
+                network,
+            ))
+        };
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 1)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 1,
+            }))
+        );
+        assert_eq!(driver.records().len(), 1);
+        let record = &driver.records()[0];
+        assert_eq!(record.sequence, 0);
+        assert_eq!(record.input, expected_input);
+        assert_eq!(
+            record.approximation.edge_count,
+            circulation.network().arc_count()
+        );
+        assert_eq!(
+            record.approximation.factor_two_length_checks,
+            u64::try_from(circulation.network().arc_count()).unwrap()
+        );
+        assert_eq!(
+            record.approximation.scaled_gradient_checks,
+            u64::try_from(circulation.network().arc_count()).unwrap()
+        );
+        assert!(
+            record
+                .selected
+                .step
+                .direction
+                .iter()
+                .any(|coordinate| !coordinate.is_zero())
+        );
+        assert_eq!(driver.session().snapshot().update_metrics().iterations, 1);
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
         );
     }
 }
