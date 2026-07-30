@@ -19,7 +19,8 @@ use super::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Parameters {
     pub root: FlowNodeId,
-    pub maximum_integral_length: i128,
+    /// Maximum numerator or denominator accepted in structural lengths.
+    pub maximum_coordinate: i128,
     pub buckets: BucketParameters,
 }
 
@@ -61,7 +62,7 @@ impl Chain {
     ///
     /// # Errors
     ///
-    /// Returns an error for a nonintegral/out-of-range source length, an
+    /// Returns an error for an out-of-range source length, an
     /// unsupported bucket, a failed AN19-shaped terminal-tree construction, or
     /// an invalid recovered source tree.
     pub fn build(
@@ -109,17 +110,15 @@ impl Chain {
 }
 
 fn validate_input(graph: &SourceDynamicGraph, parameters: Parameters) -> Result<(), Error> {
-    if parameters.root.0 >= graph.node_count() || parameters.maximum_integral_length <= 0 {
+    if parameters.root.0 >= graph.node_count() || parameters.maximum_coordinate <= 0 {
         return Err(Error::InvalidParameters);
     }
     for index in 0..graph.edge_count() {
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
             continue;
         };
-        if edge.length.denominator() != 1
-            || edge.length.numerator() > parameters.maximum_integral_length
-        {
-            return Err(Error::NonintegralOrOutOfRangeLength);
+        if coordinate_bound(edge.length)? > parameters.maximum_coordinate {
+            return Err(Error::LengthOutsideFiniteDomain);
         }
     }
     Ok(())
@@ -359,8 +358,8 @@ fn ratio(value: i128) -> Result<ExactRatio, Error> {
 pub enum Error {
     #[error("finite tree-chain parameters are invalid")]
     InvalidParameters,
-    #[error("source edge length is not integral or is outside the finite bound")]
-    NonintegralOrOutOfRangeLength,
+    #[error("source edge length is outside the finite rational domain")]
+    LengthOutsideFiniteDomain,
     #[error("contracted level construction failed: {0}")]
     Level(#[source] LevelError),
     #[error("bucket initialization failed: {0}")]
@@ -442,7 +441,7 @@ mod tests {
     fn parameters() -> Parameters {
         Parameters {
             root: FlowNodeId(0),
-            maximum_integral_length: 8,
+            maximum_coordinate: 8,
             buckets: BucketParameters {
                 maximum_absolute_exponent: 4,
                 spanner: RebuildParameters {
@@ -488,17 +487,18 @@ mod tests {
     }
 
     #[test]
-    fn rejects_finite_domain_violations_and_mutated_certificates() {
-        let nonintegral = SourceDynamicGraph::new(
-            2,
-            vec![edge_with_length(0, 1, ExactRatio::new(1, 2).unwrap())],
+    fn accepts_bounded_rational_lengths_and_rejects_domain_violations() {
+        let rational = SourceDynamicGraph::new(
+            4,
+            vec![
+                edge_with_length(0, 1, ExactRatio::new(1, 2).unwrap()),
+                edge_with_length(1, 2, ExactRatio::new(3, 4).unwrap()),
+                edge_with_length(2, 3, ExactRatio::new(5, 8).unwrap()),
+            ],
             8,
         )
         .unwrap();
-        assert!(matches!(
-            Chain::build(&nonintegral, &forest(), parameters()),
-            Err(Error::NonintegralOrOutOfRangeLength)
-        ));
+        assert!(Chain::build(&rational, &forest(), parameters()).is_ok());
 
         let out_of_range = SourceDynamicGraph::new(
             2,
@@ -508,7 +508,7 @@ mod tests {
         .unwrap();
         assert!(matches!(
             Chain::build(&out_of_range, &forest(), parameters()),
-            Err(Error::NonintegralOrOutOfRangeLength)
+            Err(Error::LengthOutsideFiniteDomain)
         ));
 
         let bounded = SourceDynamicGraph::new(

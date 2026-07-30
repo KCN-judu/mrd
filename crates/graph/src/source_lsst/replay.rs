@@ -267,7 +267,7 @@ mod tests {
         Parameters {
             chain: ChainParameters {
                 root: FlowNodeId(0),
-                maximum_integral_length: 8,
+                maximum_coordinate: 8,
                 buckets: BucketParameters {
                     maximum_absolute_exponent: 4,
                     spanner: RebuildParameters {

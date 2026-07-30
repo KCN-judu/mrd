@@ -12,17 +12,19 @@ chord/rectangle population, or enable `Backend::require_complete()`.
 
 ## Exact Coordinate Boundary
 
-`source_min_ratio::input::Input::normalize_structure` is a pure structural
-transformation. It computes the checked LCM of exact length denominators and
-uniformly scales structural lengths and tree weights for the finite integral
-tree/spanner construction. It preserves source IDs and endpoints. The original
-`Input` remains the sole coordinate source for compact-cycle decoding,
-candidate scoring, and the Theorem 4.3 approximation certificate.
+P9.5e.2 originally used `Input::normalize_structure`, a global-denominator
+normalization that was later superseded in P9.5e.3b. The current
+`Input::structural_graph` is a pure structural transformation: it rounds each
+snapshot's positive lengths and tree weights relative to their own minima into
+power-of-two classes, then removes the snapshot scale. It preserves source IDs
+and endpoints without a global LCM. The original `Input` remains the sole
+coordinate source for compact-cycle decoding, candidate scoring, and the
+Theorem 4.3 approximation certificate.
 
 The regression covers both a general rational input with denominators `2`,
-`4`, and `6` (common scale `12`) and a full `SpannerSnapshot` with length
-`1/2`. The latter proves that the finite chain uses the normalized length while
-the candidate registry retains and scores the original `1/2` coordinate.
+`4`, and `6` and a full `SpannerSnapshot` with length `1/2`. The latter proves
+that the finite chain uses only scale-relative structural coordinates while the
+candidate registry retains and scores the original `1/2` coordinate.
 
 ## Nonterminal Compressed Fixture
 
@@ -42,9 +44,10 @@ kappa:         1/2
 
 These values are defined in test data rather than derived from a
 `DyadicInterval`. `Projection::new` independently reruns the exact Theorem
-4.3 checks for each arc. The structural scale is four, giving integral lengths
-`11, 16, 32, 20, 32`; equal-length components are disjoint single-edge buckets
-in the currently certified finite source-spanner subset.
+4.3 checks for each arc. The structural graph maps the snapshot-relative
+lengths to the power-of-two classes `1, 2, 4, 2, 4`; equal-length components
+are disjoint single-edge buckets in the currently certified finite
+source-spanner subset.
 
 The source driver accepts one nonzero compact-cycle direction and records its
 complete projection/certificate/update record. With an explicit one-update

@@ -15,8 +15,8 @@ AN19 exact reduced-event semantics,fixed-projection Figure 6 event contract,Comp
 AN19 fixed-snapshot event cardinality,local all-radii event work,Proved,machine certificate in every Oracle/reduced run,semantic events <= 3n + 4m + 2 and queue items <= n + 2m + 2; comparison time excluded
 AN19 exact reduced-event ordering replacement,required for the local P9.3.2d runtime chain,Implemented semantics / proof deferred,bounded exact differential only,the future proved backend must bound de-potentialized exact rational thresholds without one priority class per reduced cost
 AN19 runtime verification,O(m log n log log n),Pending low-priority proof,no,workspace scans do not close the missing mathematical reduction
-P9.3.2d,AN19 static LSST prerequisite for Lemma 5.4,Faithful implementation complete,exact Oracle differential and trace audit,"proof debt is deferred until P9.6; P9.3.3 through P9.5 may proceed, but no AN19 runtime claim is permitted"
-almost-linear theoretical flow backend,used asymptotically,P9.5 implementation pending,no,the source-shaped semantic chain may proceed; the AlmostLinear claim awaits P9.6 proof closure
+P9.3.2d,AN19 static LSST prerequisite for Lemma 5.4,Faithful implementation complete,exact Oracle differential and trace audit,"proof debt is deferred to low-priority P9.6a after P9.5; P9.3.3 through P9.5 may proceed, but no AN19 runtime claim is permitted"
+almost-linear theoretical flow backend,used asymptotically,P9.5 implementation pending,no,the source-shaped semantic chain may proceed; the AlmostLinear claim awaits low-priority P9.6a proof closure
 explicit rectangle output,constructive completion,implemented,yes,cell-exact validation
 machine-checkable certificates,not an artifact requirement,implemented,yes,"matching, partition, flow, cut, and rectangles"
 clean hole-free eligibility,Definition 9.1,integer grid classifier with loop identities,yes,component and chord-mass census; ornaments remain out of model

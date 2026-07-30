@@ -7,8 +7,8 @@
 - Current phase: P9.5
 - Current phase state: in_progress
 - Last completed phase: P9.4
-- Last pushed SHA: 2796465c9b87346c9ec816c583e06f07746a2782
-- Plan last updated: 2026-07-30T04:09:01Z
+- Last pushed SHA: 6acb5a93d04048ace0ba71958be0c599f70a80eb
+- Plan last updated: 2026-07-30T05:06:26Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1347,8 +1347,19 @@ It is split into the following completed substeps:
      intervals; `check_source_flow_audit.py` enforces that boundary. The
      general source-flow and compressed `1 x 1` fixtures each accept two such
      fresh successor projections on an explicit exponent-64 finite structural
-     domain. This is coordinate reconstruction evidence only, not a
-     source-supported terminating structural range or a termination proof.
+     domain. P9.5e.3b replaces global common-denominator normalization with
+     snapshot-relative power-of-two structural coordinates: the hierarchy and
+     spanner consume only the resulting scale-free topology, while raw exact
+     coordinates remain authoritative for candidate scoring and Theorem 4.3
+     certification. The compressed fixture now accepts three consecutive
+     reciprocal-slack updates under `IterationLimit { maximum_iterations: 3 }`
+     without a hierarchy overflow or fallback. Its fourth preparation reaches
+     the independent exact candidate-scoring boundary
+     `Terminal(Candidate(Ratio(Overflow)))`; it produces three accepted records
+     from four preparation requests. This is an explicit `i128` representability
+     boundary, not a structural normalization failure. It is coordinate
+     reconstruction evidence only, not a source-supported terminating
+     structural range or a termination proof.
      Evidence:
      `docs/phase-reports/P09-5e-3-fresh-projection-policy.md`.
 
@@ -1360,10 +1371,12 @@ It is split into the following completed substeps:
        consumption, and interval-independent exact-flow reconstruction. No
        item claims a terminating source session.
      - **P9.5e.3b - Successor-safe finite structural domain. State:
-       in_progress.** Extend or replace the current finite hierarchy's exact
-       rational length/exponent range so every successor claimed by the
-       reciprocal policy can rebuild terminal and core populations without
-       overflow or a fallback.
+       in_progress.** Snapshot-relative power-of-two structural coordinates
+       now remove the global common-denominator and hierarchy-overflow failure
+       across three consecutive reciprocal-slack successors. The remaining
+       fourth-step `ExactRatio` candidate-scoring overflow is explicit and
+       rejected without approximation or fallback. Establish a successor-safe
+       representational range sufficient for a terminating source session.
      - **P9.5e.3c - Complete compressed-MRD output differential. State:
        planned.** After P9.5e.3b reaches a genuine terminal source session,
        compare flow, matching, cover, chord flags, and rectangle decomposition
@@ -1709,8 +1722,8 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | bounded two-snapshot compressed witness, fixed/scheduled/reciprocal exact-coordinate factories, and explicit 25-update coordinate-staleness rejection | 2026-07-30T03:41:01Z | pending | no source-supported terminating structural range or broad output differential yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | fixed/scheduled/reciprocal exact-coordinate factories, three consecutive compressed reciprocal-slack updates with scale-relative structural topology, and explicit fourth-step candidate-ratio overflow | 2026-07-30T03:41:01Z | pending | no source-supported terminating representational range or broad output differential yet; `Backend::require_complete()` remains unavailable |
 | P9.5e.3a | complete | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | two-snapshot fresh exact coordinate schedules and interval-independent reciprocal reconstruction | 2026-07-30T03:41:01Z | 2026-07-30T04:39:00Z | finite fixtures only; no terminating source session |
-| P9.5e.3b | in_progress | 8668461 | pending | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | successor-safe finite rational source-tree/core domain | 2026-07-30T04:39:00Z | pending | current finite structural parameters do not yet cover every dynamic reciprocal-slack successor |
+| P9.5e.3b | in_progress | 8668461 | pending | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-relative power-of-two structural topology and three accepted reciprocal-slack successors | 2026-07-30T04:39:00Z | pending | fourth preparation rejects at the explicit `i128` candidate-ratio boundary; a terminating representational range remains unproved |
 | P9.5e.3c | planned | pending | pending | pending | pending | pending | terminal compressed-MRD flow/matching/cover/chord/rectangle differential | after P9.5e.3b | pending | no complete backend gate or runtime claim |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

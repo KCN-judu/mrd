@@ -39,7 +39,10 @@ The factory records two successful preparations, the records are numbered `0`
 and `1`, their input snapshot values differ, and both certificates cover every
 circulation arc. The driver then returns the explicit iteration-limit error.
 The successor still fails `certify_additive_half_termination`, so `run_source`
-never enters the terminal matching/cover recovery path.
+never enters the terminal matching/cover recovery path. A separate
+`maximum_iterations = 3` regression now accepts three consecutive
+reciprocal-slack updates. Its three records have distinct inputs and snapshots,
+and its final snapshot is still nonterminal.
 
 A second bounded source-flow regression probes the policy beyond those two
 updates. On the existing 5-node exact source fixture, fixed coordinates certify
@@ -62,8 +65,8 @@ two accepted source updates before the deliberate iteration limit. The final
 snapshot remains nonterminal and recovery is not called.
 
 `ReciprocalSlackProjectionFactory` removes the finite fixture schedule from the
-two-snapshot coordinate path. For current exact flow `f`, exact optimum `F*`,
-and `m` arcs, it rebuilds the rational input
+independently reconstructed coordinate path. For current exact flow `f`, exact
+optimum `F*`, and `m` arcs, it rebuilds the rational input
 
 ```text
 length_tilde(e) = 1 / f_e + 1 / (u_e - f_e)
@@ -75,10 +78,11 @@ circulation network only. It neither reads the snapshot's fixed-point length
 or gradient intervals nor chooses an interval endpoint. The omitted barrier
 gradient is not assumed negligible: `Projection::new` must certify the exact
 factor-two and scaled-gradient inequalities before a source candidate can be
-selected. The general source-flow and compressed `1 x 1` regressions each
-accept two distinct successor inputs constructed this way. The compressed
-fixture uses an explicit finite source-structure exponent limit of `64`; the
-smaller prior limit rejects the successor as outside that structural domain.
+selected. The general source-flow regression accepts two distinct successor
+inputs constructed this way; the compressed `1 x 1` regression now accepts
+three. The compressed fixture uses an explicit finite source-structure exponent
+limit of `64`; the smaller prior limit rejects the successor as outside that
+structural domain.
 
 The exact source coordinates remain the P9.5e.2 fixture values:
 
@@ -88,9 +92,19 @@ gradients: 0, 0, 0, 0, -400/3
 kappa: 1/2
 ```
 
-The structural normalization is still used only by the finite source-tree and
-spanner construction. Candidate scoring and Theorem 4.3 certification retain
-the unscaled rational coordinates.
+The structural normalization is used only by the finite source-tree and
+spanner construction. It rounds each snapshot's lengths and tree weights
+relative to their own positive minimum into power-of-two classes, then divides
+by that minimum. This produces a dimensionless, scale-relative structural
+topology without global common-denominator LCM growth. Candidate scoring and
+Theorem 4.3 certification retain the unscaled rational coordinates.
+
+The fourth preparation on the three-successor compressed fixture completes
+this structural construction but rejects in candidate scoring with
+`Terminal(Candidate(Ratio(Overflow)))`. The factory records four preparation
+requests but only three accepted projections. This is the remaining explicit
+`i128` exact-ratio representability boundary; the implementation neither
+rounds, approximates, nor substitutes an Oracle result.
 
 ## Verification
 
@@ -98,7 +112,7 @@ the unscaled rational coordinates.
 | --- | ---: | --- |
 | `git diff --check` | 0 | no whitespace errors |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
-| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 9 focused compressed-source tests passed |
+| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 11 focused compressed-source tests passed |
 | `cargo test -p graph source_flow -- --nocapture` | 0 | 26 focused source-flow tests passed |
 | `python3 tools/check_source_flow_audit.py` | 0 | no reference-flow or recovery fallback dependency |
 | `python3 tools/check_source_min_ratio_audit.py` | 0 | source tree-chain/core boundary has no Oracle fallback |
@@ -129,12 +143,14 @@ semantic and no-fallback campaign passes, `Backend::require_complete()` remains
 unavailable.
 
 `ReciprocalSlackProjectionFactory` supplies the coordinate reconstruction part
-of that policy for its accepted finite domain, but not the complete structural
-domain: the current source hierarchy still has bounded exact-rational length
-and exponent parameters. It remains necessary to prove or construct a
-successor-safe finite structural range, run an actual nonterminal-to-terminal
-source session, and then compare its flow, matching, cover, chord, and
-rectangle outputs against the permanent references.
+of that policy for its accepted finite domain, but not a complete terminating
+representational range. The scale-relative structural topology resolves the
+prior global-LCM and hierarchy-overflow failure across three successors. The
+remaining fourth-step candidate-ratio overflow is a distinct exact arithmetic
+boundary, not evidence that the hierarchy may be bypassed. It remains necessary
+to prove or construct a successor-safe representational range, run an actual
+nonterminal-to-terminal source session, and then compare its flow, matching,
+cover, chord, and rectangle outputs against the permanent references.
 
 P9.3.2d remains separate low-priority P9.6a proof debt. The formal SIAM source
 with DOI `10.1137/17M1115575` does not provide the required reduced-event

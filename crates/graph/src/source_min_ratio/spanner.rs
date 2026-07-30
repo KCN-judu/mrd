@@ -81,16 +81,16 @@ impl Snapshot {
     ///
     /// # Errors
     ///
-    /// Returns an error outside the already certified finite source domain, on
-    /// an unrepresentable structural normalization, or when the retained core
-    /// embedding cannot be mapped to one explicit compact source cycle.
+    /// Returns an error outside the already certified finite source domain or
+    /// when the retained core embedding cannot be mapped to one explicit compact
+    /// source cycle.
     pub fn build(
         input: Input,
         network: &CirculationNetwork,
         parameters: Parameters,
     ) -> Result<Self, Error> {
         let materialization = input.materialize(network)?;
-        let structural = input.normalize_structure()?;
+        let structural = input.structural_graph()?;
         if parameters.root.0 >= structural.graph.node_count()
             || parameters.maximum_absolute_exponent == 0
             || !parameters.phi.is_positive()
@@ -100,14 +100,14 @@ impl Snapshot {
         {
             return Err(Error::InvalidParameters);
         }
-        let maximum_integral_length = maximum_integral_length(&structural.graph)?;
+        let maximum_coordinate = maximum_coordinate(&structural.graph)?;
         let forest = singleton_forest(&structural.graph)?;
         let source_chain = SourceChain::build(
             &structural.graph,
             &forest,
             SourceChainParameters {
                 root: parameters.root,
-                maximum_integral_length,
+                maximum_coordinate,
                 buckets: BucketParameters {
                     maximum_absolute_exponent: parameters.maximum_absolute_exponent,
                     spanner: RebuildParameters {
@@ -219,12 +219,6 @@ impl Snapshot {
     #[must_use]
     pub const fn materialization(&self) -> &Materialization {
         &self.materialization
-    }
-
-    /// Returns the normalized graph used only by the finite structural chain.
-    #[must_use]
-    pub const fn structural(&self) -> &StructuralGraph {
-        &self.structural
     }
 
     /// Returns the explicit singleton rooted forest used to form `C(G,F)`.
@@ -340,16 +334,22 @@ fn singleton_forest(graph: &SourceDynamicGraph) -> Result<LsfStructuralCertifica
     })
 }
 
-fn maximum_integral_length(graph: &SourceDynamicGraph) -> Result<i128, Error> {
+fn maximum_coordinate(graph: &SourceDynamicGraph) -> Result<i128, Error> {
     let mut maximum = 0_i128;
     for index in 0..graph.edge_count() {
         let edge = graph
             .edge(SourceEdgeId(index))
             .ok_or(Error::MissingSourceEdge(SourceEdgeId(index)))?;
-        if edge.length.denominator() != 1 || !edge.length.is_positive() {
-            return Err(Error::NonintegralLength(SourceEdgeId(index)));
+        if !edge.length.is_positive() {
+            return Err(Error::InvalidLength(SourceEdgeId(index)));
         }
-        maximum = maximum.max(edge.length.numerator());
+        maximum = maximum.max(
+            edge.length
+                .numerator()
+                .checked_abs()
+                .ok_or(Error::Overflow)?
+                .max(edge.length.denominator()),
+        );
     }
     if maximum <= 0 {
         Err(Error::EmptyGraph)
@@ -465,8 +465,8 @@ pub enum Error {
     Candidate(#[from] CandidateError),
     #[error("source edge {0:?} is absent from the materialized projection")]
     MissingSourceEdge(SourceEdgeId),
-    #[error("source edge {0:?} has a nonintegral finite-core length")]
-    NonintegralLength(SourceEdgeId),
+    #[error("source edge {0:?} has an invalid finite-core length")]
+    InvalidLength(SourceEdgeId),
     #[error("finite source projection has no active edges")]
     EmptyGraph,
     #[error("rejected core edge {0:?} has an invalid retained spanner embedding")]
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn preserves_rational_scoring_coordinates_while_normalizing_structure() {
+    fn preserves_rational_coordinates_through_the_structural_chain() {
         let network = network();
         let rational_lengths = vec![ExactRatio::new(1, 2).unwrap(); network.arc_count()];
         let snapshot = Snapshot::build(
@@ -590,19 +590,6 @@ mod tests {
                 .unwrap()
                 .length,
             ExactRatio::new(1, 2).unwrap()
-        );
-        assert_eq!(
-            snapshot.structural().length_scale,
-            ExactRatio::new(2, 1).unwrap()
-        );
-        assert_eq!(
-            snapshot
-                .structural()
-                .graph
-                .edge(crate::SourceEdgeId(0))
-                .unwrap()
-                .length,
-            ExactRatio::new(1, 1).unwrap()
         );
         assert!(
             snapshot

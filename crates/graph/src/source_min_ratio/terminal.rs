@@ -15,7 +15,7 @@ use super::{
     candidate::{CandidateId, Context, Error as CandidateError, Fundamental, Kind, Registry},
     chain::{Chain, Error as ChainError, Selection, Shifts},
     cycle::{Cycle, Direction, Error as CycleError, Segment},
-    input::{Error as InputError, Input, Materialization},
+    input::{Error as InputError, Input, Materialization, StructuralGraph},
     model::{Branch, BranchId, Level, LevelId, Tree as SourceTree},
 };
 
@@ -26,6 +26,7 @@ use crate::source_an19::experiment::hierarchy::Lsst;
 pub struct Tree {
     input: Input,
     materialization: Materialization,
+    structural: StructuralGraph,
     hierarchy: Lsst,
     chain: Chain,
     shifts: Shifts,
@@ -70,7 +71,8 @@ impl Tree {
         root: FlowNodeId,
     ) -> Result<Self, Error> {
         let materialization = input.materialize(network)?;
-        let hierarchy = Lsst::construct(&materialization.graph, root)?;
+        let structural = input.structural_graph()?;
+        let hierarchy = Lsst::construct(&structural.graph, root)?;
         let tree = hierarchy.tree_edges.clone();
         let chain = Chain::new(
             &materialization.graph,
@@ -89,6 +91,7 @@ impl Tree {
         Ok(Self {
             input,
             materialization,
+            structural,
             hierarchy,
             chain,
             shifts,
@@ -104,7 +107,7 @@ impl Tree {
     /// Returns an error if the network no longer matches the input projection
     /// or any rebuilt source-derived field differs.
     pub fn verify(&self, network: &CirculationNetwork) -> Result<(), Error> {
-        self.hierarchy.verify(&self.materialization.graph)?;
+        self.hierarchy.verify(&self.structural.graph)?;
         let rebuilt = Self::build(self.input.clone(), network, self.root)?;
         if &rebuilt == self {
             Ok(())

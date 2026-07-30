@@ -3086,7 +3086,7 @@ pub(super) fn ceil_log_log(value: usize) -> usize {
         .max(1)
 }
 
-pub(super) fn round_length_to_power_of_two(
+pub(crate) fn round_length_to_power_of_two(
     length: ExactRatio,
     base: ExactRatio,
 ) -> Result<ExactRatio, Error> {

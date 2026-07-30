@@ -7,7 +7,8 @@ at low priority.** The formal SIAM journal version of Abraham and Neiman was
 checked, but it does not establish the reduced-event ordering/counting
 conversion needed here. Consequently, the AN19 runtime chain remains
 unverified. P9.3.3 through P9.5 may proceed with the source-shaped backend;
-P9.6 must close this proof debt before an AN19 runtime claim is made.
+Low-priority P9.6a must close this proof debt before an AN19 runtime claim is
+made.
 
 Source recovery, exact single-petal and symbolic weighted-portal gates, compact
 weighted hierarchy, recursive contraction, and fast membership-event processing
@@ -40,8 +41,8 @@ The power-of-two chord-family reduced-class lower bound is `0b3b704`.
 | Implemented and empirically audited | workspace scan counting, implementation counters/invariants, differential and regression tests | Complete | 247 tests passed and 3 existing tests were ignored; local and remote repository state was clean at `8f9ab06ce00c1e80a58e5b6302c14a408fefabd7` |
 | Source-checked but unsupported | formal SIAM source identification | Complete | Abraham--Neiman, SIAM J. Comput. 48(2), 2019, pp. 227--248, DOI `10.1137/17M1115575`; the required conversion is not present |
 | Refuted conversion branch | `O(log n)` reduced-cost classes from `O(log n)` original power-of-two lengths | Refuted | the `N=2^q` chord family has only `q+1` original classes but at least `N/2-1` distinct forward reduced costs |
-| Still unproved | exact reduced-event ordering replacement and corresponding AN19 asymptotic runtime | Deferred, low priority | the event stream must bypass the linear reduced-cost class count with a proved exact ordering structure before P9.6 can certify complexity |
-| Downstream gate | P9.3.2d proof debt | nonblocking implementation gate | P9.3.3 through P9.5 may continue; `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims wait for P9.6 proof closure |
+| Still unproved | exact reduced-event ordering replacement and corresponding AN19 asymptotic runtime | Deferred, low priority | the event stream must bypass the linear reduced-cost class count with a proved exact ordering structure before P9.6a can certify complexity |
+| Downstream gate | P9.3.2d proof debt | nonblocking implementation gate | P9.3.3 through P9.5 may continue; `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims wait for P9.6a proof closure |
 
 ## Resolved source questions
 
@@ -151,7 +152,7 @@ ambiguous interval must increase precision rather than choose a side.
 Gates 1--3 are implemented and empirically audited. Gate 4's runtime proof is
 deferred because the reduced-event conversion is missing. This does not block
 P9.3.3 through P9.5, but no AN19, Lemma 5.4, or production runtime claim is
-made before P9.6 closes the proof debt.
+made before P9.6a closes the proof debt.
 
 ## Linear reduced-class lower bound and remaining proof obligation
 
@@ -658,7 +659,7 @@ all 31 Oracle runs carry none. The maximum observed/bound totals are 473 and
 1,112. Exact semantic agreement remains true in every case. The source target
 is not upgraded: `priority_queue_bound_proved`, `global_amortization_proved`,
 and `an19_runtime_verified` remain false, P9.3.2d-pq-proof remains planned
-low-priority work, and P9.3.3 through P9.5 may proceed. P9.6 remains
+low-priority work, and P9.3.3 through P9.5 may proceed. P9.6a remains
 responsible for proof closure before an `AlmostLinear` claim.
 
 | Command | Exit | Result |

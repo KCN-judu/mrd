@@ -230,7 +230,7 @@ Consequently, the reduced-event class bound and AN19 runtime remain unproved,
 but P9.3.2d's faithful implementation and exact Oracle differential are
 complete. The missing proof is deferred, low-priority proof debt rather than an
 implementation blocker: P9.3.3 through P9.5 may proceed to a complete
-source-shaped flow backend. After P9.5, P9.6 must resolve the proof debt before
+source-shaped flow backend. After P9.5, low-priority P9.6a must resolve the proof debt before
 the backend may be named `AlmostLinear`, report `an19_runtime_verified: true`,
 or support an AN19 runtime claim.
 

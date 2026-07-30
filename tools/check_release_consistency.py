@@ -144,7 +144,7 @@ def check_an19_status_docs() -> None:
         "docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md": (
             "Current P9.3.2d deferred proof debt",
             "P9.3.3 through P9.5 build the complete source-shaped flow backend",
-            "P9.6 must",
+            "P9.6a must",
         ),
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
             "P9.3.2d state: complete",

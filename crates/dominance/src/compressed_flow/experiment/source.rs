@@ -406,8 +406,8 @@ pub enum Error {
 mod tests {
     use graph::{
         BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
-        FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioLedger,
-        StableWitness,
+        FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioError,
+        StableMinRatioLedger, StableWitness,
         source_flow::{
             Backend,
             iteration::{
@@ -415,7 +415,10 @@ mod tests {
                 ScheduledProjectionFactory,
             },
         },
-        source_min_ratio::{input::Input, spanner::Parameters as SpannerParameters},
+        source_min_ratio::{
+            candidate::Error as CandidateError, input::Input,
+            spanner::Parameters as SpannerParameters, terminal::Error as TerminalError,
+        },
         source_spanner::experiment::domain::ExhaustiveDomain,
     };
 
@@ -1020,5 +1023,64 @@ mod tests {
                 .certify_additive_half_termination(circulation.network()),
             Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
         );
+    }
+
+    #[test]
+    fn reciprocal_slack_coordinates_survive_multiple_structural_successors() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, _) = nonterminal_source_fixture(&circulation);
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory =
+            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 3)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 3,
+            }))
+        );
+        assert_eq!(driver.factory().preparation_count(), 3);
+        assert_eq!(driver.records().len(), 3);
+        assert!(
+            driver
+                .records()
+                .windows(2)
+                .all(|pair| pair[0].snapshot != pair[1].snapshot && pair[0].input != pair[1].input)
+        );
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn reciprocal_slack_coordinates_reject_the_next_exact_scoring_overflow() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, _) = nonterminal_source_fixture(&circulation);
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory =
+            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 4)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::Terminal(
+                TerminalError::Candidate(CandidateError::Ratio(StableMinRatioError::Overflow))
+            )))
+        );
+        assert_eq!(driver.factory().preparation_count(), 4);
+        assert_eq!(driver.records().len(), 3);
     }
 }

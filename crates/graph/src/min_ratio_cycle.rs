@@ -106,13 +106,22 @@ impl ExactRatio {
     ///
     /// Returns an error when the exact comparison overflows.
     pub fn at_least(self, other: Self) -> Result<bool, StableMinRatioError> {
-        Ok(self
-            .numerator
-            .checked_mul(other.denominator)
+        if self.is_negative() != other.is_negative() {
+            return Ok(!self.is_negative());
+        }
+        let numerator_divisor = gcd(
+            self.numerator.unsigned_abs(),
+            other.numerator.unsigned_abs(),
+        );
+        let denominator_divisor = gcd(
+            self.denominator.unsigned_abs(),
+            other.denominator.unsigned_abs(),
+        );
+        Ok(divide(self.numerator, numerator_divisor)?
+            .checked_mul(divide(other.denominator, denominator_divisor)?)
             .ok_or(StableMinRatioError::Overflow)?
-            >= other
-                .numerator
-                .checked_mul(self.denominator)
+            >= divide(other.numerator, numerator_divisor)?
+                .checked_mul(divide(self.denominator, denominator_divisor)?)
                 .ok_or(StableMinRatioError::Overflow)?)
     }
 
@@ -122,18 +131,24 @@ impl ExactRatio {
     ///
     /// Returns an error when exact arithmetic overflows.
     pub fn checked_add(self, other: Self) -> Result<Self, StableMinRatioError> {
+        let divisor = gcd(
+            self.denominator.unsigned_abs(),
+            other.denominator.unsigned_abs(),
+        );
+        let left_scale = divide(other.denominator, divisor)?;
+        let right_scale = divide(self.denominator, divisor)?;
         Self::new(
             self.numerator
-                .checked_mul(other.denominator)
+                .checked_mul(left_scale)
                 .and_then(|left| {
                     other
                         .numerator
-                        .checked_mul(self.denominator)
+                        .checked_mul(right_scale)
                         .and_then(|right| left.checked_add(right))
                 })
                 .ok_or(StableMinRatioError::Overflow)?,
             self.denominator
-                .checked_mul(other.denominator)
+                .checked_mul(left_scale)
                 .ok_or(StableMinRatioError::Overflow)?,
         )
     }
@@ -159,12 +174,20 @@ impl ExactRatio {
     ///
     /// Returns an error when exact arithmetic overflows.
     pub fn checked_mul(self, other: Self) -> Result<Self, StableMinRatioError> {
+        let left_divisor = gcd(
+            self.numerator.unsigned_abs(),
+            other.denominator.unsigned_abs(),
+        );
+        let right_divisor = gcd(
+            other.numerator.unsigned_abs(),
+            self.denominator.unsigned_abs(),
+        );
         Self::new(
-            self.numerator
-                .checked_mul(other.numerator)
+            divide(self.numerator, left_divisor)?
+                .checked_mul(divide(other.numerator, right_divisor)?)
                 .ok_or(StableMinRatioError::Overflow)?,
-            self.denominator
-                .checked_mul(other.denominator)
+            divide(self.denominator, right_divisor)?
+                .checked_mul(divide(other.denominator, left_divisor)?)
                 .ok_or(StableMinRatioError::Overflow)?,
         )
     }
@@ -184,11 +207,12 @@ impl ExactRatio {
     ///
     /// Returns an error when exact arithmetic overflows.
     pub fn checked_mul_integer(self, value: i128) -> Result<Self, StableMinRatioError> {
+        let divisor = gcd(value.unsigned_abs(), self.denominator.unsigned_abs());
         Self::new(
             self.numerator
-                .checked_mul(value)
+                .checked_mul(divide(value, divisor)?)
                 .ok_or(StableMinRatioError::Overflow)?,
-            self.denominator,
+            divide(self.denominator, divisor)?,
         )
     }
 
@@ -603,6 +627,13 @@ fn ratio_greater(left: ExactRatio, right: ExactRatio) -> Result<bool, StableMinR
             .ok_or(StableMinRatioError::Overflow)?)
 }
 
+fn divide(value: i128, divisor: u128) -> Result<i128, StableMinRatioError> {
+    let divisor = i128::try_from(divisor).map_err(|_| StableMinRatioError::Overflow)?;
+    value
+        .checked_div(divisor)
+        .ok_or(StableMinRatioError::Overflow)
+}
+
 const fn gcd(mut left: u128, mut right: u128) -> u128 {
     while right != 0 {
         let remainder = left % right;
@@ -787,6 +818,29 @@ mod tests {
                 },
             }),
             Err(StableMinRatioError::InvalidUpdate)
+        );
+    }
+
+    #[test]
+    fn cancels_shared_exact_terms_before_arithmetic() {
+        let base = 1_i128 << 100;
+        let first = ExactRatio::new(base - 1, base - 3).unwrap();
+        let second = ExactRatio::new(base - 3, base - 5).unwrap();
+        assert_eq!(
+            first.checked_mul(second).unwrap(),
+            ExactRatio::new(base - 1, base - 5).unwrap()
+        );
+        assert_eq!(
+            first
+                .checked_add(ExactRatio::new(2, base - 3).unwrap())
+                .unwrap(),
+            ExactRatio::new(base + 1, base - 3).unwrap()
+        );
+        assert!(
+            ExactRatio::new(base - 1, base - 5)
+                .unwrap()
+                .at_least(first)
+                .unwrap()
         );
     }
 }
