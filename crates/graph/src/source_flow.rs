@@ -80,7 +80,7 @@ impl Backend {
         let termination = self.certify_termination(snapshot, network)?;
         let rounding = recovery::round(network, snapshot.flow()).map_err(Error::Recovery)?;
         let optimal = snapshot.optimal_cost();
-        if !optimal.is_integral() || optimal.numerator() != rounding.solution.cost {
+        if !optimal.is_integral() || optimal.numerator_i128().ok() != Some(rounding.solution.cost) {
             return Err(Error::RecoveryNotOptimal);
         }
         // The additive-half certificate and exact cost equality above establish
@@ -253,7 +253,7 @@ mod tests {
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &network,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
             ExactRatio::new(0, 1).unwrap(),
@@ -282,7 +282,7 @@ mod tests {
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &network,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
             ExactRatio::new(0, 1).unwrap(),
@@ -347,7 +347,7 @@ mod tests {
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &initial.augmentation.network,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
             ExactRatio::new(0, 1).unwrap(),
@@ -386,22 +386,22 @@ mod tests {
         )
         .unwrap();
         let initial_flow = &initial.initial_point.augmentation.initial_flow;
-        let scale = ExactRatio::new(
-            initial_flow.cost.denominator(),
-            initial_flow.cost.numerator().checked_mul(8).unwrap(),
+        let scale = ExactRatio::from_bigints(
+            initial_flow.cost.denominator().clone(),
+            initial_flow.cost.numerator() * 8,
         )
         .unwrap();
         let arc_flows = initial_flow
             .arc_flows
             .iter()
-            .copied()
-            .map(|flow| flow.checked_mul(scale).unwrap())
+            .cloned()
+            .map(|flow| flow.checked_mul(&scale).unwrap())
             .collect();
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &initial.initial_point.augmentation.network,
             &FractionalCirculation {
                 arc_flows,
-                cost: initial_flow.cost.checked_mul(scale).unwrap(),
+                cost: initial_flow.cost.checked_mul(&scale).unwrap(),
             },
             ExactRatio::new(0, 1).unwrap(),
             initial.initial_point.augmentation.maximum_abs_input,

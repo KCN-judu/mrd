@@ -20,7 +20,7 @@ use super::{Core, WeightedExpansion};
 use crate::source_an19::experiment::hierarchy::Lsst;
 
 /// Checked finite-instance inputs for the Lemma 5.5 MWU construction.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameters {
     /// The exact number of source LSFs to construct.
     pub tree_count: usize,
@@ -91,7 +91,7 @@ impl Collection {
     /// Returns an error when recomputation cannot construct or certify the
     /// source LSFs, or when any stored certificate field differs.
     pub fn verify(&self, graph: &SourceDynamicGraph, root: FlowNodeId) -> Result<(), Error> {
-        let expected = compute(graph, root, self.certificate.parameters)?;
+        let expected = compute(graph, root, self.certificate.parameters.clone())?;
         if expected != self.certificate {
             return Err(Error::InvalidCertificate);
         }
@@ -114,18 +114,19 @@ impl Collection {
     ///
     /// Returns an error when `edge` is outside the static input snapshot.
     pub fn average_stretch(&self, edge: SourceEdgeId) -> Result<ExactRatio, Error> {
-        let total = *self
+        let total = self
             .certificate
             .aggregate_stretches
             .get(edge.0)
-            .ok_or(Error::EdgeOutOfBounds)?;
+            .ok_or(Error::EdgeOutOfBounds)?
+            .clone();
         let count = ExactRatio::new(
             i128::try_from(self.certificate.parameters.tree_count).map_err(|_| Error::Overflow)?,
             1,
         )
         .map_err(map_ratio)?;
         total
-            .checked_mul(count.reciprocal().map_err(map_ratio)?)
+            .checked_mul(&count.reciprocal().map_err(map_ratio)?)
             .map_err(map_ratio)
     }
 }
@@ -154,7 +155,7 @@ pub enum Error {
     Overflow,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Bounds {
     rho: ExactRatio,
     maximum_round_stretch: ExactRatio,
@@ -168,9 +169,9 @@ fn compute(
     root: FlowNodeId,
     parameters: Parameters,
 ) -> Result<Certificate, Error> {
-    validate_input(graph, root, parameters)?;
+    validate_input(graph, root, parameters.clone())?;
     let edge_count = graph.edge_count();
-    let bounds = derive_bounds(graph, parameters)?;
+    let bounds = derive_bounds(graph, parameters.clone())?;
     let one = ExactRatio::new(1, 1).map_err(map_ratio)?;
     let zero = ExactRatio::new(0, 1).map_err(map_ratio)?;
     let mut weights = vec![one; edge_count];
@@ -178,18 +179,18 @@ fn compute(
     let mut rounds = Vec::with_capacity(parameters.tree_count);
 
     for _ in 0..parameters.tree_count {
-        let round = construct_round(graph, root, parameters, bounds, &weights)?;
+        let round = construct_round(graph, root, parameters.clone(), bounds.clone(), &weights)?;
         for (total, stretch) in aggregate_stretches
             .iter_mut()
             .zip(&round.stretch_overestimates)
         {
-            *total = total.checked_add(*stretch).map_err(map_ratio)?;
+            *total = total.checked_add(stretch).map_err(map_ratio)?;
         }
-        weights = next_weights(&weights, &round.stretch_overestimates, bounds.rho)?;
+        weights = next_weights(&weights, &round.stretch_overestimates, bounds.rho.clone())?;
         rounds.push(round);
     }
 
-    verify_average_bound(&aggregate_stretches, bounds)?;
+    verify_average_bound(&aggregate_stretches, bounds.clone())?;
     Ok(Certificate {
         parameters,
         rho: bounds.rho,
@@ -227,28 +228,28 @@ fn validate_input(
 
 fn derive_bounds(graph: &SourceDynamicGraph, parameters: Parameters) -> Result<Bounds, Error> {
     let node_log = integer_ratio(ceil_log2(graph.node_count()).max(1))?;
-    let node_log_squared = node_log.checked_mul(node_log).map_err(map_ratio)?;
+    let node_log_squared = node_log.checked_mul(&node_log).map_err(map_ratio)?;
     let tree_count_ratio = integer_ratio(parameters.tree_count)?;
     let rho = parameters
         .stretch_envelope
         .checked_mul_integer(10)
-        .and_then(|value| value.checked_mul(tree_count_ratio))
-        .and_then(|value| value.checked_mul(node_log_squared))
+        .and_then(|value| value.checked_mul(&tree_count_ratio))
+        .and_then(|value| value.checked_mul(&node_log_squared))
         .map_err(map_ratio)?;
     let maximum_round_stretch = parameters
         .stretch_envelope
-        .checked_mul(tree_count_ratio)
-        .and_then(|value| value.checked_mul(node_log_squared))
+        .checked_mul(&tree_count_ratio)
+        .and_then(|value| value.checked_mul(&node_log_squared))
         .map_err(map_ratio)?;
     let edge_log = integer_i128(ceil_log2(graph.edge_count()).max(1))?;
     let twenty_nineteen = ExactRatio::new(20, 19).map_err(map_ratio)?;
     let uniform_average_stretch_bound = parameters
         .stretch_envelope
         .checked_mul_integer(10)
-        .and_then(|value| value.checked_mul(node_log_squared))
+        .and_then(|value| value.checked_mul(&node_log_squared))
         .and_then(|value| value.checked_mul_integer(edge_log))
-        .and_then(|value| value.checked_add(parameters.stretch_envelope.checked_mul_integer(2)?))
-        .and_then(|value| value.checked_mul(twenty_nineteen))
+        .and_then(|value| value.checked_add(&parameters.stretch_envelope.checked_mul_integer(2)?))
+        .and_then(|value| value.checked_mul(&twenty_nineteen))
         .map_err(map_ratio)?;
     let target_piece_count = graph
         .edge_count()
@@ -298,7 +299,7 @@ fn construct_round(
         root,
         bounds.target_piece_count.max(1),
         parameters.reduction_k,
-        bounds.maximum_round_stretch,
+        bounds.maximum_round_stretch.clone(),
     )
     .map_err(Error::SourceForestConstruction)?;
     let stretches = initialization
@@ -312,14 +313,14 @@ fn construct_round(
     let (weighted_stretch, maximum_stretch) = stretch_summary(weights, &stretches)?;
     let weighted_limit = parameters
         .stretch_envelope
-        .checked_mul(sum(weights)?)
+        .checked_mul(&sum(weights)?)
         .map_err(map_ratio)?;
     if !weighted_limit
-        .at_least(weighted_stretch)
+        .at_least(&weighted_stretch)
         .map_err(map_ratio)?
         || !bounds
             .maximum_round_stretch
-            .at_least(maximum_stretch)
+            .at_least(&maximum_stretch)
             .map_err(map_ratio)?
     {
         return Err(Error::StretchEnvelopeViolation);
@@ -339,10 +340,10 @@ fn construct_round(
 fn verify_average_bound(aggregate_stretches: &[ExactRatio], bounds: Bounds) -> Result<(), Error> {
     let divisor = bounds.tree_count_ratio.reciprocal().map_err(map_ratio)?;
     for total in aggregate_stretches {
-        let average = total.checked_mul(divisor).map_err(map_ratio)?;
+        let average = total.checked_mul(&divisor).map_err(map_ratio)?;
         if !bounds
             .uniform_average_stretch_bound
-            .at_least(average)
+            .at_least(&average)
             .map_err(map_ratio)?
         {
             return Err(Error::InvalidCertificate);
@@ -360,15 +361,21 @@ fn reweighted_graph(
     }
     let mut maximum = graph.maximum_abs_coordinate();
     let mut edges = Vec::with_capacity(graph.edge_count());
-    for (index, weight) in weights.iter().copied().enumerate() {
+    for (index, weight) in weights.iter().cloned().enumerate() {
         let edge = graph
             .edge(SourceEdgeId(index))
             .ok_or(Error::InactiveInputEdge)?;
-        maximum = maximum.max(weight.numerator()).max(weight.denominator());
+        let numerator = weight
+            .numerator_i128()
+            .map_err(|_| Error::Overflow)?
+            .checked_abs()
+            .ok_or(Error::Overflow)?;
+        let denominator = weight.denominator_i128().map_err(|_| Error::Overflow)?;
+        maximum = maximum.max(numerator).max(denominator);
         edges.push(SourceWeightedEdge {
             first: edge.first,
             second: edge.second,
-            length: edge.length,
+            length: edge.length.clone(),
             weight,
         });
     }
@@ -383,17 +390,17 @@ fn stretch_summary(
         return Err(Error::InvalidGraph);
     }
     let zero = ExactRatio::new(0, 1).map_err(map_ratio)?;
-    let mut weighted = zero;
+    let mut weighted = zero.clone();
     let mut maximum = zero;
     for (weight, stretch) in weights.iter().zip(stretches) {
         if !stretch.is_positive() {
             return Err(Error::InvalidCertificate);
         }
         weighted = weighted
-            .checked_add(weight.checked_mul(*stretch).map_err(map_ratio)?)
+            .checked_add(&weight.checked_mul(stretch).map_err(map_ratio)?)
             .map_err(map_ratio)?;
-        if stretch.at_least(maximum).map_err(map_ratio)? {
-            maximum = *stretch;
+        if stretch.at_least(&maximum).map_err(map_ratio)? {
+            maximum = stretch.clone();
         }
     }
     Ok((weighted, maximum))
@@ -413,12 +420,12 @@ fn next_weights(
         .iter()
         .zip(stretches)
         .map(|(weight, stretch)| {
-            let x = stretch.checked_mul(inverse_rho).map_err(map_ratio)?;
+            let x = stretch.checked_mul(&inverse_rho).map_err(map_ratio)?;
             let factor = one
-                .checked_add(x)
-                .and_then(|value| value.checked_add(x.checked_mul(x)?))
+                .checked_add(&x)
+                .and_then(|value| value.checked_add(&x.checked_mul(&x)?))
                 .map_err(map_ratio)?;
-            weight.checked_mul(factor).map_err(map_ratio)
+            weight.checked_mul(&factor).map_err(map_ratio)
         })
         .collect()
 }
@@ -427,7 +434,7 @@ fn sum(values: &[ExactRatio]) -> Result<ExactRatio, Error> {
     values
         .iter()
         .try_fold(ExactRatio::new(0, 1).map_err(map_ratio)?, |total, value| {
-            total.checked_add(*value).map_err(map_ratio)
+            total.checked_add(value).map_err(map_ratio)
         })
 }
 
@@ -506,7 +513,7 @@ mod tests {
                 first
                     .certificate()
                     .uniform_average_stretch_bound
-                    .at_least(first.average_stretch(SourceEdgeId(index)).unwrap())
+                    .at_least(&first.average_stretch(SourceEdgeId(index)).unwrap())
                     .unwrap()
             );
         }

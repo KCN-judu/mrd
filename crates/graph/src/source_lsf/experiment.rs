@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
 use thiserror::Error;
 
 use crate::{
@@ -105,7 +107,7 @@ impl WeightedExpansion {
         let mut total_original_weight = ratio(0)?;
         for (_, edge) in &active {
             total_original_weight = total_original_weight
-                .checked_add(edge.weight)
+                .checked_add(&edge.weight)
                 .map_err(map_ratio)?;
         }
         let m = i128::try_from(active.len()).map_err(|_| Error::Overflow)?;
@@ -117,7 +119,7 @@ impl WeightedExpansion {
             let scaled = edge
                 .weight
                 .checked_mul_integer(m)
-                .and_then(|value| value.checked_mul(inverse_total))
+                .and_then(|value| value.checked_mul(&inverse_total))
                 .map_err(map_ratio)?;
             let count = ceil_positive_ratio(scaled)?;
             for _ in 0..count {
@@ -125,7 +127,7 @@ impl WeightedExpansion {
                 copies.push(SourceWeightedEdge {
                     first: edge.first,
                     second: edge.second,
-                    length: edge.length,
+                    length: edge.length.clone(),
                     weight: ratio(1)?,
                 });
                 copy_to_original.push(original);
@@ -199,7 +201,7 @@ impl Core {
             .map(|index| {
                 graph
                     .edge(SourceEdgeId(index))
-                    .map_or_else(|| ratio(1), |edge| Ok(edge.weight))
+                    .map_or_else(|| ratio(1), |edge| Ok(edge.weight.clone()))
             })
             .collect::<Result<Vec<_>, _>>()?;
         let spielman_teng = tree.decompose_spielman_teng(&graph, &eta, target_piece_count)?;
@@ -211,12 +213,12 @@ impl Core {
         let order = tree.congestion_order(&graph)?;
         let global = tree.global_stretch_overestimates(&graph, &order.ordered_tree_edges)?;
         let mut terminals = decomposition_boundary.iter().copied().collect::<Vec<_>>();
-        for (index, stretch) in global.stretch_overestimates.iter().copied().enumerate() {
+        for (index, stretch) in global.stretch_overestimates.iter().cloned().enumerate() {
             let Some(edge) = graph.edge(SourceEdgeId(index)) else {
                 continue;
             };
             if stretch
-                .at_least(large_stretch_threshold)
+                .at_least(&large_stretch_threshold)
                 .map_err(map_ratio)?
             {
                 terminals.extend([edge.first, edge.second]);
@@ -260,12 +262,12 @@ impl Core {
         let order = tree.congestion_order(&graph)?;
         let global = tree.global_stretch_overestimates(&graph, &order.ordered_tree_edges)?;
         let mut terminals = decomposition.boundary.iter().copied().collect::<Vec<_>>();
-        for (index, stretch) in global.stretch_overestimates.iter().copied().enumerate() {
+        for (index, stretch) in global.stretch_overestimates.iter().cloned().enumerate() {
             let Some(edge) = graph.edge(SourceEdgeId(index)) else {
                 continue;
             };
             if stretch
-                .at_least(large_stretch_threshold)
+                .at_least(&large_stretch_threshold)
                 .map_err(map_ratio)?
             {
                 terminals.extend([edge.first, edge.second]);
@@ -445,12 +447,12 @@ impl Tree {
             return Err(Error::InvalidDecomposition);
         }
         let mut total = ratio(0)?;
-        for (index, value) in eta.iter().copied().enumerate() {
+        for (index, value) in eta.iter().cloned().enumerate() {
             if graph.edge(SourceEdgeId(index)).is_some() {
                 if !value.is_positive() {
                     return Err(Error::InvalidDecomposition);
                 }
-                total = total.checked_add(value).map_err(map_ratio)?;
+                total = total.checked_add(&value).map_err(map_ratio)?;
             }
         }
         let target = ExactRatio::new(
@@ -458,12 +460,12 @@ impl Tree {
             1,
         )
         .map_err(map_ratio)?;
-        if !total.at_least(target).map_err(map_ratio)? {
+        if !total.at_least(&target).map_err(map_ratio)? {
             return Err(Error::InvalidDecomposition);
         }
         let phi = total
             .checked_mul_integer(2)
-            .and_then(|value| value.checked_mul(target.reciprocal()?))
+            .and_then(|value| value.checked_mul(&target.reciprocal()?))
             .map_err(map_ratio)?;
         let mut builder = DecomposeBuilder {
             tree: self,
@@ -504,7 +506,7 @@ impl Tree {
             let edge = graph.edge(*id).ok_or(Error::InvalidTree)?;
             adjacency[edge.first.0].push((edge.second.0, *id));
             adjacency[edge.second.0].push((edge.first.0, *id));
-            edge_data.insert(*id, (edge.first.0, edge.second.0, edge.length));
+            edge_data.insert(*id, (edge.first.0, edge.second.0, edge.length.clone()));
         }
         let (parent, depth, order) = rooted_order(&adjacency, root.0)?;
         let heavy_child = heavy_children(&adjacency, &parent, &order)?;
@@ -592,7 +594,7 @@ impl Tree {
             for id in self.path(edge.first.0, edge.second.0)?.1 {
                 let slot = *edge_to_slot.get(&id).ok_or(Error::InvalidTree)?;
                 exact_congestion[slot] = exact_congestion[slot]
-                    .checked_add(reciprocal)
+                    .checked_add(&reciprocal)
                     .map_err(map_ratio)?;
             }
         }
@@ -692,7 +694,7 @@ impl Tree {
             let forest = self.forest_for_roots(&roots, ordered_tree_edges)?;
             let stretches = exact_forest_stretches(self, graph, &forest, &roots)?;
             for (sum, stretch) in sums.iter_mut().zip(stretches) {
-                *sum = sum.checked_add(stretch).map_err(map_ratio)?;
+                *sum = sum.checked_add(&stretch).map_err(map_ratio)?;
             }
         }
         let stretch_overestimates = sums
@@ -759,10 +761,10 @@ impl Tree {
             return Err(Error::InvalidDecomposition);
         }
         let zero = ratio(0)?;
-        let mut total_weight = zero;
+        let mut total_weight = zero.clone();
         for index in 0..graph.edge_count() {
             if let Some(edge) = graph.edge(SourceEdgeId(index)) {
-                total_weight = total_weight.checked_add(edge.weight).map_err(map_ratio)?;
+                total_weight = total_weight.checked_add(&edge.weight).map_err(map_ratio)?;
             }
         }
         let multiplier = i128::try_from(reduction_k)
@@ -772,15 +774,18 @@ impl Tree {
         let edge_count = i128::try_from(graph.edge_count()).map_err(|_| Error::Overflow)?;
         let per_piece_weight_limit = total_weight
             .checked_mul_integer(multiplier)
-            .and_then(|value| value.checked_mul(ExactRatio::new(1, edge_count)?))
+            .and_then(|value| value.checked_mul(&ExactRatio::new(1, edge_count)?))
             .map_err(map_ratio)?;
         let mut maximum_piece_weight = zero;
         for piece in pieces {
             let weight = adjacent_nonboundary_weight(graph, piece, &boundary)?;
-            if !per_piece_weight_limit.at_least(weight).map_err(map_ratio)? {
+            if !per_piece_weight_limit
+                .at_least(&weight)
+                .map_err(map_ratio)?
+            {
                 return Err(Error::InvalidDecomposition);
             }
-            if weight.at_least(maximum_piece_weight).map_err(map_ratio)? {
+            if weight.at_least(&maximum_piece_weight).map_err(map_ratio)? {
                 maximum_piece_weight = weight;
             }
         }
@@ -817,7 +822,7 @@ impl Tree {
                 continue;
             }
             if !certificate.stretch_overestimates[index]
-                .at_least(stretch)
+                .at_least(&stretch)
                 .map_err(map_ratio)?
             {
                 return Err(Error::InvalidStretch);
@@ -910,7 +915,7 @@ impl DecomposeBuilder<'_> {
             attached_edges.extend(child_result.attached_edges);
             vertices.extend(child_result.vertices);
             let weight = self.weight(&attached_edges)?;
-            if weight.at_least(self.phi).map_err(map_ratio)? {
+            if weight.at_least(&self.phi).map_err(map_ratio)? {
                 let mut piece_vertices = std::mem::take(&mut vertices);
                 piece_vertices.insert(FlowNodeId(vertex));
                 self.emit(piece_vertices, &attached_edges)?;
@@ -922,14 +927,16 @@ impl DecomposeBuilder<'_> {
         combined_edges.extend(&vertex_edges);
         let combined_weight = self.weight(&combined_edges)?;
         let twice_phi = self.phi.checked_mul_integer(2).map_err(map_ratio)?;
-        if combined_weight.at_least(self.phi).map_err(map_ratio)?
-            && twice_phi.at_least(combined_weight).map_err(map_ratio)?
+        if combined_weight.at_least(&self.phi).map_err(map_ratio)?
+            && twice_phi.at_least(&combined_weight).map_err(map_ratio)?
         {
             vertices.insert(FlowNodeId(vertex));
             self.emit(vertices, &combined_edges)?;
             return Self::empty_result();
         }
-        if combined_weight != twice_phi && combined_weight.at_least(twice_phi).map_err(map_ratio)? {
+        if combined_weight != twice_phi
+            && combined_weight.at_least(&twice_phi).map_err(map_ratio)?
+        {
             vertices.insert(FlowNodeId(vertex));
             self.emit(vertices, &attached_edges)?;
             self.emit(BTreeSet::from([FlowNodeId(vertex)]), &vertex_edges)?;
@@ -992,7 +999,7 @@ impl DecomposeBuilder<'_> {
 
     fn weight(&self, edges: &BTreeSet<SourceEdgeId>) -> Result<ExactRatio, Error> {
         edges.iter().try_fold(ratio(0)?, |sum, id| {
-            sum.checked_add(self.eta[id.0]).map_err(map_ratio)
+            sum.checked_add(&self.eta[id.0]).map_err(map_ratio)
         })
     }
 
@@ -1035,7 +1042,7 @@ impl DecomposeBuilder<'_> {
                 .map(|(index, _)| SourceEdgeId(index))
                 .collect::<BTreeSet<_>>();
             if !assigned_limit
-                .at_least(self.weight(&assigned)?)
+                .at_least(&self.weight(&assigned)?)
                 .map_err(map_ratio)?
             {
                 return Err(Error::InvalidDecomposition);
@@ -1060,7 +1067,7 @@ impl DecomposeBuilder<'_> {
         let target = i128::try_from(target_piece_count).map_err(|_| Error::Overflow)?;
         let expected_phi = total
             .checked_mul_integer(2)
-            .and_then(|value| value.checked_mul(ExactRatio::new(1, target)?))
+            .and_then(|value| value.checked_mul(&ExactRatio::new(1, target)?))
             .map_err(map_ratio)?;
         if expected_phi != self.phi {
             return Err(Error::InvalidDecomposition);
@@ -1188,7 +1195,7 @@ fn adjacent_nonboundary_weight(
             .into_iter()
             .any(|vertex| piece.vertices.contains(&vertex) && !boundary.contains(&vertex));
         if adjacent_nonboundary {
-            weight = weight.checked_add(edge.weight).map_err(map_ratio)?;
+            weight = weight.checked_add(&edge.weight).map_err(map_ratio)?;
         }
     }
     Ok(weight)
@@ -1360,7 +1367,7 @@ pub(super) fn exact_forest_stretches(
                 edge.first.0,
                 component_roots[component_of[edge.first.0]],
             )?
-            .checked_add(forest_distance(
+            .checked_add(&forest_distance(
                 tree,
                 &adjacency,
                 edge.second.0,
@@ -1370,8 +1377,8 @@ pub(super) fn exact_forest_stretches(
         };
         *slot = edge
             .length
-            .checked_add(route)
-            .and_then(|value| value.checked_mul(edge.length.reciprocal()?))
+            .checked_add(&route)
+            .and_then(|value| value.checked_mul(&edge.length.reciprocal()?))
             .map_err(map_ratio)?;
     }
     Ok(result)
@@ -1429,8 +1436,8 @@ fn forest_distance(
         for (next, id) in &adjacency[node] {
             if !seen[*next] {
                 seen[*next] = true;
-                let length = tree.edge_data.get(id).ok_or(Error::InvalidTree)?.2;
-                queue.push_back((*next, distance.checked_add(length).map_err(map_ratio)?));
+                let length = tree.edge_data.get(id).ok_or(Error::InvalidTree)?.2.clone();
+                queue.push_back((*next, distance.checked_add(&length).map_err(map_ratio)?));
             }
         }
     }
@@ -1443,12 +1450,12 @@ fn congestion_precedes(
     edge_to_slot: &BTreeMap<SourceEdgeId, usize>,
     congestion: &[ExactRatio],
 ) -> Result<bool, Error> {
-    let left_value = congestion[edge_to_slot[&left]];
-    let right_value = congestion[edge_to_slot[&right]];
+    let left_value = congestion[edge_to_slot[&left]].clone();
+    let right_value = congestion[edge_to_slot[&right]].clone();
     if left_value == right_value {
         return Ok(left < right);
     }
-    right_value.at_least(left_value).map_err(map_ratio)
+    right_value.at_least(&left_value).map_err(map_ratio)
 }
 
 fn permutation_ranks(
@@ -1478,11 +1485,9 @@ fn ceil_positive_ratio(value: ExactRatio) -> Result<usize, Error> {
     if !value.is_positive() {
         return Err(Error::InvalidWeightedExpansion);
     }
-    let adjusted = value
-        .numerator()
-        .checked_add(value.denominator().checked_sub(1).ok_or(Error::Overflow)?)
-        .ok_or(Error::Overflow)?;
-    usize::try_from(adjusted / value.denominator()).map_err(|_| Error::Overflow)
+    let adjusted = value.numerator().clone() + value.denominator() - BigInt::from(1);
+    let ceiling: BigInt = adjusted / value.denominator();
+    ceiling.to_usize().ok_or(Error::Overflow)
 }
 
 fn active_copy_limit(m: i128) -> Result<usize, Error> {

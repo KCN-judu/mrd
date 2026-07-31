@@ -1,3 +1,7 @@
+// Immutable snapshot and transition APIs intentionally retain owned domain
+// values; exact arithmetic primitives themselves borrow their operands.
+#![allow(clippy::needless_pass_by_value)]
+
 pub mod bitset;
 pub mod decremental_spanner;
 pub mod dinic;

@@ -94,10 +94,11 @@ pub fn contract(
             discarded_loops.insert(source);
             continue;
         }
-        let stretch = *forest
+        let stretch = forest
             .stretch_overestimates
             .get(index)
-            .ok_or(Error::InvalidCertificate)?;
+            .ok_or(Error::InvalidCertificate)?
+            .clone();
         edges.push(Edge {
             source,
             source_first: edge.first,
@@ -106,7 +107,7 @@ pub fn contract(
             second_component,
             scaled_length: edge
                 .length
-                .checked_mul(stretch)
+                .checked_mul(&stretch)
                 .map_err(|_| Error::Overflow)?,
         });
     }

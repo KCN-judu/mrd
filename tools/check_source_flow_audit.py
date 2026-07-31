@@ -39,7 +39,7 @@ REQUIRED = {
         "from_compact_candidate",
         "from_terminal_candidate",
         "from_maintained_candidates",
-        "decode_candidate",
+        "query::decode",
         "pub fn apply",
         "pub fn apply_source_selected",
         "pub struct SourceSelected",
@@ -82,6 +82,13 @@ COORDINATE_FORBIDDEN = (
     "snapshot.lengths()",
     "snapshot.gradients()",
 )
+MODULE_FORBIDDEN = {
+    "iteration": (
+        "decode_candidate",
+        "StableMinRatioLedger",
+        "StableWitness",
+    ),
+}
 
 
 def production_source(path: Path) -> str:
@@ -102,11 +109,14 @@ def main() -> None:
         for forbidden in FORBIDDEN:
             if forbidden in source:
                 fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
+        for forbidden in MODULE_FORBIDDEN.get(name, ()):
+            if forbidden in source:
+                fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
         if name == "coordinates":
             for forbidden in COORDINATE_FORBIDDEN:
                 if forbidden in source:
                     fail(f"forbidden interval read {forbidden!r} in {path.relative_to(ROOT)}")
-    print("source_flow audit: no reference-flow or recovery fallback dependency")
+    print("source_flow audit: no reference-flow, recovery fallback, or hidden-stability execution dependency")
 
 
 if __name__ == "__main__":

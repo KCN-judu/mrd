@@ -1,3 +1,6 @@
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{Signed, ToPrimitive};
 use thiserror::Error;
 
 use crate::{ExactRatio, FlowNodeId, StableMinRatioError};
@@ -166,12 +169,12 @@ impl IsolationPerturbation {
         let zero = ExactRatio::new(0, 1).map_err(map_ratio_error)?;
         let gap = flow
             .cost
-            .checked_sub(scaled_optimal_cost)
+            .checked_sub(&scaled_optimal_cost)
             .map_err(map_ratio_error)?;
-        if !gap.at_least(zero).map_err(map_ratio_error)?
+        if !gap.at_least(&zero).map_err(map_ratio_error)?
             || (!self
                 .scaled_near_optimal_tolerance
-                .at_least(gap)
+                .at_least(&gap)
                 .map_err(map_ratio_error)?)
         {
             return Err(MinCostCirculationError::InvalidPerturbation);
@@ -179,7 +182,7 @@ impl IsolationPerturbation {
         let arc_flows = flow
             .arc_flows
             .iter()
-            .copied()
+            .cloned()
             .map(round_ratio_nearest)
             .collect::<Result<Vec<_>, _>>()?;
         let solution = MinCostSolution {
@@ -191,7 +194,7 @@ impl IsolationPerturbation {
             solution,
             rank_support_upper: self.rank_support_upper,
             scaled_cost_denominator: self.scaled_cost_denominator,
-            scaled_near_optimal_tolerance: self.scaled_near_optimal_tolerance,
+            scaled_near_optimal_tolerance: self.scaled_near_optimal_tolerance.clone(),
             source_success_probability_numerator: 1,
             source_success_probability_denominator: 2,
             exact_oracle_verified: true,
@@ -654,16 +657,18 @@ impl CirculationNetwork {
             )?;
             let flow = ExactRatio::new(arc.capacity, 2).map_err(map_ratio_error)?;
             balance[arc.from] = balance[arc.from]
-                .checked_sub(flow)
+                .checked_sub(&flow)
                 .map_err(map_ratio_error)?;
-            balance[arc.to] = balance[arc.to].checked_add(flow).map_err(map_ratio_error)?;
+            balance[arc.to] = balance[arc.to]
+                .checked_add(&flow)
+                .map_err(map_ratio_error)?;
             initial_flows.push(flow);
         }
         augmented.set_demand(FlowNodeId(root), 0)?;
         let mut artificial_arc_ids = Vec::new();
         for (node, current) in balance.into_iter().enumerate() {
             let target = ExactRatio::new(self.demands[node], 1).map_err(map_ratio_error)?;
-            let correction = target.checked_sub(current).map_err(map_ratio_error)?;
+            let correction = target.checked_sub(&current).map_err(map_ratio_error)?;
             if correction.is_zero() {
                 continue;
             }
@@ -672,7 +677,7 @@ impl CirculationNetwork {
             if !capacity_ratio.is_integral() {
                 return Err(MinCostCirculationError::InvalidFractionalSolution);
             }
-            let capacity = capacity_ratio.numerator() / capacity_ratio.denominator();
+            let capacity = capacity_ratio.numerator_i128().map_err(map_ratio_error)?;
             let (from, to) = if correction.is_positive() {
                 (FlowNodeId(root), FlowNodeId(node))
             } else {
@@ -688,15 +693,22 @@ impl CirculationNetwork {
             cost,
         };
         augmented.verify_fractional_solution(&initial_flow)?;
-        let maximum_abs_augmented = maximum_abs_input.max(artificial_cost).max(
-            initial_flow
-                .arc_flows
-                .iter()
-                .map(|flow| flow.numerator().unsigned_abs())
-                .max()
-                .and_then(|value| i128::try_from(value).ok())
-                .unwrap_or(0),
-        );
+        let maximum_flow_coordinate = initial_flow
+            .arc_flows
+            .iter()
+            .map(|flow| {
+                flow.numerator()
+                    .abs()
+                    .to_i128()
+                    .ok_or(MinCostCirculationError::Overflow)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .max()
+            .unwrap_or(0);
+        let maximum_abs_augmented = maximum_abs_input
+            .max(artificial_cost)
+            .max(maximum_flow_coordinate);
         Ok(InitialPointAugmentation {
             original_network: self.clone(),
             network: augmented,
@@ -796,14 +808,12 @@ impl CirculationNetwork {
             return Err(MinCostCirculationError::InvalidFractionalSolution);
         }
         let zero = ratio_from_integer(0)?;
-        let mut balance = vec![zero; self.node_count];
+        let mut balance = vec![zero.clone(); self.node_count];
         for (arc, flow) in self.arcs.iter().zip(arc_flows) {
             balance[arc.from] = balance[arc.from]
-                .checked_sub(*flow)
+                .checked_sub(flow)
                 .map_err(map_ratio_error)?;
-            balance[arc.to] = balance[arc.to]
-                .checked_add(*flow)
-                .map_err(map_ratio_error)?;
+            balance[arc.to] = balance[arc.to].checked_add(flow).map_err(map_ratio_error)?;
         }
         if balance.iter().any(|value| *value != zero) {
             return Err(MinCostCirculationError::InvalidFractionalSolution);
@@ -858,12 +868,15 @@ impl CirculationNetwork {
             .zip(arc_flows)
             .map(|(arc, flow)| {
                 let capacity = ratio_from_integer(arc.capacity)?;
-                if !flow.at_least(zero).map_err(map_ratio_error)?
-                    || !capacity.at_least(*flow).map_err(map_ratio_error)?
+                if !flow.at_least(&zero).map_err(map_ratio_error)?
+                    || !capacity.at_least(flow).map_err(map_ratio_error)?
                 {
                     return Err(MinCostCirculationError::InvalidFractionalSolution);
                 }
-                Ok((*flow, capacity.checked_sub(*flow).map_err(map_ratio_error)?))
+                Ok((
+                    flow.clone(),
+                    capacity.checked_sub(flow).map_err(map_ratio_error)?,
+                ))
             })
             .collect()
     }
@@ -918,15 +931,16 @@ impl CirculationNetwork {
             let augmentation = oriented
                 .iter()
                 .try_fold(None::<ExactRatio>, |best, (arc, sign)| {
-                    let flow = *current
+                    let flow = current
                         .arc_flows
                         .get(arc.0)
-                        .ok_or(MinCostCirculationError::InvalidFractionalSolution)?;
+                        .ok_or(MinCostCirculationError::InvalidFractionalSolution)?
+                        .clone();
                     let available = fractional_availability(flow, *sign)?;
                     match best {
                         None => Ok(Some(available)),
                         Some(current_best)
-                            if current_best.at_least(available).map_err(map_ratio_error)? =>
+                            if current_best.at_least(&available).map_err(map_ratio_error)? =>
                         {
                             Ok(Some(available))
                         }
@@ -943,12 +957,12 @@ impl CirculationNetwork {
                     .arc_flows
                     .get_mut(arc.0)
                     .ok_or(MinCostCirculationError::InvalidFractionalSolution)?;
-                *slot = slot.checked_add(delta).map_err(map_ratio_error)?;
+                *slot = slot.checked_add(&delta).map_err(map_ratio_error)?;
             }
             current.cost = fractional_cost(self, &current.arc_flows)?;
             if current
                 .cost
-                .at_least(cost_before)
+                .at_least(&cost_before)
                 .map_err(map_ratio_error)?
                 && current.cost != cost_before
             {
@@ -959,16 +973,16 @@ impl CirculationNetwork {
                 cycle: oriented,
                 augmentation,
                 cost_before,
-                cost_after: current.cost,
+                cost_after: current.cost.clone(),
             });
         }
         let arc_flows = current
             .arc_flows
             .iter()
-            .map(|flow| flow.numerator() / flow.denominator())
-            .collect::<Vec<_>>();
+            .map(|flow| flow.numerator_i128().map_err(map_ratio_error))
+            .collect::<Result<Vec<_>, _>>()?;
         let solution = MinCostSolution {
-            cost: current.cost.numerator() / current.cost.denominator(),
+            cost: current.cost.numerator_i128().map_err(map_ratio_error)?,
             arc_flows,
         };
         validate_feasible_solution(self, &solution)?;
@@ -1129,18 +1143,14 @@ fn ratio_from_integer(value: i128) -> Result<ExactRatio, MinCostCirculationError
 
 fn round_ratio_nearest(value: ExactRatio) -> Result<i128, MinCostCirculationError> {
     let denominator = value.denominator();
-    let floor = value.numerator().div_euclid(denominator);
-    let remainder = value.numerator().rem_euclid(denominator);
-    let doubled = remainder
-        .checked_mul(2)
-        .ok_or(MinCostCirculationError::Overflow)?;
-    if doubled < denominator {
-        Ok(floor)
-    } else {
+    let floor = value.numerator().div_floor(denominator);
+    let remainder = value.numerator().mod_floor(denominator);
+    let rounded = if &remainder * 2 < *denominator {
         floor
-            .checked_add(1)
-            .ok_or(MinCostCirculationError::Overflow)
-    }
+    } else {
+        floor + 1
+    };
+    rounded.to_i128().ok_or(MinCostCirculationError::Overflow)
 }
 
 fn fractional_cost(
@@ -1154,7 +1164,7 @@ fn fractional_cost(
         .zip(&network.arcs)
         .try_fold(ratio_from_integer(0)?, |sum, (value, arc)| {
             sum.checked_add(
-                value
+                &value
                     .checked_mul_integer(arc.cost)
                     .map_err(map_ratio_error)?,
             )
@@ -1170,20 +1180,18 @@ fn validate_fractional_solution(
         return Err(MinCostCirculationError::InvalidFractionalSolution);
     }
     let zero = ratio_from_integer(0)?;
-    let mut balance = vec![zero; network.node_count];
+    let mut balance = vec![zero.clone(); network.node_count];
     for (arc, flow) in network.arcs.iter().zip(&solution.arc_flows) {
         let capacity = ratio_from_integer(arc.capacity)?;
-        if !flow.at_least(zero).map_err(map_ratio_error)?
-            || !capacity.at_least(*flow).map_err(map_ratio_error)?
+        if !flow.at_least(&zero).map_err(map_ratio_error)?
+            || !capacity.at_least(flow).map_err(map_ratio_error)?
         {
             return Err(MinCostCirculationError::InvalidFractionalSolution);
         }
         balance[arc.from] = balance[arc.from]
-            .checked_sub(*flow)
+            .checked_sub(flow)
             .map_err(map_ratio_error)?;
-        balance[arc.to] = balance[arc.to]
-            .checked_add(*flow)
-            .map_err(map_ratio_error)?;
+        balance[arc.to] = balance[arc.to].checked_add(flow).map_err(map_ratio_error)?;
     }
     for (actual, expected) in balance.iter().zip(&network.demands) {
         if *actual != ratio_from_integer(*expected)? {
@@ -1205,15 +1213,14 @@ fn fractional_availability(
     }
     let floor = flow.numerator() / flow.denominator();
     match direction {
-        1 => ratio_from_integer(
-            floor
-                .checked_add(1)
-                .ok_or(MinCostCirculationError::Overflow)?,
-        )?
-        .checked_sub(flow)
-        .map_err(map_ratio_error),
+        1 => ExactRatio::from_bigints(floor + 1, BigInt::from(1))
+            .map_err(map_ratio_error)?
+            .checked_sub(&flow)
+            .map_err(map_ratio_error),
         -1 => flow
-            .checked_sub(ratio_from_integer(floor)?)
+            .checked_sub(
+                &ExactRatio::from_bigints(floor, BigInt::from(1)).map_err(map_ratio_error)?,
+            )
             .map_err(map_ratio_error),
         _ => Err(MinCostCirculationError::InvalidFractionalSolution),
     }
@@ -1745,7 +1752,7 @@ mod tests {
         assert!(
             rounded.steps[0]
                 .cost_before
-                .at_least(rounded.steps[0].cost_after)
+                .at_least(&rounded.steps[0].cost_after)
                 .unwrap()
         );
         network.verify_solution(&rounded.solution).unwrap();
@@ -1765,7 +1772,7 @@ mod tests {
                         .unwrap();
                     let value = ExactRatio::new(numerator, 4).unwrap();
                     let initial = FractionalCirculation {
-                        arc_flows: vec![value; 2],
+                        arc_flows: vec![value.clone(); 2],
                         cost: value
                             .checked_mul_integer(forward_cost + backward_cost)
                             .unwrap(),
@@ -1773,7 +1780,7 @@ mod tests {
                     let rounded = network.round_fractional_costed(&initial).unwrap();
                     network.verify_solution(&rounded.solution).unwrap();
                     let rounded_cost = ExactRatio::new(rounded.solution.cost, 1).unwrap();
-                    assert!(initial.cost.at_least(rounded_cost).unwrap());
+                    assert!(initial.cost.at_least(&rounded_cost).unwrap());
                     assert!(
                         rounded.solution.arc_flows == vec![0, 0]
                             || rounded.solution.arc_flows == vec![1, 1]

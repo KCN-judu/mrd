@@ -226,7 +226,7 @@ impl DynamicRootedForest {
         for (index, active) in self.active.iter().enumerate() {
             if *active
                 && !bounds[index]
-                    .at_least(self.stretch(ForestEdgeId(index))?)
+                    .at_least(&self.stretch(ForestEdgeId(index))?)
                     .map_err(|_| RootedForestError::Overflow)?
             {
                 return Err(RootedForestError::InvalidCertificate);

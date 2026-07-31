@@ -130,9 +130,9 @@ impl Run {
         let mut previous_state = State::default();
         let mut semantic_keys = BTreeSet::new();
         for event in &self.semantic_trace {
-            let radius = ExactRatio::try_from(event.exact_event_radius)?;
+            let radius = ExactRatio::try_from(event.exact_event_radius.clone())?;
             if let Some(old) = previous
-                && ratio_less(radius, old)?
+                && ratio_less(radius.clone(), old)?
             {
                 return Err(Error::InvalidEventTrace);
             }
@@ -153,7 +153,7 @@ impl Run {
             previous_state = event.state_after;
             let key = (
                 event.event_type,
-                event.exact_event_radius,
+                event.exact_event_radius.clone(),
                 event.affected_vertex_id,
                 event.affected_directed_incidence_id,
             );
@@ -228,7 +228,7 @@ fn normalized_semantic_trace(trace: &[Record]) -> Vec<NormalizedEvent> {
         .map(|event| {
             (
                 event.event_type,
-                event.exact_event_radius,
+                event.exact_event_radius.clone(),
                 event.affected_vertex_id,
                 event.affected_directed_incidence_id,
                 event.stale,

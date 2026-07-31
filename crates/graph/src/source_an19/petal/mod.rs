@@ -127,7 +127,7 @@ impl UnweightedPetal {
         target: FlowNodeId,
         budget: ExactRatio,
     ) -> Result<Self, Error> {
-        validate_domain(graph, cluster, remaining, center, target, budget)?;
+        validate_domain(graph, cluster, remaining, center, target, budget.clone())?;
         let mut metrics = PetalMetrics::default();
         let cluster_paths = shortest_paths(graph, cluster, center, &mut metrics)?;
         let recovered_path = recover_path(center, target, &cluster_paths)?;
@@ -150,7 +150,7 @@ impl UnweightedPetal {
             &recovered_path.vertices,
             &remaining_from_center,
             target,
-            budget,
+            budget.clone(),
             &mut metrics,
         )?;
         let cluster_edges = internal_edge_count(graph, cluster);
@@ -163,8 +163,8 @@ impl UnweightedPetal {
         let levels = ceil_log_log(graph.node_count());
         let mut selected = None;
         for index in 1..=levels {
-            let window_end = window_radius(budget, index, levels, true)?;
-            let vertices = vertices_at_radius(remaining, &thresholds, window_end)?;
+            let window_end = window_radius(budget.clone(), index, levels, true)?;
+            let vertices = vertices_at_radius(remaining, &thresholds, window_end.clone())?;
             let internal = internal_edge_count(graph, &vertices);
             metrics.certified_comparisons = metrics
                 .certified_comparisons
@@ -176,15 +176,15 @@ impl UnweightedPetal {
             }
         }
         let (window_index, window_end) = selected.ok_or(Error::InvalidRadius)?;
-        let window_start = window_radius(budget, window_index, levels, false)?;
-        let start_vertices = vertices_at_radius(remaining, &thresholds, window_start)?;
+        let window_start = window_radius(budget.clone(), window_index, levels, false)?;
+        let start_vertices = vertices_at_radius(remaining, &thresholds, window_start.clone())?;
         let start_edges = internal_edge_count(graph, &start_vertices);
         if start_edges == 0 || start_edges >= cluster_edges {
             return Err(Error::InvalidRadius);
         }
-        let mut radius = window_start;
+        let mut radius = window_start.clone();
         let (vertices, internal_edges, boundary_edges) = loop {
-            let vertices = vertices_at_radius(remaining, &thresholds, radius)?;
+            let vertices = vertices_at_radius(remaining, &thresholds, radius.clone())?;
             let internal = internal_edge_count(graph, &vertices);
             let boundary = boundary_edge_count(graph, cluster, &vertices);
             metrics.certified_comparisons = metrics
@@ -197,22 +197,21 @@ impl UnweightedPetal {
                 internal,
                 count_ratio(boundary)?,
                 levels,
-                budget,
+                budget.clone(),
             )? {
                 break (vertices, internal, boundary);
             }
-            radius = next_radius_event(remaining, &thresholds, radius, window_end)?
+            radius = next_radius_event(remaining, &thresholds, radius, window_end.clone())?
                 .ok_or(Error::InvalidRadius)?;
             metrics.radius_events = metrics
                 .radius_events
                 .checked_add(1)
                 .ok_or(Error::Overflow)?;
         };
-        let center_vertex = recovered_path
-            .vertices
-            .iter()
-            .copied()
-            .find(|vertex| thresholds.path_distance_from_target[vertex.0] == Some(radius));
+        let center_vertex =
+            recovered_path.vertices.iter().copied().find(|vertex| {
+                thresholds.path_distance_from_target[vertex.0] == Some(radius.clone())
+            });
         Ok(Self {
             vertices,
             path_from_center: recovered_path.vertices,
@@ -302,7 +301,7 @@ impl WeightedPetalAtRadius {
         radius: ExactRatio,
         fast_paths: bool,
     ) -> Result<Self, Error> {
-        validate_weighted_domain(graph, cluster, remaining, center, target, radius)?;
+        validate_weighted_domain(graph, cluster, remaining, center, target, radius.clone())?;
         let mut metrics = PetalMetrics::default();
         let cluster_paths =
             hierarchy_or_oracle_paths(graph, cluster, center, fast_paths, &mut metrics)?;
@@ -321,7 +320,8 @@ impl WeightedPetalAtRadius {
                 return Err(Error::InvalidDomain);
             }
         }
-        let (portal, highway_segments) = locate_portal_and_highway(graph, &path, target, radius)?;
+        let (portal, highway_segments) =
+            locate_portal_and_highway(graph, &path, target, radius.clone())?;
         let directed_distances = directed_petal_distances(
             graph,
             remaining,
@@ -331,13 +331,15 @@ impl WeightedPetalAtRadius {
             &mut metrics,
         )?;
         let half_radius = radius
-            .checked_mul(ratio(1, 2)?)
+            .checked_mul(&ratio(1, 2)?)
             .map_err(|_| Error::Overflow)?;
         let mut vertices = BTreeSet::new();
         for vertex in remaining {
-            let distance = directed_distances[vertex.0].ok_or(Error::Disconnected)?;
+            let distance = directed_distances[vertex.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
             if half_radius
-                .at_least(distance)
+                .at_least(&distance)
                 .map_err(|_| Error::Overflow)?
             {
                 vertices.insert(*vertex);
@@ -435,7 +437,7 @@ impl WeightedPetal {
         fast_events: bool,
         level_node_count: usize,
     ) -> Result<Self, Error> {
-        validate_weighted_domain(graph, cluster, remaining, center, target, budget)?;
+        validate_weighted_domain(graph, cluster, remaining, center, target, budget.clone())?;
         if !budget.is_positive() {
             return Err(Error::InvalidDomain);
         }
@@ -457,8 +459,10 @@ impl WeightedPetal {
                 return Err(Error::InvalidDomain);
             }
         }
-        let target_distance = remaining_paths.distances[target.0].ok_or(Error::Disconnected)?;
-        if ratio_less(target_distance, budget)? {
+        let target_distance = remaining_paths.distances[target.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
+        if ratio_less(target_distance, budget.clone())? {
             return Err(Error::InvalidRadius);
         }
         let thresholds = if fast_events {
@@ -468,7 +472,7 @@ impl WeightedPetal {
                 target,
                 &path,
                 &remaining_paths.distances,
-                budget,
+                budget.clone(),
                 &mut metrics,
             )?
         } else {
@@ -478,7 +482,7 @@ impl WeightedPetal {
                 target,
                 &path,
                 &remaining_paths.distances,
-                budget,
+                budget.clone(),
                 &mut metrics,
             )?
         };
@@ -571,7 +575,7 @@ pub(super) fn select_weighted_figure_six(
     )
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) struct RegionAdjacencyEdge {
     other: FlowNodeId,
     edge: SourceEdgeId,
@@ -588,7 +592,7 @@ pub(super) struct RegionVolumeState {
     boundary_cost: ExactRatio,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(super) fn select_weighted_figure_six_fast(
     graph: &SourceDynamicGraph,
     cluster: &BTreeSet<FlowNodeId>,
@@ -614,17 +618,18 @@ pub(super) fn select_weighted_figure_six_fast(
     let mut cursor = 0;
     let mut selected = None;
     for index in 1..=levels {
-        let window_end = window_radius(budget, index, levels, true)?;
+        let window_end = window_radius(budget.clone(), index, levels, true)?;
         advance_region_state(
             &events,
             &mut cursor,
-            window_end,
+            window_end.clone(),
             &adjacency,
             &mut state,
             metrics,
         )?;
-        let portal_split =
-            usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_end));
+        let portal_split = usize::from(
+            compact_weighted_portals && portal_is_interior(thresholds, window_end.clone()),
+        );
         let petal_edges = state.edge_measure(compact_weighted_portals, portal_split, metrics)?;
         let cluster_edges = checked_edge_sum(base_cluster_edges, portal_split)?;
         let active_edges = checked_edge_sum(base_active_edges, portal_split)?;
@@ -635,63 +640,64 @@ pub(super) fn select_weighted_figure_six_fast(
         }
     }
     let (window_index, window_end) = selected.ok_or(Error::InvalidRadius)?;
-    let window_start = window_radius(budget, window_index, levels, false)?;
+    let window_start = window_radius(budget.clone(), window_index, levels, false)?;
     let mut state = RegionVolumeState::new(graph)?;
     let mut cursor = 0;
     advance_region_state(
         &events,
         &mut cursor,
-        window_start,
+        window_start.clone(),
         &adjacency,
         &mut state,
         metrics,
     )?;
-    let start_portal_split =
-        usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_start));
+    let start_portal_split = usize::from(
+        compact_weighted_portals && portal_is_interior(thresholds, window_start.clone()),
+    );
     let start_edges = state.edge_measure(compact_weighted_portals, start_portal_split, metrics)?;
     let start_cluster_edges = checked_edge_sum(base_cluster_edges, start_portal_split)?;
     if start_edges == 0 || start_edges >= start_cluster_edges {
         return Err(Error::InvalidRadius);
     }
-    let mut radius = window_start;
+    let mut radius = window_start.clone();
     loop {
         let portal_split =
-            usize::from(compact_weighted_portals && portal_is_interior(thresholds, radius));
+            usize::from(compact_weighted_portals && portal_is_interior(thresholds, radius.clone()));
         let petal_edges = state.edge_measure(compact_weighted_portals, portal_split, metrics)?;
         let cluster_edges = checked_edge_sum(base_cluster_edges, portal_split)?;
         let boundary_cost = if compact_weighted_portals {
-            state.boundary_cost
+            state.boundary_cost.clone()
         } else {
             count_ratio(state.boundary_edges)?
         };
         metrics.certified_comparisons = checked_metric_sum(metrics.certified_comparisons, 1)?;
         if let Some(selection) = fast_stopping_selection(
-            radius,
+            radius.clone(),
             window_index,
-            window_start,
-            window_end,
+            window_start.clone(),
+            window_end.clone(),
             cluster_edges,
             start_edges,
             petal_edges,
             state.boundary_edges,
             boundary_cost,
             levels,
-            budget,
+            budget.clone(),
         )? {
             return Ok(selection);
         }
         let next = events
             .get(cursor)
-            .map(|event| event.distance)
+            .map(|event| event.distance.clone())
             .ok_or(Error::InvalidRadius)?;
-        if ratio_less(window_end, next)? {
+        if ratio_less(window_end.clone(), next.clone())? {
             return Err(Error::InvalidRadius);
         }
         radius = next;
         advance_region_state(
             &events,
             &mut cursor,
-            radius,
+            radius.clone(),
             &adjacency,
             &mut state,
             metrics,
@@ -789,7 +795,7 @@ impl RegionVolumeState {
                     self.boundary_edges = checked_edge_sum(self.boundary_edges, 1)?;
                     self.boundary_cost = self
                         .boundary_cost
-                        .checked_add(weight)
+                        .checked_add(&weight)
                         .map_err(|_| Error::Overflow)?;
                 }
             } else if self.included[adjacent.other.0] && adjacent.other != vertex {
@@ -800,7 +806,7 @@ impl RegionVolumeState {
                     .ok_or(Error::InvalidRadius)?;
                 self.boundary_cost = self
                     .boundary_cost
-                    .checked_sub(weight)
+                    .checked_sub(&weight)
                     .map_err(|_| Error::Overflow)?;
             }
         }
@@ -818,11 +824,11 @@ pub(super) fn sorted_membership_events(
     }
     let mut heap = Vec::new();
     for vertex in remaining {
-        if let Some(distance) = thresholds.by_vertex[vertex.0] {
+        if let Some(distance) = &thresholds.by_vertex[vertex.0] {
             event_heap_push(
                 &mut heap,
                 ExactHeapEntry {
-                    distance,
+                    distance: distance.clone(),
                     vertex: *vertex,
                 },
                 metrics,
@@ -852,13 +858,13 @@ pub(super) fn region_adjacency(
             adjacency[edge.first.0].push(RegionAdjacencyEdge {
                 other: edge.second,
                 edge: edge_id,
-                length: edge.length,
+                length: edge.length.clone(),
             });
             if edge.first != edge.second {
                 adjacency[edge.second.0].push(RegionAdjacencyEdge {
                     other: edge.first,
                     edge: edge_id,
-                    length: edge.length,
+                    length: edge.length.clone(),
                 });
             }
         }
@@ -875,7 +881,7 @@ pub(super) fn advance_region_state(
     metrics: &mut PetalMetrics,
 ) -> Result<(), Error> {
     while let Some(event) = events.get(*cursor) {
-        if ratio_less(radius, event.distance)? {
+        if ratio_less(radius.clone(), event.distance.clone())? {
             break;
         }
         state.activate(event.vertex, adjacency, metrics)?;
@@ -905,10 +911,11 @@ pub(super) fn select_weighted_figure_six_oracle(
     let levels = ceil_log_log(level_node_count);
     let mut selected = None;
     for index in 1..=levels {
-        let window_end = window_radius(budget, index, levels, true)?;
-        let vertices = vertices_at_radius(remaining, thresholds, window_end)?;
-        let portal_split =
-            usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_end));
+        let window_end = window_radius(budget.clone(), index, levels, true)?;
+        let vertices = vertices_at_radius(remaining, thresholds, window_end.clone())?;
+        let portal_split = usize::from(
+            compact_weighted_portals && portal_is_interior(thresholds, window_end.clone()),
+        );
         let internal = petal_edge_measure(
             graph,
             cluster,
@@ -928,10 +935,11 @@ pub(super) fn select_weighted_figure_six_oracle(
         }
     }
     let (window_index, window_end) = selected.ok_or(Error::InvalidRadius)?;
-    let window_start = window_radius(budget, window_index, levels, false)?;
-    let start_vertices = vertices_at_radius(remaining, thresholds, window_start)?;
-    let start_portal_split =
-        usize::from(compact_weighted_portals && portal_is_interior(thresholds, window_start));
+    let window_start = window_radius(budget.clone(), window_index, levels, false)?;
+    let start_vertices = vertices_at_radius(remaining, thresholds, window_start.clone())?;
+    let start_portal_split = usize::from(
+        compact_weighted_portals && portal_is_interior(thresholds, window_start.clone()),
+    );
     let start_edges = petal_edge_measure(
         graph,
         cluster,
@@ -943,11 +951,11 @@ pub(super) fn select_weighted_figure_six_oracle(
     if start_edges == 0 || start_edges >= start_cluster_edges {
         return Err(Error::InvalidRadius);
     }
-    let mut radius = window_start;
+    let mut radius = window_start.clone();
     loop {
-        let vertices = vertices_at_radius(remaining, thresholds, radius)?;
+        let vertices = vertices_at_radius(remaining, thresholds, radius.clone())?;
         let portal_split =
-            usize::from(compact_weighted_portals && portal_is_interior(thresholds, radius));
+            usize::from(compact_weighted_portals && portal_is_interior(thresholds, radius.clone()));
         let internal_edges = petal_edge_measure(
             graph,
             cluster,
@@ -972,7 +980,7 @@ pub(super) fn select_weighted_figure_six_oracle(
             internal_edges,
             boundary_cost,
             levels,
-            budget,
+            budget.clone(),
         )? {
             return Ok(FigureSixSelection {
                 radius,
@@ -984,7 +992,7 @@ pub(super) fn select_weighted_figure_six_oracle(
                 cluster_edges,
             });
         }
-        radius = next_radius_event(remaining, thresholds, radius, window_end)?
+        radius = next_radius_event(remaining, thresholds, radius, window_end.clone())?
             .ok_or(Error::InvalidRadius)?;
         metrics.radius_events = metrics
             .radius_events
@@ -1045,27 +1053,33 @@ pub(super) fn split_provenance(
         return Ok((None, None));
     };
     let (from_position, toward_position) = if edge.first == from {
-        (provenance.first_position, provenance.second_position)
+        (
+            provenance.first_position.clone(),
+            provenance.second_position.clone(),
+        )
     } else {
-        (provenance.second_position, provenance.first_position)
+        (
+            provenance.second_position.clone(),
+            provenance.first_position.clone(),
+        )
     };
     let direction = toward_position
-        .checked_sub(from_position)
+        .checked_sub(&from_position)
         .map_err(|_| Error::Overflow)?;
     let fraction = offset
-        .checked_mul(edge.length.reciprocal().map_err(|_| Error::Overflow)?)
+        .checked_mul(&edge.length.reciprocal().map_err(|_| Error::Overflow)?)
         .map_err(|_| Error::Overflow)?;
     let split_position = from_position
         .checked_add(
-            direction
-                .checked_mul(fraction)
+            &direction
+                .checked_mul(&fraction)
                 .map_err(|_| Error::Overflow)?,
         )
         .map_err(|_| Error::Overflow)?;
     let from_interval = projection::OriginalInterval {
         edge: provenance.edge,
         first_position: from_position,
-        second_position: split_position,
+        second_position: split_position.clone(),
     };
     let toward_interval = projection::OriginalInterval {
         edge: provenance.edge,
@@ -1234,16 +1248,17 @@ pub(super) fn shortest_paths(
                 .checked_add(1)
                 .ok_or(Error::Overflow)?;
             let candidate = distances[node]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_add(edge.length)
+                .checked_add(&edge.length)
                 .map_err(|_| Error::Overflow)?;
             let mut key = path_keys[node].as_ref().ok_or(Error::Disconnected)?.clone();
             key.push(SourceEdgeId(index));
-            let improves = match distances[other] {
+            let improves = match &distances[other] {
                 None => true,
                 Some(old) => {
-                    ratio_less(candidate, old)?
-                        || (candidate == old
+                    ratio_less(candidate.clone(), old.clone())?
+                        || (&candidate == old
                             && key < *path_keys[other].as_ref().ok_or(Error::Disconnected)?)
                 }
             };
@@ -1275,7 +1290,7 @@ pub(super) fn fast_shortest_paths(
 ) -> Result<ShortestPaths, Error> {
     let mut adjacency =
         vec![Vec::<(FlowNodeId, SourceEdgeId, ExactRatio, usize)>::new(); graph.node_count()];
-    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
+    let mut length_classes = BTreeMap::<(String, String), usize>::new();
     for index in 0..graph.edge_count() {
         metrics.shortest_edge_scans = checked_metric_sum(metrics.shortest_edge_scans, 1)?;
         let edge_id = SourceEdgeId(index);
@@ -1285,17 +1300,17 @@ pub(super) fn fast_shortest_paths(
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
             let next_class = length_classes.len();
             let class = *length_classes
-                .entry((edge.length.numerator(), edge.length.denominator()))
+                .entry(ratio_key(&edge.length))
                 .or_insert(next_class);
-            adjacency[edge.first.0].push((edge.second, edge_id, edge.length, class));
-            adjacency[edge.second.0].push((edge.first, edge_id, edge.length, class));
+            adjacency[edge.first.0].push((edge.second, edge_id, edge.length.clone(), class));
+            adjacency[edge.second.0].push((edge.first, edge_id, edge.length.clone(), class));
         }
     }
     let mut distances = vec![None; graph.node_count()];
     let mut predecessors = vec![None; graph.node_count()];
     let mut settled = vec![false; graph.node_count()];
     let zero = ratio(0, 1)?;
-    distances[source.0] = Some(zero);
+    distances[source.0] = Some(zero.clone());
     let source_class = length_classes.len();
     let mut queue =
         DistinctLengthQueue::new(source_class.checked_add(1).ok_or(Error::Overflow)?, metrics)?;
@@ -1308,7 +1323,7 @@ pub(super) fn fast_shortest_paths(
         metrics,
     )?;
     while let Some(entry) = queue.pop(metrics)? {
-        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
+        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance.clone()) {
             continue;
         }
         settled[entry.vertex.0] = true;
@@ -1326,19 +1341,19 @@ pub(super) fn fast_shortest_paths(
                 .ok_or(Error::Overflow)?;
             let candidate = entry
                 .distance
-                .checked_add(*length)
+                .checked_add(length)
                 .map_err(|_| Error::Overflow)?;
-            let old = distances[other.0];
-            let shorter = match old {
-                Some(distance) => ratio_less(candidate, distance)?,
+            let old = distances[other.0].clone();
+            let shorter = match &old {
+                Some(distance) => ratio_less(candidate.clone(), distance.clone())?,
                 None => true,
             };
-            let equal_better = old == Some(candidate)
+            let equal_better = old == Some(candidate.clone())
                 && predecessors[other.0].is_none_or(|(parent, old_edge)| {
                     (*edge_id, entry.vertex.0) < (old_edge, parent)
                 });
             if shorter {
-                distances[other.0] = Some(candidate);
+                distances[other.0] = Some(candidate.clone());
                 predecessors[other.0] = Some((entry.vertex.0, *edge_id));
                 queue.push(
                     *class,
@@ -1386,9 +1401,9 @@ pub(super) fn path_state_is_better(
     distances: &[Option<ExactRatio>],
     path_keys: &[Option<Vec<SourceEdgeId>>],
 ) -> Result<bool, Error> {
-    let candidate_distance = distances[candidate].ok_or(Error::Disconnected)?;
-    let old_distance = distances[old].ok_or(Error::Disconnected)?;
-    if ratio_less(candidate_distance, old_distance)? {
+    let candidate_distance = distances[candidate].clone().ok_or(Error::Disconnected)?;
+    let old_distance = distances[old].clone().ok_or(Error::Disconnected)?;
+    if ratio_less(candidate_distance.clone(), old_distance.clone())? {
         return Ok(true);
     }
     if candidate_distance != old_distance {
@@ -1467,28 +1482,30 @@ pub(super) fn locate_portal_and_highway(
         let edge = graph.edge(edge_id).ok_or(Error::InvalidDomain)?;
         let from = path.vertices[index + 1];
         let toward_center = path.vertices[index];
-        let remaining = radius.checked_sub(traversed).map_err(|_| Error::Overflow)?;
+        let remaining = radius
+            .checked_sub(&traversed)
+            .map_err(|_| Error::Overflow)?;
         if !remaining.is_positive() {
             break;
         }
         let halved_length = if edge
             .length
-            .at_least(remaining)
+            .at_least(&remaining)
             .map_err(|_| Error::Overflow)?
         {
             remaining
         } else {
-            edge.length
+            edge.length.clone()
         };
         segments.push(HighwaySegment {
             edge: edge_id,
             from,
             toward_center,
-            halved_length,
-            original_edge_length: edge.length,
+            halved_length: halved_length.clone(),
+            original_edge_length: edge.length.clone(),
         });
         traversed = traversed
-            .checked_add(halved_length)
+            .checked_add(&halved_length)
             .map_err(|_| Error::Overflow)?;
         if traversed == radius {
             let portal = if halved_length == edge.length {
@@ -1516,10 +1533,10 @@ pub(super) fn directed_petal_distances(
     highway: &[HighwaySegment],
     metrics: &mut PetalMetrics,
 ) -> Result<Vec<Option<ExactRatio>>, Error> {
-    let mut distances = vec![None; graph.node_count()];
+    let mut distances: Vec<Option<ExactRatio>> = vec![None; graph.node_count()];
     let mut settled = vec![false; graph.node_count()];
     let mut adjacency = vec![Vec::<(FlowNodeId, ExactRatio, usize)>::new(); graph.node_count()];
-    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
+    let mut length_classes = BTreeMap::<(String, String), usize>::new();
     for edge_index in 0..graph.edge_count() {
         metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
         let edge_id = SourceEdgeId(edge_index);
@@ -1529,10 +1546,10 @@ pub(super) fn directed_petal_distances(
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
             let next_class = length_classes.len();
             let class = *length_classes
-                .entry((edge.length.numerator(), edge.length.denominator()))
+                .entry(ratio_key(&edge.length))
                 .or_insert(next_class);
-            adjacency[edge.first.0].push((edge.second, edge.length, class));
-            adjacency[edge.second.0].push((edge.first, edge.length, class));
+            adjacency[edge.first.0].push((edge.second, edge.length.clone(), class));
+            adjacency[edge.second.0].push((edge.first, edge.length.clone(), class));
         }
     }
 
@@ -1541,7 +1558,9 @@ pub(super) fn directed_petal_distances(
     // tentative label therefore leaves the original undirected edge length.
     // The halved highway is represented by source labels at its path points.
     let half = ratio(1, 2)?;
-    let target_potential = center_distances[target.0].ok_or(Error::Disconnected)?;
+    let target_potential = center_distances[target.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
     let mut descending_highway_sources = vec![ExactHeapEntry {
         distance: target_potential,
         vertex: target,
@@ -1552,17 +1571,21 @@ pub(super) fn directed_petal_distances(
         let edge = graph.edge(segment.edge).ok_or(Error::InvalidHighway)?;
         if edge.length != segment.original_edge_length
             || segment.halved_length.is_negative()
-            || ratio_less(edge.length, segment.halved_length)?
+            || ratio_less(edge.length.clone(), segment.halved_length.clone())?
         {
             return Err(Error::InvalidHighway);
         }
         traversed = traversed
-            .checked_add(segment.halved_length)
+            .checked_add(&segment.halved_length)
             .map_err(|_| Error::Overflow)?;
-        let highway_distance = traversed.checked_mul(half).map_err(|_| Error::Overflow)?;
+        let highway_distance = traversed.checked_mul(&half).map_err(|_| Error::Overflow)?;
         if segment.halved_length == edge.length {
             let transformed = highway_distance
-                .checked_add(center_distances[segment.toward_center.0].ok_or(Error::Disconnected)?)
+                .checked_add(
+                    &center_distances[segment.toward_center.0]
+                        .clone()
+                        .ok_or(Error::Disconnected)?,
+                )
                 .map_err(|_| Error::Overflow)?;
             descending_highway_sources.push(ExactHeapEntry {
                 distance: transformed,
@@ -1570,23 +1593,25 @@ pub(super) fn directed_petal_distances(
             });
         } else {
             let portal_potential = center_distances[segment.from.0]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_sub(segment.halved_length)
+                .checked_sub(&segment.halved_length)
                 .map_err(|_| Error::Overflow)?;
             let portal_label = highway_distance
-                .checked_add(portal_potential)
+                .checked_add(&portal_potential)
                 .map_err(|_| Error::Overflow)?;
             portal_sources.push(ExactHeapEntry {
                 distance: portal_label
-                    .checked_add(segment.halved_length)
+                    .checked_add(&segment.halved_length)
                     .map_err(|_| Error::Overflow)?,
                 vertex: segment.from,
             });
             portal_sources.push(ExactHeapEntry {
                 distance: portal_label
                     .checked_add(
-                        edge.length
-                            .checked_sub(segment.halved_length)
+                        &edge
+                            .length
+                            .checked_sub(&segment.halved_length)
                             .map_err(|_| Error::Overflow)?,
                     )
                     .map_err(|_| Error::Overflow)?,
@@ -1606,12 +1631,12 @@ pub(super) fn directed_petal_distances(
         descending_highway_sources.insert(position, source);
     }
     for source in &descending_highway_sources {
-        let improves = match distances[source.vertex.0] {
-            Some(old) => ratio_less(source.distance, old)?,
+        let improves = match &distances[source.vertex.0] {
+            Some(old) => ratio_less(source.distance.clone(), old.clone())?,
             None => true,
         };
         if improves {
-            distances[source.vertex.0] = Some(source.distance);
+            distances[source.vertex.0] = Some(source.distance.clone());
         }
     }
     let source_class = length_classes.len();
@@ -1621,7 +1646,7 @@ pub(super) fn directed_petal_distances(
         queue.push(source_class, source, metrics)?;
     }
     while let Some(entry) = queue.pop(metrics)? {
-        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
+        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance.clone()) {
             continue;
         }
         settled[entry.vertex.0] = true;
@@ -1639,14 +1664,14 @@ pub(super) fn directed_petal_distances(
                 .ok_or(Error::Overflow)?;
             let candidate = entry
                 .distance
-                .checked_add(*directed_length)
+                .checked_add(directed_length)
                 .map_err(|_| Error::Overflow)?;
-            let improves = match distances[other.0] {
+            let improves = match &distances[other.0] {
                 None => true,
-                Some(old) => ratio_less(candidate, old)?,
+                Some(old) => ratio_less(candidate.clone(), old.clone())?,
             };
             if improves {
-                distances[other.0] = Some(candidate);
+                distances[other.0] = Some(candidate.clone());
                 queue.push(
                     *class,
                     ExactHeapEntry {
@@ -1672,8 +1697,13 @@ pub(super) fn directed_petal_distances(
     for vertex in allowed {
         distances[vertex.0] = Some(
             distances[vertex.0]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_sub(center_distances[vertex.0].ok_or(Error::Disconnected)?)
+                .checked_sub(
+                    &center_distances[vertex.0]
+                        .clone()
+                        .ok_or(Error::Disconnected)?,
+                )
                 .map_err(|_| Error::Overflow)?,
         );
     }
@@ -1696,24 +1726,26 @@ pub(super) fn reduced_directed_length(
             return Err(Error::InvalidHighway);
         }
         let unhalved = edge_length
-            .checked_sub(segment.halved_length)
+            .checked_sub(&segment.halved_length)
             .map_err(|_| Error::Overflow)?;
         return segment
             .halved_length
-            .checked_mul(ratio(1, 2)?)
+            .checked_mul(&ratio(1, 2)?)
             .and_then(|value| {
                 unhalved
                     .checked_mul_integer(2)
-                    .and_then(|remainder| value.checked_add(remainder))
+                    .and_then(|remainder| value.checked_add(&remainder))
             })
             .map_err(|_| Error::Overflow);
     }
-    let from_distance = center_distances[from.0].ok_or(Error::Disconnected)?;
-    let to_distance = center_distances[to.0].ok_or(Error::Disconnected)?;
+    let from_distance = center_distances[from.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
+    let to_distance = center_distances[to.0].clone().ok_or(Error::Disconnected)?;
     let reduced = edge_length
         .checked_sub(
-            to_distance
-                .checked_sub(from_distance)
+            &to_distance
+                .checked_sub(&from_distance)
                 .map_err(|_| Error::Overflow)?,
         )
         .map_err(|_| Error::Overflow)?;
@@ -1743,9 +1775,9 @@ pub(super) fn directed_petal_distances_oracle(
             let improves = match next {
                 None => true,
                 Some(old) => {
-                    let candidate = distances[vertex.0].ok_or(Error::Disconnected)?;
-                    let old_distance = distances[old].ok_or(Error::Disconnected)?;
-                    ratio_less(candidate, old_distance)?
+                    let candidate = distances[vertex.0].clone().ok_or(Error::Disconnected)?;
+                    let old_distance = distances[old].clone().ok_or(Error::Disconnected)?;
+                    ratio_less(candidate.clone(), old_distance.clone())?
                         || (candidate == old_distance && vertex.0 < old)
                 }
             };
@@ -1776,16 +1808,17 @@ pub(super) fn directed_petal_distances_oracle(
                 edge_id,
                 FlowNodeId(node),
                 other,
-                edge.length,
+                edge.length.clone(),
                 center_distances,
                 highway,
             )?;
             let candidate = distances[node]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_add(length)
+                .checked_add(&length)
                 .map_err(|_| Error::Overflow)?;
-            let improves = match distances[other.0] {
-                Some(old) => ratio_less(candidate, old)?,
+            let improves = match &distances[other.0] {
+                Some(old) => ratio_less(candidate.clone(), old.clone())?,
                 None => true,
             };
             if improves {
@@ -1817,27 +1850,33 @@ pub(super) fn membership_thresholds(
             i128::try_from(target_position - position).map_err(|_| Error::Overflow)?,
             1,
         )?;
-        path_distance_from_target[point.0] = Some(distance_from_target);
-        if ratio_less(budget, distance_from_target)? {
+        path_distance_from_target[point.0] = Some(distance_from_target.clone());
+        if ratio_less(budget.clone(), distance_from_target.clone())? {
             continue;
         }
-        let center_to_point = from_center.distances[point.0].ok_or(Error::Disconnected)?;
+        let center_to_point = from_center.distances[point.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
         for vertex in remaining {
-            let point_to_vertex = point_paths.distances[vertex.0].ok_or(Error::Disconnected)?;
-            let center_to_vertex = from_center.distances[vertex.0].ok_or(Error::Disconnected)?;
+            let point_to_vertex = point_paths.distances[vertex.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
+            let center_to_vertex = from_center.distances[vertex.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
             let excess = center_to_point
-                .checked_add(point_to_vertex)
-                .and_then(|value| value.checked_sub(center_to_vertex))
+                .checked_add(&point_to_vertex)
+                .and_then(|value| value.checked_sub(&center_to_vertex))
                 .map_err(|_| Error::Overflow)?;
             if excess.is_negative() {
                 return Err(Error::InvalidDomain);
             }
             let threshold = distance_from_target
-                .checked_add(excess.checked_mul_integer(2).map_err(|_| Error::Overflow)?)
+                .checked_add(&excess.checked_mul_integer(2).map_err(|_| Error::Overflow)?)
                 .map_err(|_| Error::Overflow)?;
-            match by_vertex[vertex.0] {
+            match &by_vertex[vertex.0] {
                 None => by_vertex[vertex.0] = Some(threshold),
-                Some(old) if ratio_less(threshold, old)? => {
+                Some(old) if ratio_less(threshold.clone(), old.clone())? => {
                     by_vertex[vertex.0] = Some(threshold);
                 }
                 Some(_) => {}
@@ -1892,7 +1931,7 @@ impl DistinctLengthQueue {
             .get_mut(class)
             .ok_or(Error::InvalidWorkCertificate)?;
         if let Some(back) = queue.back()
-            && ratio_less(entry.distance, back.distance)?
+            && ratio_less(entry.distance.clone(), back.distance.clone())?
         {
             return Err(Error::InvalidWorkCertificate);
         }
@@ -1946,12 +1985,14 @@ pub(super) fn fast_weighted_membership_thresholds(
         path_distance_from_target: vec![None; graph.node_count()],
         ordered_events: None,
     };
-    let target_distance = center_distances[target.0].ok_or(Error::Disconnected)?;
+    let target_distance = center_distances[target.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
     let mut labels = vec![None; graph.node_count()];
     let mut sources = Vec::new();
     let mut distance_from_target = ratio(0, 1)?;
     add_membership_source(target, ratio(0, 1)?, &mut labels, &mut sources, metrics)?;
-    thresholds.path_distance_from_target[target.0] = Some(distance_from_target);
+    thresholds.path_distance_from_target[target.0] = Some(distance_from_target.clone());
     for path_index in (0..path.edges.len()).rev() {
         let edge = graph
             .edge(path.edges[path_index])
@@ -1959,20 +2000,20 @@ pub(super) fn fast_weighted_membership_thresholds(
         let from = path.vertices[path_index + 1];
         let toward_center = path.vertices[path_index];
         let next_distance = distance_from_target
-            .checked_add(edge.length)
+            .checked_add(&edge.length)
             .map_err(|_| Error::Overflow)?;
-        thresholds.path_distance_from_target[toward_center.0] = Some(next_distance);
-        if ratio_less(maximum_radius, next_distance)? {
-            if ratio_less(distance_from_target, maximum_radius)? {
+        thresholds.path_distance_from_target[toward_center.0] = Some(next_distance.clone());
+        if ratio_less(maximum_radius.clone(), next_distance.clone())? {
+            if ratio_less(distance_from_target.clone(), maximum_radius.clone())? {
                 add_interior_membership_source(
                     from,
                     toward_center,
-                    edge.length,
+                    edge.length.clone(),
                     maximum_radius
-                        .checked_sub(distance_from_target)
+                        .checked_sub(&distance_from_target)
                         .map_err(|_| Error::Overflow)?,
                     target_distance,
-                    maximum_radius,
+                    maximum_radius.clone(),
                     center_distances,
                     &mut labels,
                     &mut sources,
@@ -1983,7 +2024,7 @@ pub(super) fn fast_weighted_membership_thresholds(
         }
         add_membership_source(
             toward_center,
-            next_distance,
+            next_distance.clone(),
             &mut labels,
             &mut sources,
             metrics,
@@ -1998,18 +2039,18 @@ pub(super) fn fast_weighted_membership_thresholds(
     let events =
         exact_multi_source_dijkstra(&adjacency, length_classes, &mut labels, &sources, metrics)?;
     for vertex in remaining {
-        let threshold = labels[vertex.0].ok_or(Error::Disconnected)?;
+        let threshold = labels[vertex.0].clone().ok_or(Error::Disconnected)?;
         if threshold.is_negative() {
             return Err(Error::InvalidRadius);
         }
-        if !ratio_less(maximum_radius, threshold)? {
+        if !ratio_less(maximum_radius.clone(), threshold.clone())? {
             thresholds.by_vertex[vertex.0] = Some(threshold);
         }
     }
     thresholds.ordered_events = Some(
         events
             .into_iter()
-            .filter(|event| thresholds.by_vertex[event.vertex.0] == Some(event.distance))
+            .filter(|event| thresholds.by_vertex[event.vertex.0] == Some(event.distance.clone()))
             .collect(),
     );
     metrics.directed_region_runs = metrics
@@ -2034,33 +2075,35 @@ pub(super) fn add_interior_membership_source(
 ) -> Result<(), Error> {
     let two = ratio(2, 1)?;
     let potential = target_distance
-        .checked_mul(two)
-        .and_then(|value| value.checked_sub(radius))
+        .checked_mul(&two)
+        .and_then(|value| value.checked_sub(&radius))
         .map_err(|_| Error::Overflow)?;
     let from_label = potential
-        .checked_add(offset_from.checked_mul(two).map_err(|_| Error::Overflow)?)
+        .checked_add(&offset_from.checked_mul(&two).map_err(|_| Error::Overflow)?)
         .map_err(|_| Error::Overflow)?;
     let toward_label = potential
         .checked_add(
-            edge_length
-                .checked_sub(offset_from)
-                .and_then(|value| value.checked_mul(two))
+            &edge_length
+                .checked_sub(&offset_from)
+                .and_then(|value| value.checked_mul(&two))
                 .map_err(|_| Error::Overflow)?,
         )
         .map_err(|_| Error::Overflow)?;
     let from_threshold = from_label
         .checked_sub(
-            center_distances[from.0]
+            &center_distances[from.0]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_mul(two)
+                .checked_mul(&two)
                 .map_err(|_| Error::Overflow)?,
         )
         .map_err(|_| Error::Overflow)?;
     let toward_threshold = toward_label
         .checked_sub(
-            center_distances[toward_center.0]
+            &center_distances[toward_center.0]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_mul(two)
+                .checked_mul(&two)
                 .map_err(|_| Error::Overflow)?,
         )
         .map_err(|_| Error::Overflow)?;
@@ -2080,12 +2123,12 @@ pub(super) fn add_membership_source(
     sources: &mut Vec<ExactHeapEntry>,
     metrics: &mut PetalMetrics,
 ) -> Result<(), Error> {
-    let improves = match labels[vertex.0] {
-        Some(old) => ratio_less(distance, old)?,
+    let improves = match &labels[vertex.0] {
+        Some(old) => ratio_less(distance.clone(), old.clone())?,
         None => true,
     };
     if improves {
-        labels[vertex.0] = Some(distance);
+        labels[vertex.0] = Some(distance.clone());
         sources.push(ExactHeapEntry { distance, vertex });
     }
     metrics.membership_sources = metrics
@@ -2102,25 +2145,29 @@ pub(super) fn weighted_adjacency(
     metrics: &mut PetalMetrics,
 ) -> Result<(ClassifiedAdjacency, usize), Error> {
     let mut adjacency = vec![Vec::new(); graph.node_count()];
-    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
+    let mut length_classes = BTreeMap::<(String, String), usize>::new();
     for index in 0..graph.edge_count() {
         metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
             continue;
         };
         if allowed.contains(&edge.first) && allowed.contains(&edge.second) {
-            let first_distance = center_distances[edge.first.0].ok_or(Error::Disconnected)?;
-            let second_distance = center_distances[edge.second.0].ok_or(Error::Disconnected)?;
+            let first_distance = center_distances[edge.first.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
+            let second_distance = center_distances[edge.second.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
             let forward = edge
                 .length
-                .checked_add(first_distance)
-                .and_then(|value| value.checked_sub(second_distance))
+                .checked_add(&first_distance)
+                .and_then(|value| value.checked_sub(&second_distance))
                 .and_then(|value| value.checked_mul_integer(2))
                 .map_err(|_| Error::Overflow)?;
             let reverse = edge
                 .length
-                .checked_add(second_distance)
-                .and_then(|value| value.checked_sub(first_distance))
+                .checked_add(&second_distance)
+                .and_then(|value| value.checked_sub(&first_distance))
                 .and_then(|value| value.checked_mul_integer(2))
                 .map_err(|_| Error::Overflow)?;
             if forward.is_negative() || reverse.is_negative() {
@@ -2128,11 +2175,11 @@ pub(super) fn weighted_adjacency(
             }
             let next_forward = length_classes.len();
             let forward_class = *length_classes
-                .entry((forward.numerator(), forward.denominator()))
+                .entry(ratio_key(&forward))
                 .or_insert(next_forward);
             let next_reverse = length_classes.len();
             let reverse_class = *length_classes
-                .entry((reverse.numerator(), reverse.denominator()))
+                .entry(ratio_key(&reverse))
                 .or_insert(next_reverse);
             adjacency[edge.first.0].push((edge.second, forward, forward_class));
             adjacency[edge.second.0].push((edge.first, reverse, reverse_class));
@@ -2148,7 +2195,7 @@ pub(super) fn transformed_weighted_adjacency(
     metrics: &mut PetalMetrics,
 ) -> Result<(ClassifiedAdjacency, usize), Error> {
     let mut adjacency = vec![Vec::new(); graph.node_count()];
-    let mut length_classes = BTreeMap::<(i128, i128), usize>::new();
+    let mut length_classes = BTreeMap::<(String, String), usize>::new();
     for index in 0..graph.edge_count() {
         metrics.directed_edge_scans = checked_metric_sum(metrics.directed_edge_scans, 1)?;
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
@@ -2161,9 +2208,9 @@ pub(super) fn transformed_weighted_adjacency(
                 .map_err(|_| Error::Overflow)?;
             let next_class = length_classes.len();
             let class = *length_classes
-                .entry((length.numerator(), length.denominator()))
+                .entry(ratio_key(&length))
                 .or_insert(next_class);
-            adjacency[edge.first.0].push((edge.second, length, class));
+            adjacency[edge.first.0].push((edge.second, length.clone(), class));
             adjacency[edge.second.0].push((edge.first, length, class));
         }
     }
@@ -2183,17 +2230,19 @@ pub(super) fn transformed_weighted_membership_thresholds_oracle(
 ) -> Result<MembershipThresholds, Error> {
     let mut reduced_labels = vec![None; graph.node_count()];
     let mut reduced_sources = Vec::new();
-    let target_distance = center_distances[target.0].ok_or(Error::Disconnected)?;
+    let target_distance = center_distances[target.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
     let mut path_distance_from_target = vec![None; graph.node_count()];
     let mut distance_from_target = ratio(0, 1)?;
     add_membership_source(
         target,
-        distance_from_target,
+        distance_from_target.clone(),
         &mut reduced_labels,
         &mut reduced_sources,
         metrics,
     )?;
-    path_distance_from_target[target.0] = Some(distance_from_target);
+    path_distance_from_target[target.0] = Some(distance_from_target.clone());
     for path_index in (0..path.edges.len()).rev() {
         let edge = graph
             .edge(path.edges[path_index])
@@ -2201,20 +2250,20 @@ pub(super) fn transformed_weighted_membership_thresholds_oracle(
         let from = path.vertices[path_index + 1];
         let toward_center = path.vertices[path_index];
         let next_distance = distance_from_target
-            .checked_add(edge.length)
+            .checked_add(&edge.length)
             .map_err(|_| Error::Overflow)?;
-        path_distance_from_target[toward_center.0] = Some(next_distance);
-        if ratio_less(maximum_radius, next_distance)? {
-            if ratio_less(distance_from_target, maximum_radius)? {
+        path_distance_from_target[toward_center.0] = Some(next_distance.clone());
+        if ratio_less(maximum_radius.clone(), next_distance.clone())? {
+            if ratio_less(distance_from_target.clone(), maximum_radius.clone())? {
                 add_interior_membership_source(
                     from,
                     toward_center,
-                    edge.length,
+                    edge.length.clone(),
                     maximum_radius
-                        .checked_sub(distance_from_target)
+                        .checked_sub(&distance_from_target)
                         .map_err(|_| Error::Overflow)?,
-                    target_distance,
-                    maximum_radius,
+                    target_distance.clone(),
+                    maximum_radius.clone(),
                     center_distances,
                     &mut reduced_labels,
                     &mut reduced_sources,
@@ -2225,7 +2274,7 @@ pub(super) fn transformed_weighted_membership_thresholds_oracle(
         }
         add_membership_source(
             toward_center,
-            next_distance,
+            next_distance.clone(),
             &mut reduced_labels,
             &mut reduced_sources,
             metrics,
@@ -2237,23 +2286,24 @@ pub(super) fn transformed_weighted_membership_thresholds_oracle(
     }
 
     let two = ratio(2, 1)?;
-    let mut transformed_labels = vec![None; graph.node_count()];
+    let mut transformed_labels: Vec<Option<ExactRatio>> = vec![None; graph.node_count()];
     let mut transformed_sources = Vec::with_capacity(reduced_sources.len());
     for source in reduced_sources {
         let potential = center_distances[source.vertex.0]
+            .clone()
             .ok_or(Error::Disconnected)?
-            .checked_mul(two)
+            .checked_mul(&two)
             .map_err(|_| Error::Overflow)?;
         let transformed = source
             .distance
-            .checked_add(potential)
+            .checked_add(&potential)
             .map_err(|_| Error::Overflow)?;
-        let improves = match transformed_labels[source.vertex.0] {
-            Some(old) => ratio_less(transformed, old)?,
+        let improves = match &transformed_labels[source.vertex.0] {
+            Some(old) => ratio_less(transformed.clone(), old.clone())?,
             None => true,
         };
         if improves {
-            transformed_labels[source.vertex.0] = Some(transformed);
+            transformed_labels[source.vertex.0] = Some(transformed.clone());
             transformed_sources.push(ExactHeapEntry {
                 distance: transformed,
                 vertex: source.vertex,
@@ -2281,14 +2331,16 @@ pub(super) fn transformed_weighted_membership_thresholds_oracle(
     let mut by_vertex = vec![None; graph.node_count()];
     for vertex in remaining {
         let potential = center_distances[vertex.0]
+            .clone()
             .ok_or(Error::Disconnected)?
-            .checked_mul(two)
+            .checked_mul(&two)
             .map_err(|_| Error::Overflow)?;
         let threshold = transformed_labels[vertex.0]
+            .clone()
             .ok_or(Error::Disconnected)?
-            .checked_sub(potential)
+            .checked_sub(&potential)
             .map_err(|_| Error::Overflow)?;
-        if !ratio_less(maximum_radius, threshold)? {
+        if !ratio_less(maximum_radius.clone(), threshold.clone())? {
             by_vertex[vertex.0] = Some(threshold);
         }
     }
@@ -2315,7 +2367,7 @@ pub(super) fn exact_multi_source_dijkstra(
     let mut settled = vec![false; distances.len()];
     let mut events = Vec::new();
     while let Some(entry) = queue.pop(metrics)? {
-        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance) {
+        if settled[entry.vertex.0] || distances[entry.vertex.0] != Some(entry.distance.clone()) {
             continue;
         }
         settled[entry.vertex.0] = true;
@@ -2327,17 +2379,17 @@ pub(super) fn exact_multi_source_dijkstra(
                 .ok_or(Error::Overflow)?;
             let candidate = entry
                 .distance
-                .checked_add(*length)
+                .checked_add(length)
                 .map_err(|_| Error::Overflow)?;
             if settled[other.0] {
                 continue;
             }
-            let improves = match distances[other.0] {
-                Some(old) => ratio_less(candidate, old)?,
+            let improves = match &distances[other.0] {
+                Some(old) => ratio_less(candidate.clone(), old.clone())?,
                 None => true,
             };
             if improves {
-                distances[other.0] = Some(candidate);
+                distances[other.0] = Some(candidate.clone());
                 queue.push(
                     *class,
                     ExactHeapEntry {
@@ -2504,7 +2556,7 @@ pub(super) fn exact_heap_entry_less(
     first: &ExactHeapEntry,
     second: &ExactHeapEntry,
 ) -> Result<bool, Error> {
-    Ok(ratio_less(first.distance, second.distance)?
+    Ok(ratio_less(first.distance.clone(), second.distance.clone())?
         || (first.distance == second.distance && first.vertex < second.vertex))
 }
 
@@ -2527,7 +2579,7 @@ pub(super) fn weighted_membership_thresholds_oracle(
     let mut fully_halved = Vec::new();
     let mut interval_start = ratio(0, 1)?;
     for path_index in (0..path.edges.len()).rev() {
-        if !ratio_less(interval_start, maximum_radius)? {
+        if !ratio_less(interval_start.clone(), maximum_radius.clone())? {
             break;
         }
         let edge_id = path.edges[path_index];
@@ -2535,14 +2587,14 @@ pub(super) fn weighted_membership_thresholds_oracle(
         let from = path.vertices[path_index + 1];
         let toward_center = path.vertices[path_index];
         let full_end = interval_start
-            .checked_add(edge.length)
+            .checked_add(&edge.length)
             .map_err(|_| Error::Overflow)?;
-        let interval_end = if ratio_less(maximum_radius, full_end)? {
-            maximum_radius
+        let interval_end = if ratio_less(maximum_radius.clone(), full_end.clone())? {
+            maximum_radius.clone()
         } else {
-            full_end
+            full_end.clone()
         };
-        thresholds.path_distance_from_target[toward_center.0] = Some(full_end);
+        thresholds.path_distance_from_target[toward_center.0] = Some(full_end.clone());
         let removed = Some((edge_id, from, toward_center));
         let without_current = constant_directed_distances(
             graph,
@@ -2562,7 +2614,7 @@ pub(super) fn weighted_membership_thresholds_oracle(
             removed,
             metrics,
         )?;
-        let source_to_from = without_current[from.0].ok_or(Error::Disconnected)?;
+        let source_to_from = without_current[from.0].clone().ok_or(Error::Disconnected)?;
         let three_halves = ratio(3, 2)?;
         let one_half = ratio(1, 2)?;
         let current_constant = edge
@@ -2570,30 +2622,30 @@ pub(super) fn weighted_membership_thresholds_oracle(
             .checked_mul_integer(2)
             .and_then(|value| {
                 interval_start
-                    .checked_mul(three_halves)
-                    .and_then(|offset| value.checked_add(offset))
+                    .checked_mul(&three_halves)
+                    .and_then(|offset| value.checked_add(&offset))
             })
             .map_err(|_| Error::Overflow)?;
         for vertex in remaining {
-            if let Some(distance) = without_current[vertex.0] {
+            if let Some(distance) = &without_current[vertex.0] {
                 let entry = max_ratio(
-                    interval_start,
+                    interval_start.clone(),
                     distance
                         .checked_mul_integer(2)
                         .map_err(|_| Error::Overflow)?,
                 )?;
-                if !ratio_less(interval_end, entry)? {
+                if !ratio_less(interval_end.clone(), entry.clone())? {
                     record_threshold(&mut thresholds.by_vertex[vertex.0], entry)?;
                 }
             }
-            if let Some(suffix) = from_toward[vertex.0] {
+            if let Some(suffix) = &from_toward[vertex.0] {
                 let entry = source_to_from
-                    .checked_add(current_constant)
+                    .checked_add(&current_constant)
                     .and_then(|value| value.checked_add(suffix))
-                    .and_then(|value| value.checked_mul(one_half))
+                    .and_then(|value| value.checked_mul(&one_half))
                     .map_err(|_| Error::Overflow)?;
-                let entry = max_ratio(interval_start, entry)?;
-                if !ratio_less(interval_end, entry)? {
+                let entry = max_ratio(interval_start.clone(), entry)?;
+                if !ratio_less(interval_end.clone(), entry.clone())? {
                     record_threshold(&mut thresholds.by_vertex[vertex.0], entry)?;
                 }
             }
@@ -2605,8 +2657,8 @@ pub(super) fn weighted_membership_thresholds_oracle(
             edge: edge_id,
             from,
             toward_center,
-            halved_length: edge.length,
-            original_edge_length: edge.length,
+            halved_length: edge.length.clone(),
+            original_edge_length: edge.length.clone(),
         });
         interval_start = full_end;
     }
@@ -2671,21 +2723,22 @@ pub(super) fn constant_directed_distances(
                 edge_id,
                 FlowNodeId(node),
                 FlowNodeId(other),
-                edge.length,
+                edge.length.clone(),
                 center_distances,
                 fully_halved,
             )?;
             let candidate = distances[node]
+                .clone()
                 .ok_or(Error::Disconnected)?
-                .checked_add(directed_length)
+                .checked_add(&directed_length)
                 .map_err(|_| Error::Overflow)?;
             let mut key = path_keys[node].as_ref().ok_or(Error::Disconnected)?.clone();
             key.push(edge_id);
-            let improves = match distances[other] {
+            let improves = match &distances[other] {
                 None => true,
                 Some(old) => {
-                    ratio_less(candidate, old)?
-                        || (candidate == old
+                    ratio_less(candidate.clone(), old.clone())?
+                        || (&candidate == old
                             && key < *path_keys[other].as_ref().ok_or(Error::Disconnected)?)
                 }
             };
@@ -2706,16 +2759,18 @@ pub(super) fn record_threshold(
     current: &mut Option<ExactRatio>,
     candidate: ExactRatio,
 ) -> Result<(), Error> {
-    match *current {
-        None => *current = Some(candidate),
-        Some(old) if ratio_less(candidate, old)? => *current = Some(candidate),
-        Some(_) => {}
+    let replace = match current.as_ref() {
+        None => true,
+        Some(old) => ratio_less(candidate.clone(), old.clone())?,
+    };
+    if replace {
+        *current = Some(candidate);
     }
     Ok(())
 }
 
 pub(super) fn max_ratio(first: ExactRatio, second: ExactRatio) -> Result<ExactRatio, Error> {
-    if ratio_less(first, second)? {
+    if ratio_less(first.clone(), second.clone())? {
         Ok(second)
     } else {
         Ok(first)
@@ -2729,7 +2784,7 @@ pub(super) fn vertices_at_radius(
 ) -> Result<BTreeSet<FlowNodeId>, Error> {
     let mut result = BTreeSet::new();
     for vertex in remaining {
-        if let Some(threshold) = thresholds.by_vertex[vertex.0]
+        if let Some(threshold) = &thresholds.by_vertex[vertex.0]
             && radius.at_least(threshold).map_err(|_| Error::Overflow)?
         {
             result.insert(*vertex);
@@ -2754,7 +2809,7 @@ pub(super) fn window_radius(
         .and_then(|value| value.checked_mul(2))
         .ok_or(Error::Overflow)?;
     budget
-        .checked_mul(ratio(
+        .checked_mul(&ratio(
             i128::try_from(numerator).map_err(|_| Error::Overflow)?,
             denominator,
         )?)
@@ -2875,16 +2930,16 @@ pub(super) fn certify_stopping_condition(
         .and_then(|value| value.checked_mul(i128::try_from(levels).ok()?))
         .ok_or(Error::Overflow)?;
     let exact_left = budget
-        .checked_mul(boundary_cost)
+        .checked_mul(&boundary_cost)
         .map_err(|_| Error::Overflow)?
-        .checked_mul(ratio(1, denominator)?)
+        .checked_mul(&ratio(1, denominator)?)
         .map_err(|_| Error::Overflow)?;
     for precision in [48_u32, 96, 192, 384] {
         match try_stopping_comparison(
             cluster_edges,
             start_edges,
             petal_edges,
-            exact_left,
+            exact_left.clone(),
             precision,
         ) {
             Ok(Some(result)) => return Ok(result),
@@ -2913,7 +2968,7 @@ pub(super) fn try_stopping_comparison(
         .logarithm(&chi)
         .map_err(|_| Error::InsufficientPrecision)?;
     let left = arithmetic
-        .enclose_ratio(exact_left.numerator(), exact_left.denominator())
+        .enclose_big_ratio(exact_left.numerator(), exact_left.denominator())
         .map_err(|_| Error::InsufficientPrecision)?;
     if left.upper_scaled() < log_chi.lower_scaled() {
         Ok(Some(true))
@@ -2949,19 +3004,21 @@ pub(super) fn next_radius_event(
 ) -> Result<Option<ExactRatio>, Error> {
     let mut next = None;
     for vertex in remaining {
-        let Some(candidate) = thresholds.by_vertex[vertex.0] else {
+        let Some(ref candidate) = thresholds.by_vertex[vertex.0] else {
             continue;
         };
-        if !ratio_less(current, candidate)? || ratio_less(limit, candidate)? {
+        if !ratio_less(current.clone(), candidate.clone())?
+            || ratio_less(limit.clone(), candidate.clone())?
+        {
             continue;
         }
         match next {
             None => next = Some(candidate),
-            Some(old) if ratio_less(candidate, old)? => next = Some(candidate),
+            Some(old) if ratio_less(candidate.clone(), old.clone())? => next = Some(candidate),
             Some(_) => {}
         }
     }
-    Ok(next)
+    Ok(next.cloned())
 }
 
 pub(super) fn internal_edge_count(
@@ -3013,7 +3070,7 @@ pub(super) fn boundary_edge_cost(
             && petal.contains(&edge.first) != petal.contains(&edge.second)
         {
             cost = cost
-                .checked_add(edge.length.reciprocal().map_err(|_| Error::Overflow)?)
+                .checked_add(&edge.length.reciprocal().map_err(|_| Error::Overflow)?)
                 .map_err(|_| Error::Overflow)?;
         }
     }
@@ -3057,8 +3114,8 @@ pub(super) fn sort_and_merge_touching(
         let mut cursor = index;
         while cursor > 0
             && ratio_less(
-                intervals[cursor].start_from_first,
-                intervals[cursor - 1].start_from_first,
+                intervals[cursor].start_from_first.clone(),
+                intervals[cursor - 1].start_from_first.clone(),
             )?
         {
             intervals.swap(cursor, cursor - 1);
@@ -3091,19 +3148,19 @@ pub(crate) fn round_length_to_power_of_two(
     base: ExactRatio,
 ) -> Result<ExactRatio, Error> {
     let scaled = length
-        .checked_mul(base.reciprocal().map_err(|_| Error::Overflow)?)
+        .checked_mul(&base.reciprocal().map_err(|_| Error::Overflow)?)
         .map_err(|_| Error::Overflow)?;
     let mut power = ratio(1, 1)?;
     loop {
         let Ok(next) = power.checked_mul_integer(2) else {
             break;
         };
-        if ratio_less(scaled, next)? {
+        if ratio_less(scaled.clone(), next.clone())? {
             break;
         }
         power = next;
     }
-    base.checked_mul(power).map_err(|_| Error::Overflow)
+    base.checked_mul(&power).map_err(|_| Error::Overflow)
 }
 
 pub(super) fn ratio(numerator: i128, denominator: i128) -> Result<ExactRatio, Error> {
@@ -3119,7 +3176,14 @@ pub(super) fn checked_metric_sum(first: u64, second: u64) -> Result<u64, Error> 
 }
 
 pub(super) fn ratio_less(left: ExactRatio, right: ExactRatio) -> Result<bool, Error> {
-    Ok(!left.at_least(right).map_err(|_| Error::Overflow)?)
+    Ok(!left.at_least(&right).map_err(|_| Error::Overflow)?)
+}
+
+fn ratio_key(value: &ExactRatio) -> (String, String) {
+    (
+        value.numerator().to_string(),
+        value.denominator().to_string(),
+    )
 }
 
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
@@ -3789,7 +3853,7 @@ mod tests {
             &vertices,
             FlowNodeId(0),
             FlowNodeId(9),
-            cone_union.radius,
+            cone_union.radius.clone(),
         )
         .unwrap();
         assert_eq!(region_growing.vertices, cone_union.vertices);
@@ -3908,7 +3972,7 @@ mod tests {
             FlowNodeId(2),
             &path,
             &center_paths.distances,
-            maximum_radius,
+            maximum_radius.clone(),
             &mut oracle_metrics,
         )
         .unwrap();
@@ -3919,7 +3983,7 @@ mod tests {
             FlowNodeId(2),
             &path,
             &center_paths.distances,
-            maximum_radius,
+            maximum_radius.clone(),
             &mut fast_metrics,
         )
         .unwrap();
@@ -3984,10 +4048,10 @@ mod tests {
             for target in 1..4 {
                 let target = FlowNodeId(target);
                 let path = recover_path(FlowNodeId(0), target, &center_paths).unwrap();
-                let target_distance = center_paths.distances[target.0].unwrap();
+                let target_distance = center_paths.distances[target.0].clone().unwrap();
                 for numerator in 1..=4 {
                     let maximum_radius = target_distance
-                        .checked_mul(ExactRatio::new(numerator, 4).unwrap())
+                        .checked_mul(&ExactRatio::new(numerator, 4).unwrap())
                         .unwrap();
                     let mut oracle_metrics = PetalMetrics::default();
                     let oracle = weighted_membership_thresholds_oracle(
@@ -3996,7 +4060,7 @@ mod tests {
                         target,
                         &path,
                         &center_paths.distances,
-                        maximum_radius,
+                        maximum_radius.clone(),
                         &mut oracle_metrics,
                     )
                     .unwrap();
@@ -4007,7 +4071,7 @@ mod tests {
                         target,
                         &path,
                         &center_paths.distances,
-                        maximum_radius,
+                        maximum_radius.clone(),
                         &mut fast_metrics,
                     )
                     .unwrap();
@@ -4090,10 +4154,11 @@ mod tests {
                     );
                     assert_eq!(
                         fast.distances[parent]
+                            .clone()
                             .unwrap()
-                            .checked_add(edge.length)
+                            .checked_add(&edge.length)
                             .unwrap(),
-                        fast.distances[vertex].unwrap()
+                        fast.distances[vertex].clone().unwrap()
                     );
                 }
                 assert!(
@@ -4142,10 +4207,10 @@ mod tests {
             for target in 1..4 {
                 let target = FlowNodeId(target);
                 let path = recover_path(FlowNodeId(0), target, &center_paths).unwrap();
-                let target_distance = center_paths.distances[target.0].unwrap();
+                let target_distance = center_paths.distances[target.0].clone().unwrap();
                 for numerator in 1..=4 {
                     let radius = target_distance
-                        .checked_mul(ExactRatio::new(numerator, 4).unwrap())
+                        .checked_mul(&ExactRatio::new(numerator, 4).unwrap())
                         .unwrap();
                     let (_, highway) =
                         locate_portal_and_highway(&graph, &path, target, radius).unwrap();
@@ -4520,14 +4585,14 @@ mod tests {
         };
         let mismatched_label = projection::SymbolicLengthLabel {
             root_source: Some(SourceEdgeId(3)),
-            ..source_label
+            ..source_label.clone()
         };
         assert!(
             projection::Graph::from_source_with_inherited_labels(
                 &graph,
                 hierarchy::LengthMode::ExactRational,
                 &[Some(SourceEdgeId(4)), None],
-                &[mismatched_label, virtual_label],
+                &[mismatched_label, virtual_label.clone()],
             )
             .is_err()
         );
@@ -4535,7 +4600,7 @@ mod tests {
             &graph,
             hierarchy::LengthMode::ExactRational,
             &[Some(SourceEdgeId(4)), None],
-            &[source_label, virtual_label],
+            &[source_label.clone(), virtual_label.clone()],
         )
         .unwrap();
         let (portal, _, _) = augmented
@@ -4797,7 +4862,7 @@ mod tests {
             assert!(
                 hierarchy
                     .weighted_stretch
-                    .at_least(oracle.weighted_stretch)
+                    .at_least(&oracle.weighted_stretch)
                     .unwrap()
             );
             checked += 1;
@@ -4854,7 +4919,7 @@ mod tests {
             assert!(
                 small_hierarchy
                     .weighted_stretch
-                    .at_least(oracle.weighted_stretch)
+                    .at_least(&oracle.weighted_stretch)
                     .unwrap()
             );
             checked += 1;
@@ -4965,14 +5030,14 @@ mod tests {
 
         let base = ExactRatio::new(2, 3).unwrap();
         let length = ExactRatio::new(3, 2).unwrap();
-        let rounded = round_length_to_power_of_two(length, base).unwrap();
+        let rounded = round_length_to_power_of_two(length.clone(), base.clone()).unwrap();
         assert_eq!(rounded, ExactRatio::new(4, 3).unwrap());
-        assert!(length.at_least(rounded).unwrap());
+        assert!(length.at_least(&rounded).unwrap());
         assert!(
             rounded
                 .checked_mul_integer(2)
                 .unwrap()
-                .at_least(length)
+                .at_least(&length)
                 .unwrap()
         );
         assert_eq!(
@@ -5077,7 +5142,7 @@ mod tests {
         assert!(
             small_hierarchy
                 .weighted_stretch
-                .at_least(oracle.weighted_stretch)
+                .at_least(&oracle.weighted_stretch)
                 .unwrap()
         );
         let mut invalid = small_hierarchy.clone();
@@ -5241,7 +5306,7 @@ mod tests {
                 assert!(adjacency[from].iter().any(|(other, length, _)| *other
                     == FlowNodeId(nodes - 1)
                     && *length == expected));
-                witnessed.insert((expected.numerator(), expected.denominator()));
+                witnessed.insert((expected.numerator().clone(), expected.denominator().clone()));
             }
             assert_eq!(witnessed.len(), nodes / 2 - 1);
             assert!(reduced_classes >= witnessed.len());
@@ -5249,7 +5314,12 @@ mod tests {
                 usize::try_from(nodes.ilog2()).unwrap() + 1,
                 (0..graph.edge_count())
                     .filter_map(|index| graph.edge(SourceEdgeId(index)))
-                    .map(|edge| (edge.length.numerator(), edge.length.denominator()))
+                    .map(|edge| {
+                        (
+                            edge.length.numerator().clone(),
+                            edge.length.denominator().clone(),
+                        )
+                    })
                     .collect::<BTreeSet<_>>()
                     .len()
             );

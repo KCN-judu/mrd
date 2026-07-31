@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.4
 - Last pushed SHA: 6acb5a93d04048ace0ba71958be0c599f70a80eb
-- Plan last updated: 2026-07-30T05:06:26Z
+- Plan last updated: 2026-07-31T03:24:04Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1229,7 +1229,7 @@ It is split into the following completed substeps:
    Connect one matching immutable source projection to one `Session::apply`
    transition through an explicit input carrying the current
    `CertifiedIpmSnapshot`, exact `Input`, terminal and rejected-core snapshots,
-   `StableMinRatioLedger`, and `kappa`. The source input supplies exact
+   and `kappa`. The source input supplies exact
    candidate coordinates; `Session` must still certify them against its current
    fixed-point snapshot before changing state. A stale certified snapshot,
    unequal source inputs, absent source candidate, or failed Lemma 4.4 check
@@ -1255,8 +1255,8 @@ It is split into the following completed substeps:
    Implementation SHA: `0410b79`.** Introduce a narrow external `ProjectionFactory` boundary
    that prepares one exact source projection for each current certified IPM
    snapshot. Every prepared projection must carry its own snapshot identity,
-   exact `Input`, terminal and rejected-core source populations, ledger, and
-   `kappa`; construction must rerun the Theorem 4.3 approximation checks
+   exact `Input`, terminal and rejected-core source populations, and `kappa`;
+   construction must rerun the Theorem 4.3 approximation checks
    before candidate selection. A bounded driver must re-request a projection
    after each accepted update, record every accepted transition, stop only at
    the additive-half certificate, and reject a stale, uncertifiable, or
@@ -1351,15 +1351,16 @@ It is split into the following completed substeps:
      snapshot-relative power-of-two structural coordinates: the hierarchy and
      spanner consume only the resulting scale-free topology, while raw exact
      coordinates remain authoritative for candidate scoring and Theorem 4.3
-     certification. The compressed fixture now accepts three consecutive
-     reciprocal-slack updates under `IterationLimit { maximum_iterations: 3 }`
-     without a hierarchy overflow or fallback. Its fourth preparation reaches
-     the independent exact candidate-scoring boundary
-     `Terminal(Candidate(Ratio(Overflow)))`; it produces three accepted records
-     from four preparation requests. This is an explicit `i128` representability
-     boundary, not a structural normalization failure. It is coordinate
-     reconstruction evidence only, not a source-supported terminating
-     structural range or a termination proof.
+     certification. The previous fourth-update candidate-ratio overflow is
+     removed by normalized arbitrary-precision `ExactRatio` components and by
+     using scale-relative structural topology only for materialization and
+     bindings. Raw exact coordinates remain in `Input` for candidate scoring
+     and Theorem 4.3 certification. The compressed fixture now accepts 64
+     consecutive reciprocal-slack updates under
+     `IterationLimit { maximum_iterations: 64 }`; every adjacent record has a
+     distinct input and certified snapshot, and the final snapshot remains
+     nonterminal. This is representational regression evidence only, not a
+     source-supported terminating structural range or a termination proof.
      Evidence:
      `docs/phase-reports/P09-5e-3-fresh-projection-policy.md`.
 
@@ -1371,17 +1372,90 @@ It is split into the following completed substeps:
        consumption, and interval-independent exact-flow reconstruction. No
        item claims a terminating source session.
      - **P9.5e.3b - Successor-safe finite structural domain. State:
-       in_progress.** Snapshot-relative power-of-two structural coordinates
-       now remove the global common-denominator and hierarchy-overflow failure
-       across three consecutive reciprocal-slack successors. The remaining
-       fourth-step `ExactRatio` candidate-scoring overflow is explicit and
-       rejected without approximation or fallback. Establish a successor-safe
-       representational range sufficient for a terminating source session.
-     - **P9.5e.3c - Complete compressed-MRD output differential. State:
-       planned.** After P9.5e.3b reaches a genuine terminal source session,
-       compare flow, matching, cover, chord flags, and rectangle decomposition
-       across the supported compressed-MRD population before considering the
-       complete-backend gate.
+       complete.** Snapshot-relative power-of-two
+       structural coordinates now remove the global common-denominator,
+       hierarchy, and fourth-step raw-coordinate failure across 64
+       reciprocal-slack successors. The 64-update test intentionally stops at
+       its explicit iteration limit and remains nonterminal. A separate strict
+       interior `1 x 1` fixture at uniform flow `547590/1000000` is nonterminal
+       initially, then reaches additive-half termination after one fresh
+       reciprocal-slack source projection and selected update; its ordinary
+       source handoff recovers the exact matching and cover. This establishes a
+       supported terminating range and genuine terminal source session without
+       making a general termination or runtime claim. The complete format,
+       no-fallback, lint, workspace-test, documentation, release-build, and
+       release-consistency audit passed on 2026-07-31.
+     - **P9.5e.3c - Complete isolated-lattice compressed-MRD output
+       differential. State: complete for the declared nine-point population.**
+       After P9.5e.3b reaches a genuine terminal source
+       session, compare flow, matching, cover, chord flags, and rectangle
+       decomposition across the supported compressed-MRD population before
+       considering the complete-backend gate. Connected tree buckets use the
+       exact `TreeIdentity` construction. Cyclic buckets now require an
+       explicit `CanonicalTree` policy, selected before construction: stable
+       source-edge-order union-find selects a spanning tree, and stable tree
+       paths embed every rejected source edge. It is a finite, source-provenance
+       certificate rather than an Oracle or an Algorithm 4 retry; its
+       construction neither invokes Algorithm 4 nor makes a sparsity,
+       congestion, stretch, termination, or runtime claim. The Figure 3 formal
+       polygon now starts from a nonterminal snapshot, prepares one fresh
+       Definition 4.2 projection, selects one nonzero source direction, and
+       reaches additive-half termination. Its recovered matching, cover,
+       selected chord flags, and rectangle decomposition exactly equal the
+       retained formal references. The isolated-point formal lattice now
+       exhaustively visits all 511 nonempty masks. The 101 masks with an empty
+       chord family or no explicit conflict edge are outside the compressed-flow
+       domain; all remaining 410 masks begin at an independently certified
+       nonterminal snapshot, prepare a fresh Definition 4.2 projection for
+       every accepted update, and terminate within the explicit eight-update
+       limit (the observed maximum is two). Each run differentially verifies
+       maximum matching, minimum cover, independent chord flags, and optimum
+       rectangle count; matching vectors may differ only for nonunique optima.
+       The population also regresses isolated-endpoint pruning: the internal
+       circulation retains only active outer arcs, while recovery returns the
+       original chord dimensions and leaves isolated endpoints uncovered. This
+       closes the declared isolated-lattice output differential. It does not
+       establish a general termination policy or enable the complete-backend
+       gate; P9.5e.3 remains in progress for that separate obligation.
+     - **P9.5e.3d - Conditional potential-reduction termination budget. State:
+       complete for a snapshot-bound conditional driver.** `PotentialBudget`
+       combines the independently certified CKLPPS22 Equation (9)/Lemma 4.1
+       additive-half potential threshold with the Lemma 4.4 per-update
+       `kappa^2 / 500` decrease. It accepts only one exact starting snapshot
+       and one fixed `kappa`, uses conservative dyadic endpoints, and bounds
+       accepted updates only on the condition that every requested fresh source
+       projection is actually prepared and accepted. A factory failure, stale
+       snapshot, changed `kappa`, or exhausted budget remains an explicit
+       failure; it cannot yield recovery or a fallback. The `1 x 1`
+       compressed circulation runs through this entry from a nonterminal
+       snapshot to its exact matching and cover. This closes the finite
+       potential-accounting component, not general source-coordinate
+       maintenance, projection availability, or the complete-backend gate.
+     - **P9.5e.3e - Independently recomputed Definition 4.2 coordinates.
+       State: complete for the checked fixed-point domain.**
+       `DefinitionProjectionFactory` reconstructs `alpha`, both
+       `slack^-(1 + alpha)` length terms, and the alpha-weighted barrier
+       gradient from exact flow, exact objective, network, and configuration
+       data. It reads no retained snapshot coordinate interval; each fresh
+       dyadic `Input` is still independently accepted by the Theorem 4.3
+       certificate. The current compressed source differential, including its
+       410-mask isolated-lattice population, uses this factory, and a separate
+       nonterminal regression rebuilds 64 distinct inputs/snapshots. This
+       closes source-coordinate construction, but not public construction of
+       structural parameters and initial source state for every compressed
+       input, the complete-backend gate, or any runtime claim.
+     - **P9.5e.3f - Execution-state decoupling from hidden-stability auditing.
+       State: complete.** `source_min_ratio::query::decode` is a pure compact
+       cycle decoder, so `Projection`, `SourceSelected`, compact candidates,
+       and all source projection factories no longer require a
+       `StableMinRatioLedger` or `StableWitness`. P8/P9.4 retains
+       `decode_candidate` as the distinct audit adapter, including its
+       checked stable-edge count. Focused source-flow, pure-decoder, and
+       compressed-MRD regressions establish that the production Definition 4.2
+       factory runs without constructing a stability witness. This does not
+       construct structural parameters, `kappa`, or an initial source state
+       for every compressed input; it does not implement Theorem 5.1 or enable
+       the complete-backend gate.
 
 **Current implementation marker:** commits `3397fbe`, `b6f40e1`, and
 `d28a68a` establish the P9.5 source-flow boundary, document the prohibited
@@ -1722,8 +1796,11 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | fixed/scheduled/reciprocal exact-coordinate factories, three consecutive compressed reciprocal-slack updates with scale-relative structural topology, and explicit fourth-step candidate-ratio overflow | 2026-07-30T03:41:01Z | pending | no source-supported terminating representational range or broad output differential yet; `Backend::require_complete()` remains unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461, pending closeout | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | fixed/scheduled/reciprocal and independently recomputed Definition 4.2 coordinate factories, source-certified conditional potential budget, 64 nonterminal Definition 4.2 updates, pure compact decoding, and exact `1 x 1`, `2 x 2`, chord, Figure 3, and 410-mask isolated-lattice nonterminal-to-terminal differentials | 2026-07-30T03:41:01Z | pending | coordinate construction and execution-state decoupling are complete for the checked fixed-point domain; public all-input parameter/initial-state construction and `Backend::require_complete()` remain unavailable |
 | P9.5e.3a | complete | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | two-snapshot fresh exact coordinate schedules and interval-independent reciprocal reconstruction | 2026-07-30T03:41:01Z | 2026-07-30T04:39:00Z | finite fixtures only; no terminating source session |
-| P9.5e.3b | in_progress | 8668461 | pending | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-relative power-of-two structural topology and three accepted reciprocal-slack successors | 2026-07-30T04:39:00Z | pending | fourth preparation rejects at the explicit `i128` candidate-ratio boundary; a terminating representational range remains unproved |
-| P9.5e.3c | planned | pending | pending | pending | pending | pending | terminal compressed-MRD flow/matching/cover/chord/rectangle differential | after P9.5e.3b | pending | no complete backend gate or runtime claim |
+| P9.5e.3b | complete | 8668461 | pending closeout | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-relative power-of-two structural topology, arbitrary-precision candidate arithmetic, 64 accepted reciprocal-slack successors, and a one-step `1 x 1` terminating source session; full audit passed | 2026-07-30T04:39:00Z | 2026-07-31T01:10:39Z | no general termination or runtime claim |
+| P9.5e.3c | complete | pending | pending closeout | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | nonterminal explicit, chord, Figure 3, and exhaustive 410-member isolated-lattice flow/matching/cover/chord/rectangle differentials; explicit finite `CanonicalTree` for cyclic buckets | 2026-07-31T00:33:53Z | 2026-07-31T02:10:00Z | P9.5e.3 parent still requires a general termination policy; no complete backend gate or runtime claim |
+| P9.5e.3d | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-bound fixed-`kappa` potential budget, nonterminal `1 x 1` budgeted source run, and changed-`kappa` no-mutation regression | 2026-07-31T02:10:00Z | 2026-07-31T03:24:04Z | conditional on every fresh projection succeeding; no general source-coordinate maintenance, complete backend gate, or runtime claim |
+| P9.5e.3e | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | independently recomputed dyadic Definition 4.2 coordinates, 64 nonterminal successor preparations, and the complete declared compressed-MRD population using the new factory | 2026-07-31T03:24:04Z | pending | no public all-input parameter/initial-state construction, complete backend gate, or runtime claim |
+| P9.5e.3f | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | pure compact-cycle decoding and source-flow execution-state decoupling from hidden-stability ledger/witness construction | 2026-07-31T03:24:04Z | pending | P8/P9.4 ledger auditing remains; no Theorem 5.1, public all-input parameter/initial-state construction, complete backend gate, or runtime claim |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

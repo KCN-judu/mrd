@@ -100,15 +100,15 @@ impl OracleEnumeration<'_> {
             let Some(edge) = self.graph.edge(SourceEdgeId(index)) else {
                 continue;
             };
-            total_weight = total_weight.checked_add(edge.weight).map_err(map_ratio)?;
+            total_weight = total_weight.checked_add(&edge.weight).map_err(map_ratio)?;
             weighted_stretch = weighted_stretch
-                .checked_add(edge.weight.checked_mul(stretch).map_err(map_ratio)?)
+                .checked_add(&edge.weight.checked_mul(&stretch).map_err(map_ratio)?)
                 .map_err(map_ratio)?;
         }
         let improves = match &self.best {
             None => true,
             Some((_, old, _)) => {
-                old.at_least(weighted_stretch).map_err(map_ratio)? && *old != weighted_stretch
+                old.at_least(&weighted_stretch).map_err(map_ratio)? && *old != weighted_stretch
             }
         };
         let ties_with_lower_ids = self.best.as_ref().is_some_and(|(old_edges, old, _)| {

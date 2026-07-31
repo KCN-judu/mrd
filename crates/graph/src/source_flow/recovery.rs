@@ -7,6 +7,7 @@
 
 use std::collections::VecDeque;
 
+use num_bigint::BigInt;
 use thiserror::Error;
 
 use crate::{
@@ -61,23 +62,23 @@ pub fn round(
         let augmentation = oriented
             .iter()
             .try_fold(None::<ExactRatio>, |best, (arc, direction)| {
-                let flow = *current.arc_flows.get(arc.0).ok_or(Error::NoCycle)?;
+                let flow = current.arc_flows.get(arc.0).ok_or(Error::NoCycle)?.clone();
                 let available = availability(flow, *direction)?;
                 Ok::<Option<ExactRatio>, Error>(match best {
                     None => Some(available),
-                    Some(current_best) if current_best.at_least(available)? => Some(available),
+                    Some(current_best) if current_best.at_least(&available)? => Some(available),
                     Some(current_best) => Some(current_best),
                 })
             })?
             .ok_or(Error::NoCycle)?;
-        let cost_before = current.cost;
+        let cost_before = current.cost.clone();
         for (arc, direction) in &oriented {
             let delta = augmentation.checked_mul_integer(i128::from(*direction))?;
             let slot = current.arc_flows.get_mut(arc.0).ok_or(Error::NoCycle)?;
-            *slot = slot.checked_add(delta)?;
+            *slot = slot.checked_add(&delta)?;
         }
         current.cost = network.fractional_cost(&current.arc_flows)?;
-        if current.cost.at_least(cost_before)? && current.cost != cost_before {
+        if current.cost.at_least(&cost_before)? && current.cost != cost_before {
             return Err(Error::CostIncreased);
         }
         network.verify_fractional_solution(&current)?;
@@ -85,7 +86,7 @@ pub fn round(
             cycle: oriented,
             augmentation,
             cost_before,
-            cost_after: current.cost,
+            cost_after: current.cost.clone(),
         });
     }
 
@@ -98,7 +99,7 @@ fn fractional_cycle(
     flow: &[ExactRatio],
 ) -> Result<Option<Vec<(CirculationArcId, i8)>>, Error> {
     let mut adjacency = vec![Vec::<TreeEdge>::new(); network.demands().len()];
-    for (index, value) in flow.iter().copied().enumerate() {
+    for (index, value) in flow.iter().cloned().enumerate() {
         if value.is_integral() {
             continue;
         }
@@ -176,14 +177,8 @@ fn availability(flow: ExactRatio, direction: i8) -> Result<ExactRatio, Error> {
     }
     let floor = flow.numerator() / flow.denominator();
     match direction {
-        1 => Ok(ExactRatio::new(
-            floor
-                .checked_add(1)
-                .ok_or(MinCostCirculationError::Overflow)?,
-            1,
-        )?
-        .checked_sub(flow)?),
-        -1 => Ok(flow.checked_sub(ExactRatio::new(floor, 1)?)?),
+        1 => Ok(ExactRatio::from_bigints(floor + 1, BigInt::from(1))?.checked_sub(&flow)?),
+        -1 => Ok(flow.checked_sub(&ExactRatio::from_bigints(floor, BigInt::from(1))?)?),
         _ => Err(Error::InvalidDirection),
     }
 }
@@ -195,12 +190,12 @@ fn integral_solution(
     let arc_flows = flow
         .arc_flows
         .iter()
-        .copied()
+        .cloned()
         .map(|value| {
             if !value.is_integral() {
                 return Err(Error::NoCycle);
             }
-            Ok(value.numerator() / value.denominator())
+            Ok(value.numerator_i128()?)
         })
         .collect::<Result<Vec<_>, Error>>()?;
     let cost = network.fractional_cost(&flow.arc_flows)?;
@@ -213,12 +208,12 @@ fn integral_solution(
             .copied()
             .map(|value| ExactRatio::new(value, 1))
             .collect::<Result<Vec<_>, _>>()?,
-        cost,
+        cost: cost.clone(),
     };
     network.verify_fractional_solution(&integral)?;
     Ok(MinCostSolution {
         arc_flows,
-        cost: cost.numerator() / cost.denominator(),
+        cost: cost.numerator_i128()?,
     })
 }
 
@@ -270,7 +265,7 @@ mod tests {
         let rounded = round(
             &network,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
         )
@@ -292,7 +287,13 @@ mod tests {
         network.add_arc(FlowNodeId(3), FlowNodeId(2), 2, 1).unwrap();
         let half = ExactRatio::new(1, 2).unwrap();
         let initial = FractionalCirculation {
-            arc_flows: vec![half, half, ExactRatio::new(1, 1).unwrap(), half, half],
+            arc_flows: vec![
+                half.clone(),
+                half.clone(),
+                ExactRatio::new(1, 1).unwrap(),
+                half.clone(),
+                half,
+            ],
             cost: ExactRatio::new(2, 1).unwrap(),
         };
         network.verify_fractional_solution(&initial).unwrap();

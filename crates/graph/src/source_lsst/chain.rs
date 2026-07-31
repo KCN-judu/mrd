@@ -16,7 +16,7 @@ use super::{
 };
 
 /// Explicit finite-domain controls for one Section 9.1 tree chain.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameters {
     pub root: FlowNodeId,
     /// Maximum numerator or denominator accepted in structural lengths.
@@ -70,7 +70,7 @@ impl Chain {
         forest: &LsfStructuralCertificate,
         parameters: Parameters,
     ) -> Result<Self, Error> {
-        validate_input(graph, parameters)?;
+        validate_input(graph, parameters.clone())?;
         let level = Level::contract(graph, forest).map_err(Error::Level)?;
         let partition = Partition::initialize(&level, parameters.buckets).map_err(Error::Bucket)?;
         let terminal_edges = terminal_edges(&level, &partition, parameters.root)?;
@@ -117,7 +117,7 @@ fn validate_input(graph: &SourceDynamicGraph, parameters: Parameters) -> Result<
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
             continue;
         };
-        if coordinate_bound(edge.length)? > parameters.maximum_coordinate {
+        if coordinate_bound(edge.length.clone())? > parameters.maximum_coordinate {
             return Err(Error::LengthOutsideFiniteDomain);
         }
     }
@@ -147,11 +147,11 @@ fn terminal_edges(
     let mut maximum_coordinate = 1_i128;
     for source in selected {
         let edge = by_source.get(&source).ok_or(Error::InvalidChain)?;
-        maximum_coordinate = maximum_coordinate.max(coordinate_bound(edge.scaled_length)?);
+        maximum_coordinate = maximum_coordinate.max(coordinate_bound(edge.scaled_length.clone())?);
         edges.push(SourceWeightedEdge {
             first: FlowNodeId(edge.first.0),
             second: FlowNodeId(edge.second.0),
-            length: edge.scaled_length,
+            length: edge.scaled_length.clone(),
             weight: ratio(1)?,
         });
         sources.push(source);
@@ -206,8 +206,8 @@ fn level_audit(level: &Level, partition: &Partition) -> Result<LevelAudit, Error
         }
     }
     Ok(LevelAudit {
-        weighted_forest_stretch: level.forest_audit.weighted_initial_stretch,
-        maximum_forest_stretch: level.forest_audit.maximum_stretch,
+        weighted_forest_stretch: level.forest_audit.weighted_initial_stretch.clone(),
+        maximum_forest_stretch: level.forest_audit.maximum_stretch.clone(),
         maximum_embedding_hops,
         maximum_embedding_vertex_congestion: congestion.into_iter().max().unwrap_or(0),
         encoded_embedding_length,
@@ -262,21 +262,22 @@ fn tree_audit(
         let distance = tree_distance(&adjacency, edge.first, edge.second)?;
         let stretch = edge
             .length
-            .checked_add(distance)
-            .and_then(|value| value.checked_mul(edge.length.reciprocal()?))
+            .checked_add(&distance)
+            .and_then(|value| value.checked_mul(&edge.length.reciprocal()?))
             .map_err(|_| Error::Overflow)?;
         weighted_stretch = weighted_stretch
             .checked_add(
-                edge.weight
-                    .checked_mul(stretch)
+                &edge
+                    .weight
+                    .checked_mul(&stretch)
                     .map_err(|_| Error::Overflow)?,
             )
             .map_err(|_| Error::Overflow)?;
         total_weight = total_weight
-            .checked_add(edge.weight)
+            .checked_add(&edge.weight)
             .map_err(|_| Error::Overflow)?;
         if stretch
-            .at_least(maximum_stretch)
+            .at_least(&maximum_stretch)
             .map_err(|_| Error::Overflow)?
         {
             maximum_stretch = stretch;
@@ -299,8 +300,8 @@ fn tree_adjacency(
     let mut adjacency = vec![Vec::new(); graph.node_count()];
     for source in tree {
         let edge = graph.edge(*source).ok_or(Error::InvalidTree)?;
-        adjacency[edge.first.0].push((edge.second, edge.length));
-        adjacency[edge.second.0].push((edge.first, edge.length));
+        adjacency[edge.first.0].push((edge.second, edge.length.clone()));
+        adjacency[edge.second.0].push((edge.first, edge.length.clone()));
     }
     let mut seen = BTreeSet::from([FlowNodeId(0)]);
     let mut queue = VecDeque::from([FlowNodeId(0)]);
@@ -333,7 +334,7 @@ fn tree_distance(
             if seen.insert(*next) {
                 queue.push_back((
                     *next,
-                    distance.checked_add(*length).map_err(|_| Error::Overflow)?,
+                    distance.checked_add(length).map_err(|_| Error::Overflow)?,
                 ));
             }
         }
@@ -342,11 +343,13 @@ fn tree_distance(
 }
 
 fn coordinate_bound(value: ExactRatio) -> Result<i128, Error> {
-    Ok(value
-        .numerator()
+    let numerator = value
+        .numerator_i128()
+        .map_err(|_| Error::Overflow)?
         .checked_abs()
-        .ok_or(Error::Overflow)?
-        .max(value.denominator()))
+        .ok_or(Error::Overflow)?;
+    let denominator = value.denominator_i128().map_err(|_| Error::Overflow)?;
+    Ok(numerator.max(denominator))
 }
 
 fn ratio(value: i128) -> Result<ExactRatio, Error> {
@@ -387,6 +390,7 @@ mod tests {
         source_lsst::{
             LsfPiece, LsfStructuralCertificate, SourceDynamicGraph, SourceEdgeId,
             SourceWeightedEdge,
+            bucket::Construction as BucketConstruction,
             bucket::{Error as BucketError, Parameters as BucketParameters},
         },
         source_spanner::{
@@ -444,13 +448,13 @@ mod tests {
             maximum_coordinate: 8,
             buckets: BucketParameters {
                 maximum_absolute_exponent: 4,
-                spanner: RebuildParameters {
+                construction: BucketConstruction::Algorithm4(RebuildParameters {
                     phi: ExactRatio::new(1, 2).unwrap(),
                     domain: ExhaustiveDomain { maximum_nodes: 8 },
                     maximum_hops: 2,
                     maximum_vertex_congestion: 100,
                     maximum_rounds: 1,
-                },
+                }),
             },
         }
     }

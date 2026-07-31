@@ -25,7 +25,7 @@ use super::{
 pub struct CandidateId(pub usize);
 
 /// The source operation that produced one compact fundamental cycle.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Kind {
     /// A rejected core edge together with its maintained spanner embedding.
     FundamentalSpanner {
@@ -144,7 +144,7 @@ struct Entry {
     generation: u64,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct HeapItem {
     id: CandidateId,
     generation: u64,
@@ -260,7 +260,7 @@ impl Registry {
     /// accounting overflows.
     pub fn best(&mut self) -> Result<Option<Choice>, Error> {
         loop {
-            let Some(item) = self.heap.first().copied() else {
+            let Some(item) = self.heap.first().cloned() else {
                 return Ok(None);
             };
             let Some(entry) = self.entries.get(&item.id) else {
@@ -280,15 +280,15 @@ impl Registry {
                     entry.gradient_dot.checked_neg()?,
                 )
             } else {
-                (entry.candidate.cycle.clone(), entry.gradient_dot)
+                (entry.candidate.cycle.clone(), entry.gradient_dot.clone())
             };
             return Ok(Some(Choice {
                 id: entry.candidate.id,
-                kind: entry.candidate.kind,
+                kind: entry.candidate.kind.clone(),
                 cycle,
-                quality: entry.quality,
+                quality: entry.quality.clone(),
                 gradient_dot,
-                length_norm: entry.length_norm,
+                length_norm: entry.length_norm.clone(),
             }));
         }
     }
@@ -327,7 +327,7 @@ impl Registry {
         let mut index = self.heap.len() - 1;
         while index > 0 {
             let parent = (index - 1) / 2;
-            if !self.better(self.heap[index], self.heap[parent])? {
+            if !self.better(self.heap[index].clone(), self.heap[parent].clone())? {
                 break;
             }
             self.heap.swap(index, parent);
@@ -355,10 +355,12 @@ impl Registry {
             }
             let right = left.checked_add(1).ok_or(Error::Overflow)?;
             let mut child = left;
-            if right < self.heap.len() && self.better(self.heap[right], self.heap[left])? {
+            if right < self.heap.len()
+                && self.better(self.heap[right].clone(), self.heap[left].clone())?
+            {
                 child = right;
             }
-            if !self.better(self.heap[child], self.heap[index])? {
+            if !self.better(self.heap[child].clone(), self.heap[index].clone())? {
                 break;
             }
             self.heap.swap(index, child);
@@ -381,7 +383,7 @@ impl Registry {
                 .ok_or(Error::Overflow)?;
             return Ok(first.id < second.id);
         }
-        Ok(first.quality.at_least(second.quality)?)
+        Ok(first.quality.at_least(&second.quality)?)
     }
 }
 
@@ -400,24 +402,26 @@ fn evaluate(
     )?;
     let direction = aggregate(decoded)?;
     let zero = ExactRatio::new(0, 1)?;
-    let (gradient_dot, length_norm) =
-        direction
-            .into_iter()
-            .try_fold((zero, zero), |(dot, norm), (arc, coefficient)| {
-                let coordinate = context
-                    .input
-                    .arc(arc)
-                    .ok_or(Error::MissingCoordinate(arc))?;
-                let scale = ExactRatio::new(coefficient, 1)?;
-                Ok::<_, Error>((
-                    dot.checked_add(coordinate.gradient.checked_mul(scale)?)?,
-                    norm.checked_add(coordinate.length.checked_mul(scale.abs()?)?)?,
-                ))
-            })?;
+    let (gradient_dot, length_norm) = direction.into_iter().try_fold(
+        (zero.clone(), zero),
+        |(dot, norm), (arc, coefficient)| {
+            let coordinate = context
+                .input
+                .arc(arc)
+                .ok_or(Error::MissingCoordinate(arc))?;
+            let scale = ExactRatio::new(coefficient, 1)?;
+            Ok::<_, Error>((
+                dot.checked_add(&coordinate.gradient.checked_mul(&scale)?)?,
+                norm.checked_add(&coordinate.length.checked_mul(&scale.abs()?)?)?,
+            ))
+        },
+    )?;
     if !length_norm.is_positive() {
         return Err(Error::ZeroDirection(candidate.id));
     }
-    let quality = gradient_dot.abs()?.checked_mul(length_norm.reciprocal()?)?;
+    let quality = gradient_dot
+        .abs()?
+        .checked_mul(&length_norm.reciprocal()?)?;
     Ok(Entry {
         candidate,
         quality,
@@ -439,7 +443,7 @@ fn validate_shape(
         .filter(|segment| {
             matches!(
                 segment,
-                Segment::OffTree { source, .. } if *source == candidate.kind.anchor()
+                Segment::OffTree { source, .. } if *source == candidate.kind.clone().anchor()
             )
         })
         .count();
@@ -594,7 +598,8 @@ mod tests {
         CirculationNetwork,
     ) {
         let network = network();
-        let input = Input::new(&network, gradients, &[ratio(1); 5], &[ratio(1); 5]).unwrap();
+        let lengths = vec![ratio(1); 5];
+        let input = Input::new(&network, gradients, &lengths, &lengths).unwrap();
         let materialization = input.materialize(&network).unwrap();
         let chain = Chain::new(
             &materialization.graph,

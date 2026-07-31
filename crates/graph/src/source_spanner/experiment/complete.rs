@@ -36,11 +36,11 @@ pub fn build(weights: &[ExactRatio], domain: ExhaustiveDomain) -> Result<Witness
     let degree_ratio = ExactRatio::new(i128::from(degree), 1).map_err(map_ratio)?;
     for weight in weights {
         if !weight.is_positive()
-            || !degree_ratio.at_least(*weight).map_err(map_ratio)?
+            || !degree_ratio.at_least(weight).map_err(map_ratio)?
             || !weight
                 .checked_mul_integer(18)
                 .map_err(map_ratio)?
-                .at_least(degree_ratio)
+                .at_least(&degree_ratio)
                 .map_err(map_ratio)?
         {
             return Err(Error::DegreeSandwichViolation);
@@ -115,15 +115,15 @@ mod tests {
     #[test]
     fn rejects_an_unbracketed_degree_or_large_domain() {
         assert_eq!(
-            build(&[weight(1); 20], ExhaustiveDomain { maximum_nodes: 20 }),
+            build(&vec![weight(1); 20], ExhaustiveDomain { maximum_nodes: 20 }),
             Err(Error::DegreeSandwichViolation)
         );
         assert_eq!(
-            build(&[weight(1); 4], ExhaustiveDomain { maximum_nodes: 3 }),
+            build(&vec![weight(1); 4], ExhaustiveDomain { maximum_nodes: 3 }),
             Err(Error::OutsideCertifiedDomain)
         );
         assert_eq!(
-            build(&[weight(1); 4], ExhaustiveDomain { maximum_nodes: 21 }),
+            build(&vec![weight(1); 4], ExhaustiveDomain { maximum_nodes: 21 }),
             Err(Error::OutsideCertifiedDomain)
         );
     }

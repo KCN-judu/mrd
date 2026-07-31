@@ -203,7 +203,7 @@ impl SourceDynamicGraph {
         let remainder = original
             .edge
             .length
-            .checked_sub(offset)
+            .checked_sub(&offset)
             .map_err(|_| SourceLsstError::Overflow)?;
         if !offset.is_positive() || !remainder.is_positive() {
             return Err(SourceLsstError::InvalidDomain);
@@ -217,28 +217,32 @@ impl SourceDynamicGraph {
             first: from,
             second: portal,
             length: offset,
-            weight: original.edge.weight,
+            weight: original.edge.weight.clone(),
         };
         let second = SourceWeightedEdge {
             first: portal,
             second: toward,
             length: remainder,
-            weight: original.edge.weight,
+            weight: original.edge.weight.clone(),
         };
-        let next_bound = [first.length, first.weight, second.length, second.weight]
-            .into_iter()
-            .try_fold(self.maximum_abs_coordinate, |bound, value| {
-                Ok::<_, SourceLsstError>(
-                    bound
-                        .max(
-                            value
-                                .numerator()
-                                .checked_abs()
-                                .ok_or(SourceLsstError::Overflow)?,
-                        )
-                        .max(value.denominator()),
-                )
-            })?;
+        let next_bound = [
+            first.length.clone(),
+            first.weight.clone(),
+            second.length.clone(),
+            second.weight.clone(),
+        ]
+        .into_iter()
+        .try_fold(self.maximum_abs_coordinate, |bound, value| {
+            let numerator = value
+                .numerator_i128()
+                .map_err(|_| SourceLsstError::Overflow)?
+                .checked_abs()
+                .ok_or(SourceLsstError::Overflow)?;
+            let denominator = value
+                .denominator_i128()
+                .map_err(|_| SourceLsstError::Overflow)?;
+            Ok::<_, SourceLsstError>(bound.max(numerator).max(denominator))
+        })?;
         validate_edge(next_node_count, &first, next_bound)?;
         validate_edge(next_node_count, &second, next_bound)?;
         let next_initial_edges = self
@@ -371,7 +375,7 @@ impl SourceDynamicGraph {
         }
         let maximum_piece_volume = self.verify_pieces(certificate)?;
         let zero = ratio(0)?;
-        let mut weighted_initial_stretch = zero;
+        let mut weighted_initial_stretch = zero.clone();
         let mut maximum_stretch = zero;
         let mut inserted_edge_checks = 0_u64;
         for (index, state) in self.edges.iter().enumerate() {
@@ -384,8 +388,8 @@ impl SourceDynamicGraph {
                 &component_of,
                 &certificate.roots,
             )?;
-            let bound = certificate.stretch_overestimates[index];
-            if !bound.at_least(exact).map_err(map_ratio)? {
+            let bound = certificate.stretch_overestimates[index].clone();
+            if !bound.at_least(&exact).map_err(map_ratio)? {
                 return Err(SourceLsstError::InvalidStretch);
             }
             if state.inserted_after_initialization {
@@ -397,10 +401,10 @@ impl SourceDynamicGraph {
                     .ok_or(SourceLsstError::Overflow)?;
             } else {
                 weighted_initial_stretch = weighted_initial_stretch
-                    .checked_add(state.edge.weight.checked_mul(bound).map_err(map_ratio)?)
+                    .checked_add(&state.edge.weight.checked_mul(&bound).map_err(map_ratio)?)
                     .map_err(map_ratio)?;
             }
-            if bound.at_least(maximum_stretch).map_err(map_ratio)? {
+            if bound.at_least(&maximum_stretch).map_err(map_ratio)? {
                 maximum_stretch = bound;
             }
         }
@@ -694,7 +698,7 @@ impl SourceDynamicGraph {
             let first_root = component_root(component_of, edge.first.0, roots)?;
             let second_root = component_root(component_of, edge.second.0, roots)?;
             forest_distance(self, adjacency, edge.first.0, first_root)?
-                .checked_add(forest_distance(
+                .checked_add(&forest_distance(
                     self,
                     adjacency,
                     edge.second.0,
@@ -703,8 +707,8 @@ impl SourceDynamicGraph {
                 .map_err(map_ratio)?
         };
         edge.length
-            .checked_add(route)
-            .and_then(|value| value.checked_mul(edge.length.reciprocal()?))
+            .checked_add(&route)
+            .and_then(|value| value.checked_mul(&edge.length.reciprocal()?))
             .map_err(map_ratio)
     }
 }
@@ -747,8 +751,8 @@ fn validate_edge(
         || edge.first == edge.second
         || !edge.length.is_positive()
         || !edge.weight.is_positive()
-        || !ratio_within(edge.length, maximum_abs_coordinate)?
-        || !ratio_within(edge.weight, maximum_abs_coordinate)?
+        || !ratio_within(edge.length.clone(), maximum_abs_coordinate)?
+        || !ratio_within(edge.weight.clone(), maximum_abs_coordinate)?
     {
         return Err(SourceLsstError::InvalidDomain);
     }
@@ -757,10 +761,14 @@ fn validate_edge(
 
 fn ratio_within(value: ExactRatio, bound: i128) -> Result<bool, SourceLsstError> {
     let numerator = value
-        .numerator()
+        .numerator_i128()
+        .map_err(|_| SourceLsstError::Overflow)?
         .checked_abs()
         .ok_or(SourceLsstError::Overflow)?;
-    Ok(numerator <= bound && value.denominator() <= bound)
+    let denominator = value
+        .denominator_i128()
+        .map_err(|_| SourceLsstError::Overflow)?;
+    Ok(numerator <= bound && denominator <= bound)
 }
 
 fn forest_components(
@@ -853,8 +861,9 @@ fn forest_distance(
                 let length = graph
                     .edge(*id)
                     .ok_or(SourceLsstError::InvalidForest)?
-                    .length;
-                queue.push_back((*next, distance.checked_add(length).map_err(map_ratio)?));
+                    .length
+                    .clone();
+                queue.push_back((*next, distance.checked_add(&length).map_err(map_ratio)?));
             }
         }
     }

@@ -55,13 +55,13 @@ pub fn single_level(
         .map_err(map_ratio)?;
     if !ExactRatio::new(i128::from(minimum_degree), 1)
         .map_err(map_ratio)?
-        .at_least(minimum_level_required)
+        .at_least(&minimum_level_required)
         .map_err(map_ratio)?
     {
         return Err(Error::DegreeSandwichViolation);
     }
     let (expansion, cuts_checked) = expansion(graph)?;
-    if !expansion.at_least(phi).map_err(map_ratio)? {
+    if !expansion.at_least(&phi).map_err(map_ratio)? {
         return Err(Error::InvalidCertificate);
     }
     let maximum_level = ceil_log2(graph.node_count());
@@ -70,7 +70,7 @@ pub fn single_level(
             phi.checked_mul_integer(1_i128 << level)
                 .and_then(|required| {
                     ExactRatio::new(i128::from(minimum_degree), 1)
-                        .and_then(|degree| degree.at_least(required))
+                        .and_then(|degree| degree.at_least(&required))
                 })
                 .unwrap_or(false)
         })
@@ -96,7 +96,7 @@ impl Decomposition {
     ///
     /// Returns an error when a certificate field differs from fresh evidence.
     pub fn verify(&self, graph: &Graph, domain: ExhaustiveDomain) -> Result<(), Error> {
-        if &single_level(graph, self.phi, domain)? != self {
+        if &single_level(graph, self.phi.clone(), domain)? != self {
             return Err(Error::InvalidCertificate);
         }
         Ok(())
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn certifies_one_edge_disjoint_expander_level() {
         let witness = build(
-            &[ExactRatio::new(1, 1).unwrap(); 4],
+            &vec![ExactRatio::new(1, 1).unwrap(); 4],
             ExhaustiveDomain { maximum_nodes: 8 },
         )
         .unwrap();

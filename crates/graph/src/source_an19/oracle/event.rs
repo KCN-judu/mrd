@@ -34,7 +34,7 @@ impl Backend for Engine {
             problem.target,
             &path,
             &paths.distances,
-            problem.budget,
+            problem.budget.clone(),
             &mut metrics,
         )?;
         let selection = select_weighted_figure_six_oracle(
@@ -42,7 +42,7 @@ impl Backend for Engine {
             problem.cluster,
             problem.remaining,
             &thresholds,
-            problem.budget,
+            problem.budget.clone(),
             false,
             problem.graph.node_count(),
             &mut metrics,
@@ -69,7 +69,7 @@ fn reduced_cost_set(
     graph: &SourceDynamicGraph,
     allowed: &BTreeSet<FlowNodeId>,
     paths: &ShortestPaths,
-) -> Result<BTreeSet<(i128, i128)>, Error> {
+) -> Result<BTreeSet<(String, String)>, Error> {
     let mut distinct = BTreeSet::new();
     for index in 0..graph.edge_count() {
         let edge = graph
@@ -78,19 +78,26 @@ fn reduced_cost_set(
         if !allowed.contains(&edge.first) || !allowed.contains(&edge.second) {
             continue;
         }
-        let first = paths.distances[edge.first.0].ok_or(Error::Disconnected)?;
-        let second = paths.distances[edge.second.0].ok_or(Error::Disconnected)?;
-        for (from, to) in [(first, second), (second, first)] {
+        let first = paths.distances[edge.first.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
+        let second = paths.distances[edge.second.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
+        for (from, to) in [(first.clone(), second.clone()), (second, first)] {
             let reduced = edge
                 .length
-                .checked_add(from)
-                .and_then(|value| value.checked_sub(to))
+                .checked_add(&from)
+                .and_then(|value| value.checked_sub(&to))
                 .and_then(|value| value.checked_mul_integer(2))
                 .map_err(|_| Error::Overflow)?;
             if reduced.is_negative() {
                 return Err(Error::InvalidHighway);
             }
-            distinct.insert((reduced.numerator(), reduced.denominator()));
+            distinct.insert((
+                reduced.numerator().to_string(),
+                reduced.denominator().to_string(),
+            ));
         }
     }
     Ok(distinct)
@@ -104,12 +111,14 @@ fn oracle_queue_observations(
         .remaining
         .iter()
         .filter_map(|vertex| {
-            thresholds.by_vertex[vertex.0].map(|distance| queue::Item {
-                distance,
-                vertex: *vertex,
-                insertion_sequence: u64::try_from(vertex.0).unwrap_or(u64::MAX),
-                predecessor: None,
-            })
+            thresholds.by_vertex[vertex.0]
+                .clone()
+                .map(|distance| queue::Item {
+                    distance,
+                    vertex: *vertex,
+                    insertion_sequence: u64::try_from(vertex.0).unwrap_or(u64::MAX),
+                    predecessor: None,
+                })
         })
         .collect::<Vec<_>>();
     let mut statistics = queue::Statistics {

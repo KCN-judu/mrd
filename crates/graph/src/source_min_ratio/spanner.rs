@@ -20,29 +20,19 @@ use super::{
     model::{Branch, BranchId, Level, LevelId, Tree},
 };
 
-use crate::{
-    source_lsst::{
-        LsfPiece, LsfStructuralCertificate,
-        bucket::Parameters as BucketParameters,
-        chain::{
-            Chain as SourceChain, Error as SourceChainError, Parameters as SourceChainParameters,
-        },
-    },
-    source_spanner::{
-        dynamic::rebuild::Parameters as RebuildParameters, experiment::domain::ExhaustiveDomain,
-    },
+use crate::source_lsst::{
+    LsfPiece, LsfStructuralCertificate,
+    bucket::{Construction as BucketConstruction, Parameters as BucketParameters},
+    chain::{Chain as SourceChain, Error as SourceChainError, Parameters as SourceChainParameters},
 };
 
 /// Explicit finite-domain controls for a sparsified-core snapshot.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameters {
     pub root: FlowNodeId,
     pub maximum_absolute_exponent: u32,
-    pub phi: ExactRatio,
-    pub domain: ExhaustiveDomain,
-    pub maximum_hops: usize,
-    pub maximum_vertex_congestion: u64,
-    pub maximum_rounds: usize,
+    /// Explicit finite construction used for cyclic contracted buckets.
+    pub bucket_construction: BucketConstruction,
 }
 
 /// Immutable source core/spanner state for one exact IPM projection.
@@ -93,10 +83,6 @@ impl Snapshot {
         let structural = input.structural_graph()?;
         if parameters.root.0 >= structural.graph.node_count()
             || parameters.maximum_absolute_exponent == 0
-            || !parameters.phi.is_positive()
-            || parameters.maximum_hops == 0
-            || parameters.maximum_vertex_congestion == 0
-            || parameters.maximum_rounds == 0
         {
             return Err(Error::InvalidParameters);
         }
@@ -110,13 +96,7 @@ impl Snapshot {
                 maximum_coordinate,
                 buckets: BucketParameters {
                     maximum_absolute_exponent: parameters.maximum_absolute_exponent,
-                    spanner: RebuildParameters {
-                        phi: parameters.phi,
-                        domain: parameters.domain,
-                        maximum_hops: parameters.maximum_hops,
-                        maximum_vertex_congestion: parameters.maximum_vertex_congestion,
-                        maximum_rounds: parameters.maximum_rounds,
-                    },
+                    construction: parameters.bucket_construction.clone(),
                 },
             },
         )?;
@@ -153,7 +133,7 @@ impl Snapshot {
     /// Returns an error when the supplied network or any stored source
     /// provenance no longer agrees with the immutable snapshot.
     pub fn verify(&self, network: &CirculationNetwork) -> Result<(), Error> {
-        let rebuilt = Self::build(self.input.clone(), network, self.parameters)?;
+        let rebuilt = Self::build(self.input.clone(), network, self.parameters.clone())?;
         if &rebuilt == self {
             Ok(())
         } else {
@@ -173,7 +153,7 @@ impl Snapshot {
         input: Input,
         network: &CirculationNetwork,
     ) -> Result<Transition, Error> {
-        let next = Self::build(input, network, self.parameters)?;
+        let next = Self::build(input, network, self.parameters.clone())?;
         if !self.input.has_same_source_identity(next.input()) {
             return Err(Error::SourceIdentityChanged);
         }
@@ -343,13 +323,17 @@ fn maximum_coordinate(graph: &SourceDynamicGraph) -> Result<i128, Error> {
         if !edge.length.is_positive() {
             return Err(Error::InvalidLength(SourceEdgeId(index)));
         }
-        maximum = maximum.max(
-            edge.length
-                .numerator()
-                .checked_abs()
-                .ok_or(Error::Overflow)?
-                .max(edge.length.denominator()),
-        );
+        let numerator = edge
+            .length
+            .numerator_i128()
+            .map_err(|_| Error::Overflow)?
+            .checked_abs()
+            .ok_or(Error::Overflow)?;
+        let denominator = edge
+            .length
+            .denominator_i128()
+            .map_err(|_| Error::Overflow)?;
+        maximum = maximum.max(numerator.max(denominator));
     }
     if maximum <= 0 {
         Err(Error::EmptyGraph)
@@ -490,8 +474,8 @@ mod tests {
     use super::{Error, Parameters, Snapshot};
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId,
+        source_lsst::bucket::Construction as BucketConstruction,
         source_min_ratio::{candidate::Kind, input::Input},
-        source_spanner::experiment::domain::ExhaustiveDomain,
     };
 
     fn network() -> CirculationNetwork {
@@ -510,11 +494,7 @@ mod tests {
         Parameters {
             root: FlowNodeId(0),
             maximum_absolute_exponent: 4,
-            phi: ExactRatio::new(1, 2).unwrap(),
-            domain: ExhaustiveDomain { maximum_nodes: 8 },
-            maximum_hops: 4,
-            maximum_vertex_congestion: 100,
-            maximum_rounds: 1,
+            bucket_construction: BucketConstruction::CanonicalTree,
         }
     }
 
@@ -541,11 +521,12 @@ mod tests {
     }
 
     #[test]
-    fn emits_rejected_core_cycles_from_a_checked_sparse_embedding() {
+    fn emits_rejected_core_cycles_from_a_checked_canonical_tree_embedding() {
         let network = network();
         let input = input(&network, -1);
         let snapshot = Snapshot::build(input, &network, parameters()).unwrap();
-        assert_eq!(snapshot.candidates().len(), 5);
+        let expected_rejected = network.arc_count() - (network.node_count() - 1);
+        assert_eq!(snapshot.candidates().len(), expected_rejected);
         assert!(
             snapshot
                 .candidates()
@@ -566,13 +547,13 @@ mod tests {
             assert!(!decoded.is_empty());
         }
         let mut registry = snapshot.registry(&network).unwrap();
-        assert_eq!(registry.candidates().len(), 5);
+        assert_eq!(registry.candidates().len(), expected_rejected);
         assert!(registry.best().unwrap().is_some());
         snapshot.verify(&network).unwrap();
     }
 
     #[test]
-    fn preserves_rational_coordinates_through_the_structural_chain() {
+    fn preserves_raw_rational_coordinates_alongside_the_structural_chain() {
         let network = network();
         let rational_lengths = vec![ExactRatio::new(1, 2).unwrap(); network.arc_count()];
         let snapshot = Snapshot::build(
@@ -584,12 +565,20 @@ mod tests {
 
         assert_eq!(
             snapshot
+                .input()
+                .arc(crate::CirculationArcId(0))
+                .unwrap()
+                .length,
+            ExactRatio::new(1, 2).unwrap()
+        );
+        assert_eq!(
+            snapshot
                 .materialization()
                 .graph
                 .edge(crate::SourceEdgeId(0))
                 .unwrap()
                 .length,
-            ExactRatio::new(1, 2).unwrap()
+            ExactRatio::new(1, 1).unwrap()
         );
         assert!(
             snapshot
@@ -614,7 +603,10 @@ mod tests {
         assert!(transition.reembedded.is_empty());
         assert_eq!(transition.refreshed.len(), snapshot.candidates().len());
         transition.apply(&mut registry, &network).unwrap();
-        assert_eq!(registry.accounting().replaced, 5);
+        assert_eq!(
+            registry.accounting().replaced,
+            u64::try_from(snapshot.candidates().len()).unwrap()
+        );
         assert!(registry.best().unwrap().is_some());
         transition.next.verify(&network).unwrap();
     }

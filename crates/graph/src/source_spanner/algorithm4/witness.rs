@@ -59,7 +59,7 @@ pub fn build(
         .into_iter()
         .map(|degree| {
             ExactRatio::new(i128::from(degree), 1)
-                .and_then(|value| value.checked_mul(scale.reciprocal()?))
+                .and_then(|value| value.checked_mul(&scale.reciprocal()?))
                 .map_err(|_| Error::Overflow)
         })
         .collect::<Result<Vec<_>, _>>()?;

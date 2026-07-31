@@ -7,7 +7,6 @@
 //! a rational reciprocal-slack surrogate, strict feasibility, bounded inputs,
 //! and every observed potential decrease with exact arithmetic.
 
-use num_bigint::BigInt;
 use thiserror::Error;
 
 use crate::{
@@ -183,9 +182,9 @@ impl IpmDetectLedger {
             .zip(direction)
         {
             let magnitude = eta
-                .checked_mul(delta.abs().map_err(map_exact)?)
+                .checked_mul(&delta.abs().map_err(map_exact)?)
                 .map_err(map_exact)?;
-            let change = enclose_exact(&mut arithmetic, magnitude)?;
+            let change = enclose_exact(&mut arithmetic, &magnitude)?;
             let weighted = arithmetic.multiply_intervals(length, &change)?;
             *accumulated = arithmetic.add_intervals(accumulated, &weighted)?;
         }
@@ -207,7 +206,7 @@ impl IpmDetectLedger {
             return Err(CertifiedIpmError::InvalidDetectThreshold);
         }
         let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
-        let threshold = enclose_exact(&mut arithmetic, epsilon)?;
+        let threshold = enclose_exact(&mut arithmetic, &epsilon)?;
         let zero = arithmetic.enclose_ratio(0, 1)?;
         let mut detected = Vec::new();
         for (index, accumulated) in self.accumulated_changes.iter_mut().enumerate() {
@@ -256,7 +255,7 @@ impl CertifiedIpmSnapshot {
     ) -> Result<CertifiedLowerBoundInitialPoint, CertifiedIpmError> {
         let normalization = network.normalize_lower_bounds(maximum_abs_input)?;
         let offset = ExactRatio::new(normalization.objective_offset, 1).map_err(map_exact)?;
-        let normalized_optimal = optimal_cost.checked_sub(offset).map_err(map_exact)?;
+        let normalized_optimal = optimal_cost.checked_sub(&offset).map_err(map_exact)?;
         let initial_point = Self::initial_point_augmented(
             &normalization.normalized,
             normalized_optimal,
@@ -373,11 +372,11 @@ impl CertifiedIpmSnapshot {
         }
         let objective_gap = flow
             .cost
-            .checked_sub(optimal_cost)
+            .checked_sub(&optimal_cost)
             .map_err(|_| CertifiedIpmError::ExactOverflow)?;
         let zero = exact_ratio(0)?;
         if !objective_gap
-            .at_least(zero)
+            .at_least(&zero)
             .map_err(|_| CertifiedIpmError::ExactOverflow)?
             || objective_gap == zero
         {
@@ -403,7 +402,7 @@ impl CertifiedIpmSnapshot {
             return Err(CertifiedIpmError::UncertifiedApproximation);
         }
 
-        let gap_interval = enclose_exact(&mut arithmetic, objective_gap)?;
+        let gap_interval = enclose_exact(&mut arithmetic, &objective_gap)?;
         let log_gap = arithmetic.logarithm(&gap_interval)?;
         let potential_factor = edge_count_i128
             .checked_mul(20)
@@ -415,8 +414,8 @@ impl CertifiedIpmSnapshot {
         let mut gradients = Vec::with_capacity(edge_count);
 
         for (index, (lower_slack, upper_slack)) in slacks.into_iter().enumerate() {
-            let lower = enclose_exact(&mut arithmetic, lower_slack)?;
-            let upper = enclose_exact(&mut arithmetic, upper_slack)?;
+            let lower = enclose_exact(&mut arithmetic, &lower_slack)?;
+            let upper = enclose_exact(&mut arithmetic, &upper_slack)?;
             if !lower.is_strictly_positive() || !upper.is_strictly_positive() {
                 return Err(CertifiedIpmError::NotStrictlyInterior);
             }
@@ -493,8 +492,8 @@ impl CertifiedIpmSnapshot {
     }
 
     #[must_use]
-    pub const fn optimal_cost(&self) -> ExactRatio {
-        self.optimal_cost
+    pub fn optimal_cost(&self) -> ExactRatio {
+        self.optimal_cost.clone()
     }
 
     #[must_use]
@@ -537,6 +536,58 @@ impl CertifiedIpmSnapshot {
         self.arithmetic_metrics
     }
 
+    /// Returns the potential threshold that implies an additive-half gap.
+    ///
+    /// CKLPPS22 Equation (9) has a nonnegative barrier term, so Lemma 4.1
+    /// implies that `Phi(f) <= 20m log(1/2)` is sufficient for an objective
+    /// gap of at most one half. The source also gives a stricter
+    /// `-200m log(mU)` stopping threshold; this local recovery boundary uses
+    /// the directly sufficient additive-half threshold instead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the network identity or fixed-point arithmetic
+    /// cannot certify the threshold.
+    pub fn additive_half_potential_bound(
+        &self,
+        network: &CirculationNetwork,
+    ) -> Result<DyadicInterval, CertifiedIpmError> {
+        self.verify_network(network)?;
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        let half = arithmetic.enclose_ratio(1, 2)?;
+        let log_half = arithmetic.logarithm(&half)?;
+        let factor = i128::try_from(network.arc_count())
+            .map_err(|_| CertifiedIpmError::ExactOverflow)?
+            .checked_mul(20)
+            .ok_or(CertifiedIpmError::ExactOverflow)?;
+        Ok(arithmetic.multiply_interval_integer(&log_half, factor)?)
+    }
+
+    /// Returns the certified per-update potential decrease for `kappa`.
+    ///
+    /// CKLPPS22 Theorem 4.3 and Lemma 4.4 require every accepted update to
+    /// decrease the potential by at least `kappa^2 / 500`. The returned
+    /// interval is outward rounded; callers must use its upper endpoint as
+    /// the conservative lower decrease certified by an interval subtraction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `kappa` is outside the checked source domain or
+    /// the fixed-point configuration cannot enclose the exact decrease.
+    pub fn source_update_potential_decrease(
+        &self,
+        kappa: &ExactRatio,
+    ) -> Result<DyadicInterval, CertifiedIpmError> {
+        validate_source_kappa(kappa)?;
+        let decrease = kappa
+            .checked_mul(kappa)
+            .map_err(map_exact)?
+            .checked_mul(&ExactRatio::new(1, 500).map_err(map_exact)?)
+            .map_err(map_exact)?;
+        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
+        enclose_exact(&mut arithmetic, &decrease)
+    }
+
     /// Certifies the additive-half termination boundary from Lemma 4.1.
     ///
     /// The proof uses the certified inequality
@@ -551,17 +602,15 @@ impl CertifiedIpmSnapshot {
         &self,
         network: &CirculationNetwork,
     ) -> Result<IpmTerminationCertificate, CertifiedIpmError> {
-        self.verify_network(network)?;
-        let mut arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
-        let half = arithmetic.enclose_ratio(1, 2)?;
-        let log_half = arithmetic.logarithm(&half)?;
-        let factor = i128::try_from(network.arc_count())
-            .map_err(|_| CertifiedIpmError::ExactOverflow)?
-            .checked_mul(20)
-            .ok_or(CertifiedIpmError::ExactOverflow)?;
-        let potential_bound = arithmetic.multiply_interval_integer(&log_half, factor)?;
+        let potential_bound = self.additive_half_potential_bound(network)?;
+        let objective_gap = self
+            .flow
+            .cost
+            .checked_sub(&self.optimal_cost)
+            .map_err(map_exact)?;
+        let half = ExactRatio::new(1, 2).map_err(map_exact)?;
         if self.potential.upper_scaled() > potential_bound.lower_scaled()
-            || self.objective_gap.upper_scaled() > half.upper_scaled()
+            || (objective_gap != half && objective_gap.at_least(&half).map_err(map_exact)?)
         {
             return Err(CertifiedIpmError::NotAtAdditiveHalfBoundary);
         }
@@ -602,7 +651,7 @@ impl CertifiedIpmSnapshot {
         &self,
         perturbation: &IsolationPerturbation,
     ) -> Result<IsolationRecoveryCertificate, CertifiedIpmError> {
-        Ok(perturbation.recover_near_optimal(&self.flow, self.optimal_cost)?)
+        Ok(perturbation.recover_near_optimal(&self.flow, self.optimal_cost.clone())?)
     }
 
     /// Certifies the factor-two length and scaled-gradient-error hypotheses in
@@ -628,20 +677,9 @@ impl CertifiedIpmSnapshot {
         {
             return Err(CertifiedIpmError::DimensionMismatch);
         }
-        let zero = exact_ratio(0)?;
-        let one = exact_ratio(1)?;
-        if !kappa
-            .at_least(zero)
-            .map_err(|_| CertifiedIpmError::ExactOverflow)?
-            || kappa == zero
-            || !one
-                .at_least(kappa)
-                .map_err(|_| CertifiedIpmError::ExactOverflow)?
-        {
-            return Err(CertifiedIpmError::InvalidSourceDomain);
-        }
-        let kappa_numerator = BigInt::from(kappa.numerator());
-        let kappa_denominator = BigInt::from(kappa.denominator());
+        validate_source_kappa(&kappa)?;
+        let kappa_numerator = kappa.numerator().clone();
+        let kappa_denominator = kappa.denominator().clone();
 
         for (edge, ((gradient, length), (approx_gradient, approx_length))) in self
             .gradients
@@ -650,7 +688,7 @@ impl CertifiedIpmSnapshot {
             .zip(approximate_gradients.iter().zip(approximate_lengths))
             .enumerate()
         {
-            let approximate_length = enclose_exact(arithmetic, *approx_length)?;
+            let approximate_length = enclose_exact(arithmetic, approx_length)?;
             if !approximate_length.is_strictly_positive()
                 || approximate_length.lower_scaled() * 2 < *length.upper_scaled()
                 || approximate_length.upper_scaled() > &(length.lower_scaled() * 2)
@@ -658,7 +696,7 @@ impl CertifiedIpmSnapshot {
                 return Err(CertifiedIpmError::LengthApproximation { edge });
             }
 
-            let approximate_gradient = enclose_exact(arithmetic, *approx_gradient)?;
+            let approximate_gradient = enclose_exact(arithmetic, approx_gradient)?;
             let error = arithmetic.subtract_intervals(&approximate_gradient, gradient)?;
             let scaled_error = error.absolute_upper_scaled();
             let left = scaled_error * 8 * &kappa_denominator;
@@ -708,50 +746,42 @@ impl CertifiedIpmSnapshot {
         let approximation = self.certify_approximations(
             approximate_gradients,
             approximate_lengths,
-            kappa,
+            kappa.clone(),
             &mut arithmetic,
         )?;
         let zero = exact_ratio(0)?;
-        let mut dot = zero;
-        let mut norm = zero;
+        let mut dot = zero.clone();
+        let mut norm = zero.clone();
         for ((gradient, length), delta) in approximate_gradients
             .iter()
             .zip(approximate_lengths)
             .zip(direction)
         {
             dot = dot
-                .checked_add(gradient.checked_mul(*delta).map_err(map_exact)?)
+                .checked_add(&gradient.checked_mul(delta).map_err(map_exact)?)
                 .map_err(map_exact)?;
             let magnitude = delta.abs().map_err(map_exact)?;
             norm = norm
-                .checked_add(length.checked_mul(magnitude).map_err(map_exact)?)
+                .checked_add(&length.checked_mul(&magnitude).map_err(map_exact)?)
                 .map_err(map_exact)?;
         }
         if !dot.is_negative() {
             return Err(CertifiedIpmError::InvalidUpdateDirection);
         }
-        let kappa_norm = kappa.checked_mul(norm).map_err(map_exact)?;
-        let quality = dot.checked_add(kappa_norm).map_err(map_exact)?;
-        if quality != zero && quality.at_least(zero).map_err(map_exact)? {
+        let kappa_norm = kappa.checked_mul(&norm).map_err(map_exact)?;
+        let quality = dot.checked_add(&kappa_norm).map_err(map_exact)?;
+        if quality != zero && quality.at_least(&zero).map_err(map_exact)? {
             return Err(CertifiedIpmError::RatioQualityNotCertified);
         }
-        let kappa_squared = kappa.checked_mul(kappa).map_err(map_exact)?;
+        let kappa_squared = kappa.checked_mul(&kappa).map_err(map_exact)?;
         let denominator = dot
             .abs()
             .map_err(map_exact)?
             .checked_mul_integer(50)
             .map_err(map_exact)?;
-        let eta = ExactRatio::new(
-            kappa_squared
-                .numerator()
-                .checked_mul(denominator.denominator())
-                .ok_or(CertifiedIpmError::ExactOverflow)?,
-            kappa_squared
-                .denominator()
-                .checked_mul(denominator.numerator())
-                .ok_or(CertifiedIpmError::ExactOverflow)?,
-        )
-        .map_err(map_exact)?;
+        let eta = kappa_squared
+            .checked_mul(&denominator.reciprocal().map_err(map_exact)?)
+            .map_err(map_exact)?;
         if !eta.is_positive() {
             return Err(CertifiedIpmError::InvalidUpdateDirection);
         }
@@ -761,7 +791,7 @@ impl CertifiedIpmSnapshot {
             .iter()
             .zip(direction)
             .map(|(flow, delta)| {
-                flow.checked_add(eta.checked_mul(*delta).map_err(map_exact)?)
+                flow.checked_add(&eta.checked_mul(delta).map_err(map_exact)?)
                     .map_err(map_exact)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -773,19 +803,13 @@ impl CertifiedIpmSnapshot {
         let mut next = Self::evaluate(
             network,
             &candidate,
-            self.optimal_cost,
+            self.optimal_cost.clone(),
             self.maximum_abs_input,
             self.fixed_point_config,
         )?;
         let mut decrease_arithmetic = CertifiedFixedPoint::new(self.fixed_point_config)?;
         let decrease = decrease_arithmetic.subtract_intervals(&self.potential, &next.potential)?;
-        let required = decrease_arithmetic.enclose_ratio(
-            kappa_squared.numerator(),
-            kappa_squared
-                .denominator()
-                .checked_mul(500)
-                .ok_or(CertifiedIpmError::ExactOverflow)?,
-        )?;
+        let required = self.source_update_potential_decrease(&kappa)?;
         if decrease.lower_scaled() < required.upper_scaled() {
             return Err(CertifiedIpmError::PotentialDecreaseNotCertified);
         }
@@ -854,15 +878,27 @@ pub enum CertifiedIpmError {
     RecoveryNotOptimal,
 }
 
+fn validate_source_kappa(kappa: &ExactRatio) -> Result<(), CertifiedIpmError> {
+    let zero = exact_ratio(0)?;
+    let one = exact_ratio(1)?;
+    if !kappa.at_least(&zero).map_err(map_exact)?
+        || kappa == &zero
+        || !one.at_least(kappa).map_err(map_exact)?
+    {
+        return Err(CertifiedIpmError::InvalidSourceDomain);
+    }
+    Ok(())
+}
+
 fn exact_ratio(value: i128) -> Result<ExactRatio, CertifiedIpmError> {
     ExactRatio::new(value, 1).map_err(|_| CertifiedIpmError::ExactOverflow)
 }
 
 fn enclose_exact(
     arithmetic: &mut CertifiedFixedPoint,
-    value: ExactRatio,
+    value: &ExactRatio,
 ) -> Result<DyadicInterval, CertifiedIpmError> {
-    Ok(arithmetic.enclose_ratio(value.numerator(), value.denominator())?)
+    Ok(arithmetic.enclose_big_ratio(value.numerator(), value.denominator())?)
 }
 
 fn map_exact(_: crate::StableMinRatioError) -> CertifiedIpmError {
@@ -929,7 +965,12 @@ impl RationalInteriorPointState {
     ) -> Result<Self, InteriorPointError> {
         network.verify_input_domain(maximum_abs_input)?;
         network.verify_fractional_solution(&flow)?;
-        let potential = rational_potential(network, &flow, objective_lower_bound, barrier_weight)?;
+        let potential = rational_potential(
+            network,
+            &flow,
+            objective_lower_bound.clone(),
+            barrier_weight.clone(),
+        )?;
         Ok(Self {
             flow,
             objective_lower_bound,
@@ -946,8 +987,8 @@ impl RationalInteriorPointState {
     }
 
     #[must_use]
-    pub const fn potential(&self) -> ExactRatio {
-        self.potential
+    pub fn potential(&self) -> ExactRatio {
+        self.potential.clone()
     }
 
     #[must_use]
@@ -977,7 +1018,7 @@ impl RationalInteriorPointState {
         network.verify_input_domain(self.maximum_abs_input)?;
         network.verify_fractional_circulation(direction)?;
         let zero = ratio(0)?;
-        if !step.at_least(zero).map_err(map_ratio)? || step == zero {
+        if !step.at_least(&zero).map_err(map_ratio)? || step == zero {
             return Err(InteriorPointError::NonpositiveStep);
         }
         let arc_flows = self
@@ -986,7 +1027,7 @@ impl RationalInteriorPointState {
             .iter()
             .zip(direction)
             .map(|(flow, delta)| {
-                flow.checked_add(step.checked_mul(*delta).map_err(map_ratio)?)
+                flow.checked_add(&step.checked_mul(delta).map_err(map_ratio)?)
                     .map_err(map_ratio)
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -998,10 +1039,10 @@ impl RationalInteriorPointState {
         let potential = rational_potential(
             network,
             &candidate,
-            self.objective_lower_bound,
-            self.barrier_weight,
+            self.objective_lower_bound.clone(),
+            self.barrier_weight.clone(),
         )?;
-        if !self.potential.at_least(potential).map_err(map_ratio)? || self.potential == potential {
+        if !self.potential.at_least(&potential).map_err(map_ratio)? || self.potential == potential {
             return Err(InteriorPointError::PotentialDidNotDecrease);
         }
         let changed = direction.iter().filter(|value| **value != zero).count();
@@ -1064,36 +1105,40 @@ fn rational_potential(
     let zero = ratio(0)?;
     if !flow
         .cost
-        .at_least(objective_lower_bound)
+        .at_least(&objective_lower_bound)
         .map_err(map_ratio)?
         || flow.cost == objective_lower_bound
     {
         return Err(InteriorPointError::PotentialDidNotDecrease);
     }
-    if !barrier_weight.at_least(zero).map_err(map_ratio)? || barrier_weight == zero {
+    if !barrier_weight.at_least(&zero).map_err(map_ratio)? || barrier_weight == zero {
         return Err(InteriorPointError::NonpositiveStep);
     }
     let barrier = network
         .fractional_slacks(&flow.arc_flows)?
         .into_iter()
-        .try_fold(zero, |sum, (lower, upper)| {
+        .try_fold(zero.clone(), |sum, (lower, upper)| {
             if lower == zero || upper == zero {
                 return Err(InteriorPointError::PotentialDidNotDecrease);
             }
             let reciprocal_sum = lower
                 .reciprocal()
-                .and_then(|left| upper.reciprocal().and_then(|right| left.checked_add(right)))
+                .and_then(|left| {
+                    upper
+                        .reciprocal()
+                        .and_then(|right| left.checked_add(&right))
+                })
                 .map_err(map_ratio)?;
             sum.checked_add(
-                barrier_weight
-                    .checked_mul(reciprocal_sum)
+                &barrier_weight
+                    .checked_mul(&reciprocal_sum)
                     .map_err(map_ratio)?,
             )
             .map_err(map_ratio)
         })?;
     flow.cost
-        .checked_sub(objective_lower_bound)
-        .and_then(|gap| gap.checked_add(barrier))
+        .checked_sub(&objective_lower_bound)
+        .and_then(|gap| gap.checked_add(&barrier))
         .map_err(map_ratio)
 }
 
@@ -1139,7 +1184,7 @@ mod tests {
                 ExactRatio::new(1, 10).unwrap(),
             )
             .unwrap();
-        assert!(before.at_least(state.potential()).unwrap());
+        assert!(before.at_least(&state.potential()).unwrap());
         assert_eq!(state.metrics().iterations, 1);
         assert_eq!(state.metrics().changed_coordinates, 2);
         network.verify_fractional_solution(state.flow()).unwrap();
@@ -1517,7 +1562,7 @@ mod tests {
 
         let quarter = ExactRatio::new(1, 4).unwrap();
         let near = FractionalCirculation {
-            arc_flows: vec![quarter; 2],
+            arc_flows: vec![quarter.clone(); 2],
             cost: quarter,
         };
         let snapshot = CertifiedIpmSnapshot::evaluate(

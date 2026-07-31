@@ -11,7 +11,9 @@ use graph::{
     VertexCover,
     source_flow::{
         Backend, Error as SourceFlowError,
-        iteration::{Completion, Driver, Error as IterationError, Factory, Session},
+        iteration::{
+            Completion, Driver, Error as IterationError, Factory, PotentialBudget, Session,
+        },
     },
 };
 use thiserror::Error;
@@ -25,9 +27,9 @@ use crate::biclique::Partition;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Circulation {
     network: CirculationNetwork,
-    horizontal_arcs: Vec<CirculationArcId>,
+    horizontal_arcs: Vec<Option<CirculationArcId>>,
     blocks: Vec<Block>,
-    vertical_arcs: Vec<CirculationArcId>,
+    vertical_arcs: Vec<Option<CirculationArcId>>,
     return_arc: CirculationArcId,
 }
 
@@ -68,37 +70,46 @@ impl Circulation {
         vertical_count: usize,
         partition: &Partition,
     ) -> Result<Self, Error> {
+        let (active_horizontal_indices, active_vertical_indices) =
+            active_endpoint_indices(horizontal_count, vertical_count, partition)?;
         let node_count = 2_usize
-            .checked_add(horizontal_count)
+            .checked_add(active_horizontal_indices.len())
             .and_then(|value| value.checked_add(partition.blocks.len()))
-            .and_then(|value| value.checked_add(vertical_count))
+            .and_then(|value| value.checked_add(active_vertical_indices.len()))
             .ok_or(Error::NetworkSizeOverflow)?;
         let source = FlowNodeId(0);
         let horizontal_start = 1;
-        let block_start = horizontal_start + horizontal_count;
+        let block_start = horizontal_start + active_horizontal_indices.len();
         let vertical_start = block_start + partition.blocks.len();
         let sink = FlowNodeId(node_count - 1);
-        let horizontal_nodes = (0..horizontal_count)
-            .map(|index| FlowNodeId(horizontal_start + index))
-            .collect::<Vec<_>>();
+        let mut horizontal_nodes = vec![None; horizontal_count];
+        for (local, original) in active_horizontal_indices.iter().copied().enumerate() {
+            horizontal_nodes[original] = Some(FlowNodeId(horizontal_start + local));
+        }
         let block_nodes = (0..partition.blocks.len())
             .map(|index| FlowNodeId(block_start + index))
             .collect::<Vec<_>>();
-        let vertical_nodes = (0..vertical_count)
-            .map(|index| FlowNodeId(vertical_start + index))
-            .collect::<Vec<_>>();
-        let maximum_matching = i128::try_from(horizontal_count.min(vertical_count))
-            .map_err(|_| Error::CapacityOverflow)?;
+        let mut vertical_nodes = vec![None; vertical_count];
+        for (local, original) in active_vertical_indices.iter().copied().enumerate() {
+            vertical_nodes[original] = Some(FlowNodeId(vertical_start + local));
+        }
+        let maximum_matching = i128::try_from(
+            active_horizontal_indices
+                .len()
+                .min(active_vertical_indices.len()),
+        )
+        .map_err(|_| Error::CapacityOverflow)?;
         let internal_capacity = maximum_matching
             .checked_add(1)
             .ok_or(Error::CapacityOverflow)?;
 
         let mut network = CirculationNetwork::new(node_count);
-        let horizontal_arcs = horizontal_nodes
-            .iter()
-            .copied()
-            .map(|node| network.add_arc(source, node, 1, 0))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut horizontal_arcs = vec![None; horizontal_count];
+        for (index, node) in horizontal_nodes.iter().enumerate() {
+            if let Some(node) = node {
+                horizontal_arcs[index] = Some(network.add_arc(source, *node, 1, 0)?);
+            }
+        }
         let mut blocks = Vec::with_capacity(partition.blocks.len());
         for (index, block) in partition.blocks.iter().enumerate() {
             let block_node = block_nodes[index];
@@ -107,8 +118,9 @@ impl Circulation {
                 .iter()
                 .copied()
                 .map(|left| {
-                    let node = *horizontal_nodes
+                    let node = horizontal_nodes
                         .get(left)
+                        .and_then(|node| *node)
                         .ok_or(Error::BicliqueEndpointOutOfBounds)?;
                     Ok(network.add_arc(node, block_node, internal_capacity, 0)?)
                 })
@@ -118,8 +130,9 @@ impl Circulation {
                 .iter()
                 .copied()
                 .map(|right| {
-                    let node = *vertical_nodes
+                    let node = vertical_nodes
                         .get(right)
+                        .and_then(|node| *node)
                         .ok_or(Error::BicliqueEndpointOutOfBounds)?;
                     Ok(network.add_arc(block_node, node, internal_capacity, 0)?)
                 })
@@ -131,11 +144,12 @@ impl Circulation {
                 right_arcs,
             });
         }
-        let vertical_arcs = vertical_nodes
-            .iter()
-            .copied()
-            .map(|node| network.add_arc(node, sink, 1, 0))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut vertical_arcs = vec![None; vertical_count];
+        for (index, node) in vertical_nodes.iter().enumerate() {
+            if let Some(node) = node {
+                vertical_arcs[index] = Some(network.add_arc(*node, sink, 1, 0)?);
+            }
+        }
         let return_arc = network.add_arc(sink, source, maximum_matching, -1)?;
 
         Ok(Self {
@@ -259,6 +273,32 @@ impl Circulation {
         })
     }
 
+    /// Runs a source driver under its checked potential-reduction budget.
+    ///
+    /// The budget proves a finite additive-half horizon only conditional on
+    /// successfully preparing every fresh source projection with one fixed
+    /// `kappa`. It is not a general coordinate-maintenance policy and does not
+    /// enable the experimental backend's complete-solver gate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when source projection preparation, the potential
+    /// budget, additive-half termination, or compressed recovery rejects.
+    pub fn run_source_with_potential_budget<F: Factory>(
+        &self,
+        driver: &mut Driver<F>,
+        budget: &PotentialBudget,
+    ) -> Result<Run, Error> {
+        let completion = driver
+            .run_with_potential_budget(&self.network, budget)
+            .map_err(Error::SourceIteration)?;
+        let solution = self.recover_source_session(driver.session())?;
+        Ok(Run {
+            completion,
+            solution,
+        })
+    }
+
     fn flow(solution: &MinCostSolution, arc: CirculationArcId) -> Result<i128, Error> {
         solution
             .arc_flows
@@ -273,15 +313,21 @@ impl Circulation {
         left_match: &[Option<usize>],
         right_match: &[Option<usize>],
     ) -> Result<(), Error> {
-        for (left, arc) in self.horizontal_arcs.iter().copied().enumerate() {
+        for (left, arc) in self.horizontal_arcs.iter().enumerate() {
+            let Some(arc) = arc else {
+                continue;
+            };
             let expected = i128::from(left_match[left].is_some());
-            if Self::flow(solution, arc)? != expected {
+            if Self::flow(solution, *arc)? != expected {
                 return Err(Error::OuterFlowMismatch);
             }
         }
-        for (right, arc) in self.vertical_arcs.iter().copied().enumerate() {
+        for (right, arc) in self.vertical_arcs.iter().enumerate() {
+            let Some(arc) = arc else {
+                continue;
+            };
             let expected = i128::from(right_match[right].is_some());
-            if Self::flow(solution, arc)? != expected {
+            if Self::flow(solution, *arc)? != expected {
                 return Err(Error::OuterFlowMismatch);
             }
         }
@@ -336,6 +382,38 @@ impl Circulation {
             + right.iter().filter(|selected| **selected).count();
         Ok(VertexCover { left, right, size })
     }
+}
+
+fn active_endpoint_indices(
+    horizontal_count: usize,
+    vertical_count: usize,
+    partition: &Partition,
+) -> Result<(Vec<usize>, Vec<usize>), Error> {
+    let mut active_horizontal = vec![false; horizontal_count];
+    let mut active_vertical = vec![false; vertical_count];
+    for block in &partition.blocks {
+        for &left in &block.left {
+            *active_horizontal
+                .get_mut(left)
+                .ok_or(Error::BicliqueEndpointOutOfBounds)? = true;
+        }
+        for &right in &block.right {
+            *active_vertical
+                .get_mut(right)
+                .ok_or(Error::BicliqueEndpointOutOfBounds)? = true;
+        }
+    }
+    let horizontal = active_horizontal
+        .iter()
+        .enumerate()
+        .filter_map(|(index, active)| (*active).then_some(index))
+        .collect();
+    let vertical = active_vertical
+        .iter()
+        .enumerate()
+        .filter_map(|(index, active)| (*active).then_some(index))
+        .collect();
+    Ok((horizontal, vertical))
 }
 
 fn active_endpoints(
@@ -405,29 +483,25 @@ pub enum Error {
 #[cfg(test)]
 mod tests {
     use graph::{
-        BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
-        FixedPointConfig, FlowNodeId, FractionalCirculation, StableEdge, StableMinRatioError,
-        StableMinRatioLedger, StableWitness,
+        BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationArcId,
+        CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId, FractionalCirculation,
         source_flow::{
             Backend,
             iteration::{
-                self, FixedProjectionFactory, ReciprocalSlackProjectionFactory,
-                ScheduledProjectionFactory,
+                self, DefinitionProjectionFactory, FixedProjectionFactory, PotentialBudget,
+                ReciprocalSlackProjectionFactory, ScheduledProjectionFactory,
             },
         },
-        source_min_ratio::{
-            candidate::Error as CandidateError, input::Input,
-            spanner::Parameters as SpannerParameters, terminal::Error as TerminalError,
-        },
-        source_spanner::experiment::domain::ExhaustiveDomain,
+        source_lsst::bucket::Construction as BucketConstruction,
+        source_min_ratio::{input::Input, spanner::Parameters as SpannerParameters},
     };
 
-    use super::{Circulation, Error};
+    use super::{Circulation, Error, Solution};
     use crate::{
         biclique::{Block, Partition},
         compressed_flow::oracle,
         embedding::DominanceEmbedding,
-        formal::analyze_formal_admissible_family,
+        formal::{FormalAdmissibleAnalysis, analyze_formal_admissible_family},
     };
     use mrd_domain::{
         BicliqueId, FormalRectilinearPolygon, HorizontalChord, HorizontalChordId, Ornament,
@@ -490,97 +564,276 @@ mod tests {
         .unwrap()
     }
 
+    fn formal_isolated_lattice(mask: u16) -> FormalRectilinearPolygon {
+        let points = [
+            Point::new(3, 3),
+            Point::new(6, 3),
+            Point::new(9, 3),
+            Point::new(3, 6),
+            Point::new(6, 6),
+            Point::new(9, 6),
+            Point::new(3, 9),
+            Point::new(6, 9),
+            Point::new(9, 9),
+        ];
+        assert!(mask > 0);
+        FormalRectilinearPolygon::new(
+            RectilinearPolygon::new(rectangle(0, 0, 12, 12), vec![]).unwrap(),
+            Ornament {
+                isolated_points: points
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, point)| ((mask & (1 << index)) != 0).then_some(*point))
+                    .collect(),
+                segments: vec![],
+            },
+        )
+        .unwrap()
+    }
+
     fn ratio(numerator: i128, denominator: i128) -> ExactRatio {
         ExactRatio::new(numerator, denominator).unwrap()
     }
 
-    fn terminal_source_fixture(
+    fn strict_interior_fixture(
         circulation: &Circulation,
-    ) -> (CertifiedIpmSnapshot, graph::MinCostSolution) {
+    ) -> (graph::MinCostSolution, FractionalCirculation) {
         let reference = graph::min_cost::experiment::solve(circulation.network()).unwrap();
         let block_count = i128::try_from(circulation.blocks.len()).unwrap();
-        let horizontal_count = i128::try_from(circulation.horizontal_arcs.len()).unwrap();
-        let vertical_count = i128::try_from(circulation.vertical_arcs.len()).unwrap();
+        let horizontal_count = i128::try_from(
+            circulation
+                .horizontal_arcs
+                .iter()
+                .filter(|arc| arc.is_some())
+                .count(),
+        )
+        .unwrap();
+        let vertical_count = i128::try_from(
+            circulation
+                .vertical_arcs
+                .iter()
+                .filter(|arc| arc.is_some())
+                .count(),
+        )
+        .unwrap();
         let scale = block_count.max(horizontal_count).max(vertical_count).max(1);
         let alpha = ratio(1, 16 * block_count * scale);
         let zero = ratio(0, 1);
-        let mut interior = vec![zero; circulation.network().arc_count()];
+        let mut interior = vec![zero.clone(); circulation.network().arc_count()];
 
         for block in &circulation.blocks {
             assert!(!block.left.is_empty());
             assert!(!block.right.is_empty());
             let left_count = i128::try_from(block.left.len()).unwrap();
             let right_count = i128::try_from(block.right.len()).unwrap();
-            let per_right = alpha.checked_mul(ratio(left_count, right_count)).unwrap();
+            let per_right = alpha.checked_mul(&ratio(left_count, right_count)).unwrap();
             for (&left, &arc) in block.left.iter().zip(&block.left_arcs) {
-                interior[arc.0] = interior[arc.0].checked_add(alpha).unwrap();
-                let outer = circulation.horizontal_arcs[left];
-                interior[outer.0] = interior[outer.0].checked_add(alpha).unwrap();
+                interior[arc.0] = interior[arc.0].checked_add(&alpha).unwrap();
+                let outer = circulation.horizontal_arcs[left].unwrap();
+                interior[outer.0] = interior[outer.0].checked_add(&alpha).unwrap();
             }
             for (&right, &arc) in block.right.iter().zip(&block.right_arcs) {
-                interior[arc.0] = interior[arc.0].checked_add(per_right).unwrap();
-                let outer = circulation.vertical_arcs[right];
-                interior[outer.0] = interior[outer.0].checked_add(per_right).unwrap();
+                interior[arc.0] = interior[arc.0].checked_add(&per_right).unwrap();
+                let outer = circulation.vertical_arcs[right].unwrap();
+                interior[outer.0] = interior[outer.0].checked_add(&per_right).unwrap();
             }
         }
         let return_flow = circulation
             .horizontal_arcs
             .iter()
+            .flatten()
             .copied()
-            .try_fold(zero, |sum, arc| sum.checked_add(interior[arc.0]))
+            .try_fold(zero, |sum, arc| sum.checked_add(&interior[arc.0]))
             .unwrap();
         interior[circulation.return_arc.0] = return_flow;
         for (arc, flow) in interior.iter().enumerate() {
             assert!(flow.is_positive(), "arc {arc} has no strict interior flow");
         }
-        let interior_cost = circulation.network().fractional_cost(&interior).unwrap();
+        let interior = FractionalCirculation {
+            cost: circulation.network().fractional_cost(&interior).unwrap(),
+            arc_flows: interior,
+        };
         circulation
             .network()
-            .verify_fractional_solution(&FractionalCirculation {
-                arc_flows: interior.clone(),
-                cost: interior_cost,
-            })
+            .verify_fractional_solution(&interior)
             .unwrap();
 
-        let optimum = ratio(reference.cost, 1);
-        let difference = interior_cost.checked_sub(optimum).unwrap();
-        assert!(difference.is_positive());
-        let candidate_epsilon = ratio(
-            difference.denominator(),
-            difference.numerator().checked_mul(128).unwrap(),
-        );
-        let epsilon = if ratio(1, 1).at_least(candidate_epsilon).unwrap() {
-            candidate_epsilon
-        } else {
-            ratio(1, 2)
-        };
+        (reference, interior)
+    }
+
+    fn interpolation_snapshot(
+        circulation: &Circulation,
+        reference: &graph::MinCostSolution,
+        interior: &FractionalCirculation,
+        epsilon: &ExactRatio,
+    ) -> CertifiedIpmSnapshot {
+        interpolation_snapshot_with_config(
+            circulation,
+            reference,
+            interior,
+            epsilon,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+    }
+
+    fn interpolation_snapshot_with_config(
+        circulation: &Circulation,
+        reference: &graph::MinCostSolution,
+        interior: &FractionalCirculation,
+        epsilon: &ExactRatio,
+        fixed_point_config: FixedPointConfig,
+    ) -> CertifiedIpmSnapshot {
         let retained = ratio(1, 1).checked_sub(epsilon).unwrap();
         let arc_flows = reference
             .arc_flows
             .iter()
             .copied()
-            .zip(interior)
+            .zip(&interior.arc_flows)
             .map(|(optimal, strictly_interior)| {
                 ratio(optimal, 1)
-                    .checked_mul(retained)
+                    .checked_mul(&retained)
                     .unwrap()
-                    .checked_add(strictly_interior.checked_mul(epsilon).unwrap())
+                    .checked_add(&strictly_interior.checked_mul(epsilon).unwrap())
                     .unwrap()
             })
             .collect::<Vec<_>>();
         let cost = circulation.network().fractional_cost(&arc_flows).unwrap();
-        let snapshot = CertifiedIpmSnapshot::evaluate(
+        CertifiedIpmSnapshot::evaluate(
             circulation.network(),
             &FractionalCirculation { arc_flows, cost },
-            optimum,
+            ratio(reference.cost, 1),
             1_024,
-            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+            fixed_point_config,
         )
-        .unwrap();
-        snapshot
+        .unwrap()
+    }
+
+    fn boundary_source_fixture(circulation: &Circulation) -> CertifiedIpmSnapshot {
+        let (reference, interior) = strict_interior_fixture(circulation);
+        let denominator = 1_000_000;
+        let mut terminal = 1;
+        let mut nonterminal = denominator - 1;
+        assert!(
+            interpolation_snapshot(
+                circulation,
+                &reference,
+                &interior,
+                &ratio(terminal, denominator),
+            )
             .certify_additive_half_termination(circulation.network())
-            .unwrap();
-        (snapshot, reference)
+            .is_ok()
+        );
+        assert_eq!(
+            interpolation_snapshot(
+                circulation,
+                &reference,
+                &interior,
+                &ratio(nonterminal, denominator),
+            )
+            .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+        while nonterminal - terminal > 1 {
+            let middle = terminal + (nonterminal - terminal) / 2;
+            let snapshot = interpolation_snapshot(
+                circulation,
+                &reference,
+                &interior,
+                &ratio(middle, denominator),
+            );
+            if snapshot
+                .certify_additive_half_termination(circulation.network())
+                .is_ok()
+            {
+                terminal = middle;
+            } else {
+                nonterminal = middle;
+            }
+        }
+        interpolation_snapshot(
+            circulation,
+            &reference,
+            &interior,
+            &ratio(nonterminal, denominator),
+        )
+    }
+
+    /// Builds a near-boundary strictly nonterminal source starting point for a
+    /// population differential. A lower-precision rational interval search
+    /// only locates a candidate. The returned snapshot always uses the normal
+    /// source configuration and independently certifies nontermination.
+    fn population_source_fixture(circulation: &Circulation) -> CertifiedIpmSnapshot {
+        let (reference, interior) = strict_interior_fixture(circulation);
+        let denominator = 1_i128 << 20;
+        let coarse_config = FixedPointConfig::source_bounded(1 << 20, 48, 24, 3).unwrap();
+        let mut terminal = 1;
+        let mut nonterminal = denominator / 2;
+
+        while nonterminal - terminal > 1 {
+            let middle = terminal + (nonterminal - terminal) / 2;
+            let snapshot = interpolation_snapshot_with_config(
+                circulation,
+                &reference,
+                &interior,
+                &ratio(middle, denominator),
+                coarse_config,
+            );
+            if snapshot
+                .certify_additive_half_termination(circulation.network())
+                .is_ok()
+            {
+                terminal = middle;
+            } else {
+                nonterminal = middle;
+            }
+        }
+
+        let snapshot = interpolation_snapshot(
+            circulation,
+            &reference,
+            &interior,
+            &ratio(nonterminal, denominator),
+        );
+        if matches!(
+            snapshot.certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        ) {
+            return snapshot;
+        }
+
+        // A coarse interval may be too wide near the threshold. In that case,
+        // reconstruct the same bracket at the production configuration rather
+        // than accepting an uncertified starting point.
+        let mut terminal = 1;
+        let mut nonterminal = denominator / 2;
+        while nonterminal - terminal > 1 {
+            let middle = terminal + (nonterminal - terminal) / 2;
+            let snapshot = interpolation_snapshot(
+                circulation,
+                &reference,
+                &interior,
+                &ratio(middle, denominator),
+            );
+            if snapshot
+                .certify_additive_half_termination(circulation.network())
+                .is_ok()
+            {
+                terminal = middle;
+            } else {
+                nonterminal = middle;
+            }
+        }
+        let snapshot = interpolation_snapshot(
+            circulation,
+            &reference,
+            &interior,
+            &ratio(nonterminal, denominator),
+        );
+        assert_eq!(
+            snapshot.certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+        snapshot
     }
 
     fn terminal_driver() -> impl iteration::Factory {
@@ -589,43 +842,27 @@ mod tests {
         }
     }
 
-    fn source_ledger() -> StableMinRatioLedger {
-        StableMinRatioLedger::new(
-            2,
-            vec![
-                StableEdge {
-                    from: FlowNodeId(0),
-                    to: FlowNodeId(1),
-                    gradient: -1,
-                    length: 1,
-                },
-                StableEdge {
-                    from: FlowNodeId(1),
-                    to: FlowNodeId(0),
-                    gradient: 0,
-                    length: 1,
-                },
-            ],
-            ratio(1, 4),
-            ratio(1, 2),
-            StableWitness {
-                circulation: vec![1, 1],
-                upper_bounds: vec![1, 1],
-            },
-        )
-        .unwrap()
-    }
-
     fn source_spanner_parameters() -> SpannerParameters {
         SpannerParameters {
             root: FlowNodeId(0),
             maximum_absolute_exponent: 7,
-            phi: ratio(1, 2),
-            domain: ExhaustiveDomain { maximum_nodes: 8 },
-            maximum_hops: 4,
-            maximum_vertex_congestion: 100,
-            maximum_rounds: 1,
+            bucket_construction: BucketConstruction::CanonicalTree,
         }
+    }
+
+    fn boundary_source_driver(
+        snapshot: CertifiedIpmSnapshot,
+        maximum_iterations: u64,
+    ) -> iteration::Driver<DefinitionProjectionFactory> {
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        Backend
+            .begin_source_iterations(
+                snapshot,
+                DefinitionProjectionFactory::new(parameters, ratio(1, 2)),
+                maximum_iterations,
+            )
+            .unwrap()
     }
 
     fn nonterminal_projection_input(circulation: &Circulation) -> Input {
@@ -677,16 +914,38 @@ mod tests {
         (snapshot, nonterminal_projection_input(circulation))
     }
 
+    fn near_terminal_source_fixture(circulation: &Circulation) -> CertifiedIpmSnapshot {
+        let flow = ratio(547_590, 1_000_000);
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            circulation.network(),
+            &FractionalCirculation {
+                cost: circulation
+                    .network()
+                    .fractional_cost(&vec![flow.clone(); circulation.network().arc_count()])
+                    .unwrap(),
+                arc_flows: vec![flow; circulation.network().arc_count()],
+            },
+            ratio(-1, 1),
+            2,
+            FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot.certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+        snapshot
+    }
+
     #[test]
     fn recovers_reference_flow_value_matching_and_cover() {
         let (graph, partition) = two_by_two_partition();
         let circulation = Circulation::from_partition(2, 2, &partition).unwrap();
-        let (snapshot, _) = terminal_source_fixture(&circulation);
-        let mut driver = Backend
-            .begin_source_iterations(snapshot, terminal_driver(), 0)
-            .unwrap();
+        let snapshot = boundary_source_fixture(&circulation);
+        let mut driver = boundary_source_driver(snapshot, 1);
         let run = circulation.run_source(&mut driver).unwrap();
-        assert!(run.completion.records.is_empty());
+        assert_eq!(run.completion.records.len(), 1);
+        assert_eq!(driver.factory().preparation_count(), 1);
         let recovered = run.solution;
         let reference = oracle::audit(&graph, &partition).unwrap();
 
@@ -720,12 +979,11 @@ mod tests {
         partition.verify_dominance_blocks(&embedding).unwrap();
 
         let circulation = Circulation::from_partition(3, 3, &partition).unwrap();
-        let (snapshot, _) = terminal_source_fixture(&circulation);
-        let mut driver = Backend
-            .begin_source_iterations(snapshot, terminal_driver(), 0)
-            .unwrap();
+        let snapshot = boundary_source_fixture(&circulation);
+        let mut driver = boundary_source_driver(snapshot, 1);
         let run = circulation.run_source(&mut driver).unwrap();
-        assert!(run.completion.records.is_empty());
+        assert_eq!(run.completion.records.len(), 1);
+        assert_eq!(driver.factory().preparation_count(), 1);
         let recovered = run.solution;
         let reference = oracle::audit(&graph, &partition).unwrap();
 
@@ -736,31 +994,96 @@ mod tests {
         }
     }
 
-    #[test]
-    fn source_cover_completes_a_formal_polygon_to_its_optimum() {
-        let polygon = formal_source_figure_three();
-        let analysis = analyze_formal_admissible_family(&polygon).unwrap();
-        let embedding =
-            DominanceEmbedding::new(&analysis.families.horizontal, &analysis.families.vertical)
-                .unwrap();
-        let partition = Partition::comparability_theorem_8(&embedding).unwrap();
-        partition
-            .verify_exact_partition(&analysis.explicit_conflict_graph)
-            .unwrap();
-        let circulation = Circulation::from_partition(
+    #[derive(Clone, Copy)]
+    enum FormalOutputComparison {
+        Exact,
+        Equivalent,
+    }
+
+    /// Complete source-relevant network identity for population fixtures.
+    ///
+    /// The original chord indices intentionally do not participate: after
+    /// `Circulation::from_partition` prunes isolated endpoints, only this
+    /// network is consumed by source-flow preparation. Every original mask
+    /// still runs a separate source session and certificate recovery.
+    #[derive(Debug, Eq, PartialEq)]
+    struct PopulationFixtureKey {
+        node_count: usize,
+        demands: Vec<i128>,
+        arcs: Vec<(usize, usize, i128, i128)>,
+    }
+
+    fn population_fixture_key(circulation: &Circulation) -> PopulationFixtureKey {
+        let network = circulation.network();
+        PopulationFixtureKey {
+            node_count: network.node_count(),
+            demands: network.demands().to_vec(),
+            arcs: (0..network.arc_count())
+                .map(|index| {
+                    let arc = CirculationArcId(index);
+                    let (from, to) = network.arc_endpoints(arc).unwrap();
+                    let (capacity, cost) = network.arc_capacity_cost(arc).unwrap();
+                    (from.0, to.0, capacity, cost)
+                })
+                .collect(),
+        }
+    }
+
+    fn cached_population_source_fixture(
+        circulation: &Circulation,
+        cache: &mut Vec<(PopulationFixtureKey, CertifiedIpmSnapshot)>,
+    ) -> CertifiedIpmSnapshot {
+        let key = population_fixture_key(circulation);
+        if let Some((_, snapshot)) = cache.iter().find(|(candidate, _)| *candidate == key) {
+            return snapshot.clone();
+        }
+        let snapshot = population_source_fixture(circulation);
+        cache.push((key, snapshot.clone()));
+        snapshot
+    }
+
+    fn assert_recovered_formal_certificate(
+        analysis: &FormalAdmissibleAnalysis,
+        recovered: &Solution,
+        label: &str,
+    ) -> (Vec<bool>, Vec<bool>) {
+        assert_eq!(
+            recovered.flow_value, analysis.explicit_matching.size,
+            "{label}"
+        );
+        assert_eq!(recovered.matching.len(), recovered.flow_value, "{label}");
+        assert_eq!(recovered.vertex_cover.size, recovered.flow_value, "{label}");
+        assert_eq!(
+            recovered.vertex_cover.left.len(),
             analysis.families.horizontal.len(),
+            "{label}"
+        );
+        assert_eq!(
+            recovered.vertex_cover.right.len(),
             analysis.families.vertical.len(),
-            &partition,
-        )
-        .unwrap();
-        let (snapshot, _) = terminal_source_fixture(&circulation);
-        let mut driver = Backend
-            .begin_source_iterations(snapshot, terminal_driver(), 0)
-            .unwrap();
-        let run = circulation.run_source(&mut driver).unwrap();
-        assert!(run.completion.records.is_empty());
-        let recovered = run.solution;
-        assert_eq!(recovered.flow_value, analysis.explicit_matching.size);
+            "{label}"
+        );
+        let mut matched_horizontal = vec![false; analysis.families.horizontal.len()];
+        let mut matched_vertical = vec![false; analysis.families.vertical.len()];
+        for (horizontal, vertical) in &recovered.matching {
+            assert!(
+                analysis
+                    .explicit_conflict_graph
+                    .edges()
+                    .any(|edge| edge == (*horizontal, *vertical)),
+                "{label}"
+            );
+            assert!(!matched_horizontal[*horizontal], "{label}");
+            assert!(!matched_vertical[*vertical], "{label}");
+            matched_horizontal[*horizontal] = true;
+            matched_vertical[*vertical] = true;
+        }
+        for (horizontal, vertical) in analysis.explicit_conflict_graph.edges() {
+            assert!(
+                recovered.vertex_cover.left[horizontal] || recovered.vertex_cover.right[vertical],
+                "{label}"
+            );
+        }
 
         let selected_horizontal = recovered
             .vertex_cover
@@ -774,19 +1097,182 @@ mod tests {
             .iter()
             .map(|covered| !covered)
             .collect::<Vec<_>>();
+        assert_eq!(
+            selected_horizontal
+                .iter()
+                .filter(|selected| **selected)
+                .count()
+                + selected_vertical
+                    .iter()
+                    .filter(|selected| **selected)
+                    .count(),
+            analysis.effective_number,
+            "{label}"
+        );
+        for (horizontal, vertical) in analysis.explicit_conflict_graph.edges() {
+            assert!(
+                !selected_horizontal[horizontal] || !selected_vertical[vertical],
+                "{label}"
+            );
+        }
+        (selected_horizontal, selected_vertical)
+    }
+
+    fn assert_source_formal_differential(
+        polygon: &FormalRectilinearPolygon,
+        label: &str,
+        comparison: FormalOutputComparison,
+        maximum_iterations: u64,
+        population_fixture_cache: &mut Vec<(PopulationFixtureKey, CertifiedIpmSnapshot)>,
+    ) -> u64 {
+        let analysis = analyze_formal_admissible_family(polygon).unwrap();
+        let embedding =
+            DominanceEmbedding::new(&analysis.families.horizontal, &analysis.families.vertical)
+                .unwrap();
+        let partition = Partition::comparability_theorem_8(&embedding).unwrap();
+        partition
+            .verify_exact_partition(&analysis.explicit_conflict_graph)
+            .unwrap();
+        let circulation = Circulation::from_partition(
+            analysis.families.horizontal.len(),
+            analysis.families.vertical.len(),
+            &partition,
+        )
+        .unwrap();
+        let snapshot = match comparison {
+            FormalOutputComparison::Exact => boundary_source_fixture(&circulation),
+            FormalOutputComparison::Equivalent => {
+                cached_population_source_fixture(&circulation, population_fixture_cache)
+            }
+        };
+        let mut driver = boundary_source_driver(snapshot, maximum_iterations);
+        let run = circulation
+            .run_source(&mut driver)
+            .unwrap_or_else(|error| panic!("{label}: {error}"));
+        assert!(!run.completion.records.is_empty(), "{label}");
+        let update_count = u64::try_from(run.completion.records.len()).unwrap();
+        assert!(update_count <= maximum_iterations, "{label}");
+        assert_eq!(
+            driver.factory().preparation_count(),
+            update_count,
+            "{label}"
+        );
+        let recovered = run.solution;
+        let (selected_horizontal, selected_vertical) =
+            assert_recovered_formal_certificate(&analysis, &recovered, label);
         let completion = CoordinateCompressedCompletion
             .complete_formal(
-                &polygon,
+                polygon,
                 &analysis.families.horizontal,
                 &analysis.families.vertical,
                 &selected_horizontal,
                 &selected_vertical,
             )
             .unwrap();
+        let reference_completion = CoordinateCompressedCompletion
+            .complete_formal(
+                polygon,
+                &analysis.families.horizontal,
+                &analysis.families.vertical,
+                &analysis.selected_horizontal,
+                &analysis.selected_vertical,
+            )
+            .unwrap();
         assert_eq!(
             completion.rectangles.len(),
-            analysis.optimum_rectangle_count
+            analysis.optimum_rectangle_count,
+            "{label}"
         );
+        if matches!(comparison, FormalOutputComparison::Exact) {
+            let expected_matching = analysis
+                .explicit_matching
+                .left_to_right
+                .iter()
+                .enumerate()
+                .filter_map(|(left, right)| right.map(|right| (left, right)))
+                .collect::<Vec<_>>();
+            assert_eq!(recovered.matching, expected_matching, "{label}");
+            assert_eq!(
+                recovered.vertex_cover, analysis.explicit_vertex_cover,
+                "{label}"
+            );
+            assert_eq!(selected_horizontal, analysis.selected_horizontal, "{label}");
+            assert_eq!(selected_vertical, analysis.selected_vertical, "{label}");
+            assert_eq!(
+                completion.rectangles, reference_completion.rectangles,
+                "{label}"
+            );
+        }
+        update_count
+    }
+
+    #[test]
+    fn source_cover_completes_a_formal_polygon_to_its_optimum() {
+        let mut population_fixture_cache = Vec::new();
+        assert_eq!(
+            assert_source_formal_differential(
+                &formal_source_figure_three(),
+                "figure-three",
+                FormalOutputComparison::Exact,
+                1,
+                &mut population_fixture_cache,
+            ),
+            1
+        );
+    }
+
+    #[test]
+    fn source_cover_matches_a_formal_isolated_lattice_population() {
+        let mut exercised = 0;
+        let mut maximum_updates = 0;
+        let mut population_fixture_cache = Vec::new();
+        for mask in 1_u16..1 << 9 {
+            let polygon = formal_isolated_lattice(mask);
+            let analysis = analyze_formal_admissible_family(&polygon).unwrap();
+            if analysis.families.horizontal.is_empty()
+                || analysis.families.vertical.is_empty()
+                || analysis.explicit_conflict_graph.edges().next().is_none()
+            {
+                continue;
+            }
+            let updates = assert_source_formal_differential(
+                &polygon,
+                &format!("mask-{mask}"),
+                FormalOutputComparison::Equivalent,
+                8,
+                &mut population_fixture_cache,
+            );
+            maximum_updates = maximum_updates.max(updates);
+            exercised += 1;
+        }
+        assert!(!population_fixture_cache.is_empty());
+        assert_eq!(exercised, 410);
+        assert_eq!(maximum_updates, 2);
+    }
+
+    #[test]
+    fn prunes_isolated_outer_endpoints_but_recovers_original_cover_dimensions() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(2, 3, &partition).unwrap();
+        assert_eq!(
+            circulation.horizontal_arcs.iter().flatten().count(),
+            1,
+            "only the participating horizontal endpoint belongs to the circulation"
+        );
+        assert_eq!(
+            circulation.vertical_arcs.iter().flatten().count(),
+            1,
+            "only the participating vertical endpoint belongs to the circulation"
+        );
+        assert_eq!(circulation.network().arc_count(), 5);
+
+        let (reference, _) = strict_interior_fixture(&circulation);
+        let recovered = circulation.recover_certified(&reference).unwrap();
+
+        assert_eq!(recovered.matching, vec![(0, 0)]);
+        assert_eq!(recovered.vertex_cover.left, vec![true, false]);
+        assert_eq!(recovered.vertex_cover.right, vec![false, false, false]);
+        assert_eq!(recovered.vertex_cover.size, 1);
     }
 
     #[test]
@@ -833,7 +1319,7 @@ mod tests {
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &other,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
             ratio(0, 1),
@@ -859,12 +1345,7 @@ mod tests {
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
         let expected_input = input.clone();
-        let factory = FixedProjectionFactory::new(
-            input,
-            source_ledger(),
-            source_spanner_parameters(),
-            ratio(1, 2),
-        );
+        let factory = FixedProjectionFactory::new(input, source_spanner_parameters(), ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 1)
             .unwrap();
@@ -915,12 +1396,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
-        let factory = FixedProjectionFactory::new(
-            input,
-            source_ledger(),
-            source_spanner_parameters(),
-            ratio(1, 2),
-        );
+        let factory = FixedProjectionFactory::new(input, source_spanner_parameters(), ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -963,7 +1439,6 @@ mod tests {
         assert_ne!(initial, successor);
         let factory = ScheduledProjectionFactory::new(
             vec![initial.clone(), successor.clone()],
-            source_ledger(),
             source_spanner_parameters(),
             ratio(1, 2),
         )
@@ -1000,8 +1475,7 @@ mod tests {
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
         let mut parameters = source_spanner_parameters();
         parameters.maximum_absolute_exponent = 64;
-        let factory =
-            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -1032,8 +1506,7 @@ mod tests {
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
         let mut parameters = source_spanner_parameters();
         parameters.maximum_absolute_exponent = 64;
-        let factory =
-            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 3)
             .unwrap();
@@ -1062,25 +1535,118 @@ mod tests {
     }
 
     #[test]
-    fn reciprocal_slack_coordinates_reject_the_next_exact_scoring_overflow() {
+    fn reciprocal_slack_coordinates_continue_past_the_former_exact_scoring_overflow() {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
         let mut parameters = source_spanner_parameters();
         parameters.maximum_absolute_exponent = 64;
-        let factory =
-            ReciprocalSlackProjectionFactory::new(source_ledger(), parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
         let mut driver = Backend
-            .begin_source_iterations(snapshot, factory, 4)
+            .begin_source_iterations(snapshot, factory, 64)
             .unwrap();
 
         assert_eq!(
             circulation.run_source(&mut driver),
-            Err(Error::SourceIteration(iteration::Error::Terminal(
-                TerminalError::Candidate(CandidateError::Ratio(StableMinRatioError::Overflow))
-            )))
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 64,
+            }))
         );
-        assert_eq!(driver.factory().preparation_count(), 4);
-        assert_eq!(driver.records().len(), 3);
+        assert_eq!(driver.factory().preparation_count(), 64);
+        assert_eq!(driver.records().len(), 64);
+        assert!(driver.records().windows(2).all(|pair| {
+            pair[0].snapshot != pair[1].snapshot && pair[0].input != pair[1].input
+        }));
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn definition_coordinates_rebuild_across_multiple_nonterminal_successors() {
+        let partition = single_edge_partition();
+        let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
+        let (snapshot, _) = nonterminal_source_fixture(&circulation);
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory = DefinitionProjectionFactory::new(parameters, ratio(1, 2));
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 64)
+            .unwrap();
+
+        assert_eq!(
+            circulation.run_source(&mut driver),
+            Err(Error::SourceIteration(iteration::Error::IterationLimit {
+                maximum_iterations: 64,
+            }))
+        );
+        assert_eq!(driver.factory().preparation_count(), 64);
+        assert_eq!(driver.records().len(), 64);
+        assert!(driver.records().windows(2).all(|pair| {
+            pair[0].snapshot != pair[1].snapshot && pair[0].input != pair[1].input
+        }));
+        assert_eq!(
+            driver
+                .session()
+                .snapshot()
+                .certify_additive_half_termination(circulation.network()),
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary)
+        );
+    }
+
+    #[test]
+    fn recovers_a_single_edge_compressed_solution_after_one_nonterminal_source_update() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let snapshot = near_terminal_source_fixture(&circulation);
+        let mut parameters = source_spanner_parameters();
+        parameters.maximum_absolute_exponent = 64;
+        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
+        let mut driver = Backend
+            .begin_source_iterations(snapshot, factory, 1)
+            .unwrap();
+
+        let run = circulation.run_source(&mut driver).unwrap();
+
+        assert_eq!(run.completion.records.len(), 1);
+        assert_eq!(driver.factory().preparation_count(), 1);
+        assert_eq!(driver.records().len(), 1);
+        assert!(
+            driver.records()[0]
+                .selected
+                .step
+                .direction
+                .iter()
+                .any(|coordinate| !coordinate.is_zero())
+        );
+        driver
+            .session()
+            .snapshot()
+            .certify_additive_half_termination(circulation.network())
+            .unwrap();
+        assert_eq!(run.solution.flow_value, 1);
+        assert_eq!(run.solution.matching, vec![(0, 0)]);
+        assert_eq!(run.solution.vertex_cover.size, 1);
+    }
+
+    #[test]
+    fn potential_budget_recovers_a_nonterminal_compressed_solution_without_a_manual_limit() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let snapshot = near_terminal_source_fixture(&circulation);
+        let budget = PotentialBudget::new(&snapshot, circulation.network(), ratio(1, 2)).unwrap();
+        assert!(budget.maximum_updates() > 0);
+
+        let mut driver = boundary_source_driver(snapshot, 0);
+        let run = circulation
+            .run_source_with_potential_budget(&mut driver, &budget)
+            .unwrap();
+
+        assert_eq!(run.completion.records.len(), 1);
+        assert!(u64::try_from(run.completion.records.len()).unwrap() <= budget.maximum_updates());
+        assert_eq!(run.solution.matching, vec![(0, 0)]);
+        assert_eq!(run.solution.vertex_cover.size, 1);
     }
 }

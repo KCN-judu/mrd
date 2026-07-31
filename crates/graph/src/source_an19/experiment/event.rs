@@ -41,7 +41,7 @@ impl Backend for Engine {
             problem.target,
             &path,
             &paths.distances,
-            problem.budget,
+            problem.budget.clone(),
             &mut metrics,
         )?;
         if traced.thresholds.by_vertex != fast.by_vertex
@@ -54,7 +54,7 @@ impl Backend for Engine {
             problem.cluster,
             problem.remaining,
             &traced.thresholds,
-            problem.budget,
+            problem.budget.clone(),
             false,
             problem.graph.node_count(),
             &mut metrics,
@@ -81,7 +81,7 @@ struct TracedThresholds {
     witnesses: Vec<Option<execution::ArcWitness>>,
     queue_observations: Vec<queue::Observation>,
     queue_statistics: queue::Statistics,
-    distinct_reduced_costs: BTreeSet<(i128, i128)>,
+    distinct_reduced_costs: BTreeSet<(String, String)>,
 }
 
 #[allow(clippy::too_many_lines)]
@@ -91,7 +91,9 @@ fn traced_reduced_thresholds(
     paths: &ShortestPaths,
 ) -> Result<TracedThresholds, Error> {
     let node_count = problem.graph.node_count();
-    let target_distance = paths.distances[problem.target.0].ok_or(Error::Disconnected)?;
+    let target_distance = paths.distances[problem.target.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
     let mut labels = vec![None; node_count];
     let mut path_distance_from_target = vec![None; node_count];
     let mut seeds = Vec::new();
@@ -113,21 +115,21 @@ fn traced_reduced_thresholds(
         let from = path.vertices[path_index + 1];
         let toward_center = path.vertices[path_index];
         let next_distance = distance_from_target
-            .checked_add(edge.length)
+            .checked_add(&edge.length)
             .map_err(|_| Error::Overflow)?;
-        path_distance_from_target[toward_center.0] = Some(next_distance);
-        if ratio_less(problem.budget, next_distance)? {
-            if ratio_less(distance_from_target, problem.budget)? {
+        path_distance_from_target[toward_center.0] = Some(next_distance.clone());
+        if ratio_less(problem.budget.clone(), next_distance.clone())? {
+            if ratio_less(distance_from_target.clone(), problem.budget.clone())? {
                 add_trace_interior_seeds(
                     from,
                     toward_center,
-                    edge.length,
+                    edge.length.clone(),
                     problem
                         .budget
-                        .checked_sub(distance_from_target)
+                        .checked_sub(&distance_from_target)
                         .map_err(|_| Error::Overflow)?,
                     target_distance,
-                    problem.budget,
+                    problem.budget.clone(),
                     &paths.distances,
                     &mut labels,
                     &mut seeds,
@@ -138,7 +140,7 @@ fn traced_reduced_thresholds(
         }
         add_trace_seed(
             toward_center,
-            next_distance,
+            next_distance.clone(),
             &mut labels,
             &mut seeds,
             &mut insertion_sequence,
@@ -180,7 +182,7 @@ fn traced_reduced_thresholds(
         statistics.popped = statistics.popped.checked_add(1).ok_or(Error::Overflow)?;
         let stale_reason = if settled[item.vertex.0] {
             Some(trace::StaleReason::SettledVertex)
-        } else if labels[item.vertex.0] != Some(item.distance) {
+        } else if labels[item.vertex.0] != Some(item.distance.clone()) {
             Some(trace::StaleReason::SupersededDistance)
         } else {
             None
@@ -198,7 +200,7 @@ fn traced_reduced_thresholds(
         settled[item.vertex.0] = true;
         witnesses[item.vertex.0] = item.predecessor;
         ordered.push(ExactHeapEntry {
-            distance: item.distance,
+            distance: item.distance.clone(),
             vertex: item.vertex,
         });
         for arc in &adjacency[item.vertex.0] {
@@ -207,9 +209,9 @@ fn traced_reduced_thresholds(
             }
             let candidate = item
                 .distance
-                .checked_add(arc.reduced_cost)
+                .checked_add(&arc.reduced_cost)
                 .map_err(|_| Error::Overflow)?;
-            let improves = match labels[arc.to.0] {
+            let improves = match &labels[arc.to.0] {
                 Some(old) => {
                     statistics.comparisons = statistics
                         .comparisons
@@ -219,13 +221,13 @@ fn traced_reduced_thresholds(
                         .relaxation_label_comparisons
                         .checked_add(1)
                         .ok_or(Error::Overflow)?;
-                    if candidate == old {
+                    if &candidate == old {
                         statistics.equal_key_ties = statistics
                             .equal_key_ties
                             .checked_add(1)
                             .ok_or(Error::Overflow)?;
                     }
-                    ratio_less(candidate, old)?
+                    ratio_less(candidate.clone(), old.clone())?
                 }
                 None => true,
             };
@@ -236,13 +238,13 @@ fn traced_reduced_thresholds(
                         .checked_add(1)
                         .ok_or(Error::Overflow)?;
                 }
-                labels[arc.to.0] = Some(candidate);
+                labels[arc.to.0] = Some(candidate.clone());
                 insertion_sequence = insertion_sequence.checked_add(1).ok_or(Error::Overflow)?;
                 let queued = queue::Item {
                     distance: candidate,
                     vertex: arc.to,
                     insertion_sequence,
-                    predecessor: Some(*arc),
+                    predecessor: Some(arc.clone()),
                 };
                 queue::push(&mut queue, queued.clone(), &mut statistics)?;
                 queue_observations.push(queue::Observation {
@@ -260,15 +262,15 @@ fn traced_reduced_thresholds(
     }
     let mut by_vertex = vec![None; node_count];
     for vertex in problem.remaining {
-        let threshold = labels[vertex.0].ok_or(Error::Disconnected)?;
+        let threshold = labels[vertex.0].clone().ok_or(Error::Disconnected)?;
         if threshold.is_negative() {
             return Err(Error::InvalidRadius);
         }
-        if !ratio_less(problem.budget, threshold)? {
+        if !ratio_less(problem.budget.clone(), threshold.clone())? {
             by_vertex[vertex.0] = Some(threshold);
         }
     }
-    ordered.retain(|entry| by_vertex[entry.vertex.0] == Some(entry.distance));
+    ordered.retain(|entry| by_vertex[entry.vertex.0] == Some(entry.distance.clone()));
     Ok(TracedThresholds {
         thresholds: MembershipThresholds {
             by_vertex,
@@ -296,24 +298,28 @@ fn add_trace_interior_seeds(
     insertion_sequence: &mut u64,
 ) -> Result<(), Error> {
     let two = ratio(2, 1)?;
-    let from_center = center_distances[from.0].ok_or(Error::Disconnected)?;
-    let toward_center_distance = center_distances[toward_center.0].ok_or(Error::Disconnected)?;
+    let from_center = center_distances[from.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
+    let toward_center_distance = center_distances[toward_center.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
     let potential = target_distance
-        .checked_mul(two)
-        .and_then(|value| value.checked_sub(radius))
+        .checked_mul(&two)
+        .and_then(|value| value.checked_sub(&radius))
         .map_err(|_| Error::Overflow)?;
     let from_threshold = potential
-        .checked_add(offset_from.checked_mul(two).map_err(|_| Error::Overflow)?)
-        .and_then(|value| value.checked_sub(from_center.checked_mul(two)?))
+        .checked_add(&offset_from.checked_mul(&two).map_err(|_| Error::Overflow)?)
+        .and_then(|value| value.checked_sub(&from_center.checked_mul(&two)?))
         .map_err(|_| Error::Overflow)?;
     let toward_threshold = potential
         .checked_add(
-            edge_length
-                .checked_sub(offset_from)
-                .and_then(|value| value.checked_mul(two))
+            &edge_length
+                .checked_sub(&offset_from)
+                .and_then(|value| value.checked_mul(&two))
                 .map_err(|_| Error::Overflow)?,
         )
-        .and_then(|value| value.checked_sub(toward_center_distance.checked_mul(two)?))
+        .and_then(|value| value.checked_sub(&toward_center_distance.checked_mul(&two)?))
         .map_err(|_| Error::Overflow)?;
     add_trace_seed(from, from_threshold, labels, seeds, insertion_sequence)?;
     add_trace_seed(
@@ -332,12 +338,12 @@ fn add_trace_seed(
     seeds: &mut Vec<queue::Item>,
     insertion_sequence: &mut u64,
 ) -> Result<(), Error> {
-    let improves = match labels[vertex.0] {
-        Some(old) => ratio_less(distance, old)?,
+    let improves = match &labels[vertex.0] {
+        Some(old) => ratio_less(distance.clone(), old.clone())?,
         None => true,
     };
     if improves {
-        labels[vertex.0] = Some(distance);
+        labels[vertex.0] = Some(distance.clone());
         *insertion_sequence = insertion_sequence.checked_add(1).ok_or(Error::Overflow)?;
         seeds.push(queue::Item {
             distance,
@@ -349,7 +355,7 @@ fn add_trace_seed(
     Ok(())
 }
 
-type ReducedAdjacency = (Vec<Vec<execution::ArcWitness>>, BTreeSet<(i128, i128)>);
+type ReducedAdjacency = (Vec<Vec<execution::ArcWitness>>, BTreeSet<(String, String)>);
 
 fn traced_reduced_adjacency(
     graph: &SourceDynamicGraph,
@@ -364,25 +370,35 @@ fn traced_reduced_adjacency(
         if !allowed.contains(&edge.first) || !allowed.contains(&edge.second) {
             continue;
         }
-        let first_distance = center_distances[edge.first.0].ok_or(Error::Disconnected)?;
-        let second_distance = center_distances[edge.second.0].ok_or(Error::Disconnected)?;
+        let first_distance = center_distances[edge.first.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
+        let second_distance = center_distances[edge.second.0]
+            .clone()
+            .ok_or(Error::Disconnected)?;
         let forward = edge
             .length
-            .checked_add(first_distance)
-            .and_then(|value| value.checked_sub(second_distance))
+            .checked_add(&first_distance)
+            .and_then(|value| value.checked_sub(&second_distance))
             .and_then(|value| value.checked_mul_integer(2))
             .map_err(|_| Error::Overflow)?;
         let reverse = edge
             .length
-            .checked_add(second_distance)
-            .and_then(|value| value.checked_sub(first_distance))
+            .checked_add(&second_distance)
+            .and_then(|value| value.checked_sub(&first_distance))
             .and_then(|value| value.checked_mul_integer(2))
             .map_err(|_| Error::Overflow)?;
         if forward.is_negative() || reverse.is_negative() {
             return Err(Error::InvalidHighway);
         }
-        distinct.insert((forward.numerator(), forward.denominator()));
-        distinct.insert((reverse.numerator(), reverse.denominator()));
+        distinct.insert((
+            forward.numerator().to_string(),
+            forward.denominator().to_string(),
+        ));
+        distinct.insert((
+            reverse.numerator().to_string(),
+            reverse.denominator().to_string(),
+        ));
         adjacency[edge.first.0].push(execution::ArcWitness {
             edge: edge_id,
             to: edge.second,
@@ -488,12 +504,12 @@ mod tests {
             };
             let expected = edge
                 .length
-                .checked_add(paths.distances[from.0].unwrap())
-                .and_then(|value| value.checked_sub(paths.distances[to.0].unwrap()))
+                .checked_add(paths.distances[from.0].as_ref().unwrap())
+                .and_then(|value| value.checked_sub(paths.distances[to.0].as_ref().unwrap()))
                 .and_then(|value| value.checked_mul_integer(2))
                 .unwrap();
             assert_eq!(
-                ExactRatio::try_from(event.exact_reduced_cost.unwrap()).unwrap(),
+                ExactRatio::try_from(event.exact_reduced_cost.as_ref().unwrap().clone()).unwrap(),
                 expected
             );
         }
@@ -520,14 +536,20 @@ mod tests {
         let mut popped = Vec::new();
         while let Some(item) = queue::pop(&mut heap, &mut statistics).unwrap() {
             popped.push((
-                item.distance.numerator(),
+                item.distance.numerator().to_string(),
                 item.vertex.0,
                 item.insertion_sequence,
             ));
         }
         assert_eq!(
             popped,
-            vec![(1, 3, 2), (1, 3, 5), (1, 7, 1), (2, 4, 0), (3, 0, 3)]
+            vec![
+                ("1".to_owned(), 3, 2),
+                ("1".to_owned(), 3, 5),
+                ("1".to_owned(), 7, 1),
+                ("2".to_owned(), 4, 0),
+                ("3".to_owned(), 0, 3),
+            ]
         );
         assert!(statistics.equal_key_ties > 0);
         assert_eq!(
@@ -603,11 +625,12 @@ mod tests {
                         })
                         .unwrap()
                         .reduced_cost
+                        .clone()
                 })
             })
             .collect::<Vec<_>>();
-        assert!(ratio_less(reverse_costs[0][1], reverse_costs[0][0]).unwrap());
-        assert!(ratio_less(reverse_costs[1][0], reverse_costs[1][1]).unwrap());
+        assert!(ratio_less(reverse_costs[0][1].clone(), reverse_costs[0][0].clone()).unwrap());
+        assert!(ratio_less(reverse_costs[1][0].clone(), reverse_costs[1][1].clone()).unwrap());
     }
 
     #[test]
@@ -622,11 +645,11 @@ mod tests {
     #[test]
     fn event_engine_exact_ratio_record_serializes_without_floating_point() {
         let record = Ratio {
-            numerator: -7,
-            denominator: 13,
+            numerator: "-7".to_owned(),
+            denominator: "13".to_owned(),
         };
         let json = serde_json::to_string(&record).unwrap();
-        assert_eq!(json, r#"{"numerator":-7,"denominator":13}"#);
+        assert_eq!(json, r#"{"numerator":"-7","denominator":"13"}"#);
         assert_eq!(serde_json::from_str::<Ratio>(&json).unwrap(), record);
         assert_eq!(
             ExactRatio::try_from(record).unwrap(),
@@ -657,15 +680,16 @@ mod tests {
             .unwrap();
 
         let mut changed = original.clone();
-        changed.semantic_trace[semantic_with_reduced]
+        let reduced_cost = changed.semantic_trace[semantic_with_reduced]
             .exact_reduced_cost
             .as_mut()
-            .unwrap()
-            .numerator += 1;
+            .unwrap();
+        reduced_cost.numerator = (reduced_cost.numerator.parse::<i128>().unwrap() + 1).to_string();
         assert_rejected(&changed, &problem);
 
         let mut changed = original.clone();
-        changed.semantic_trace[0].exact_event_radius.numerator += 1;
+        let radius = &mut changed.semantic_trace[0].exact_event_radius;
+        radius.numerator = (radius.numerator.parse::<i128>().unwrap() + 1).to_string();
         assert_rejected(&changed, &problem);
 
         let mut changed = original.clone();

@@ -51,7 +51,7 @@ impl ForestCollection {
                 let stretch = forest
                     .stretch(ForestEdgeId(index))
                     .map_err(|_| ForestCollectionError::InvalidGraph)?;
-                sums[index] = sums[index].checked_add(stretch).map_err(map_ratio)?;
+                sums[index] = sums[index].checked_add(&stretch).map_err(map_ratio)?;
                 if stretch.numerator() > stretch.denominator() {
                     penalties[index] = penalties[index]
                         .checked_mul(2)
@@ -66,13 +66,8 @@ impl ForestCollection {
         let average_stretches = sums
             .into_iter()
             .map(|sum| {
-                ExactRatio::new(
-                    sum.numerator(),
-                    sum.denominator()
-                        .checked_mul(divisor)
-                        .ok_or(ForestCollectionError::Overflow)?,
-                )
-                .map_err(map_ratio)
+                sum.checked_mul(&ExactRatio::new(1, divisor).map_err(map_ratio)?)
+                    .map_err(map_ratio)
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
@@ -90,7 +85,7 @@ impl ForestCollection {
     pub fn average_stretch(&self, edge: ForestEdgeId) -> Result<ExactRatio, ForestCollectionError> {
         self.average_stretches
             .get(edge.0)
-            .copied()
+            .cloned()
             .ok_or(ForestCollectionError::EdgeOutOfBounds)
     }
 
@@ -201,7 +196,12 @@ mod tests {
         let second = ForestCollection::build(3, &edges, 3).unwrap();
         assert_eq!(first, second);
         assert_eq!(first.trees().len(), 3);
-        assert!(first.average_stretch(ForestEdgeId(2)).unwrap().numerator() > 0);
+        assert!(
+            first
+                .average_stretch(ForestEdgeId(2))
+                .unwrap()
+                .is_positive()
+        );
         assert_eq!(first.metrics().round_count, 3);
     }
 

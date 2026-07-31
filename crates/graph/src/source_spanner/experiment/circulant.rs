@@ -50,7 +50,7 @@ pub fn build(weights: &[ExactRatio], domain: ExhaustiveDomain) -> Result<Witness
             continue;
         }
         let (expansion, cuts_checked) = expansion(&graph)?;
-        if expansion.at_least(floor).map_err(map_ratio)? {
+        if expansion.at_least(&floor).map_err(map_ratio)? {
             return Ok(Witness {
                 graph,
                 degrees,
@@ -84,11 +84,11 @@ fn degree_sandwich(degrees: &[u64], weights: &[ExactRatio]) -> Result<bool, Erro
     for (degree, weight) in degrees.iter().zip(weights) {
         let degree = ExactRatio::new(i128::from(*degree), 1).map_err(map_ratio)?;
         if !weight.is_positive()
-            || !degree.at_least(*weight).map_err(map_ratio)?
+            || !degree.at_least(weight).map_err(map_ratio)?
             || !weight
                 .checked_mul_integer(18)
                 .map_err(map_ratio)?
-                .at_least(degree)
+                .at_least(&degree)
                 .map_err(map_ratio)?
         {
             return Ok(false);
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn chooses_a_sparse_certified_cycle_when_the_degree_sandwich_allows_it() {
         let witness = build(
-            &[ExactRatio::new(1, 1).unwrap(); 5],
+            &vec![ExactRatio::new(1, 1).unwrap(); 5],
             ExhaustiveDomain { maximum_nodes: 8 },
         )
         .unwrap();
@@ -146,12 +146,12 @@ mod tests {
         assert!(
             witness
                 .expansion
-                .at_least(ExactRatio::new(1, 4).unwrap())
+                .at_least(&ExactRatio::new(1, 4).unwrap())
                 .unwrap()
         );
         witness
             .verify(
-                &[ExactRatio::new(1, 1).unwrap(); 5],
+                &vec![ExactRatio::new(1, 1).unwrap(); 5],
                 ExhaustiveDomain { maximum_nodes: 8 },
             )
             .unwrap();
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn chooses_complete_only_when_the_requested_degree_requires_it() {
         let witness = build(
-            &[ExactRatio::new(4, 1).unwrap(); 5],
+            &vec![ExactRatio::new(4, 1).unwrap(); 5],
             ExhaustiveDomain { maximum_nodes: 8 },
         )
         .unwrap();

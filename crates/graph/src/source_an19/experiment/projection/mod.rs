@@ -47,7 +47,11 @@ impl HighwayLedger {
     pub fn new(graph: &SourceDynamicGraph) -> Self {
         Self {
             original_lengths: (0..graph.edge_count())
-                .map(|index| graph.edge(SourceEdgeId(index)).map(|edge| edge.length))
+                .map(|index| {
+                    graph
+                        .edge(SourceEdgeId(index))
+                        .map(|edge| edge.length.clone())
+                })
                 .collect(),
             halved_intervals: vec![Vec::new(); graph.edge_count()],
             applications: 0,
@@ -82,23 +86,23 @@ impl HighwayLedger {
             let original = candidate
                 .original_lengths
                 .get(segment.edge.0)
-                .copied()
+                .cloned()
                 .flatten()
                 .ok_or(Error::InvalidHighway)?;
             if original != edge.length
                 || original != segment.original_edge_length
                 || !segment.halved_length.is_positive()
-                || ratio_less(original, segment.halved_length)?
+                || ratio_less(original.clone(), segment.halved_length.clone())?
             {
                 return Err(Error::InvalidHighway);
             }
             let (start, end) = if segment.from == edge.first && segment.toward_center == edge.second
             {
-                (ratio(0, 1)?, segment.halved_length)
+                (ratio(0, 1)?, segment.halved_length.clone())
             } else if segment.from == edge.second && segment.toward_center == edge.first {
                 (
                     original
-                        .checked_sub(segment.halved_length)
+                        .checked_sub(&segment.halved_length)
                         .map_err(|_| Error::Overflow)?,
                     original,
                 )
@@ -110,7 +114,12 @@ impl HighwayLedger {
                 .get_mut(segment.edge.0)
                 .ok_or(Error::InvalidHighway)?;
             for old in intervals.iter() {
-                if intervals_overlap(start, end, old.start_from_first, old.end_from_first)? {
+                if intervals_overlap(
+                    start.clone(),
+                    end.clone(),
+                    old.start_from_first.clone(),
+                    old.end_from_first.clone(),
+                )? {
                     return Err(Error::RepeatedHighway);
                 }
             }
@@ -138,7 +147,7 @@ impl HighwayLedger {
         let original = self
             .original_lengths
             .get(edge.0)
-            .copied()
+            .cloned()
             .flatten()
             .ok_or(Error::InvalidHighway)?;
         let mut halved = ratio(0, 1)?;
@@ -149,17 +158,17 @@ impl HighwayLedger {
         {
             halved = halved
                 .checked_add(
-                    interval
+                    &interval
                         .end_from_first
-                        .checked_sub(interval.start_from_first)
+                        .checked_sub(&interval.start_from_first)
                         .map_err(|_| Error::Overflow)?,
                 )
                 .map_err(|_| Error::Overflow)?;
         }
         original
             .checked_sub(
-                halved
-                    .checked_mul(ratio(1, 2)?)
+                &halved
+                    .checked_mul(&ratio(1, 2)?)
                     .map_err(|_| Error::Overflow)?,
             )
             .map_err(|_| Error::Overflow)
@@ -190,8 +199,10 @@ impl ShortEdgeContraction {
         let paths = shortest_paths(graph, cluster, center, &mut metrics)?;
         let mut radius = ratio(0, 1)?;
         for vertex in cluster {
-            let distance = paths.distances[vertex.0].ok_or(Error::Disconnected)?;
-            if ratio_less(radius, distance)? {
+            let distance = paths.distances[vertex.0]
+                .clone()
+                .ok_or(Error::Disconnected)?;
+            if ratio_less(radius.clone(), distance.clone())? {
                 radius = distance;
             }
         }
@@ -211,7 +222,7 @@ impl ShortEdgeContraction {
         let n = i128::try_from(original_node_count).map_err(|_| Error::Overflow)?;
         let n_squared = n.checked_mul(n).ok_or(Error::Overflow)?;
         let contraction_threshold = radius
-            .checked_mul(ratio(1, n_squared)?)
+            .checked_mul(&ratio(1, n_squared)?)
             .map_err(|_| Error::Overflow)?;
         let mut connectivity = DisjointSet::new(graph.node_count());
         let mut contracted_edges = BTreeSet::new();
@@ -222,7 +233,7 @@ impl ShortEdgeContraction {
             };
             if cluster.contains(&edge.first)
                 && cluster.contains(&edge.second)
-                && ratio_less(edge.length, contraction_threshold)?
+                && ratio_less(edge.length.clone(), contraction_threshold.clone())?
             {
                 connectivity.union(edge.first.0, edge.second.0);
                 contracted_edges.insert(edge_id);
@@ -359,7 +370,7 @@ pub struct OriginalInterval {
 /// Equal labels identify a common unsplit source length, but do not by
 /// themselves prove that arbitrary candidate distances may share one monotone
 /// queue.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SymbolicLengthLabel {
     pub root_source: Option<SourceEdgeId>,
     pub unsplit_length: ExactRatio,
@@ -370,7 +381,7 @@ impl SymbolicLengthLabel {
     pub(in crate::source_an19) fn effective_length(self) -> Result<ExactRatio, Error> {
         if self.halved {
             self.unsplit_length
-                .checked_mul(ratio(1, 2)?)
+                .checked_mul(&ratio(1, 2)?)
                 .map_err(|_| Error::Overflow)
         } else {
             Ok(self.unsplit_length)
@@ -382,10 +393,27 @@ impl Edge {
     pub(in crate::source_an19) fn symbolic_length_label(&self) -> SymbolicLengthLabel {
         SymbolicLengthLabel {
             root_source: self.root_source,
-            unsplit_length: self.unsplit_length,
+            unsplit_length: self.unsplit_length.clone(),
             halved: self.halved,
         }
     }
+}
+
+fn ratio_key(value: &ExactRatio) -> (String, String) {
+    (
+        value.numerator().to_string(),
+        value.denominator().to_string(),
+    )
+}
+
+fn structural_coordinate_bound(value: &ExactRatio) -> Result<i128, Error> {
+    let numerator = value
+        .numerator_i128()
+        .map_err(|_| Error::Overflow)?
+        .checked_abs()
+        .ok_or(Error::Overflow)?;
+    let denominator = value.denominator_i128().map_err(|_| Error::Overflow)?;
+    Ok(numerator.max(denominator))
 }
 
 #[derive(Clone, Debug)]
@@ -394,9 +422,9 @@ pub struct Snapshot {
     pub(in crate::source_an19) dense_to_augmented: Vec<usize>,
     pub(in crate::source_an19) dense_root_sources: Vec<Option<SourceEdgeId>>,
     pub(in crate::source_an19) dense_symbolic_labels: Vec<SymbolicLengthLabel>,
-    pub(in crate::source_an19) length_class_counts: BTreeMap<(i128, i128), usize>,
-    pub(in crate::source_an19) symbolic_source_classes: BTreeSet<(i128, i128)>,
-    pub(in crate::source_an19) symbolic_virtual_classes: BTreeSet<(i128, i128)>,
+    pub(in crate::source_an19) length_class_counts: BTreeMap<(String, String), usize>,
+    pub(in crate::source_an19) symbolic_source_classes: BTreeSet<(String, String)>,
+    pub(in crate::source_an19) symbolic_virtual_classes: BTreeSet<(String, String)>,
     pub(in crate::source_an19) local_to_augmented_node: Vec<FlowNodeId>,
     pub(in crate::source_an19) augmented_to_local_node: BTreeMap<FlowNodeId, FlowNodeId>,
 }
@@ -408,7 +436,7 @@ struct CachedSnapshot {
     pending_splits: Vec<SplitUpdate>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct SplitUpdate {
     stable_edge: usize,
     from: FlowNodeId,
@@ -521,12 +549,16 @@ impl Graph {
         let mut unit_input = true;
         let minimum_length = (0..graph.edge_count())
             .filter_map(|index| graph.edge(SourceEdgeId(index)))
-            .try_fold(None, |minimum, edge| {
+            .try_fold(None::<ExactRatio>, |minimum, edge| {
                 let replace = match minimum {
-                    Some(value) => ratio_less(edge.length, value)?,
+                    Some(ref value) => ratio_less(edge.length.clone(), value.clone())?,
                     None => true,
                 };
-                Ok::<_, Error>(if replace { Some(edge.length) } else { minimum })
+                Ok::<_, Error>(if replace {
+                    Some(edge.length.clone())
+                } else {
+                    minimum
+                })
             })?
             .ok_or(Error::InvalidAugmentedGraph)?;
         for (index, root_source) in root_sources.iter().copied().enumerate() {
@@ -536,18 +568,18 @@ impl Graph {
             original_endpoints.push((edge.first, edge.second));
             unit_input &= edge.length == one;
             let workspace_length = match length_mode {
-                LengthMode::ExactRational => edge.length,
+                LengthMode::ExactRational => edge.length.clone(),
                 LengthMode::RoundedPowerOfTwo => {
-                    round_length_to_power_of_two(edge.length, minimum_length)?
+                    round_length_to_power_of_two(edge.length.clone(), minimum_length.clone())?
                 }
             };
             let symbolic_label = symbolic_labels.map_or(
                 SymbolicLengthLabel {
                     root_source,
-                    unsplit_length: workspace_length,
+                    unsplit_length: workspace_length.clone(),
                     halved: false,
                 },
-                |labels| labels[index],
+                |labels| labels[index].clone(),
             );
             if symbolic_label.root_source != root_source
                 || !symbolic_label.unsplit_length.is_positive()
@@ -564,7 +596,7 @@ impl Graph {
                 provenance: Some(OriginalInterval {
                     edge: SourceEdgeId(index),
                     first_position: ratio(0, 1)?,
-                    second_position: edge.length,
+                    second_position: edge.length.clone(),
                 }),
                 root_source,
                 unsplit_length: symbolic_label.unsplit_length,
@@ -626,7 +658,7 @@ impl Graph {
             halved: false,
             first: attached_to,
             second: vertex,
-            length,
+            length: length.clone(),
             provenance: None,
             root_source: None,
             unsplit_length: length,
@@ -661,14 +693,14 @@ impl Graph {
         } else {
             return Err(Error::InvalidAugmentedGraph);
         };
-        if !offset.is_positive() || !ratio_less(offset, edge.length)? {
+        if !offset.is_positive() || !ratio_less(offset.clone(), edge.length.clone())? {
             return Err(Error::InvalidAugmentedGraph);
         }
         let remainder = edge
             .length
-            .checked_sub(offset)
+            .checked_sub(&offset)
             .map_err(|_| Error::Overflow)?;
-        let (from_provenance, toward_provenance) = split_provenance(&edge, from, offset)?;
+        let (from_provenance, toward_provenance) = split_provenance(&edge, from, offset.clone())?;
         let vertex = FlowNodeId(self.node_count);
         let next_node_count = self.node_count.checked_add(1).ok_or(Error::Overflow)?;
         self.node_count = next_node_count;
@@ -680,10 +712,10 @@ impl Graph {
             halved: edge.halved,
             first: from,
             second: vertex,
-            length: offset,
+            length: offset.clone(),
             provenance: from_provenance,
             root_source: edge.root_source,
-            unsplit_length: edge.unsplit_length,
+            unsplit_length: edge.unsplit_length.clone(),
         });
         self.incident_edges[from.0].push(from_edge);
         self.incident_edges[vertex.0].push(from_edge);
@@ -696,7 +728,7 @@ impl Graph {
             length: remainder,
             provenance: toward_provenance,
             root_source: edge.root_source,
-            unsplit_length: edge.unsplit_length,
+            unsplit_length: edge.unsplit_length.clone(),
         });
         self.incident_edges[vertex.0].push(toward_edge);
         self.incident_edges[toward.0].push(toward_edge);
@@ -794,18 +826,11 @@ impl Graph {
                 {
                     continue;
                 }
-                bound = bound
-                    .max(
-                        edge.length
-                            .numerator()
-                            .checked_abs()
-                            .ok_or(Error::Overflow)?,
-                    )
-                    .max(edge.length.denominator());
+                bound = bound.max(structural_coordinate_bound(&edge.length)?);
                 dense_to_augmented.push(*stable);
                 let symbolic_label = edge.symbolic_length_label();
-                let symbolic_length = symbolic_label.effective_length()?;
-                let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+                let symbolic_length = symbolic_label.clone().effective_length()?;
+                let symbolic_class = ratio_key(&symbolic_length);
                 if symbolic_label.root_source.is_some() {
                     symbolic_source_classes.insert(symbolic_class);
                 } else {
@@ -813,7 +838,7 @@ impl Graph {
                 }
                 dense_symbolic_labels.push(symbolic_label);
                 *length_class_counts
-                    .entry((edge.length.numerator(), edge.length.denominator()))
+                    .entry(ratio_key(&edge.length))
                     .or_insert(0) += 1;
                 edges.push(SourceWeightedEdge {
                     first: *augmented_to_local_node
@@ -822,7 +847,7 @@ impl Graph {
                     second: *augmented_to_local_node
                         .get(&edge.second)
                         .ok_or(Error::InvalidAugmentedGraph)?,
-                    length: edge.length,
+                    length: edge.length.clone(),
                     weight: ratio(1, 1)?,
                 });
             }
@@ -877,18 +902,11 @@ impl Graph {
             if !edge.active {
                 continue;
             }
-            bound = bound
-                .max(
-                    edge.length
-                        .numerator()
-                        .checked_abs()
-                        .ok_or(Error::Overflow)?,
-                )
-                .max(edge.length.denominator());
+            bound = bound.max(structural_coordinate_bound(&edge.length)?);
             dense_to_augmented.push(index);
             let symbolic_label = edge.symbolic_length_label();
-            let symbolic_length = symbolic_label.effective_length()?;
-            let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+            let symbolic_length = symbolic_label.clone().effective_length()?;
+            let symbolic_class = ratio_key(&symbolic_length);
             if symbolic_label.root_source.is_some() {
                 symbolic_source_classes.insert(symbolic_class);
             } else {
@@ -898,7 +916,7 @@ impl Graph {
             edges.push(SourceWeightedEdge {
                 first: edge.first,
                 second: edge.second,
-                length: edge.length,
+                length: edge.length.clone(),
                 weight: ratio(1, 1)?,
             });
         }
@@ -916,9 +934,7 @@ impl Graph {
             length_class_counts: self.edges.iter().filter(|edge| edge.active).fold(
                 BTreeMap::new(),
                 |mut counts, edge| {
-                    *counts
-                        .entry((edge.length.numerator(), edge.length.denominator()))
-                        .or_insert(0) += 1;
+                    *counts.entry(ratio_key(&edge.length)).or_insert(0) += 1;
                     counts
                 },
             ),
@@ -1019,10 +1035,11 @@ impl Snapshot {
             .dense_root_sources
             .get(dense)
             .ok_or(Error::InvalidAugmentedGraph)?;
-        let symbolic_label = *self
+        let symbolic_label = self
             .dense_symbolic_labels
             .get(dense)
-            .ok_or(Error::InvalidAugmentedGraph)?;
+            .ok_or(Error::InvalidAugmentedGraph)?
+            .clone();
         if symbolic_label.root_source != root_source {
             return Err(Error::InvalidAugmentedGraph);
         }
@@ -1030,22 +1047,25 @@ impl Snapshot {
             .graph
             .edge(SourceEdgeId(dense))
             .ok_or(Error::InvalidAugmentedGraph)?
-            .length;
+            .length
+            .clone();
         let remainder = original_length
-            .checked_sub(update.offset)
+            .checked_sub(&update.offset)
             .map_err(|_| Error::Overflow)?;
-        let original_class = (original_length.numerator(), original_length.denominator());
-        let from_class = (update.offset.numerator(), update.offset.denominator());
-        let toward_class = (remainder.numerator(), remainder.denominator());
+        let original_class = ratio_key(&original_length);
+        let from_class = ratio_key(&update.offset);
+        let toward_class = ratio_key(&remainder);
         if self
             .length_class_counts
             .get(&original_class)
             .is_none_or(|count| *count == 0)
-            || [from_class, toward_class].into_iter().any(|class| {
-                self.length_class_counts
-                    .get(&class)
-                    .is_some_and(|count| *count > usize::MAX - 2)
-            })
+            || [from_class.clone(), toward_class.clone()]
+                .into_iter()
+                .any(|class| {
+                    self.length_class_counts
+                        .get(&class)
+                        .is_some_and(|count| *count > usize::MAX - 2)
+                })
         {
             return Err(Error::Overflow);
         }
@@ -1115,7 +1135,7 @@ impl Snapshot {
     ) -> Result<SymbolicLengthLabel, Error> {
         self.dense_symbolic_labels
             .get(dense.0)
-            .copied()
+            .cloned()
             .ok_or(Error::InvalidAugmentedGraph)
     }
 
@@ -1348,7 +1368,7 @@ impl Audit {
                 .graph
                 .edge(SourceEdgeId(index))
                 .ok_or(Error::InvalidAugmentedGraph)?;
-            length_classes.insert((edge.length.numerator(), edge.length.denominator()));
+            length_classes.insert(ratio_key(&edge.length));
             let root_source = projection.root_source(SourceEdgeId(index))?;
             let symbolic_label = projection.symbolic_label(SourceEdgeId(index))?;
             if symbolic_label.root_source != root_source
@@ -1357,7 +1377,7 @@ impl Audit {
                 return Err(Error::InvalidWorkCertificate);
             }
             let symbolic_length = symbolic_label.effective_length()?;
-            let symbolic_class = (symbolic_length.numerator(), symbolic_length.denominator());
+            let symbolic_class = ratio_key(&symbolic_length);
             if root_source.is_some() {
                 symbolic_source_classes.insert(symbolic_class);
             } else {

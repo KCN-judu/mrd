@@ -7,20 +7,21 @@
 
 use std::collections::BTreeSet;
 
+use num_bigint::BigInt;
+use num_traits::{One, Signed, ToPrimitive, Zero};
 use thiserror::Error;
 
 use crate::{
     CertifiedFixedPoint, CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio,
     IpmApproximationCertificate, IpmDetectLedger, IpmTerminationCertificate, IpmUpdateMetrics,
     MinCostCirculationError, MinRatioEdgeId, SourceDynamicGraph, StableMinRatioError,
-    StableMinRatioLedger,
     source_flow::coordinates,
     source_min_ratio::{
         candidate::{CandidateId, Choice, Error as CandidateError, Registry},
         chain::{Chain, Shifts},
         cycle::{ArcBindings, Cycle, Error as CompactCycleError},
         input::Input,
-        query::decode_candidate,
+        query::decode,
         spanner::{
             Error as SpannerError, Parameters as SpannerParameters, Snapshot as SpannerSnapshot,
         },
@@ -45,10 +46,8 @@ pub struct Step {
 ///
 /// This is a transport boundary only. It deliberately does not choose the
 /// compact cycle or make a minimum-ratio query claim.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct CompactCandidate<'a> {
-    /// Already validated hidden-stability state.
-    pub ledger: &'a StableMinRatioLedger,
     /// Externally selected compact cycle.
     pub cycle: &'a Cycle,
     /// Source graph carrying stable edge provenance.
@@ -66,14 +65,12 @@ pub struct CompactCandidate<'a> {
 /// Exact source coordinates belong to `input`, not to the certified IPM
 /// intervals. The session independently certifies those supplied coordinates
 /// before its state can change.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct SourceSelected<'a> {
     /// The exact snapshot this source projection was prepared for.
     pub snapshot: &'a CertifiedIpmSnapshot,
     /// Exact current source/IPM coordinates with stable arc provenance.
     pub input: &'a Input,
-    /// Already validated hidden-stability state.
-    pub ledger: &'a StableMinRatioLedger,
     /// Source-maintained terminal candidate population.
     pub terminal: &'a TerminalTree,
     /// Source-maintained rejected-core candidate population.
@@ -92,7 +89,6 @@ pub struct SourceSelected<'a> {
 pub struct Projection {
     snapshot: CertifiedIpmSnapshot,
     input: Input,
-    ledger: StableMinRatioLedger,
     terminal: TerminalTree,
     spanner: SpannerSnapshot,
     kappa: ExactRatio,
@@ -110,7 +106,6 @@ impl Projection {
     pub fn new(
         snapshot: CertifiedIpmSnapshot,
         input: Input,
-        ledger: StableMinRatioLedger,
         terminal: TerminalTree,
         spanner: SpannerSnapshot,
         kappa: ExactRatio,
@@ -123,23 +118,26 @@ impl Projection {
         let gradients = input
             .arcs()
             .iter()
-            .map(|arc| arc.gradient)
+            .map(|arc| arc.gradient.clone())
             .collect::<Vec<_>>();
         let lengths = input
             .arcs()
             .iter()
-            .map(|arc| arc.length)
+            .map(|arc| arc.length.clone())
             .collect::<Vec<_>>();
         let mut arithmetic = CertifiedFixedPoint::new(snapshot.fixed_point_config())
             .map_err(CertifiedIpmError::from)?;
-        let approximation =
-            snapshot.certify_approximations(&gradients, &lengths, kappa, &mut arithmetic)?;
+        let approximation = snapshot.certify_approximations(
+            &gradients,
+            &lengths,
+            kappa.clone(),
+            &mut arithmetic,
+        )?;
         terminal.verify(network)?;
         spanner.verify(network)?;
         Ok(Self {
             snapshot,
             input,
-            ledger,
             terminal,
             spanner,
             kappa,
@@ -169,10 +167,9 @@ impl Projection {
         SourceSelected {
             snapshot: &self.snapshot,
             input: &self.input,
-            ledger: &self.ledger,
             terminal: &self.terminal,
             spanner: &self.spanner,
-            kappa: self.kappa,
+            kappa: self.kappa.clone(),
         }
     }
 }
@@ -221,7 +218,6 @@ where
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FixedProjectionFactory {
     input: Input,
-    ledger: StableMinRatioLedger,
     parameters: SpannerParameters,
     kappa: ExactRatio,
     preparations: u64,
@@ -230,15 +226,9 @@ pub struct FixedProjectionFactory {
 impl FixedProjectionFactory {
     /// Creates a policy that rebuilds source state from one fixed exact input.
     #[must_use]
-    pub const fn new(
-        input: Input,
-        ledger: StableMinRatioLedger,
-        parameters: SpannerParameters,
-        kappa: ExactRatio,
-    ) -> Self {
+    pub const fn new(input: Input, parameters: SpannerParameters, kappa: ExactRatio) -> Self {
         Self {
             input,
-            ledger,
             parameters,
             kappa,
             preparations: 0,
@@ -261,9 +251,8 @@ impl Factory for FixedProjectionFactory {
         let projection = rebuild_projection(
             snapshot,
             self.input.clone(),
-            &self.ledger,
-            self.parameters,
-            self.kappa,
+            self.parameters.clone(),
+            self.kappa.clone(),
             network,
         )?;
         self.preparations = self
@@ -285,7 +274,6 @@ impl Factory for FixedProjectionFactory {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScheduledProjectionFactory {
     inputs: Vec<Input>,
-    ledger: StableMinRatioLedger,
     parameters: SpannerParameters,
     kappa: ExactRatio,
     next_input: usize,
@@ -301,7 +289,21 @@ pub struct ScheduledProjectionFactory {
 /// construction, not a source runtime or termination claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReciprocalSlackProjectionFactory {
-    ledger: StableMinRatioLedger,
+    parameters: SpannerParameters,
+    kappa: ExactRatio,
+    preparations: u64,
+}
+
+/// Rebuilds complete Definition 4.2 coordinates for every current snapshot.
+///
+/// The factory independently recomputes the certified fixed-point definition
+/// from exact flow, objective, network, and configuration data. It never reads
+/// the snapshot's retained coordinate intervals. The resulting dyadic input is
+/// still required to pass [`Projection::new`]'s independent Theorem 4.3 check.
+/// This establishes coordinate construction for the checked fixed-point domain,
+/// but does not assert a dynamic-source runtime bound.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DefinitionProjectionFactory {
     parameters: SpannerParameters,
     kappa: ExactRatio,
     preparations: u64,
@@ -310,13 +312,8 @@ pub struct ReciprocalSlackProjectionFactory {
 impl ReciprocalSlackProjectionFactory {
     /// Creates a policy that reconstructs one exact rational input per snapshot.
     #[must_use]
-    pub const fn new(
-        ledger: StableMinRatioLedger,
-        parameters: SpannerParameters,
-        kappa: ExactRatio,
-    ) -> Self {
+    pub const fn new(parameters: SpannerParameters, kappa: ExactRatio) -> Self {
         Self {
-            ledger,
             parameters,
             kappa,
             preparations: 0,
@@ -340,9 +337,48 @@ impl Factory for ReciprocalSlackProjectionFactory {
         let projection = rebuild_projection(
             snapshot,
             input,
-            &self.ledger,
-            self.parameters,
-            self.kappa,
+            self.parameters.clone(),
+            self.kappa.clone(),
+            network,
+        )?;
+        self.preparations = self
+            .preparations
+            .checked_add(1)
+            .ok_or(Error::IterationCountOverflow)?;
+        Ok(projection)
+    }
+}
+
+impl DefinitionProjectionFactory {
+    /// Creates a policy that independently reconstructs Definition 4.2 input.
+    #[must_use]
+    pub const fn new(parameters: SpannerParameters, kappa: ExactRatio) -> Self {
+        Self {
+            parameters,
+            kappa,
+            preparations: 0,
+        }
+    }
+
+    /// Returns the number of snapshot-bound preparations that succeeded.
+    #[must_use]
+    pub const fn preparation_count(&self) -> u64 {
+        self.preparations
+    }
+}
+
+impl Factory for DefinitionProjectionFactory {
+    fn prepare(
+        &mut self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<Projection, Error> {
+        let input = coordinates::definition_input(snapshot, network)?;
+        let projection = rebuild_projection(
+            snapshot,
+            input,
+            self.parameters.clone(),
+            self.kappa.clone(),
             network,
         )?;
         self.preparations = self
@@ -363,7 +399,6 @@ impl ScheduledProjectionFactory {
     /// between entries; each is still independently certified on preparation.
     pub fn new(
         inputs: Vec<Input>,
-        ledger: StableMinRatioLedger,
         parameters: SpannerParameters,
         kappa: ExactRatio,
     ) -> Result<Self, Error> {
@@ -377,7 +412,6 @@ impl ScheduledProjectionFactory {
         }
         Ok(Self {
             inputs,
-            ledger,
             parameters,
             kappa,
             next_input: 0,
@@ -412,9 +446,8 @@ impl Factory for ScheduledProjectionFactory {
         let projection = rebuild_projection(
             snapshot,
             input,
-            &self.ledger,
-            self.parameters,
-            self.kappa,
+            self.parameters.clone(),
+            self.kappa.clone(),
             network,
         )?;
         self.next_input = self
@@ -432,22 +465,13 @@ impl Factory for ScheduledProjectionFactory {
 fn rebuild_projection(
     snapshot: &CertifiedIpmSnapshot,
     input: Input,
-    ledger: &StableMinRatioLedger,
     parameters: SpannerParameters,
     kappa: ExactRatio,
     network: &CirculationNetwork,
 ) -> Result<Projection, Error> {
     let terminal = TerminalTree::build(input.clone(), network, parameters.root)?;
     let spanner = SpannerSnapshot::build(input.clone(), network, parameters)?;
-    Projection::new(
-        snapshot.clone(),
-        input,
-        ledger.clone(),
-        terminal,
-        spanner,
-        kappa,
-        network,
-    )
+    Projection::new(snapshot.clone(), input, terminal, spanner, kappa, network)
 }
 
 /// One accepted transition in a source-iteration run.
@@ -472,6 +496,138 @@ pub struct Completion {
     pub termination: IpmTerminationCertificate,
     /// Every source-selected transition accepted before termination.
     pub records: Vec<Record>,
+}
+
+/// A finite, snapshot-bound potential-reduction budget.
+///
+/// This is a local termination certificate, not a complete source-flow
+/// backend. It proves only the following conditional statement: if each
+/// requested source projection is prepared for the recorded snapshot, uses the
+/// recorded `kappa`, and its selected update is accepted by Lemma 4.4, then
+/// the driver must reach the additive-half certificate within
+/// `maximum_updates`. A source projection failure remains an explicit error.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PotentialBudget {
+    snapshot: CertifiedIpmSnapshot,
+    kappa: ExactRatio,
+    maximum_updates: u64,
+    initial_potential_lower_scaled: BigInt,
+    termination_potential_lower_scaled: BigInt,
+    minimum_decrease_scaled: BigInt,
+    fractional_bits: u32,
+}
+
+impl PotentialBudget {
+    /// Constructs a conservative additive-half budget for one exact snapshot.
+    ///
+    /// Equation (9) and Lemma 4.1 of CKLPPS22 identify the potential threshold
+    /// sufficient for an additive-half objective gap. Lemma 4.4 certifies an
+    /// interval decrease of at least `kappa^2 / 500` for every accepted update.
+    /// This function combines those local certificates without asserting that
+    /// a future source projection can be constructed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the snapshot, `kappa`, or bounded fixed-point
+    /// representation cannot certify the required quantities.
+    pub fn new(
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+        kappa: ExactRatio,
+    ) -> Result<Self, Error> {
+        match snapshot.certify_additive_half_termination(network) {
+            Ok(_) => {
+                return Ok(Self {
+                    snapshot: snapshot.clone(),
+                    kappa,
+                    maximum_updates: 0,
+                    initial_potential_lower_scaled: snapshot.potential().lower_scaled().clone(),
+                    termination_potential_lower_scaled: snapshot
+                        .additive_half_potential_bound(network)?
+                        .lower_scaled()
+                        .clone(),
+                    minimum_decrease_scaled: BigInt::zero(),
+                    fractional_bits: snapshot.potential().fractional_bits(),
+                });
+            }
+            Err(CertifiedIpmError::NotAtAdditiveHalfBoundary) => {}
+            Err(error) => return Err(Error::Ipm(error)),
+        }
+
+        let threshold = snapshot.additive_half_potential_bound(network)?;
+        let decrease = snapshot.source_update_potential_decrease(&kappa)?;
+        if snapshot.potential().fractional_bits() != threshold.fractional_bits()
+            || threshold.fractional_bits() != decrease.fractional_bits()
+        {
+            return Err(Error::PotentialBudgetPrecisionMismatch);
+        }
+        let minimum_decrease_scaled = decrease.upper_scaled().clone();
+        if !minimum_decrease_scaled.is_positive() {
+            return Err(Error::PotentialBudgetInvalidDecrease);
+        }
+        let distance = snapshot.potential().lower_scaled() - threshold.lower_scaled();
+        let required = if distance.is_positive() {
+            let quotient = &distance / &minimum_decrease_scaled;
+            let remainder = &distance % &minimum_decrease_scaled;
+            if remainder.is_zero() {
+                quotient
+            } else {
+                quotient + BigInt::one()
+            }
+        } else {
+            BigInt::one()
+        };
+        let maximum_updates = required
+            .to_u64()
+            .ok_or(Error::PotentialBudgetOutsideSupportedDomain)?;
+
+        Ok(Self {
+            snapshot: snapshot.clone(),
+            kappa,
+            maximum_updates,
+            initial_potential_lower_scaled: snapshot.potential().lower_scaled().clone(),
+            termination_potential_lower_scaled: threshold.lower_scaled().clone(),
+            minimum_decrease_scaled,
+            fractional_bits: threshold.fractional_bits(),
+        })
+    }
+
+    /// Returns the maximum accepted updates certified for this snapshot.
+    #[must_use]
+    pub const fn maximum_updates(&self) -> u64 {
+        self.maximum_updates
+    }
+
+    /// Returns the exact `kappa` required for every budgeted source update.
+    #[must_use]
+    pub const fn kappa(&self) -> &ExactRatio {
+        &self.kappa
+    }
+
+    /// Returns the dyadic precision shared by the budget inputs.
+    #[must_use]
+    pub const fn fractional_bits(&self) -> u32 {
+        self.fractional_bits
+    }
+
+    /// Returns the conservative initial lower potential endpoint in dyadic
+    /// units. This is audit data, not an asymptotic counter.
+    #[must_use]
+    pub const fn initial_potential_lower_scaled(&self) -> &BigInt {
+        &self.initial_potential_lower_scaled
+    }
+
+    /// Returns the conservative additive-half threshold in dyadic units.
+    #[must_use]
+    pub const fn termination_potential_lower_scaled(&self) -> &BigInt {
+        &self.termination_potential_lower_scaled
+    }
+
+    /// Returns the minimum certified drop in dyadic units for each update.
+    #[must_use]
+    pub const fn minimum_decrease_scaled(&self) -> &BigInt {
+        &self.minimum_decrease_scaled
+    }
 }
 
 /// Bounded execution of fresh source projections over one IPM session.
@@ -570,6 +726,69 @@ impl<F: Factory> Driver<F> {
             self.records.push(record);
         }
     }
+
+    /// Drives a fresh source policy under a snapshot-bound potential budget.
+    ///
+    /// The budget replaces only an arbitrary iteration cap. It does not
+    /// create projections, relax their Theorem 4.3 checks, or turn a failed
+    /// source policy into a fallback result. If the certified bound is reached
+    /// before additive-half termination, the driver reports an explicit
+    /// certificate inconsistency and recovery remains unavailable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the budget belongs to another starting snapshot,
+    /// the source policy changes `kappa`, a projection/update fails, or the
+    /// local potential certificate does not yield additive-half termination.
+    pub fn run_with_potential_budget(
+        &mut self,
+        network: &CirculationNetwork,
+        budget: &PotentialBudget,
+    ) -> Result<Completion, Error> {
+        if !self.records.is_empty() || self.session.snapshot() != &budget.snapshot {
+            return Err(Error::PotentialBudgetSnapshotMismatch);
+        }
+        loop {
+            match self
+                .session
+                .snapshot()
+                .certify_additive_half_termination(network)
+            {
+                Ok(termination) => {
+                    return Ok(Completion {
+                        termination,
+                        records: self.records.clone(),
+                    });
+                }
+                Err(CertifiedIpmError::NotAtAdditiveHalfBoundary) => {}
+                Err(error) => return Err(Error::Ipm(error)),
+            }
+            if u64::try_from(self.records.len()).map_err(|_| Error::IterationCountOverflow)?
+                >= budget.maximum_updates
+            {
+                return Err(Error::PotentialBudgetExhausted {
+                    maximum_updates: budget.maximum_updates,
+                });
+            }
+
+            let projection = self.factory.prepare(self.session.snapshot(), network)?;
+            if projection.kappa != budget.kappa {
+                return Err(Error::PotentialBudgetKappaMismatch);
+            }
+            let sequence =
+                u64::try_from(self.records.len()).map_err(|_| Error::IterationCountOverflow)?;
+            let record = Record {
+                sequence,
+                snapshot: projection.snapshot.clone(),
+                input: projection.input.clone(),
+                approximation: projection.approximation,
+                selected: self
+                    .session
+                    .apply_source_selected(network, projection.selected())?,
+            };
+            self.records.push(record);
+        }
+    }
 }
 
 impl Step {
@@ -586,10 +805,9 @@ impl Step {
     ///
     /// Returns an error when the snapshots do not share one exact input, their
     /// candidate IDs overlap, their input coordinates differ from the caller,
-    /// either source snapshot is stale, or the selected compact cycle cannot
-    /// be decoded.
+    /// either source snapshot is stale, or the selected compact cycle cannot be
+    /// decoded.
     pub fn from_maintained_candidates(
-        ledger: &StableMinRatioLedger,
         terminal: &TerminalTree,
         spanner: &SpannerSnapshot,
         network: &CirculationNetwork,
@@ -615,7 +833,6 @@ impl Step {
         match select_population_choice(terminal_registry.best()?, spanner_registry.best()?)? {
             Some(PopulationChoice::Terminal(choice)) => Ok(Some(Self::from_compact_candidate(
                 CompactCandidate {
-                    ledger,
                     cycle: &choice.cycle,
                     graph: &terminal.materialization().graph,
                     chain: terminal.chain(),
@@ -629,7 +846,6 @@ impl Step {
             )?)),
             Some(PopulationChoice::Spanner(choice)) => Ok(Some(Self::from_compact_candidate(
                 CompactCandidate {
-                    ledger,
                     cycle: &choice.cycle,
                     graph: &spanner.materialization().graph,
                     chain: spanner.chain(),
@@ -659,7 +875,6 @@ impl Step {
     /// Returns an error for mismatched coordinates, a changed source snapshot,
     /// candidate evaluation failure, or compact-cycle decoding failure.
     pub fn from_terminal_candidate(
-        ledger: &StableMinRatioLedger,
         terminal: &TerminalTree,
         network: &CirculationNetwork,
         approximate_gradients: Vec<ExactRatio>,
@@ -677,7 +892,6 @@ impl Step {
         };
         Ok(Some(Self::from_compact_candidate(
             CompactCandidate {
-                ledger,
                 cycle: &choice.cycle,
                 graph: &terminal.materialization().graph,
                 chain: terminal.chain(),
@@ -709,8 +923,7 @@ impl Step {
         approximate_lengths: Vec<ExactRatio>,
         kappa: ExactRatio,
     ) -> Result<Self, Error> {
-        let decoded = decode_candidate(
-            compact.ledger,
+        let decoded = decode(
             compact.cycle,
             compact.graph,
             compact.chain,
@@ -720,9 +933,9 @@ impl Step {
         )?;
         let zero = ExactRatio::new(0, 1)?;
         let mut direction = vec![zero; network.arc_count()];
-        for (arc, sign) in decoded.arcs {
+        for (arc, sign) in decoded {
             let slot = direction.get_mut(arc.0).ok_or(Error::InvalidArc)?;
-            *slot = slot.checked_add(ExactRatio::new(i128::from(sign), 1)?)?;
+            *slot = slot.checked_add(&ExactRatio::new(i128::from(sign), 1)?)?;
         }
         network.verify_fractional_circulation(&direction)?;
         Ok(Self {
@@ -746,10 +959,19 @@ impl SourceSelected<'_> {
         if self.input != self.terminal.input() || self.input != self.spanner.input() {
             return Err(Error::MismatchedSelectedInput);
         }
-        let gradients = self.input.arcs().iter().map(|arc| arc.gradient).collect();
-        let lengths = self.input.arcs().iter().map(|arc| arc.length).collect();
+        let gradients = self
+            .input
+            .arcs()
+            .iter()
+            .map(|arc| arc.gradient.clone())
+            .collect();
+        let lengths = self
+            .input
+            .arcs()
+            .iter()
+            .map(|arc| arc.length.clone())
+            .collect();
         Step::from_maintained_candidates(
-            self.ledger,
             self.terminal,
             self.spanner,
             network,
@@ -772,10 +994,10 @@ fn validate_coordinates(
     gradients: &[ExactRatio],
     lengths: &[ExactRatio],
 ) -> Result<(), Error> {
-    let expected_gradients = input.arcs().iter().map(|arc| arc.gradient);
-    let expected_lengths = input.arcs().iter().map(|arc| arc.length);
-    if !gradients.iter().copied().eq(expected_gradients)
-        || !lengths.iter().copied().eq(expected_lengths)
+    let expected_gradients = input.arcs().iter().map(|arc| arc.gradient.clone());
+    let expected_lengths = input.arcs().iter().map(|arc| arc.length.clone());
+    if !gradients.iter().cloned().eq(expected_gradients)
+        || !lengths.iter().cloned().eq(expected_lengths)
     {
         return Err(Error::MismatchedCandidateCoordinates);
     }
@@ -813,7 +1035,7 @@ fn select_population_choice(
             PopulationChoice::Spanner(spanner)
         }));
     }
-    if terminal.quality.at_least(spanner.quality)? {
+    if terminal.quality.at_least(&spanner.quality)? {
         Ok(Some(PopulationChoice::Terminal(terminal)))
     } else {
         Ok(Some(PopulationChoice::Spanner(spanner)))
@@ -821,7 +1043,7 @@ fn select_population_choice(
 }
 
 /// Observable result of one accepted transition.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Outcome {
     /// Certified source step size.
     pub eta: ExactRatio,
@@ -876,11 +1098,11 @@ impl Session {
             network,
             &step.approximate_gradients,
             &step.approximate_lengths,
-            step.kappa,
+            step.kappa.clone(),
             &step.direction,
         )?;
         self.detect
-            .record_update(&self.snapshot, update.eta, &step.direction)?;
+            .record_update(&self.snapshot, update.eta.clone(), &step.direction)?;
         self.snapshot = update.next_snapshot;
         Ok(Outcome {
             eta: update.eta,
@@ -973,6 +1195,22 @@ pub enum Error {
     ProjectionScheduleIdentityMismatch { index: usize },
     #[error("the exact projection schedule exhausted its {supplied} supplied coordinate sets")]
     ProjectionScheduleExhausted { supplied: usize },
+    #[error("the potential budget uses mismatched dyadic precisions")]
+    PotentialBudgetPrecisionMismatch,
+    #[error("the potential budget has no strictly positive certified decrease")]
+    PotentialBudgetInvalidDecrease,
+    #[error("the certified potential budget exceeds the supported u64 iteration domain")]
+    PotentialBudgetOutsideSupportedDomain,
+    #[error(
+        "the potential budget belongs to another source-session snapshot or follows prior updates"
+    )]
+    PotentialBudgetSnapshotMismatch,
+    #[error("a source projection changed kappa during a fixed potential budget")]
+    PotentialBudgetKappaMismatch,
+    #[error(
+        "the potential budget exhausted {maximum_updates} updates without additive-half termination"
+    )]
+    PotentialBudgetExhausted { maximum_updates: u64 },
     #[error("source iteration record count exceeds the supported exact domain")]
     IterationCountOverflow,
 }
@@ -982,14 +1220,14 @@ mod tests {
     use std::{cell::Cell, collections::BTreeSet, rc::Rc};
 
     use super::{
-        CompactCandidate, Driver, Error, FixedProjectionFactory, PopulationChoice, Projection,
-        ReciprocalSlackProjectionFactory, ScheduledProjectionFactory, Session, SourceSelected,
-        Step, select_population_choice,
+        CompactCandidate, Driver, Error, FixedProjectionFactory, PopulationChoice, PotentialBudget,
+        Projection, ReciprocalSlackProjectionFactory, ScheduledProjectionFactory, Session,
+        SourceSelected, Step, select_population_choice,
     };
     use crate::{
         CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
         FlowNodeId, FractionalCirculation, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge,
-        StableEdge, StableMinRatioLedger, StableWitness,
+        source_lsst::bucket::Construction as BucketConstruction,
         source_min_ratio::{
             candidate::{CandidateId, Choice, Kind},
             chain::Chain,
@@ -999,38 +1237,10 @@ mod tests {
             spanner::{Parameters, Snapshot as SpannerSnapshot},
             terminal::Tree as TerminalTree,
         },
-        source_spanner::experiment::domain::ExhaustiveDomain,
     };
 
     fn ratio(value: i128) -> ExactRatio {
         ExactRatio::new(value, 1).unwrap()
-    }
-
-    fn ledger() -> StableMinRatioLedger {
-        StableMinRatioLedger::new(
-            2,
-            vec![
-                StableEdge {
-                    from: FlowNodeId(0),
-                    to: FlowNodeId(1),
-                    gradient: -1,
-                    length: 1,
-                },
-                StableEdge {
-                    from: FlowNodeId(1),
-                    to: FlowNodeId(0),
-                    gradient: 0,
-                    length: 1,
-                },
-            ],
-            ExactRatio::new(1, 4).unwrap(),
-            ExactRatio::new(1, 2).unwrap(),
-            StableWitness {
-                circulation: vec![1, 1],
-                upper_bounds: vec![1, 1],
-            },
-        )
-        .unwrap()
     }
 
     fn complete_network() -> CirculationNetwork {
@@ -1075,11 +1285,7 @@ mod tests {
         Parameters {
             root: FlowNodeId(0),
             maximum_absolute_exponent: 4,
-            phi: ExactRatio::new(1, 2).unwrap(),
-            domain: ExhaustiveDomain { maximum_nodes: 8 },
-            maximum_hops: 4,
-            maximum_vertex_congestion: 100,
-            maximum_rounds: 1,
+            bucket_construction: BucketConstruction::CanonicalTree,
         }
     }
 
@@ -1089,7 +1295,6 @@ mod tests {
         Input,
         TerminalTree,
         SpannerSnapshot,
-        StableMinRatioLedger,
     ) {
         let network = selected_source_network();
         let snapshot = CertifiedIpmSnapshot::evaluate(
@@ -1122,7 +1327,7 @@ mod tests {
         let terminal = TerminalTree::build(input.clone(), &network, FlowNodeId(0)).unwrap();
         let spanner =
             SpannerSnapshot::build(input.clone(), &network, spanner_parameters()).unwrap();
-        (network, snapshot, input, terminal, spanner, ledger())
+        (network, snapshot, input, terminal, spanner)
     }
 
     fn projection_for(
@@ -1135,7 +1340,6 @@ mod tests {
         Projection::new(
             snapshot,
             input,
-            ledger(),
             terminal,
             spanner,
             ExactRatio::new(1, 2).unwrap(),
@@ -1183,30 +1387,6 @@ mod tests {
             ],
         )
         .unwrap();
-        let ledger = StableMinRatioLedger::new(
-            2,
-            vec![
-                StableEdge {
-                    from: FlowNodeId(0),
-                    to: FlowNodeId(1),
-                    gradient: -1,
-                    length: 1,
-                },
-                StableEdge {
-                    from: FlowNodeId(1),
-                    to: FlowNodeId(0),
-                    gradient: 0,
-                    length: 1,
-                },
-            ],
-            ExactRatio::new(1, 4).unwrap(),
-            ExactRatio::new(1, 2).unwrap(),
-            StableWitness {
-                circulation: vec![1, 1],
-                upper_bounds: vec![1, 1],
-            },
-        )
-        .unwrap();
         let shifts = chain.initial_shifts();
         let selection = chain.select(&shifts).unwrap()[0];
         let cycle = Cycle {
@@ -1224,7 +1404,6 @@ mod tests {
         };
         let step = Step::from_compact_candidate(
             CompactCandidate {
-                ledger: &ledger,
                 cycle: &cycle,
                 graph: &graph,
                 chain: &chain,
@@ -1261,33 +1440,7 @@ mod tests {
         let lengths = vec![ExactRatio::new(1, 1).unwrap(); 3];
         let input = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
         let terminal = TerminalTree::build(input, &network, FlowNodeId(0)).unwrap();
-        let ledger = StableMinRatioLedger::new(
-            2,
-            vec![
-                StableEdge {
-                    from: FlowNodeId(0),
-                    to: FlowNodeId(1),
-                    gradient: -1,
-                    length: 1,
-                },
-                StableEdge {
-                    from: FlowNodeId(1),
-                    to: FlowNodeId(0),
-                    gradient: 0,
-                    length: 1,
-                },
-            ],
-            ExactRatio::new(1, 4).unwrap(),
-            ExactRatio::new(1, 2).unwrap(),
-            StableWitness {
-                circulation: vec![1, 1],
-                upper_bounds: vec![1, 1],
-            },
-        )
-        .unwrap();
-
         let step = Step::from_terminal_candidate(
-            &ledger,
             &terminal,
             &network,
             gradients.clone(),
@@ -1303,10 +1456,13 @@ mod tests {
         );
         assert_eq!(
             Step::from_terminal_candidate(
-                &ledger,
                 &terminal,
                 &network,
-                vec![ExactRatio::new(0, 1).unwrap(), gradients[1], gradients[2]],
+                vec![
+                    ExactRatio::new(0, 1).unwrap(),
+                    gradients[1].clone(),
+                    gradients[2].clone(),
+                ],
                 lengths,
                 ExactRatio::new(1, 2).unwrap(),
             ),
@@ -1337,18 +1493,16 @@ mod tests {
             }
         } else if terminal_choice
             .quality
-            .at_least(spanner_choice.quality)
+            .at_least(&spanner_choice.quality)
             .unwrap()
         {
             PopulationChoice::Terminal(terminal_choice)
         } else {
             PopulationChoice::Spanner(spanner_choice)
         };
-        let expected_ledger = ledger();
         let expected = match expected_choice {
             PopulationChoice::Terminal(choice) => Step::from_compact_candidate(
                 CompactCandidate {
-                    ledger: &expected_ledger,
                     cycle: &choice.cycle,
                     graph: &terminal.materialization().graph,
                     chain: terminal.chain(),
@@ -1363,7 +1517,6 @@ mod tests {
             .unwrap(),
             PopulationChoice::Spanner(choice) => Step::from_compact_candidate(
                 CompactCandidate {
-                    ledger: &expected_ledger,
                     cycle: &choice.cycle,
                     graph: &spanner.materialization().graph,
                     chain: spanner.chain(),
@@ -1377,11 +1530,8 @@ mod tests {
             )
             .unwrap(),
         };
-        let actual_ledger = ledger();
-
         assert_eq!(
             Step::from_maintained_candidates(
-                &actual_ledger,
                 &terminal,
                 &spanner,
                 &network,
@@ -1405,11 +1555,8 @@ mod tests {
         let terminal = TerminalTree::build(terminal_input, &network, FlowNodeId(0)).unwrap();
         let spanner =
             SpannerSnapshot::build(spanner_input, &network, spanner_parameters()).unwrap();
-        let actual_ledger = ledger();
-
         assert_eq!(
             Step::from_maintained_candidates(
-                &actual_ledger,
                 &terminal,
                 &spanner,
                 &network,
@@ -1433,8 +1580,6 @@ mod tests {
         let spanner = SpannerSnapshot::build(initial, &network, spanner_parameters()).unwrap();
         let terminal_transition = terminal.transition(next.clone(), &network).unwrap();
         let spanner_transition = spanner.transition(next, &network).unwrap();
-        let actual_ledger = ledger();
-
         assert_eq!(
             terminal_transition.refreshed.len(),
             terminal.candidates().len()
@@ -1445,7 +1590,6 @@ mod tests {
         );
         assert!(
             Step::from_maintained_candidates(
-                &actual_ledger,
                 &terminal_transition.next,
                 &spanner_transition.next,
                 &network,
@@ -1480,12 +1624,11 @@ mod tests {
 
     #[test]
     fn applies_one_source_selected_certified_iteration() {
-        let (network, snapshot, input, terminal, spanner, ledger) = selected_iteration_fixture();
+        let (network, snapshot, input, terminal, spanner) = selected_iteration_fixture();
         let mut session = Session::new(snapshot.clone()).unwrap();
         let selected = SourceSelected {
             snapshot: &snapshot,
             input: &input,
-            ledger: &ledger,
             terminal: &terminal,
             spanner: &spanner,
             kappa: ExactRatio::new(1, 2).unwrap(),
@@ -1507,17 +1650,18 @@ mod tests {
 
     #[test]
     fn rejects_stale_or_mismatched_selected_source_without_state_change() {
-        let (network, snapshot, input, terminal, spanner, ledger) = selected_iteration_fixture();
+        let (network, snapshot, input, terminal, spanner) = selected_iteration_fixture();
         let selected = SourceSelected {
             snapshot: &snapshot,
             input: &input,
-            ledger: &ledger,
             terminal: &terminal,
             spanner: &spanner,
             kappa: ExactRatio::new(1, 2).unwrap(),
         };
         let mut session = Session::new(snapshot.clone()).unwrap();
-        session.apply_source_selected(&network, selected).unwrap();
+        session
+            .apply_source_selected(&network, selected.clone())
+            .unwrap();
         let after_update = session.snapshot().clone();
         assert_eq!(
             session.apply_source_selected(&network, selected),
@@ -1528,20 +1672,19 @@ mod tests {
         let mut mismatched_gradients = input
             .arcs()
             .iter()
-            .map(|arc| arc.gradient)
+            .map(|arc| arc.gradient.clone())
             .collect::<Vec<_>>();
         mismatched_gradients[0] = ratio(39);
         let lengths = input
             .arcs()
             .iter()
-            .map(|arc| arc.length)
+            .map(|arc| arc.length.clone())
             .collect::<Vec<_>>();
         let mismatched_input =
             Input::new(&network, &mismatched_gradients, &lengths, &lengths).unwrap();
         let mismatched = SourceSelected {
             snapshot: &snapshot,
             input: &mismatched_input,
-            ledger: &ledger,
             terminal: &terminal,
             spanner: &spanner,
             kappa: ExactRatio::new(1, 2).unwrap(),
@@ -1557,7 +1700,7 @@ mod tests {
 
     #[test]
     fn certifies_each_prepared_projection_before_selection() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let projection = projection_for(snapshot.clone(), input.clone(), &network);
 
         assert_eq!(projection.snapshot(), &snapshot);
@@ -1575,7 +1718,7 @@ mod tests {
 
     #[test]
     fn drives_fresh_projections_until_the_explicit_limit() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let preparations = Rc::new(Cell::new(0));
         let observed = Rc::clone(&preparations);
         let factory = move |current: &CertifiedIpmSnapshot, active: &CirculationNetwork| {
@@ -1600,10 +1743,9 @@ mod tests {
 
     #[test]
     fn fixed_factory_rejects_a_successor_when_its_coordinates_stop_certifying() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let factory = FixedProjectionFactory::new(
             input,
-            ledger(),
             spanner_parameters(),
             ExactRatio::new(1, 2).unwrap(),
         );
@@ -1629,8 +1771,29 @@ mod tests {
     }
 
     #[test]
+    fn potential_budget_rejects_a_changed_kappa_before_mutating_the_session() {
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
+        let expected_snapshot = snapshot.clone();
+        let budget =
+            PotentialBudget::new(&snapshot, &network, ExactRatio::new(1, 2).unwrap()).unwrap();
+        let factory = FixedProjectionFactory::new(
+            input,
+            spanner_parameters(),
+            ExactRatio::new(1, 4).unwrap(),
+        );
+        let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 0);
+
+        assert_eq!(
+            driver.run_with_potential_budget(&network, &budget),
+            Err(Error::PotentialBudgetKappaMismatch)
+        );
+        assert!(driver.records().is_empty());
+        assert_eq!(driver.session().snapshot(), &expected_snapshot);
+    }
+
+    #[test]
     fn scheduled_factory_recertifies_independently_supplied_successor_coordinates() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let initial = projection_for(snapshot.clone(), input.clone(), &network);
         let mut session = Session::new(snapshot).unwrap();
         session
@@ -1640,21 +1803,20 @@ mod tests {
         let mut gradients = input
             .arcs()
             .iter()
-            .map(|arc| arc.gradient)
+            .map(|arc| arc.gradient.clone())
             .collect::<Vec<_>>();
         gradients[4] = gradients[4]
-            .checked_add(ExactRatio::new(1, 1_000_000).unwrap())
+            .checked_add(&ExactRatio::new(1, 1_000_000).unwrap())
             .unwrap();
         let lengths = input
             .arcs()
             .iter()
-            .map(|arc| arc.length)
+            .map(|arc| arc.length.clone())
             .collect::<Vec<_>>();
         let successor = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
 
         let factory = ScheduledProjectionFactory::new(
             vec![input.clone(), successor.clone()],
-            ledger(),
             spanner_parameters(),
             ExactRatio::new(1, 2).unwrap(),
         )
@@ -1681,10 +1843,9 @@ mod tests {
 
     #[test]
     fn scheduled_factory_rejects_coordinate_reuse_after_exhaustion() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let factory = ScheduledProjectionFactory::new(
             vec![input],
-            ledger(),
             spanner_parameters(),
             ExactRatio::new(1, 2).unwrap(),
         )
@@ -1702,14 +1863,11 @@ mod tests {
 
     #[test]
     fn reciprocal_slack_factory_reconstructs_each_successor_without_intervals() {
-        let (network, snapshot, _, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, _, _, _) = selected_iteration_fixture();
         let mut parameters = spanner_parameters();
         parameters.maximum_absolute_exponent = 64;
-        let factory = ReciprocalSlackProjectionFactory::new(
-            ledger(),
-            parameters,
-            ExactRatio::new(1, 2).unwrap(),
-        );
+        let factory =
+            ReciprocalSlackProjectionFactory::new(parameters, ExactRatio::new(1, 2).unwrap());
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
 
         assert_eq!(
@@ -1726,7 +1884,7 @@ mod tests {
 
     #[test]
     fn rejects_a_reused_projection_after_the_first_update_without_mutation() {
-        let (network, snapshot, input, _, _, _) = selected_iteration_fixture();
+        let (network, snapshot, input, _, _) = selected_iteration_fixture();
         let stale = projection_for(snapshot.clone(), input, &network);
         let factory = move |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| Ok(stale.clone());
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
@@ -1745,7 +1903,7 @@ mod tests {
         let snapshot = CertifiedIpmSnapshot::evaluate(
             &network,
             &FractionalCirculation {
-                arc_flows: vec![quarter; 2],
+                arc_flows: vec![quarter.clone(); 2],
                 cost: quarter,
             },
             ExactRatio::new(0, 1).unwrap(),

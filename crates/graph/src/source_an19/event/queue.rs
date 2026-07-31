@@ -99,7 +99,7 @@ pub(in crate::source_an19) fn less(
             (first.vertex, first.insertion_sequence) < (second.vertex, second.insertion_sequence)
         );
     }
-    ratio_less(first.distance, second.distance)
+    ratio_less(first.distance.clone(), second.distance.clone())
 }
 
 fn push_item_less(first: &Item, second: &Item, statistics: &mut Statistics) -> Result<bool, Error> {

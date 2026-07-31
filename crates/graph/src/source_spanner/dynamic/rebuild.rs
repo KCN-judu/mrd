@@ -19,7 +19,7 @@ use super::{
 };
 
 /// Finite checked parameters for a source-shaped decremental spanner replay.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameters {
     pub phi: ExactRatio,
     pub domain: ExhaustiveDomain,
@@ -161,7 +161,7 @@ impl State {
     /// Returns an error when the initial graph lies outside the certified
     /// Algorithm 4 subset or cannot be fully embedded.
     pub fn new(input: BatchState, parameters: Parameters) -> Result<Self, Error> {
-        let snapshot = snapshot(&input, parameters)?;
+        let snapshot = snapshot(&input, parameters.clone())?;
         Ok(Self {
             input,
             snapshot,
@@ -176,7 +176,7 @@ impl State {
     /// Returns an error when the batch or finite Algorithm 4 replay is invalid.
     pub fn apply(&self, batch: &Batch) -> Result<Transition, Error> {
         let applied = self.input.apply(batch).map_err(Error::Batch)?;
-        let next_snapshot = snapshot(&applied.next, self.parameters)?;
+        let next_snapshot = snapshot(&applied.next, self.parameters.clone())?;
         let added = next_snapshot
             .selected
             .difference(&self.snapshot.selected)
@@ -193,7 +193,7 @@ impl State {
             next: State {
                 input: applied.next.clone(),
                 snapshot: next_snapshot,
-                parameters: self.parameters,
+                parameters: self.parameters.clone(),
             },
             batch: applied,
             added,

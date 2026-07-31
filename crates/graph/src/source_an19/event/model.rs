@@ -1,21 +1,26 @@
 use std::collections::BTreeSet;
 
+use num_bigint::BigInt;
 use serde::{Deserialize, Serialize};
 
 use super::{backend, certificate, trace};
 use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId, source_an19::petal::Error};
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+/// Canonical decimal encoding of an exact ratio for persistent event evidence.
+///
+/// Strings preserve arbitrary-precision numerator and denominator values
+/// without relying on an integer width at the trace boundary.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Ratio {
-    pub numerator: i128,
-    pub denominator: i128,
+    pub numerator: String,
+    pub denominator: String,
 }
 
 impl From<ExactRatio> for Ratio {
     fn from(value: ExactRatio) -> Self {
         Self {
-            numerator: value.numerator(),
-            denominator: value.denominator(),
+            numerator: value.numerator().to_string(),
+            denominator: value.denominator().to_string(),
         }
     }
 }
@@ -24,7 +29,15 @@ impl TryFrom<Ratio> for ExactRatio {
     type Error = Error;
 
     fn try_from(value: Ratio) -> Result<Self, Self::Error> {
-        ExactRatio::new(value.numerator, value.denominator).map_err(|_| Error::Overflow)
+        let numerator = value
+            .numerator
+            .parse::<BigInt>()
+            .map_err(|_| Error::Overflow)?;
+        let denominator = value
+            .denominator
+            .parse::<BigInt>()
+            .map_err(|_| Error::Overflow)?;
+        ExactRatio::from_bigints(numerator, denominator).map_err(|_| Error::Overflow)
     }
 }
 
@@ -62,7 +75,7 @@ impl Segment {
                     source_edge_id: Some(index),
                     active_segment_id: index,
                     segment_lineage_root_id: index,
-                    symbolic_unsplit_rounded_length: edge.length.into(),
+                    symbolic_unsplit_rounded_length: edge.length.clone().into(),
                     highway_halved: false,
                     portal_split_generation: 0,
                     contraction_generation: 0,

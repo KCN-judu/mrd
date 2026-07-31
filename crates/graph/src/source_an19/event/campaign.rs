@@ -152,7 +152,7 @@ impl Campaign {
                         exact_comparisons: reduced.metrics.exact_comparison_count,
                         stale_events: reduced.metrics.stale_queue_item_count,
                         oracle_agreement: true,
-                        selected_radius: reduced.selected_radius,
+                        selected_radius: reduced.selected_radius.clone(),
                         charge_analyses: reduced.charge_analyses.clone(),
                         oracle_run: oracle,
                         reduced_run: reduced,
@@ -347,7 +347,7 @@ impl OwnedEventProblem {
             remaining: &self.remaining,
             center: self.center,
             target: self.target,
-            budget: self.budget,
+            budget: self.budget.clone(),
             context: self.context,
             segments: &self.segments,
         }

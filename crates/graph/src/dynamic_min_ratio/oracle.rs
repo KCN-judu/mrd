@@ -77,7 +77,7 @@ fn enumerate_cycles(
                 Some(current) => {
                     current
                         .ratio
-                        .at_least(candidate.ratio)
+                        .at_least(&candidate.ratio)
                         .map_err(|_| Error::Overflow)?
                         && current.ratio != candidate.ratio
                 }

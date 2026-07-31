@@ -216,10 +216,24 @@ impl CertifiedFixedPoint {
         numerator: i128,
         denominator: i128,
     ) -> Result<DyadicInterval, FixedPointError> {
-        if denominator <= 0 {
+        self.enclose_big_ratio(&BigInt::from(numerator), &BigInt::from(denominator))
+    }
+
+    /// Encloses an arbitrary-precision exact ratio in the configured dyadic
+    /// grid.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a nonpositive denominator or a word-bound breach.
+    pub fn enclose_big_ratio(
+        &mut self,
+        numerator: &BigInt,
+        denominator: &BigInt,
+    ) -> Result<DyadicInterval, FixedPointError> {
+        if !denominator.is_positive() {
             return Err(FixedPointError::InvalidRatio);
         }
-        self.ratio_interval(BigInt::from(numerator), &BigInt::from(denominator))
+        self.ratio_interval(numerator.clone(), denominator)
     }
 
     /// Returns a certified enclosure of the natural logarithm.

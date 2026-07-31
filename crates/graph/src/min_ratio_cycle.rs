@@ -1,3 +1,6 @@
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{Signed, ToPrimitive, Zero};
 use thiserror::Error;
 
 use crate::FlowNodeId;
@@ -6,11 +9,12 @@ use crate::FlowNodeId;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MinRatioEdgeId(pub usize);
 
-/// Reduced exact signed rational number with a positive denominator.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Reduced exact signed rational number with a positive arbitrary-precision
+/// denominator.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExactRatio {
-    numerator: i128,
-    denominator: i128,
+    numerator: BigInt,
+    denominator: BigInt,
 }
 
 impl ExactRatio {
@@ -18,71 +22,81 @@ impl ExactRatio {
     ///
     /// # Errors
     ///
-    /// Returns an error for a zero denominator or when normalization overflows.
+    /// Returns an error for a zero denominator.
     pub fn new(numerator: i128, denominator: i128) -> Result<Self, StableMinRatioError> {
-        if denominator == 0 {
-            return Err(StableMinRatioError::ZeroDenominator);
-        }
-        let (numerator, denominator) = if denominator < 0 {
-            (
-                numerator
-                    .checked_neg()
-                    .ok_or(StableMinRatioError::Overflow)?,
-                denominator
-                    .checked_neg()
-                    .ok_or(StableMinRatioError::Overflow)?,
-            )
-        } else {
-            (numerator, denominator)
-        };
-        let divisor = gcd(numerator.unsigned_abs(), denominator.unsigned_abs());
-        let divisor = i128::try_from(divisor).map_err(|_| StableMinRatioError::Overflow)?;
-        Ok(Self {
-            numerator: numerator / divisor,
-            denominator: denominator / divisor,
-        })
+        Self::from_parts(BigInt::from(numerator), BigInt::from(denominator))
+    }
+
+    /// Constructs a reduced arbitrary-precision ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a zero denominator.
+    pub fn from_bigints(
+        numerator: BigInt,
+        denominator: BigInt,
+    ) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(numerator, denominator)
     }
 
     #[must_use]
-    pub const fn numerator(self) -> i128 {
+    pub const fn numerator(&self) -> &BigInt {
+        &self.numerator
+    }
+
+    #[must_use]
+    pub const fn denominator(&self) -> &BigInt {
+        &self.denominator
+    }
+
+    /// Returns the numerator when this value is inside the bounded structural
+    /// integer domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the exact component cannot fit in `i128`.
+    pub fn numerator_i128(&self) -> Result<i128, StableMinRatioError> {
         self.numerator
+            .to_i128()
+            .ok_or(StableMinRatioError::Overflow)
     }
 
-    #[must_use]
-    pub const fn denominator(self) -> i128 {
+    /// Returns the denominator when this value is inside the bounded structural
+    /// integer domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the exact component cannot fit in `i128`.
+    pub fn denominator_i128(&self) -> Result<i128, StableMinRatioError> {
         self.denominator
+            .to_i128()
+            .ok_or(StableMinRatioError::Overflow)
     }
 
     #[must_use]
-    pub const fn is_zero(self) -> bool {
-        self.numerator == 0
+    pub fn is_zero(&self) -> bool {
+        self.numerator.is_zero()
     }
 
     #[must_use]
-    pub const fn is_positive(self) -> bool {
-        self.numerator > 0
+    pub fn is_positive(&self) -> bool {
+        self.numerator.is_positive()
     }
 
     #[must_use]
-    pub const fn is_negative(self) -> bool {
-        self.numerator < 0
+    pub fn is_negative(&self) -> bool {
+        self.numerator.is_negative()
     }
 
     /// Returns the exact absolute value.
     ///
     /// # Errors
     ///
-    /// Returns an error when the numerator is `i128::MIN`.
-    pub fn abs(self) -> Result<Self, StableMinRatioError> {
-        if self.numerator < 0 {
-            Self::new(
-                self.numerator
-                    .checked_neg()
-                    .ok_or(StableMinRatioError::Overflow)?,
-                self.denominator,
-            )
+    pub fn abs(&self) -> Result<Self, StableMinRatioError> {
+        if self.numerator.is_negative() {
+            Self::from_parts(-&self.numerator, self.denominator.clone())
         } else {
-            Ok(self)
+            Ok(self.clone())
         }
     }
 
@@ -90,66 +104,26 @@ impl ExactRatio {
     ///
     /// # Errors
     ///
-    /// Returns an error when the numerator is `i128::MIN`.
-    pub fn checked_neg(self) -> Result<Self, StableMinRatioError> {
-        Self::new(
-            self.numerator
-                .checked_neg()
-                .ok_or(StableMinRatioError::Overflow)?,
-            self.denominator,
-        )
+    pub fn checked_neg(&self) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(-&self.numerator, self.denominator.clone())
     }
 
     /// Compares two ratios with checked cross multiplication.
     ///
     /// # Errors
     ///
-    /// Returns an error when the exact comparison overflows.
-    pub fn at_least(self, other: Self) -> Result<bool, StableMinRatioError> {
-        if self.is_negative() != other.is_negative() {
-            return Ok(!self.is_negative());
-        }
-        let numerator_divisor = gcd(
-            self.numerator.unsigned_abs(),
-            other.numerator.unsigned_abs(),
-        );
-        let denominator_divisor = gcd(
-            self.denominator.unsigned_abs(),
-            other.denominator.unsigned_abs(),
-        );
-        Ok(divide(self.numerator, numerator_divisor)?
-            .checked_mul(divide(other.denominator, denominator_divisor)?)
-            .ok_or(StableMinRatioError::Overflow)?
-            >= divide(other.numerator, numerator_divisor)?
-                .checked_mul(divide(self.denominator, denominator_divisor)?)
-                .ok_or(StableMinRatioError::Overflow)?)
+    pub fn at_least(&self, other: &Self) -> Result<bool, StableMinRatioError> {
+        Ok(&self.numerator * &other.denominator >= &other.numerator * &self.denominator)
     }
 
     /// Adds two exact ratios.
     ///
     /// # Errors
     ///
-    /// Returns an error when exact arithmetic overflows.
-    pub fn checked_add(self, other: Self) -> Result<Self, StableMinRatioError> {
-        let divisor = gcd(
-            self.denominator.unsigned_abs(),
-            other.denominator.unsigned_abs(),
-        );
-        let left_scale = divide(other.denominator, divisor)?;
-        let right_scale = divide(self.denominator, divisor)?;
-        Self::new(
-            self.numerator
-                .checked_mul(left_scale)
-                .and_then(|left| {
-                    other
-                        .numerator
-                        .checked_mul(right_scale)
-                        .and_then(|right| left.checked_add(right))
-                })
-                .ok_or(StableMinRatioError::Overflow)?,
-            self.denominator
-                .checked_mul(left_scale)
-                .ok_or(StableMinRatioError::Overflow)?,
+    pub fn checked_add(&self, other: &Self) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(
+            &self.numerator * &other.denominator + &other.numerator * &self.denominator,
+            &self.denominator * &other.denominator,
         )
     }
 
@@ -157,38 +131,18 @@ impl ExactRatio {
     ///
     /// # Errors
     ///
-    /// Returns an error when exact arithmetic overflows.
-    pub fn checked_sub(self, other: Self) -> Result<Self, StableMinRatioError> {
-        self.checked_add(Self::new(
-            other
-                .numerator
-                .checked_neg()
-                .ok_or(StableMinRatioError::Overflow)?,
-            other.denominator,
-        )?)
+    pub fn checked_sub(&self, other: &Self) -> Result<Self, StableMinRatioError> {
+        self.checked_add(&other.checked_neg()?)
     }
 
     /// Multiplies two exact ratios.
     ///
     /// # Errors
     ///
-    /// Returns an error when exact arithmetic overflows.
-    pub fn checked_mul(self, other: Self) -> Result<Self, StableMinRatioError> {
-        let left_divisor = gcd(
-            self.numerator.unsigned_abs(),
-            other.denominator.unsigned_abs(),
-        );
-        let right_divisor = gcd(
-            other.numerator.unsigned_abs(),
-            self.denominator.unsigned_abs(),
-        );
-        Self::new(
-            divide(self.numerator, left_divisor)?
-                .checked_mul(divide(other.numerator, right_divisor)?)
-                .ok_or(StableMinRatioError::Overflow)?,
-            divide(self.denominator, right_divisor)?
-                .checked_mul(divide(other.denominator, left_divisor)?)
-                .ok_or(StableMinRatioError::Overflow)?,
+    pub fn checked_mul(&self, other: &Self) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(
+            &self.numerator * &other.numerator,
+            &self.denominator * &other.denominator,
         )
     }
 
@@ -196,29 +150,40 @@ impl ExactRatio {
     ///
     /// # Errors
     ///
-    /// Returns an error for zero or when normalization overflows.
-    pub fn reciprocal(self) -> Result<Self, StableMinRatioError> {
-        Self::new(self.denominator, self.numerator)
+    /// Returns an error for zero.
+    pub fn reciprocal(&self) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(self.denominator.clone(), self.numerator.clone())
     }
 
     /// Multiplies an exact ratio by an integer.
     ///
     /// # Errors
     ///
-    /// Returns an error when exact arithmetic overflows.
-    pub fn checked_mul_integer(self, value: i128) -> Result<Self, StableMinRatioError> {
-        let divisor = gcd(value.unsigned_abs(), self.denominator.unsigned_abs());
-        Self::new(
-            self.numerator
-                .checked_mul(divide(value, divisor)?)
-                .ok_or(StableMinRatioError::Overflow)?,
-            divide(self.denominator, divisor)?,
-        )
+    pub fn checked_mul_integer(&self, value: i128) -> Result<Self, StableMinRatioError> {
+        Self::from_parts(&self.numerator * value, self.denominator.clone())
     }
 
     #[must_use]
-    pub const fn is_integral(self) -> bool {
-        self.numerator % self.denominator == 0
+    pub fn is_integral(&self) -> bool {
+        self.numerator.is_multiple_of(&self.denominator)
+    }
+
+    fn from_parts(
+        mut numerator: BigInt,
+        mut denominator: BigInt,
+    ) -> Result<Self, StableMinRatioError> {
+        if denominator.is_zero() {
+            return Err(StableMinRatioError::ZeroDenominator);
+        }
+        if denominator.is_negative() {
+            numerator = -numerator;
+            denominator = -denominator;
+        }
+        let divisor = numerator.gcd(&denominator);
+        Ok(Self {
+            numerator: numerator / &divisor,
+            denominator: denominator / divisor,
+        })
     }
 }
 
@@ -294,12 +259,14 @@ impl StableMinRatioLedger {
         kappa: ExactRatio,
         witness: StableWitness,
     ) -> Result<Self, StableMinRatioError> {
-        if alpha.numerator <= 0 || kappa.numerator <= 0 || ratio_greater(kappa, ExactRatio::one()?)?
+        if !alpha.is_positive()
+            || !kappa.is_positive()
+            || ratio_greater(&kappa, &ExactRatio::one()?)
         {
             return Err(StableMinRatioError::InvalidApproximation);
         }
         validate_edges(node_count, &edges)?;
-        validate_witness(&edges, node_count, alpha, &witness)?;
+        validate_witness(&edges, node_count, alpha.clone(), &witness)?;
         let edge_count = edges.len();
         Ok(Self {
             node_count,
@@ -339,7 +306,12 @@ impl StableMinRatioLedger {
             explicit[id.0] = true;
             changed_ids.push(*id);
         }
-        validate_witness(&candidate, self.node_count, self.alpha, &update.witness)?;
+        validate_witness(
+            &candidate,
+            self.node_count,
+            self.alpha.clone(),
+            &update.witness,
+        )?;
         for (index, bound) in update.witness.upper_bounds.iter().enumerate() {
             if !explicit[index]
                 && *bound
@@ -355,14 +327,14 @@ impl StableMinRatioLedger {
         validate_quality(
             &candidate,
             self.node_count,
-            self.alpha,
-            self.kappa,
+            self.alpha.clone(),
+            self.kappa.clone(),
             &update.direction,
         )?;
         let objective = dot(&candidate, &update.direction)?;
         let beta = ExactRatio::new(objective, update.eta)?;
         for (flow, direction) in self.flows.iter_mut().zip(&update.direction) {
-            *flow = flow.checked_add(beta.checked_mul_integer(-*direction)?)?;
+            *flow = flow.checked_add(&beta.checked_mul_integer(-*direction)?)?;
         }
         for (index, changed) in explicit.into_iter().enumerate() {
             if changed {
@@ -396,10 +368,11 @@ impl StableMinRatioLedger {
     ///
     /// Returns an error when `edge` is absent.
     pub fn query(&mut self, edge: MinRatioEdgeId) -> Result<ExactRatio, StableMinRatioError> {
-        let value = *self
+        let value = self
             .flows
             .get(edge.0)
-            .ok_or(StableMinRatioError::EdgeOutOfBounds { edge: edge.0 })?;
+            .ok_or(StableMinRatioError::EdgeOutOfBounds { edge: edge.0 })?
+            .clone();
         self.operations.push(StableOperation::Query { edge });
         Ok(value)
     }
@@ -413,7 +386,7 @@ impl StableMinRatioLedger {
         &mut self,
         epsilon: ExactRatio,
     ) -> Result<Vec<MinRatioEdgeId>, StableMinRatioError> {
-        if epsilon.numerator <= 0 {
+        if !epsilon.is_positive() {
             return Err(StableMinRatioError::InvalidUpdate);
         }
         let stage = self.directions.len();
@@ -429,11 +402,7 @@ impl StableMinRatioLedger {
                 .length
                 .checked_mul(total)
                 .ok_or(StableMinRatioError::Overflow)?;
-            if weighted
-                .checked_mul(epsilon.denominator)
-                .ok_or(StableMinRatioError::Overflow)?
-                >= epsilon.numerator
-            {
+            if BigInt::from(weighted) * epsilon.denominator() >= *epsilon.numerator() {
                 result.push(MinRatioEdgeId(edge));
                 self.last_detect_stage[edge] = stage;
             }
@@ -522,13 +491,8 @@ fn validate_witness(
             .ok_or(StableMinRatioError::Overflow)?;
     }
     if norm == 0
-        || dot(edges, &witness.circulation)?
-            .checked_mul(alpha.denominator)
-            .ok_or(StableMinRatioError::Overflow)?
-            > -alpha
-                .numerator
-                .checked_mul(norm)
-                .ok_or(StableMinRatioError::Overflow)?
+        || BigInt::from(dot(edges, &witness.circulation)?) * alpha.denominator()
+            > -alpha.numerator() * BigInt::from(norm)
     {
         return Err(StableMinRatioError::InvalidWitness);
     }
@@ -559,20 +523,9 @@ fn validate_quality(
     if norm == 0 {
         return Err(StableMinRatioError::InvalidUpdate);
     }
-    let required = alpha
-        .numerator
-        .checked_mul(kappa.numerator)
-        .and_then(|value| value.checked_mul(norm))
-        .ok_or(StableMinRatioError::Overflow)?;
-    let denominator = alpha
-        .denominator
-        .checked_mul(kappa.denominator)
-        .ok_or(StableMinRatioError::Overflow)?;
-    if dot(edges, direction)?
-        .checked_mul(denominator)
-        .ok_or(StableMinRatioError::Overflow)?
-        > -required
-    {
+    let required = alpha.numerator() * kappa.numerator() * norm;
+    let denominator = alpha.denominator() * kappa.denominator();
+    if BigInt::from(dot(edges, direction)?) * denominator > -required {
         return Err(StableMinRatioError::InvalidUpdate);
     }
     Ok(())
@@ -616,31 +569,8 @@ fn magnitude(value: i128) -> Result<i128, StableMinRatioError> {
     value.checked_abs().ok_or(StableMinRatioError::Overflow)
 }
 
-fn ratio_greater(left: ExactRatio, right: ExactRatio) -> Result<bool, StableMinRatioError> {
-    Ok(left
-        .numerator
-        .checked_mul(right.denominator)
-        .ok_or(StableMinRatioError::Overflow)?
-        > right
-            .numerator
-            .checked_mul(left.denominator)
-            .ok_or(StableMinRatioError::Overflow)?)
-}
-
-fn divide(value: i128, divisor: u128) -> Result<i128, StableMinRatioError> {
-    let divisor = i128::try_from(divisor).map_err(|_| StableMinRatioError::Overflow)?;
-    value
-        .checked_div(divisor)
-        .ok_or(StableMinRatioError::Overflow)
-}
-
-const fn gcd(mut left: u128, mut right: u128) -> u128 {
-    while right != 0 {
-        let remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    if left == 0 { 1 } else { left }
+fn ratio_greater(left: &ExactRatio, right: &ExactRatio) -> bool {
+    left.numerator() * right.denominator() > right.numerator() * left.denominator()
 }
 
 #[cfg(test)]
@@ -827,19 +757,19 @@ mod tests {
         let first = ExactRatio::new(base - 1, base - 3).unwrap();
         let second = ExactRatio::new(base - 3, base - 5).unwrap();
         assert_eq!(
-            first.checked_mul(second).unwrap(),
+            first.checked_mul(&second).unwrap(),
             ExactRatio::new(base - 1, base - 5).unwrap()
         );
         assert_eq!(
             first
-                .checked_add(ExactRatio::new(2, base - 3).unwrap())
+                .checked_add(&ExactRatio::new(2, base - 3).unwrap())
                 .unwrap(),
             ExactRatio::new(base + 1, base - 3).unwrap()
         );
         assert!(
             ExactRatio::new(base - 1, base - 5)
                 .unwrap()
-                .at_least(first)
+                .at_least(&first)
                 .unwrap()
         );
     }

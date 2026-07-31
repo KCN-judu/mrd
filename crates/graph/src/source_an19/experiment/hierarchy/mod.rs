@@ -470,7 +470,7 @@ impl RadiusCertificate {
         {
             return Err(Error::InvalidRadiusCertificate);
         }
-        let distance_map = self.distances.iter().copied().collect::<BTreeMap<_, _>>();
+        let distance_map = self.distances.iter().cloned().collect::<BTreeMap<_, _>>();
         if distance_map.len() != self.cluster_size {
             return Err(Error::InvalidRadiusCertificate);
         }
@@ -479,30 +479,32 @@ impl RadiusCertificate {
             if distance.is_negative() {
                 return Err(Error::InvalidRadiusCertificate);
             }
-            if ratio_less(maximum, *distance)? {
-                maximum = *distance;
+            if ratio_less(maximum.clone(), distance.clone())? {
+                maximum = distance.clone();
             }
         }
         if maximum != self.radius {
             return Err(Error::InvalidRadiusCertificate);
         }
         for edge in &self.edges {
-            let first = *distance_map
+            let first = distance_map
                 .get(&edge.first)
-                .ok_or(Error::InvalidRadiusCertificate)?;
-            let second = *distance_map
+                .ok_or(Error::InvalidRadiusCertificate)?
+                .clone();
+            let second = distance_map
                 .get(&edge.second)
-                .ok_or(Error::InvalidRadiusCertificate)?;
+                .ok_or(Error::InvalidRadiusCertificate)?
+                .clone();
             if !edge.length.is_positive()
                 || ratio_less(
                     first
-                        .checked_add(edge.length)
+                        .checked_add(&edge.length)
                         .map_err(|_| Error::Overflow)?,
-                    second,
+                    second.clone(),
                 )?
                 || ratio_less(
                     second
-                        .checked_add(edge.length)
+                        .checked_add(&edge.length)
                         .map_err(|_| Error::Overflow)?,
                     first,
                 )?
@@ -527,7 +529,7 @@ impl RadiusCertificate {
                         .get(&neighbor)
                         .is_some_and(|neighbor_distance| {
                             neighbor_distance
-                                .checked_add(edge.length)
+                                .checked_add(&edge.length)
                                 .is_ok_and(|candidate| candidate == *distance)
                         })
                 })
@@ -539,7 +541,7 @@ impl RadiusCertificate {
         let expected_base = self.cluster_size <= self.base_vertex_limit
             || self
                 .base_threshold
-                .at_least(self.radius)
+                .at_least(&self.radius)
                 .map_err(|_| Error::Overflow)?;
         if expected_base != self.base_case {
             return Err(Error::InvalidRadiusCertificate);
@@ -549,7 +551,7 @@ impl RadiusCertificate {
     }
 
     fn verify_contraction(&self) -> Result<(), Error> {
-        let Some(threshold) = self.contraction_threshold else {
+        let Some(ref threshold) = self.contraction_threshold else {
             return if self.contraction_component_of.is_empty() && self.contracted_edge_count == 0 {
                 Ok(())
             } else {
@@ -560,9 +562,9 @@ impl RadiusCertificate {
         let n_squared = n.checked_mul(n).ok_or(Error::Overflow)?;
         let expected_threshold = self
             .radius
-            .checked_mul(ratio(1, n_squared)?)
+            .checked_mul(&ratio(1, n_squared)?)
             .map_err(|_| Error::Overflow)?;
-        if threshold != expected_threshold
+        if *threshold != expected_threshold
             || self.contraction_component_of.len() != self.cluster_size
         {
             return Err(Error::InvalidRadiusCertificate);
@@ -577,7 +579,7 @@ impl RadiusCertificate {
         let mut connectivity = DisjointSet::new(node_count);
         let mut contracted_edge_count = 0_usize;
         for edge in &self.edges {
-            if ratio_less(edge.length, threshold)? {
+            if ratio_less(edge.length.clone(), threshold.clone())? {
                 connectivity.union(edge.first.0, edge.second.0);
                 contracted_edge_count = contracted_edge_count
                     .checked_add(1)
@@ -777,10 +779,10 @@ impl Lsst {
                             .ok_or(Error::Overflow)?;
                         let maximum_child_radius = parent
                             .radius
-                            .checked_mul(ratio(3, 4)?)
+                            .checked_mul(&ratio(3, 4)?)
                             .map_err(|_| Error::Overflow)?;
                         if certificate.partition_depth != expected_depth
-                            || ratio_less(maximum_child_radius, certificate.radius)?
+                            || ratio_less(maximum_child_radius, certificate.radius.clone())?
                         {
                             return Err(Error::InvalidRadiusCertificate);
                         }
@@ -929,14 +931,14 @@ pub(in crate::source_an19) fn hierarchical_petal_decomposition(
     let local_cluster = projection.local_nodes(&cluster)?;
     let local_center = projection.local_node(center)?;
     let threshold = hierarchy_base_threshold(original_node_count)?
-        .checked_mul(minimum_cluster_edge_length(
+        .checked_mul(&minimum_cluster_edge_length(
             projection.graph(),
             &local_cluster,
         )?)
         .map_err(|_| Error::Overflow)?;
     let base_vertex_limit = 2;
     let base_case = cluster.len() <= base_vertex_limit
-        || threshold.at_least(radius).map_err(|_| Error::Overflow)?;
+        || threshold.at_least(&radius).map_err(|_| Error::Overflow)?;
     let certificate_index = radius_certificates.len();
     radius_certificates.push(build_radius_certificate(
         &projection,
@@ -947,7 +949,7 @@ pub(in crate::source_an19) fn hierarchical_petal_decomposition(
         &cluster,
         center,
         target,
-        radius,
+        radius.clone(),
         threshold,
         base_vertex_limit,
         base_case,
@@ -968,7 +970,7 @@ pub(in crate::source_an19) fn hierarchical_petal_decomposition(
             projection.graph(),
             &local_cluster,
             local_center,
-            radius,
+            radius.clone(),
             original_node_count,
         )?;
         if !contraction.contracted_edges.is_empty() {
@@ -1062,7 +1064,7 @@ fn attach_contraction_certificate(
     projection: &projection::Snapshot,
     contraction: &projection::ShortEdgeContraction,
 ) -> Result<(), Error> {
-    certificate.contraction_threshold = Some(contraction.contraction_threshold);
+    certificate.contraction_threshold = Some(contraction.contraction_threshold.clone());
     certificate.contraction_component_of = certificate
         .distances
         .iter()
@@ -1122,19 +1124,22 @@ fn hierarchy_contracted_tree(
             .copied()
             .flatten()
             .ok_or(Error::InvalidContraction)?;
-        bound = bound
-            .max(
-                edge.length
-                    .numerator()
-                    .checked_abs()
-                    .ok_or(Error::Overflow)?,
-            )
-            .max(edge.length.denominator());
+        let numerator = edge
+            .length
+            .numerator_i128()
+            .map_err(|_| Error::Overflow)?
+            .checked_abs()
+            .ok_or(Error::Overflow)?;
+        let denominator = edge
+            .length
+            .denominator_i128()
+            .map_err(|_| Error::Overflow)?;
+        bound = bound.max(numerator).max(denominator);
         quotient_edges.push(SourceWeightedEdge {
             first: FlowNodeId(first),
             second: FlowNodeId(second),
-            length: edge.length,
-            weight: edge.weight,
+            length: edge.length.clone(),
+            weight: edge.weight.clone(),
         });
         quotient_to_dense.push(*dense);
         quotient_root_sources.push(projection.root_source(*dense)?);
@@ -1239,11 +1244,15 @@ fn petal_decomposition(
     projection_audit: &mut projection::Audit,
 ) -> Result<(BTreeSet<FlowNodeId>, Vec<Piece>, FlowNodeId), Error> {
     let half = ratio(1, 2)?;
-    let r0 = delta.checked_mul(half).map_err(|_| Error::Overflow)?;
+    let r0 = delta.checked_mul(&half).map_err(|_| Error::Overflow)?;
     let mut remaining = cluster.clone();
     let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
     let paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
-    let target_distance = *paths.distances.get(&target).ok_or(Error::Disconnected)?;
+    let target_distance = paths
+        .distances
+        .get(&target)
+        .ok_or(Error::Disconnected)?
+        .clone();
     let first_target = hierarchy_first_target(
         workspace,
         &mut cluster,
@@ -1251,7 +1260,7 @@ fn petal_decomposition(
         center,
         target,
         target_distance,
-        r0,
+        r0.clone(),
         &projection,
         &paths,
         metrics,
@@ -1259,7 +1268,7 @@ fn petal_decomposition(
     )?;
     drop(projection);
     let first_budget = delta
-        .checked_mul(ratio(1, 4)?)
+        .checked_mul(&ratio(1, 4)?)
         .map_err(|_| Error::Overflow)?;
     let first = create_hierarchy_petal(
         workspace,
@@ -1274,7 +1283,7 @@ fn petal_decomposition(
     let stigma_target = connection_predecessor(workspace, first.connection_edge, first.center)?;
     let mut pieces = vec![first];
     let later_budget = delta
-        .checked_mul(ratio(1, 8)?)
+        .checked_mul(&ratio(1, 8)?)
         .map_err(|_| Error::Overflow)?;
     let projection = hierarchy_projection(workspace, &cluster, metrics, projection_audit)?;
     let fixed_paths = hierarchy_shortest_paths(&projection, &cluster, center, metrics)?;
@@ -1282,11 +1291,12 @@ fn petal_decomposition(
     loop {
         let mut outside = None;
         for vertex in &remaining {
-            let distance = *fixed_paths
+            let distance = fixed_paths
                 .distances
                 .get(vertex)
-                .ok_or(Error::Disconnected)?;
-            if ratio_less(r0, distance)? {
+                .ok_or(Error::Disconnected)?
+                .clone();
+            if ratio_less(r0.clone(), distance)? {
                 outside = Some(*vertex);
                 break;
             }
@@ -1300,7 +1310,7 @@ fn petal_decomposition(
             &mut remaining,
             center,
             outside,
-            r0,
+            r0.clone(),
             metrics,
             projection_audit,
         )?;
@@ -1310,7 +1320,7 @@ fn petal_decomposition(
             &mut remaining,
             center,
             next_target,
-            later_budget,
+            later_budget.clone(),
             metrics,
             projection_audit,
         )?;
@@ -1336,7 +1346,7 @@ fn hierarchy_first_target(
     metrics: &mut Metrics,
     projection_audit: &mut projection::Audit,
 ) -> Result<FlowNodeId, Error> {
-    if !ratio_less(target_distance, r0)? {
+    if !ratio_less(target_distance.clone(), r0.clone())? {
         metrics.fixed_path_reuses = checked_metric_sum(metrics.fixed_path_reuses, 1)?;
         return ensure_vertex_at_distance_from_paths(
             workspace,
@@ -1352,16 +1362,16 @@ fn hierarchy_first_target(
         );
     }
     let mut extension = r0
-        .checked_sub(target_distance)
+        .checked_sub(&target_distance)
         .map_err(|_| Error::Overflow)?;
     let mut virtual_target = target;
     loop {
-        let segment = if workspace.unit_input && ratio_less(ratio(1, 1)?, extension)? {
+        let segment = if workspace.unit_input && ratio_less(ratio(1, 1)?, extension.clone())? {
             ratio(1, 1)?
         } else {
-            extension
+            extension.clone()
         };
-        let (next, _) = workspace.add_virtual_leaf(virtual_target, segment)?;
+        let (next, _) = workspace.add_virtual_leaf(virtual_target, segment.clone())?;
         cluster.insert(next);
         remaining.insert(next);
         virtual_target = next;
@@ -1370,7 +1380,7 @@ fn hierarchy_first_target(
             .checked_add(1)
             .ok_or(Error::Overflow)?;
         extension = extension
-            .checked_sub(segment)
+            .checked_sub(&segment)
             .map_err(|_| Error::Overflow)?;
         if !extension.is_positive() {
             return Ok(virtual_target);
@@ -1598,7 +1608,7 @@ fn ensure_vertex_at_distance_from_paths(
             .edge(*dense_edge)
             .ok_or(Error::InvalidAugmentedGraph)?;
         let next_distance = traversed
-            .checked_add(edge.length)
+            .checked_add(&edge.length)
             .map_err(|_| Error::Overflow)?;
         if distance == next_distance {
             return path
@@ -1607,10 +1617,12 @@ fn ensure_vertex_at_distance_from_paths(
                 .copied()
                 .ok_or(Error::InvalidAugmentedGraph);
         }
-        if ratio_less(traversed, distance)? && ratio_less(distance, next_distance)? {
+        if ratio_less(traversed.clone(), distance.clone())?
+            && ratio_less(distance.clone(), next_distance.clone())?
+        {
             let from = path.vertices[index];
             let offset = distance
-                .checked_sub(traversed)
+                .checked_sub(&traversed)
                 .map_err(|_| Error::Overflow)?;
             let stable = *projection
                 .dense_to_augmented()
@@ -1700,7 +1712,7 @@ pub(in crate::source_an19) fn halve_highway(
         }
         edge.length = edge
             .length
-            .checked_mul(ratio(1, 2)?)
+            .checked_mul(&ratio(1, 2)?)
             .map_err(|_| Error::Overflow)?;
         edge.halved = true;
         metrics.highway_edges_halved = metrics
@@ -1757,7 +1769,9 @@ fn hierarchy_shortest_paths(
         let local = projection.local_node(*augmented)?;
         distances.insert(
             *augmented,
-            local_paths.distances[local.0].ok_or(Error::Disconnected)?,
+            local_paths.distances[local.0]
+                .clone()
+                .ok_or(Error::Disconnected)?,
         );
         if let Some((parent, edge)) = local_paths.predecessors[local.0] {
             predecessors.insert(
@@ -1833,8 +1847,12 @@ fn hierarchy_radius(
 ) -> Result<ExactRatio, Error> {
     let mut radius = ratio(0, 1)?;
     for vertex in cluster {
-        let distance = *paths.distances.get(vertex).ok_or(Error::Disconnected)?;
-        if ratio_less(radius, distance)? {
+        let distance = paths
+            .distances
+            .get(vertex)
+            .ok_or(Error::Disconnected)?
+            .clone();
+        if ratio_less(radius.clone(), distance.clone())? {
             radius = distance;
         }
     }
@@ -1863,7 +1881,7 @@ fn build_radius_certificate(
             paths
                 .distances
                 .get(vertex)
-                .copied()
+                .cloned()
                 .map(|distance| (*vertex, distance))
                 .ok_or(Error::Disconnected)
         })
@@ -1877,7 +1895,7 @@ fn build_radius_certificate(
         edges.push(RadiusEdge {
             first: projection.augmented_node(edge.first)?,
             second: projection.augmented_node(edge.second)?,
-            length: edge.length,
+            length: edge.length.clone(),
             root_source: projection.root_source(SourceEdgeId(index))?,
         });
     }
@@ -1943,18 +1961,18 @@ fn minimum_cluster_edge_length(
     graph: &SourceDynamicGraph,
     cluster: &BTreeSet<FlowNodeId>,
 ) -> Result<ExactRatio, Error> {
-    let mut minimum = None;
+    let mut minimum: Option<ExactRatio> = None;
     for index in 0..graph.edge_count() {
         let Some(edge) = graph.edge(SourceEdgeId(index)) else {
             continue;
         };
         if cluster.contains(&edge.first) && cluster.contains(&edge.second) {
             let replace = match minimum {
-                Some(length) => ratio_less(edge.length, length)?,
+                Some(ref length) => ratio_less(edge.length.clone(), length.clone())?,
                 None => true,
             };
             if replace {
-                minimum = Some(edge.length);
+                minimum = Some(edge.length.clone());
             }
         }
     }
@@ -2000,20 +2018,21 @@ fn audit_original_tree_stretch(
             .ok_or(Error::InvalidAugmentedGraph)?;
         let distance = distance_index.distance(edge.first, edge.second)?;
         let stretch = distance
-            .checked_mul(edge.length.reciprocal().map_err(|_| Error::Overflow)?)
+            .checked_mul(&edge.length.reciprocal().map_err(|_| Error::Overflow)?)
             .map_err(|_| Error::Overflow)?;
         let source_stretch = stretch
-            .checked_add(ratio(1, 1)?)
+            .checked_add(&ratio(1, 1)?)
             .map_err(|_| Error::Overflow)?;
         weighted_stretch = weighted_stretch
             .checked_add(
-                edge.weight
-                    .checked_mul(source_stretch)
+                &edge
+                    .weight
+                    .checked_mul(&source_stretch)
                     .map_err(|_| Error::Overflow)?,
             )
             .map_err(|_| Error::Overflow)?;
         total_weight = total_weight
-            .checked_add(edge.weight)
+            .checked_add(&edge.weight)
             .map_err(|_| Error::Overflow)?;
     }
     Ok((weighted_stretch, total_weight))
@@ -2061,7 +2080,7 @@ impl OriginalTreeDistanceIndex {
                 parent[*next] = node;
                 depth[*next] = depth[node].checked_add(1).ok_or(Error::Overflow)?;
                 distance_from_root[*next] = distance_from_root[node]
-                    .checked_add(edge.length)
+                    .checked_add(&edge.length)
                     .map_err(|_| Error::Overflow)?;
                 stack.push(*next);
             }
@@ -2093,14 +2112,13 @@ impl OriginalTreeDistanceIndex {
 
     fn distance(&self, first: FlowNodeId, second: FlowNodeId) -> Result<ExactRatio, Error> {
         let ancestor = self.lowest_common_ancestor(first.0, second.0)?;
-        self.distance_from_root[first.0]
-            .checked_add(self.distance_from_root[second.0])
-            .and_then(|value| {
-                self.distance_from_root[ancestor]
-                    .checked_mul_integer(2)
-                    .and_then(|shared| value.checked_sub(shared))
-            })
-            .map_err(|_| Error::Overflow)
+        let value = self.distance_from_root[first.0]
+            .checked_add(&self.distance_from_root[second.0])
+            .map_err(|_| Error::Overflow)?;
+        let shared = self.distance_from_root[ancestor]
+            .checked_mul_integer(2)
+            .map_err(|_| Error::Overflow)?;
+        value.checked_sub(&shared).map_err(|_| Error::Overflow)
     }
 
     fn lowest_common_ancestor(&self, mut first: usize, mut second: usize) -> Result<usize, Error> {

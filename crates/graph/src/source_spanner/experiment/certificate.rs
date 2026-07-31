@@ -59,9 +59,9 @@ pub(super) fn expansion(graph: &Graph) -> Result<(ExactRatio, u64), Error> {
             return Err(Error::InvalidCertificate);
         }
         let value = ExactRatio::new(i128::from(cut), i128::from(denominator)).map_err(map_ratio)?;
-        if minimum.is_none_or(|current| {
+        if minimum.clone().is_none_or(|current| {
             current
-                .at_least(value)
+                .at_least(&value)
                 .is_ok_and(|greater| greater && current != value)
         }) {
             minimum = Some(value);

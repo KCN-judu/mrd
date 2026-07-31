@@ -16,7 +16,7 @@ use crate::{
 use super::cycle::{ArcBindings, Error as CycleError};
 
 /// One exact IPM coordinate with its stable source and circulation identities.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arc {
     /// Stable source-graph edge identity.
     pub source: SourceEdgeId,
@@ -94,8 +94,8 @@ impl Input {
             let (first, second) = network
                 .arc_endpoints(circulation)
                 .ok_or(Error::MissingArc { arc: index })?;
-            let length = lengths[index];
-            let tree_weight = tree_weights[index];
+            let length = lengths[index].clone();
+            let tree_weight = tree_weights[index].clone();
             if !length.is_positive() {
                 return Err(Error::NonpositiveLength { arc: index });
             }
@@ -110,7 +110,7 @@ impl Input {
                 circulation,
                 first,
                 second,
-                gradient: gradients[index],
+                gradient: gradients[index].clone(),
                 length,
                 tree_weight,
             });
@@ -153,29 +153,19 @@ impl Input {
             })
     }
 
-    /// Constructs the source structural graph and its bindings as one checked
-    /// operation.
+    /// Constructs the topology-and-binding materialization for compact cycles.
+    ///
+    /// The graph uses only scale-relative structural coordinates. Exact raw
+    /// coordinates remain in [`Input`] and are consumed directly by candidate
+    /// scoring, so their magnitude never becomes a source-graph encoding bound.
     ///
     /// # Errors
     ///
     /// Returns an error when the supplied circulation network no longer has
     /// this projection's node/arc shape, the source graph cannot represent its
-    /// exact positive coordinates, or binding verification fails.
+    /// structural coordinates, or binding verification fails.
     pub fn materialize(&self, network: &CirculationNetwork) -> Result<Materialization, Error> {
-        let mut maximum_abs_coordinate = 1_i128;
-        let mut edges = Vec::with_capacity(self.arcs.len());
-        for arc in &self.arcs {
-            maximum_abs_coordinate = maximum_abs_coordinate
-                .max(coordinate_bound(arc.length)?)
-                .max(coordinate_bound(arc.tree_weight)?);
-            edges.push(SourceWeightedEdge {
-                first: arc.first,
-                second: arc.second,
-                length: arc.length,
-                weight: arc.tree_weight,
-            });
-        }
-        let graph = SourceDynamicGraph::new(self.node_count, edges, maximum_abs_coordinate)?;
+        let graph = self.structural_source_graph()?;
         let bindings = self.bindings(network, &graph)?;
         Ok(Materialization { graph, bindings })
     }
@@ -187,16 +177,22 @@ impl Input {
     /// Returns an error when exact rounding or structural graph construction
     /// overflows.
     pub fn structural_graph(&self) -> Result<StructuralGraph, Error> {
-        let minimum_length = minimum(self.arcs.iter().map(|arc| arc.length))?;
-        let minimum_weight = minimum(self.arcs.iter().map(|arc| arc.tree_weight))?;
+        Ok(StructuralGraph {
+            graph: self.structural_source_graph()?,
+        })
+    }
+
+    fn structural_source_graph(&self) -> Result<SourceDynamicGraph, Error> {
+        let minimum_length = minimum(self.arcs.iter().map(|arc| arc.length.clone()))?;
+        let minimum_weight = minimum(self.arcs.iter().map(|arc| arc.tree_weight.clone()))?;
         let mut maximum_abs_coordinate = 1_i128;
         let mut edges = Vec::with_capacity(self.arcs.len());
         for arc in &self.arcs {
-            let length = normalized_power_of_two(arc.length, minimum_length)?;
-            let weight = normalized_power_of_two(arc.tree_weight, minimum_weight)?;
+            let length = normalized_power_of_two(arc.length.clone(), minimum_length.clone())?;
+            let weight = normalized_power_of_two(arc.tree_weight.clone(), minimum_weight.clone())?;
             maximum_abs_coordinate = maximum_abs_coordinate
-                .max(coordinate_bound(length)?)
-                .max(coordinate_bound(weight)?);
+                .max(coordinate_bound(length.clone())?)
+                .max(coordinate_bound(weight.clone())?);
             edges.push(SourceWeightedEdge {
                 first: arc.first,
                 second: arc.second,
@@ -204,9 +200,11 @@ impl Input {
                 weight,
             });
         }
-        Ok(StructuralGraph {
-            graph: SourceDynamicGraph::new(self.node_count, edges, maximum_abs_coordinate)?,
-        })
+        Ok(SourceDynamicGraph::new(
+            self.node_count,
+            edges,
+            maximum_abs_coordinate,
+        )?)
     }
 
     fn bindings(
@@ -235,7 +233,7 @@ fn minimum(mut values: impl Iterator<Item = ExactRatio>) -> Result<ExactRatio, E
     values
         .try_fold(None::<ExactRatio>, |minimum, value| {
             let replace = match minimum {
-                Some(current) => !value.at_least(current).map_err(|_| Error::Overflow)?,
+                Some(ref current) => !value.at_least(current).map_err(|_| Error::Overflow)?,
                 None => true,
             };
             Ok::<_, Error>(if replace { Some(value) } else { minimum })
@@ -244,18 +242,20 @@ fn minimum(mut values: impl Iterator<Item = ExactRatio>) -> Result<ExactRatio, E
 }
 
 fn normalized_power_of_two(value: ExactRatio, base: ExactRatio) -> Result<ExactRatio, Error> {
-    round_length_to_power_of_two(value, base)
+    round_length_to_power_of_two(value, base.clone())
         .map_err(|_| Error::Overflow)?
-        .checked_mul(base.reciprocal().map_err(|_| Error::Overflow)?)
+        .checked_mul(&base.reciprocal().map_err(|_| Error::Overflow)?)
         .map_err(|_| Error::Overflow)
 }
 
 fn coordinate_bound(value: ExactRatio) -> Result<i128, Error> {
-    value
-        .numerator()
+    let numerator = value
+        .numerator_i128()
+        .map_err(|_| Error::Overflow)?
         .checked_abs()
-        .map(|numerator| numerator.max(value.denominator()).max(1))
-        .ok_or(Error::Overflow)
+        .ok_or(Error::Overflow)?;
+    let denominator = value.denominator_i128().map_err(|_| Error::Overflow)?;
+    Ok(numerator.max(denominator).max(1))
 }
 
 /// An IPM/source provenance projection could not be constructed.
@@ -321,6 +321,7 @@ mod tests {
         .unwrap();
         let materialized = input.materialize(&network).unwrap();
         assert_eq!(input.arcs()[1].gradient, ratio(2));
+        assert_eq!(input.arcs()[2].tree_weight, ratio(13));
         assert_eq!(materialized.graph.edge_count(), 3);
         assert_eq!(
             materialized
@@ -328,7 +329,7 @@ mod tests {
                 .edge(crate::SourceEdgeId(2))
                 .unwrap()
                 .weight,
-            ratio(13)
+            ratio(1)
         );
 
         let chain = Chain::new(
@@ -385,14 +386,19 @@ mod tests {
         assert_eq!(
             Input::new(
                 &network,
-                &[ratio(0); 3],
-                &[ratio(1); 3],
+                &vec![ratio(0); 3],
+                &vec![ratio(1); 3],
                 &[ratio(1), ratio(0), ratio(1)],
             ),
             Err(Error::NonpositiveTreeWeight { arc: 1 })
         );
         assert_eq!(
-            Input::new(&network, &[ratio(0); 2], &[ratio(1); 3], &[ratio(1); 3],),
+            Input::new(
+                &network,
+                &vec![ratio(0); 2],
+                &vec![ratio(1); 3],
+                &vec![ratio(1); 3],
+            ),
             Err(Error::DimensionMismatch)
         );
     }
@@ -454,15 +460,15 @@ mod tests {
         let materialization = input.materialize(&network).unwrap();
         assert_eq!(
             materialization.graph.edge(SourceEdgeId(0)).unwrap().length,
-            ExactRatio::new(1, 2).unwrap()
+            ratio(1)
         );
         assert_eq!(
             materialization.graph.edge(SourceEdgeId(1)).unwrap().length,
-            ExactRatio::new(3, 4).unwrap()
+            ratio(1)
         );
         assert_eq!(
             materialization.graph.edge(SourceEdgeId(1)).unwrap().weight,
-            ratio(11)
+            ratio(1)
         );
         assert_eq!(
             input.arc(crate::CirculationArcId(0)).unwrap().length,

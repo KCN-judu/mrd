@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Explicit finite replay parameters; none imply a source runtime bound.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Parameters {
     pub chain: ChainParameters,
     pub batches_before_scheduled_rebuild: u64,
@@ -85,7 +85,7 @@ impl State {
     pub fn apply(&self, batch: &SourceUpdateBatch) -> Result<Transition, Error> {
         let mut history = self.history.clone();
         history.push(batch.clone());
-        let next = materialize(self.initial.clone(), history, self.parameters)?;
+        let next = materialize(self.initial.clone(), history, self.parameters.clone())?;
         let added_tree_edges = next
             .chain
             .tree_edges
@@ -115,7 +115,12 @@ impl State {
     /// Returns an error when any stored batch or derived exact certificate
     /// disagrees with fresh replay evidence.
     pub fn verify(&self) -> Result<(), Error> {
-        if &materialize(self.initial.clone(), self.history.clone(), self.parameters)? != self {
+        if &materialize(
+            self.initial.clone(),
+            self.history.clone(),
+            self.parameters.clone(),
+        )? != self
+        {
             return Err(Error::InvalidReplay);
         }
         Ok(())
@@ -130,7 +135,7 @@ fn materialize(
     let mut graph = initial.clone();
     let initial_forest = singleton_forest(&graph)?;
     let mut chain =
-        Chain::build(&graph, &initial_forest, parameters.chain).map_err(Error::Chain)?;
+        Chain::build(&graph, &initial_forest, parameters.chain.clone()).map_err(Error::Chain)?;
     let initial_tree_edges = u64::try_from(chain.tree_edges.len()).map_err(|_| Error::Overflow)?;
     let mut accounting = Accounting {
         initial_tree_edges,
@@ -143,7 +148,7 @@ fn materialize(
         let previous_tree = chain.tree_edges.clone();
         graph.apply_batch(batch).map_err(Error::Source)?;
         let forest = singleton_forest(&graph)?;
-        chain = Chain::build(&graph, &forest, parameters.chain).map_err(Error::Chain)?;
+        chain = Chain::build(&graph, &forest, parameters.chain.clone()).map_err(Error::Chain)?;
         let added = chain.tree_edges.difference(&previous_tree).count();
         let removed = previous_tree.difference(&chain.tree_edges).count();
         accounting.snapshots = accounting.snapshots.checked_add(1).ok_or(Error::Overflow)?;
@@ -237,7 +242,8 @@ mod tests {
         source_lsf::oracle::Lsst as Oracle,
         source_lsst::{
             SourceDynamicGraph, SourceEdgeId, SourceGraphUpdate, SourceUpdateBatch,
-            SourceWeightedEdge, bucket::Parameters as BucketParameters,
+            SourceWeightedEdge,
+            bucket::{Construction as BucketConstruction, Parameters as BucketParameters},
             chain::Parameters as ChainParameters,
         },
         source_spanner::{
@@ -270,13 +276,13 @@ mod tests {
                 maximum_coordinate: 8,
                 buckets: BucketParameters {
                     maximum_absolute_exponent: 4,
-                    spanner: RebuildParameters {
+                    construction: BucketConstruction::Algorithm4(RebuildParameters {
                         phi: ExactRatio::new(1, 4).unwrap(),
                         domain: ExhaustiveDomain { maximum_nodes: 8 },
                         maximum_hops: 4,
                         maximum_vertex_congestion: 100,
                         maximum_rounds: 1,
-                    },
+                    }),
                 },
             },
             batches_before_scheduled_rebuild: 1,
@@ -309,7 +315,7 @@ mod tests {
                 .chain
                 .tree_audit
                 .weighted_stretch
-                .at_least(oracle.weighted_stretch)
+                .at_least(&oracle.weighted_stretch)
                 .unwrap()
         );
         assert_eq!(state.chain.tree_audit.total_weight, oracle.total_weight);

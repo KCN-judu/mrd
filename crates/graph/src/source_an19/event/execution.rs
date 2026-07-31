@@ -17,7 +17,7 @@ use crate::source_an19::{
 };
 use crate::{ExactRatio, FlowNodeId, SourceDynamicGraph, SourceEdgeId};
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(in crate::source_an19) struct ArcWitness {
     pub(in crate::source_an19) edge: SourceEdgeId,
     pub(in crate::source_an19) to: FlowNodeId,
@@ -34,7 +34,7 @@ pub(in crate::source_an19) struct Preparation {
     pub(in crate::source_an19) witnesses: Vec<Option<ArcWitness>>,
     pub(in crate::source_an19) queue_observations: Vec<queue::Observation>,
     pub(in crate::source_an19) queue_statistics: queue::Statistics,
-    pub(in crate::source_an19) distinct_reduced_costs: BTreeSet<(i128, i128)>,
+    pub(in crate::source_an19) distinct_reduced_costs: BTreeSet<(String, String)>,
 }
 
 pub(in crate::source_an19) fn validate_problem(problem: &Problem<'_>) -> Result<(), Error> {
@@ -44,7 +44,7 @@ pub(in crate::source_an19) fn validate_problem(problem: &Problem<'_>) -> Result<
         problem.remaining,
         problem.center,
         problem.target,
-        problem.budget,
+        problem.budget.clone(),
     )?;
     if !problem.budget.is_positive()
         || problem.segments.len() != problem.graph.edge_count()
@@ -61,7 +61,7 @@ pub(in crate::source_an19) fn validate_problem(problem: &Problem<'_>) -> Result<
             .graph
             .edge(SourceEdgeId(index))
             .ok_or(Error::InvalidDomain)?;
-        let symbolic = ExactRatio::try_from(metadata.symbolic_unsplit_rounded_length)?;
+        let symbolic = ExactRatio::try_from(metadata.symbolic_unsplit_rounded_length.clone())?;
         if !symbolic.is_positive()
             || metadata.portal_split_generation > problem.context.portal_split_generation
             || metadata.contraction_generation > problem.context.contraction_generation
@@ -100,8 +100,10 @@ pub(in crate::source_an19) fn validate_path(
             return Err(Error::InvalidDomain);
         }
     }
-    let target_distance = cluster_paths.distances[problem.target.0].ok_or(Error::Disconnected)?;
-    if ratio_less(target_distance, problem.budget)? {
+    let target_distance = cluster_paths.distances[problem.target.0]
+        .clone()
+        .ok_or(Error::Disconnected)?;
+    if ratio_less(target_distance, problem.budget.clone())? {
         return Err(Error::InvalidRadius);
     }
     Ok(())
@@ -115,7 +117,7 @@ pub(in crate::source_an19) fn build_run(
     let selected_vertices = vertices_at_selected_radius(
         problem.remaining,
         &preparation.thresholds,
-        preparation.selection.radius,
+        preparation.selection.radius.clone(),
     )?;
     let (internal_edge_ids, boundary_edge_ids) =
         edge_partitions(problem.graph, problem.cluster, &selected_vertices)?;
@@ -171,16 +173,16 @@ pub(in crate::source_an19) fn build_run(
     };
     let run = Run {
         engine,
-        selected_radius: preparation.selection.radius.into(),
+        selected_radius: preparation.selection.radius.clone().into(),
         selected_vertices: selected_vertices.iter().map(|vertex| vertex.0).collect(),
         internal_edge_ids,
         boundary_edge_ids,
         path_edge_ids: preparation.path.edges.iter().map(|edge| edge.0).collect(),
         stopping_certificate: StoppingCertificate {
             window_index: preparation.selection.window_index,
-            window_start: preparation.selection.window_start.into(),
-            window_end: preparation.selection.window_end.into(),
-            selected_radius: preparation.selection.radius.into(),
+            window_start: preparation.selection.window_start.clone().into(),
+            window_end: preparation.selection.window_end.clone().into(),
+            selected_radius: preparation.selection.radius.clone().into(),
             internal_edges: preparation.selection.internal_edges,
             boundary_edges: preparation.selection.boundary_edges,
             cluster_edges: preparation.selection.cluster_edges,
@@ -204,10 +206,10 @@ fn vertices_at_selected_radius(
 ) -> Result<BTreeSet<FlowNodeId>, Error> {
     let mut vertices = BTreeSet::new();
     for vertex in remaining {
-        let Some(threshold) = thresholds.by_vertex[vertex.0] else {
+        let Some(ref threshold) = thresholds.by_vertex[vertex.0] else {
             continue;
         };
-        if !ratio_less(radius, threshold)? {
+        if !ratio_less(radius.clone(), threshold.clone())? {
             vertices.insert(*vertex);
         }
     }
@@ -246,10 +248,12 @@ fn sorted_threshold_entries(
     let mut entries = remaining
         .iter()
         .filter_map(|vertex| {
-            thresholds.by_vertex[vertex.0].map(|distance| ExactHeapEntry {
-                distance,
-                vertex: *vertex,
-            })
+            thresholds.by_vertex[vertex.0]
+                .clone()
+                .map(|distance| ExactHeapEntry {
+                    distance,
+                    vertex: *vertex,
+                })
         })
         .collect::<Vec<_>>();
     for index in 1..entries.len() {
@@ -257,7 +261,7 @@ fn sorted_threshold_entries(
         while cursor > 0 {
             let first = &entries[cursor];
             let second = &entries[cursor - 1];
-            let less = ratio_less(first.distance, second.distance)?
+            let less = ratio_less(first.distance.clone(), second.distance.clone())?
                 || (first.distance == second.distance && first.vertex < second.vertex);
             if !less {
                 break;
@@ -293,8 +297,10 @@ fn build_semantic_trace(
     let mut structural_events_emitted = false;
     let mut cursor = 0;
     while cursor < entries.len() {
-        let radius = entries[cursor].distance;
-        if !structural_events_emitted && ratio_less(preparation.selection.radius, radius)? {
+        let radius = entries[cursor].distance.clone();
+        if !structural_events_emitted
+            && ratio_less(preparation.selection.radius.clone(), radius.clone())?
+        {
             append_structural_events(problem, preparation, state, &mut trace)?;
             structural_events_emitted = true;
         }
@@ -303,7 +309,7 @@ fn build_semantic_trace(
             cursor += 1;
         }
         for entry in &entries[group_start..cursor] {
-            let after_stop = ratio_less(preparation.selection.radius, radius)?;
+            let after_stop = ratio_less(preparation.selection.radius.clone(), radius.clone())?;
             let before = state;
             if !after_stop && !active[entry.vertex.0] {
                 active[entry.vertex.0] = true;
@@ -315,8 +321,8 @@ fn build_semantic_trace(
             trace.push(make_trace_record(
                 problem,
                 trace::Kind::VertexEntry,
-                radius,
-                preparation.witnesses[entry.vertex.0],
+                radius.clone(),
+                preparation.witnesses[entry.vertex.0].clone(),
                 None,
                 Some(entry.vertex),
                 before,
@@ -333,8 +339,8 @@ fn build_semantic_trace(
                 trace.push(make_trace_record(
                     problem,
                     trace::Kind::HighwayEndpoint,
-                    radius,
-                    preparation.witnesses[entry.vertex.0],
+                    radius.clone(),
+                    preparation.witnesses[entry.vertex.0].clone(),
                     None,
                     Some(entry.vertex),
                     state,
@@ -400,14 +406,16 @@ fn build_semantic_trace(
                         ))
                     })
                     .ok_or(Error::Overflow)?;
-                let from_distance =
-                    preparation.center_distances[entry.vertex.0].ok_or(Error::Disconnected)?;
-                let to_distance =
-                    preparation.center_distances[other.0].ok_or(Error::Disconnected)?;
+                let from_distance = preparation.center_distances[entry.vertex.0]
+                    .clone()
+                    .ok_or(Error::Disconnected)?;
+                let to_distance = preparation.center_distances[other.0]
+                    .clone()
+                    .ok_or(Error::Disconnected)?;
                 let reduced_cost = edge
                     .length
-                    .checked_add(from_distance)
-                    .and_then(|value| value.checked_sub(to_distance))
+                    .checked_add(&from_distance)
+                    .and_then(|value| value.checked_sub(&to_distance))
                     .and_then(|value| value.checked_mul_integer(2))
                     .map_err(|_| Error::Overflow)?;
                 if reduced_cost.is_negative() {
@@ -416,7 +424,7 @@ fn build_semantic_trace(
                 trace.push(make_trace_record(
                     problem,
                     event_type,
-                    radius,
+                    radius.clone(),
                     Some(ArcWitness {
                         edge: SourceEdgeId(*edge_index),
                         to: other,
@@ -437,7 +445,7 @@ fn build_semantic_trace(
                     trace.push(make_trace_record(
                         problem,
                         trace::Kind::VirtualSegmentEvent,
-                        radius,
+                        radius.clone(),
                         None,
                         Some(*edge_index),
                         Some(entry.vertex),
@@ -451,8 +459,8 @@ fn build_semantic_trace(
                 }
             }
         }
-        if !ratio_less(radius, preparation.selection.window_start)?
-            && !ratio_less(preparation.selection.radius, radius)?
+        if !ratio_less(radius.clone(), preparation.selection.window_start.clone())?
+            && !ratio_less(preparation.selection.radius.clone(), radius.clone())?
         {
             trace.push(make_trace_record(
                 problem,
@@ -485,11 +493,14 @@ fn append_structural_events(
     state: trace::State,
     trace: &mut Vec<trace::Record>,
 ) -> Result<(), Error> {
-    if portal_is_interior(&preparation.thresholds, preparation.selection.radius) {
+    if portal_is_interior(
+        &preparation.thresholds,
+        preparation.selection.radius.clone(),
+    ) {
         trace.push(make_trace_record(
             problem,
             trace::Kind::PortalSplit,
-            preparation.selection.radius,
+            preparation.selection.radius.clone(),
             None,
             None,
             None,
@@ -505,7 +516,7 @@ fn append_structural_events(
         trace.push(make_trace_record(
             problem,
             trace::Kind::ContractionRelatedEvent,
-            preparation.selection.radius,
+            preparation.selection.radius.clone(),
             None,
             None,
             None,
@@ -535,7 +546,7 @@ fn make_trace_record(
     insertion_sequence: Option<u64>,
     pop_sequence: Option<u64>,
 ) -> Result<trace::Record, Error> {
-    let segment_index = explicit_segment.or_else(|| witness.map(|value| value.edge.0));
+    let segment_index = explicit_segment.or_else(|| witness.clone().map(|value| value.edge.0));
     let metadata = segment_index.and_then(|index| problem.segments.get(index));
     let edge = segment_index
         .map(|index| {
@@ -563,12 +574,14 @@ fn make_trace_record(
         source_edge_id: source,
         active_segment_id: metadata.map(|value| value.active_segment_id),
         segment_lineage_root_id: metadata.map(|value| value.segment_lineage_root_id),
-        orientation: witness.map(|value| value.orientation),
-        exact_materialized_segment_length: edge.map(|value| value.length.into()),
+        orientation: witness.clone().map(|value| value.orientation),
+        exact_materialized_segment_length: edge.map(|value| value.length.clone().into()),
         symbolic_unsplit_rounded_length: metadata
-            .map(|value| value.symbolic_unsplit_rounded_length),
+            .map(|value| value.symbolic_unsplit_rounded_length.clone()),
         highway_halved: metadata.map(|value| value.highway_halved),
-        exact_reduced_cost: witness.map(|value| value.reduced_cost.into()),
+        exact_reduced_cost: witness
+            .clone()
+            .map(|value| value.reduced_cost.clone().into()),
         exact_event_radius: radius.into(),
         queue_insertion_sequence: insertion_sequence,
         queue_pop_sequence: pop_sequence,
@@ -578,7 +591,7 @@ fn make_trace_record(
         state_after,
         endpoint_ids: edge.map(|value| [value.first.0, value.second.0]),
         affected_vertex_id: vertex.map(|value| value.0),
-        affected_directed_incidence_id: witness.map(|value| value.directed_incidence),
+        affected_directed_incidence_id: witness.clone().map(|value| value.directed_incidence),
         portal_split_generation: metadata
             .map_or(problem.context.portal_split_generation, |value| {
                 value.portal_split_generation
@@ -650,8 +663,8 @@ fn build_queue_trace(
         trace.push(make_trace_record(
             problem,
             event_type,
-            observation.item.distance,
-            observation.item.predecessor,
+            observation.item.distance.clone(),
+            observation.item.predecessor.clone(),
             None,
             Some(observation.item.vertex),
             trace::State::default(),
@@ -708,13 +721,16 @@ fn build_snapshot_metrics(
         original_classes.insert(materialized);
         materialized_classes.insert(materialized);
         let metadata = &problem.segments[index];
-        let mut symbolic = ExactRatio::try_from(metadata.symbolic_unsplit_rounded_length)?;
+        let mut symbolic = ExactRatio::try_from(metadata.symbolic_unsplit_rounded_length.clone())?;
         if metadata.highway_halved {
             symbolic = symbolic
-                .checked_mul(ratio(1, 2)?)
+                .checked_mul(&ratio(1, 2)?)
                 .map_err(|_| Error::Overflow)?;
         }
-        let class = (symbolic.numerator(), symbolic.denominator());
+        let class = (
+            symbolic.numerator().to_string(),
+            symbolic.denominator().to_string(),
+        );
         if metadata.source_edge_id.is_some() {
             symbolic_source_classes.insert(class);
         } else {
@@ -758,6 +774,7 @@ fn build_snapshot_metrics(
     let events_per_symbolic_label = count_trace_keys(&counted_semantic, |event| {
         event
             .symbolic_unsplit_rounded_length
+            .clone()
             .map(|value| format!("{}/{}", value.numerator, value.denominator))
     })?;
     let events_created_by_portal_split = count_trace_keys(&counted_semantic, |event| {

@@ -85,13 +85,14 @@ impl Level {
                 discarded_loops.insert(source);
                 continue;
             }
-            let stretch_overestimate = *forest
+            let stretch_overestimate = forest
                 .stretch_overestimates
                 .get(index)
-                .ok_or(Error::InvalidCertificate)?;
+                .ok_or(Error::InvalidCertificate)?
+                .clone();
             let scaled_length = edge
                 .length
-                .checked_mul(stretch_overestimate)
+                .checked_mul(&stretch_overestimate)
                 .map_err(|_| Error::Overflow)?;
             edges.push(Edge {
                 source,
@@ -99,7 +100,7 @@ impl Level {
                 source_second: edge.second,
                 first,
                 second,
-                original_length: edge.length,
+                original_length: edge.length.clone(),
                 stretch_overestimate,
                 scaled_length,
             });
@@ -292,7 +293,7 @@ mod tests {
                         edge.source_second,
                         edge.first.0,
                         edge.second.0,
-                        edge.scaled_length,
+                        edge.scaled_length.clone(),
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -306,7 +307,7 @@ mod tests {
                         edge.source_second,
                         edge.first_component,
                         edge.second_component,
-                        edge.scaled_length,
+                        edge.scaled_length.clone(),
                     )
                 })
                 .collect::<Vec<_>>()
