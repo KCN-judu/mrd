@@ -218,7 +218,6 @@ where
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FixedProjectionFactory {
     input: Input,
-    parameters: SpannerParameters,
     kappa: ExactRatio,
     preparations: u64,
 }
@@ -226,10 +225,9 @@ pub struct FixedProjectionFactory {
 impl FixedProjectionFactory {
     /// Creates a policy that rebuilds source state from one fixed exact input.
     #[must_use]
-    pub const fn new(input: Input, parameters: SpannerParameters, kappa: ExactRatio) -> Self {
+    pub const fn new(input: Input, kappa: ExactRatio) -> Self {
         Self {
             input,
-            parameters,
             kappa,
             preparations: 0,
         }
@@ -248,13 +246,8 @@ impl Factory for FixedProjectionFactory {
         snapshot: &CertifiedIpmSnapshot,
         network: &CirculationNetwork,
     ) -> Result<Projection, Error> {
-        let projection = rebuild_projection(
-            snapshot,
-            self.input.clone(),
-            self.parameters.clone(),
-            self.kappa.clone(),
-            network,
-        )?;
+        let projection =
+            rebuild_projection(snapshot, self.input.clone(), self.kappa.clone(), network)?;
         self.preparations = self
             .preparations
             .checked_add(1)
@@ -274,7 +267,6 @@ impl Factory for FixedProjectionFactory {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScheduledProjectionFactory {
     inputs: Vec<Input>,
-    parameters: SpannerParameters,
     kappa: ExactRatio,
     next_input: usize,
     preparations: u64,
@@ -289,7 +281,6 @@ pub struct ScheduledProjectionFactory {
 /// construction, not a source runtime or termination claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReciprocalSlackProjectionFactory {
-    parameters: SpannerParameters,
     kappa: ExactRatio,
     preparations: u64,
 }
@@ -304,7 +295,6 @@ pub struct ReciprocalSlackProjectionFactory {
 /// but does not assert a dynamic-source runtime bound.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DefinitionProjectionFactory {
-    parameters: SpannerParameters,
     kappa: ExactRatio,
     preparations: u64,
 }
@@ -312,9 +302,8 @@ pub struct DefinitionProjectionFactory {
 impl ReciprocalSlackProjectionFactory {
     /// Creates a policy that reconstructs one exact rational input per snapshot.
     #[must_use]
-    pub const fn new(parameters: SpannerParameters, kappa: ExactRatio) -> Self {
+    pub const fn new(kappa: ExactRatio) -> Self {
         Self {
-            parameters,
             kappa,
             preparations: 0,
         }
@@ -334,13 +323,7 @@ impl Factory for ReciprocalSlackProjectionFactory {
         network: &CirculationNetwork,
     ) -> Result<Projection, Error> {
         let input = coordinates::reciprocal_slack_input(snapshot, network)?;
-        let projection = rebuild_projection(
-            snapshot,
-            input,
-            self.parameters.clone(),
-            self.kappa.clone(),
-            network,
-        )?;
+        let projection = rebuild_projection(snapshot, input, self.kappa.clone(), network)?;
         self.preparations = self
             .preparations
             .checked_add(1)
@@ -352,9 +335,8 @@ impl Factory for ReciprocalSlackProjectionFactory {
 impl DefinitionProjectionFactory {
     /// Creates a policy that independently reconstructs Definition 4.2 input.
     #[must_use]
-    pub const fn new(parameters: SpannerParameters, kappa: ExactRatio) -> Self {
+    pub const fn new(kappa: ExactRatio) -> Self {
         Self {
-            parameters,
             kappa,
             preparations: 0,
         }
@@ -374,13 +356,7 @@ impl Factory for DefinitionProjectionFactory {
         network: &CirculationNetwork,
     ) -> Result<Projection, Error> {
         let input = coordinates::definition_input(snapshot, network)?;
-        let projection = rebuild_projection(
-            snapshot,
-            input,
-            self.parameters.clone(),
-            self.kappa.clone(),
-            network,
-        )?;
+        let projection = rebuild_projection(snapshot, input, self.kappa.clone(), network)?;
         self.preparations = self
             .preparations
             .checked_add(1)
@@ -397,11 +373,7 @@ impl ScheduledProjectionFactory {
     /// Returns an error for an empty schedule or when two supplied coordinate
     /// sets use different source/circulation identities. Coordinates may vary
     /// between entries; each is still independently certified on preparation.
-    pub fn new(
-        inputs: Vec<Input>,
-        parameters: SpannerParameters,
-        kappa: ExactRatio,
-    ) -> Result<Self, Error> {
+    pub fn new(inputs: Vec<Input>, kappa: ExactRatio) -> Result<Self, Error> {
         let Some(first) = inputs.first() else {
             return Err(Error::EmptyProjectionSchedule);
         };
@@ -412,7 +384,6 @@ impl ScheduledProjectionFactory {
         }
         Ok(Self {
             inputs,
-            parameters,
             kappa,
             next_input: 0,
             preparations: 0,
@@ -443,13 +414,7 @@ impl Factory for ScheduledProjectionFactory {
                 supplied: self.inputs.len(),
             },
         )?;
-        let projection = rebuild_projection(
-            snapshot,
-            input,
-            self.parameters.clone(),
-            self.kappa.clone(),
-            network,
-        )?;
+        let projection = rebuild_projection(snapshot, input, self.kappa.clone(), network)?;
         self.next_input = self
             .next_input
             .checked_add(1)
@@ -465,10 +430,10 @@ impl Factory for ScheduledProjectionFactory {
 fn rebuild_projection(
     snapshot: &CertifiedIpmSnapshot,
     input: Input,
-    parameters: SpannerParameters,
     kappa: ExactRatio,
     network: &CirculationNetwork,
 ) -> Result<Projection, Error> {
+    let parameters = SpannerParameters::derive(&input)?;
     let terminal = TerminalTree::build(input.clone(), network, parameters.root)?;
     let spanner = SpannerSnapshot::build(input.clone(), network, parameters)?;
     Projection::new(snapshot.clone(), input, terminal, spanner, kappa, network)
@@ -1227,7 +1192,6 @@ mod tests {
     use crate::{
         CertifiedIpmError, CertifiedIpmSnapshot, CirculationNetwork, ExactRatio, FixedPointConfig,
         FlowNodeId, FractionalCirculation, SourceDynamicGraph, SourceEdgeId, SourceWeightedEdge,
-        source_lsst::bucket::Construction as BucketConstruction,
         source_min_ratio::{
             candidate::{CandidateId, Choice, Kind},
             chain::Chain,
@@ -1281,12 +1245,9 @@ mod tests {
         network
     }
 
-    fn spanner_parameters() -> Parameters {
-        Parameters {
-            root: FlowNodeId(0),
-            maximum_absolute_exponent: 4,
-            bucket_construction: BucketConstruction::CanonicalTree,
-        }
+    fn spanner_snapshot(input: Input, network: &CirculationNetwork) -> SpannerSnapshot {
+        let parameters = Parameters::derive(&input).unwrap();
+        SpannerSnapshot::build(input, network, parameters).unwrap()
     }
 
     fn selected_iteration_fixture() -> (
@@ -1325,8 +1286,7 @@ mod tests {
         lengths[4] = ratio(1);
         let input = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
         let terminal = TerminalTree::build(input.clone(), &network, FlowNodeId(0)).unwrap();
-        let spanner =
-            SpannerSnapshot::build(input.clone(), &network, spanner_parameters()).unwrap();
+        let spanner = spanner_snapshot(input.clone(), &network);
         (network, snapshot, input, terminal, spanner)
     }
 
@@ -1336,7 +1296,7 @@ mod tests {
         network: &CirculationNetwork,
     ) -> Projection {
         let terminal = TerminalTree::build(input.clone(), network, FlowNodeId(0)).unwrap();
-        let spanner = SpannerSnapshot::build(input.clone(), network, spanner_parameters()).unwrap();
+        let spanner = spanner_snapshot(input.clone(), network);
         Projection::new(
             snapshot,
             input,
@@ -1477,7 +1437,7 @@ mod tests {
         let lengths = vec![ratio(1); network.arc_count()];
         let input = Input::new(&network, &gradients, &lengths, &lengths).unwrap();
         let terminal = TerminalTree::build(input.clone(), &network, FlowNodeId(0)).unwrap();
-        let spanner = SpannerSnapshot::build(input, &network, spanner_parameters()).unwrap();
+        let spanner = spanner_snapshot(input, &network);
         assert!(!terminal.candidates().is_empty());
         assert!(!spanner.candidates().is_empty());
 
@@ -1553,8 +1513,7 @@ mod tests {
         changed_gradients[0] = ratio(-2);
         let spanner_input = Input::new(&network, &changed_gradients, &lengths, &lengths).unwrap();
         let terminal = TerminalTree::build(terminal_input, &network, FlowNodeId(0)).unwrap();
-        let spanner =
-            SpannerSnapshot::build(spanner_input, &network, spanner_parameters()).unwrap();
+        let spanner = spanner_snapshot(spanner_input, &network);
         assert_eq!(
             Step::from_maintained_candidates(
                 &terminal,
@@ -1577,7 +1536,7 @@ mod tests {
         let initial = Input::new(&network, &initial_gradients, &lengths, &lengths).unwrap();
         let next = Input::new(&network, &next_gradients, &lengths, &lengths).unwrap();
         let terminal = TerminalTree::build(initial.clone(), &network, FlowNodeId(0)).unwrap();
-        let spanner = SpannerSnapshot::build(initial, &network, spanner_parameters()).unwrap();
+        let spanner = spanner_snapshot(initial, &network);
         let terminal_transition = terminal.transition(next.clone(), &network).unwrap();
         let spanner_transition = spanner.transition(next, &network).unwrap();
         assert_eq!(
@@ -1744,11 +1703,7 @@ mod tests {
     #[test]
     fn fixed_factory_rejects_a_successor_when_its_coordinates_stop_certifying() {
         let (network, snapshot, input, _, _) = selected_iteration_fixture();
-        let factory = FixedProjectionFactory::new(
-            input,
-            spanner_parameters(),
-            ExactRatio::new(1, 2).unwrap(),
-        );
+        let factory = FixedProjectionFactory::new(input, ExactRatio::new(1, 2).unwrap());
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 32);
 
         assert_eq!(
@@ -1776,11 +1731,7 @@ mod tests {
         let expected_snapshot = snapshot.clone();
         let budget =
             PotentialBudget::new(&snapshot, &network, ExactRatio::new(1, 2).unwrap()).unwrap();
-        let factory = FixedProjectionFactory::new(
-            input,
-            spanner_parameters(),
-            ExactRatio::new(1, 4).unwrap(),
-        );
+        let factory = FixedProjectionFactory::new(input, ExactRatio::new(1, 4).unwrap());
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 0);
 
         assert_eq!(
@@ -1817,7 +1768,6 @@ mod tests {
 
         let factory = ScheduledProjectionFactory::new(
             vec![input.clone(), successor.clone()],
-            spanner_parameters(),
             ExactRatio::new(1, 2).unwrap(),
         )
         .unwrap();
@@ -1844,12 +1794,8 @@ mod tests {
     #[test]
     fn scheduled_factory_rejects_coordinate_reuse_after_exhaustion() {
         let (network, snapshot, input, _, _) = selected_iteration_fixture();
-        let factory = ScheduledProjectionFactory::new(
-            vec![input],
-            spanner_parameters(),
-            ExactRatio::new(1, 2).unwrap(),
-        )
-        .unwrap();
+        let factory =
+            ScheduledProjectionFactory::new(vec![input], ExactRatio::new(1, 2).unwrap()).unwrap();
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
 
         assert_eq!(
@@ -1864,10 +1810,7 @@ mod tests {
     #[test]
     fn reciprocal_slack_factory_reconstructs_each_successor_without_intervals() {
         let (network, snapshot, _, _, _) = selected_iteration_fixture();
-        let mut parameters = spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory =
-            ReciprocalSlackProjectionFactory::new(parameters, ExactRatio::new(1, 2).unwrap());
+        let factory = ReciprocalSlackProjectionFactory::new(ExactRatio::new(1, 2).unwrap());
         let mut driver = Driver::new(Session::new(snapshot).unwrap(), factory, 2);
 
         assert_eq!(

@@ -147,6 +147,18 @@ impl Partition {
     }
 }
 
+/// Returns the smallest nonzero dyadic-exponent bound accepted for `level`.
+///
+/// The value is derived from the exact contracted source snapshot, so callers
+/// do not need a fixture-specific structural-domain constant.
+pub(crate) fn required_maximum_absolute_exponent(level: &Level) -> Result<u32, Error> {
+    level.edges.iter().try_fold(1_u32, |maximum, edge| {
+        let stretch = exponent(edge.stretch_overestimate.clone())?.unsigned_abs();
+        let length = exponent(edge.scaled_length.clone())?.unsigned_abs();
+        Ok(maximum.max(stretch).max(length))
+    })
+}
+
 struct Group {
     vertices: BTreeSet<ComponentId>,
     edges: Vec<LevelEdge>,

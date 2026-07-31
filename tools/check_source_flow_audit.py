@@ -40,6 +40,7 @@ REQUIRED = {
         "from_terminal_candidate",
         "from_maintained_candidates",
         "query::decode",
+        "SpannerParameters::derive(&input)",
         "pub fn apply",
         "pub fn apply_source_selected",
         "pub struct SourceSelected",
@@ -116,7 +117,10 @@ def main() -> None:
             for forbidden in COORDINATE_FORBIDDEN:
                 if forbidden in source:
                     fail(f"forbidden interval read {forbidden!r} in {path.relative_to(ROOT)}")
-    print("source_flow audit: no reference-flow, recovery fallback, or hidden-stability execution dependency")
+    print(
+        "source_flow audit: derived source configuration with no reference-flow, "
+        "recovery fallback, or hidden-stability execution dependency"
+    )
 
 
 if __name__ == "__main__":

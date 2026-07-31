@@ -22,8 +22,12 @@ use super::{
 
 use crate::source_lsst::{
     LsfPiece, LsfStructuralCertificate,
-    bucket::{Construction as BucketConstruction, Parameters as BucketParameters},
+    bucket::{
+        Construction as BucketConstruction, Parameters as BucketParameters,
+        required_maximum_absolute_exponent,
+    },
     chain::{Chain as SourceChain, Error as SourceChainError, Parameters as SourceChainParameters},
+    level::Level as SourceLevel,
 };
 
 /// Explicit finite-domain controls for a sparsified-core snapshot.
@@ -33,6 +37,36 @@ pub struct Parameters {
     pub maximum_absolute_exponent: u32,
     /// Explicit finite construction used for cyclic contracted buckets.
     pub bucket_construction: BucketConstruction,
+}
+
+impl Parameters {
+    /// Derives the canonical finite source configuration for one exact input.
+    ///
+    /// The root is the stable lowest node identifier. The dyadic bound is the
+    /// smallest positive value accepting the current singleton-forest
+    /// contraction, and cyclic buckets use the explicit finite canonical-tree
+    /// construction. This is a pure finite-domain configuration derivation;
+    /// it does not imply a source stretch or runtime bound.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the input cannot build a structural source graph
+    /// or its exact singleton contraction cannot be certified.
+    pub fn derive(input: &Input) -> Result<Self, Error> {
+        let structural = input.structural_graph()?;
+        if structural.graph.node_count() == 0 {
+            return Err(Error::InvalidParameters);
+        }
+        let forest = singleton_forest(&structural.graph)?;
+        let level =
+            SourceLevel::contract(&structural.graph, &forest).map_err(SourceChainError::Level)?;
+        Ok(Self {
+            root: FlowNodeId(0),
+            maximum_absolute_exponent: required_maximum_absolute_exponent(&level)
+                .map_err(SourceChainError::Bucket)?,
+            bucket_construction: BucketConstruction::CanonicalTree,
+        })
+    }
 }
 
 /// Immutable source core/spanner state for one exact IPM projection.
@@ -474,7 +508,6 @@ mod tests {
     use super::{Error, Parameters, Snapshot};
     use crate::{
         CirculationNetwork, ExactRatio, FlowNodeId,
-        source_lsst::bucket::Construction as BucketConstruction,
         source_min_ratio::{candidate::Kind, input::Input},
     };
 
@@ -490,20 +523,36 @@ mod tests {
         result
     }
 
-    fn parameters() -> Parameters {
-        Parameters {
-            root: FlowNodeId(0),
-            maximum_absolute_exponent: 4,
-            bucket_construction: BucketConstruction::CanonicalTree,
-        }
-    }
-
     fn input(network: &CirculationNetwork, gradient: i128) -> Input {
         input_with_lengths(
             network,
             gradient,
             &vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()],
         )
+    }
+
+    #[test]
+    fn derives_the_canonical_finite_configuration_from_exact_input() {
+        let network = network();
+        let lengths = (0..network.arc_count())
+            .map(|index| {
+                if index == 0 {
+                    ExactRatio::new(16, 1).unwrap()
+                } else {
+                    ExactRatio::new(1, 1).unwrap()
+                }
+            })
+            .collect::<Vec<_>>();
+        let input = input_with_lengths(&network, -1, &lengths);
+
+        assert_eq!(
+            Parameters::derive(&input).unwrap(),
+            Parameters {
+                root: FlowNodeId(0),
+                maximum_absolute_exponent: 4,
+                bucket_construction: crate::source_lsst::bucket::Construction::CanonicalTree,
+            }
+        );
     }
 
     fn input_with_lengths(
@@ -524,7 +573,8 @@ mod tests {
     fn emits_rejected_core_cycles_from_a_checked_canonical_tree_embedding() {
         let network = network();
         let input = input(&network, -1);
-        let snapshot = Snapshot::build(input, &network, parameters()).unwrap();
+        let parameters = Parameters::derive(&input).unwrap();
+        let snapshot = Snapshot::build(input, &network, parameters).unwrap();
         let expected_rejected = network.arc_count() - (network.node_count() - 1);
         assert_eq!(snapshot.candidates().len(), expected_rejected);
         assert!(
@@ -556,12 +606,9 @@ mod tests {
     fn preserves_raw_rational_coordinates_alongside_the_structural_chain() {
         let network = network();
         let rational_lengths = vec![ExactRatio::new(1, 2).unwrap(); network.arc_count()];
-        let snapshot = Snapshot::build(
-            input_with_lengths(&network, -1, &rational_lengths),
-            &network,
-            parameters(),
-        )
-        .unwrap();
+        let input = input_with_lengths(&network, -1, &rational_lengths);
+        let parameters = Parameters::derive(&input).unwrap();
+        let snapshot = Snapshot::build(input, &network, parameters).unwrap();
 
         assert_eq!(
             snapshot
@@ -594,7 +641,9 @@ mod tests {
     #[test]
     fn refreshes_the_full_population_when_only_coordinates_change() {
         let network = network();
-        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let initial = input(&network, -1);
+        let parameters = Parameters::derive(&initial).unwrap();
+        let snapshot = Snapshot::build(initial, &network, parameters).unwrap();
         let mut registry = snapshot.registry(&network).unwrap();
         let transition = snapshot.transition(input(&network, 1), &network).unwrap();
 
@@ -614,7 +663,9 @@ mod tests {
     #[test]
     fn rejects_applying_recourse_to_a_nonmatching_registry() {
         let network = network();
-        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let initial = input(&network, -1);
+        let parameters = Parameters::derive(&initial).unwrap();
+        let snapshot = Snapshot::build(initial, &network, parameters).unwrap();
         let mut registry = snapshot.registry(&network).unwrap();
         registry.retire(snapshot.candidates()[0].id).unwrap();
         let transition = snapshot.transition(input(&network, 1), &network).unwrap();
@@ -628,7 +679,9 @@ mod tests {
     #[test]
     fn applies_source_declared_insertions_and_retires_after_a_bucket_change() {
         let network = network();
-        let snapshot = Snapshot::build(input(&network, -1), &network, parameters()).unwrap();
+        let input = input(&network, -1);
+        let parameters = Parameters::derive(&input).unwrap();
+        let snapshot = Snapshot::build(input, &network, parameters).unwrap();
         let mut registry = snapshot.registry(&network).unwrap();
         let mut lengths = vec![ExactRatio::new(1, 1).unwrap(); network.arc_count()];
         lengths[0] = ExactRatio::new(2, 1).unwrap();

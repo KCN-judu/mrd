@@ -492,8 +492,7 @@ mod tests {
                 ReciprocalSlackProjectionFactory, ScheduledProjectionFactory,
             },
         },
-        source_lsst::bucket::Construction as BucketConstruction,
-        source_min_ratio::{input::Input, spanner::Parameters as SpannerParameters},
+        source_min_ratio::input::Input,
     };
 
     use super::{Circulation, Error, Solution};
@@ -842,24 +841,14 @@ mod tests {
         }
     }
 
-    fn source_spanner_parameters() -> SpannerParameters {
-        SpannerParameters {
-            root: FlowNodeId(0),
-            maximum_absolute_exponent: 7,
-            bucket_construction: BucketConstruction::CanonicalTree,
-        }
-    }
-
     fn boundary_source_driver(
         snapshot: CertifiedIpmSnapshot,
         maximum_iterations: u64,
     ) -> iteration::Driver<DefinitionProjectionFactory> {
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
         Backend
             .begin_source_iterations(
                 snapshot,
-                DefinitionProjectionFactory::new(parameters, ratio(1, 2)),
+                DefinitionProjectionFactory::new(ratio(1, 2)),
                 maximum_iterations,
             )
             .unwrap()
@@ -1345,7 +1334,7 @@ mod tests {
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
         let expected_input = input.clone();
-        let factory = FixedProjectionFactory::new(input, source_spanner_parameters(), ratio(1, 2));
+        let factory = FixedProjectionFactory::new(input, ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 1)
             .unwrap();
@@ -1396,7 +1385,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, input) = nonterminal_source_fixture(&circulation);
-        let factory = FixedProjectionFactory::new(input, source_spanner_parameters(), ratio(1, 2));
+        let factory = FixedProjectionFactory::new(input, ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -1437,12 +1426,9 @@ mod tests {
         let (snapshot, initial) = nonterminal_source_fixture(&circulation);
         let successor = nonterminal_successor_projection_input(&circulation);
         assert_ne!(initial, successor);
-        let factory = ScheduledProjectionFactory::new(
-            vec![initial.clone(), successor.clone()],
-            source_spanner_parameters(),
-            ratio(1, 2),
-        )
-        .unwrap();
+        let factory =
+            ScheduledProjectionFactory::new(vec![initial.clone(), successor.clone()], ratio(1, 2))
+                .unwrap();
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -1473,9 +1459,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 2)
             .unwrap();
@@ -1504,9 +1488,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 3)
             .unwrap();
@@ -1539,9 +1521,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 64)
             .unwrap();
@@ -1571,9 +1551,7 @@ mod tests {
         let partition = single_edge_partition();
         let circulation = Circulation::from_partition(1, 1, &partition).unwrap();
         let (snapshot, _) = nonterminal_source_fixture(&circulation);
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory = DefinitionProjectionFactory::new(parameters, ratio(1, 2));
+        let factory = DefinitionProjectionFactory::new(ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 64)
             .unwrap();
@@ -1602,9 +1580,7 @@ mod tests {
     fn recovers_a_single_edge_compressed_solution_after_one_nonterminal_source_update() {
         let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
         let snapshot = near_terminal_source_fixture(&circulation);
-        let mut parameters = source_spanner_parameters();
-        parameters.maximum_absolute_exponent = 64;
-        let factory = ReciprocalSlackProjectionFactory::new(parameters, ratio(1, 2));
+        let factory = ReciprocalSlackProjectionFactory::new(ratio(1, 2));
         let mut driver = Backend
             .begin_source_iterations(snapshot, factory, 1)
             .unwrap();
