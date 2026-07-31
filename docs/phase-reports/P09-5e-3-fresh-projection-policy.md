@@ -6,15 +6,17 @@
 population. P9.5e.3d state: complete for a snapshot-bound conditional
 potential budget. P9.5e.3e state: complete for independently recomputed
 Definition 4.2 coordinates in the checked fixed-point domain. P9.5e.3f state:
-complete for execution-state decoupling from hidden-stability auditing. P9.5e.3
+complete for execution-state decoupling from hidden-stability auditing.
+P9.5e.3g.1 state: complete for derived finite source configuration. P9.5e.3
 state: in progress.** Implementation commits:
-`45849b1`, `c902c37`, `5391ada`, `20f8a18`, `8668461`.
+`45849b1`, `c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`.
 
 This report records the completed P9.5e.3b terminating-range evidence and the
 completed P9.5e.3c isolated-lattice output differential, together with the
 P9.5e.3d conditional potential-reduction budget, the P9.5e.3e complete
 Definition 4.2 coordinate policy, and the P9.5e.3f execution-state decoupling.
-It does not close P9.5e.3, P9.5, or
+It also records P9.5e.3g.1's exact per-input structural configuration
+derivation. It does not close P9.5e.3, P9.5, or
 `Backend::require_complete()`.
 
 ## Issue Matrix
@@ -28,15 +30,16 @@ It does not close P9.5e.3, P9.5, or
 | Supported termination range | The 64-update fixture remains intentionally nonterminal, but a distinct strictly interior `1 x 1` source fixture crosses the additive-half boundary after one selected source update. | A terminating run must rebuild exact coordinates from its current snapshot, select a nonzero source direction, certify additive-half termination, then recover without a reference backend. | At uniform arc flow `547590/1000000`, the initial snapshot rejects additive-half. `ReciprocalSlackProjectionFactory` prepares one fresh source projection, the selected step is nonzero, the successor certifies additive-half, and `Circulation::run_source` recovers matching `(0, 0)` and a size-one cover. |
 | Arbitrary cap versus source potential progress | `Driver::run` accepts a caller-selected update cap, which is necessary for a nontermination witness but does not record why a terminating run has sufficient fuel. | A source-facing terminating entry may use only a snapshot-bound cap derived from the Equation (9)/Lemma 4.1 potential threshold and the separately certified Lemma 4.4 per-update decrease. It must reject a changed snapshot or `kappa`, a failed projection, or budget exhaustion; it must not recover a nonterminal session. | `PotentialBudget` records one exact initial snapshot, one exact `kappa`, the conservative dyadic lower potential endpoint, termination threshold, and per-update decrease. `run_source_with_potential_budget` recovers the nonterminal `1 x 1` fixture after one source update. A changed-`kappa` regression rejects before the session mutates. |
 | Cyclic bucket construction | The finite Algorithm 4 decomposition subset rejects the formal Figure 3 cyclic bucket with `Decomposition(InvalidCertificate)`. | A chosen finite source construction must provide stable selected source edges and exact paths for every bucket edge without an Oracle or a retry after failure. | `bucket::Construction::CanonicalTree` is selected explicitly before construction. Stable-source-order union-find selects a spanning tree and stable BFS reconstructs every rejected-edge tree path; the certificate is revalidated from the immutable bucket. A parallel-edge cycle regression preserves source IDs `0` and `2` and embeds source `1` through source `0`. |
-| Backend completeness | The checked fixed-point coordinate policy is general, but callers still must provide source structural parameters, `kappa`, and an initial source state for each compressed input. | Do not enable a complete backend from coordinate reconstruction alone. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
+| Finite source configuration | Projection factories accepted fixture-specific roots and dyadic bounds, including an exponent `64` unrelated to the snapshot's exact structural graph. | Derive the canonical root, minimal accepted finite dyadic bound, and explicit cyclic-bucket construction from every exact `Input`; no factory constructor may retain those values. | `spanner::Parameters::derive` contracts the exact singleton forest and derives `FlowNodeId(0)`, the current maximum absolute exponent, and `CanonicalTree`. A focused exponent-four test and the 64-successor Definition 4.2 regression pass through that derivation. The source-flow audit requires the production call. |
+| Backend completeness | The checked fixed-point coordinate policy and finite configuration derivation are general within their stated domains, but callers cannot yet enter through an independently constructed strict initial point with a checked exact target. | Do not enable a complete backend from coordinate reconstruction and configuration derivation alone. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
 | Execution-state dependency | Source execution previously required `StableMinRatioLedger` solely because `decode_candidate` returned its edge count; selection and source certificates did not consume its witness. | Decode compact cycles through the source graph, chain, shifts, bindings, and circulation only; retain the ledger audit boundary separately. | **Complete:** pure `query::decode` serves source execution. `decode_candidate` remains the P8/P9.4 audit adapter, and source-flow plus compressed-MRD regressions construct no `StableWitness`. |
 
 ## Contract and Result
 
 `source_flow::iteration::FixedProjectionFactory` is the production
 implementation of this restricted policy. It owns externally supplied,
-immutable exact `Input` coordinates, finite spanner parameters, and `kappa`;
-it never derives values from fixed-point intervals.
+immutable exact `Input` coordinates and `kappa`; it derives finite spanner
+parameters from each input and never derives values from fixed-point intervals.
 For every request it rebuilds a `TerminalTree`, `SpannerSnapshot`, and
 `source_flow::iteration::Projection` for the current
 `CertifiedIpmSnapshot`. `Projection::new` reruns the Theorem 4.3
@@ -93,9 +96,11 @@ gradient is not assumed negligible: `Projection::new` must certify the exact
 factor-two and scaled-gradient inequalities before a source candidate can be
 selected. The general source-flow regression accepts two distinct successor
 inputs constructed this way; the compressed `1 x 1` regression now accepts
-three. The compressed fixture uses an explicit finite source-structure exponent
-limit of `64`; the smaller prior limit rejects the successor as outside that
-structural domain.
+three. The previous compressed fixture supplied a finite source-structure
+exponent limit of `64`. P9.5e.3g.1 removes that input-independent
+configuration: every fresh `Input` now derives its own minimum accepting bound
+from the exact singleton contraction. The same regression's `64` now denotes
+only its explicit number of nonterminal updates.
 
 `DefinitionProjectionFactory` closes the remaining coordinate-construction
 gap within the checked fixed-point domain. From the same exact flow, objective,
@@ -109,7 +114,7 @@ snapshot's certified Definition 4.2 intervals under Theorem 4.3, so a changed
 formula, insufficient precision, or an invalid representative rejects before
 candidate selection. This is a general coordinate constructor for the checked
 fixed-point domain, not a claim that any arbitrary compressed input has already
-supplied its ledger, source parameters, and initial source state.
+supplied its ledger, strict initial source state, and exact target.
 
 The exact source coordinates remain the P9.5e.2 fixture values:
 
@@ -238,6 +243,26 @@ uncovered.
 
 ## Verification
 
+### P9.5e.3g.1 Full Audit
+
+Phase baseline: `07018227e003154d8aad891df1537384126ff4f1`. The following
+closeout commands all exited `0` on 2026-07-31. The source-flow audit now
+reports the derived-configuration boundary; no generated result artifact is
+required for this focused pure-configuration change.
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `git diff --check` | 0 | no whitespace errors |
+| `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
+| `python3 tools/check_biclique_bound.py` | 0 | compact biclique bound accepted |
+| `python3 tools/check_source_min_ratio_audit.py` | 0 | finite tree-chain/core boundary has no Oracle fallback |
+| `python3 tools/check_source_flow_audit.py` | 0 | production execution derives its finite source configuration and has no forbidden fallback or hidden-stability dependency |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
+| `cargo test --workspace` | 0 | full workspace suite passed |
+| `env RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | 0 | workspace documentation built with warnings denied |
+| `cargo build --workspace --release` | 0 | six workspace crates built in release mode |
+| `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
+
 | Command | Exit | Result |
 | --- | ---: | --- |
 | `git diff --check` | 0 | no whitespace errors |
@@ -265,6 +290,10 @@ uncovered.
 | `cargo test -p graph source_flow::iteration` | 0 | 17 focused execution tests passed after removal of hidden-stability ledger state |
 | `cargo test -p graph source_min_ratio::query` | 0 | 2 query tests passed, including pure compact decoding without a ledger or witness |
 | `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | compressed source execution passed without constructing a `StableWitness` |
+| `cargo test -p graph source_min_ratio::spanner -- --nocapture` | 0 | 6 focused tests passed, including exact root/exponent derivation and snapshots built from derived parameters |
+| `cargo test -p graph source_flow::iteration -- --nocapture` | 0 | 17 focused tests passed with test snapshots and every production factory deriving their configuration |
+| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | compressed source suite passed; its 64-successor Definition 4.2 regression uses no fixture structural parameter |
+| `python3 tools/check_source_flow_audit.py` | 0 | production factories require `SpannerParameters::derive(&input)` and retain no forbidden fallback or hidden-stability dependency |
 
 ## Remaining Boundary
 
@@ -279,11 +308,14 @@ source-flow projections, candidates, selected state, and factory constructors
 use it. The existing ledger adapter remains for P8/P9.4 auditing; this change
 does not expose a hidden witness or claim its construction.
 
-The remaining P9.5e.3 boundary is public all-input construction of source
-structural parameters, `kappa`, and an initial source state for the declared
-compressed-MRD domain. That work must be independently justified and cannot be
-filled by an Oracle or a synthetic witness. It is distinct from P9.4's missing
-general Theorem 5.1 dynamic construction and does not enable
+The remaining P9.5e.3 boundary is public all-input construction of a strict
+initial source state for the declared compressed-MRD domain with a caller-
+provided exact integral target `F*`. The finite structural configuration is
+now derived from every exact input, and `kappa = 1/2` is a permitted semantic
+choice, but neither fact supplies the strict point or target. That work must
+be independently justified and cannot be filled by an Oracle or a synthetic
+witness. It is distinct from P9.4's missing general Theorem 5.1 dynamic
+construction and does not enable
 `Backend::require_complete()`.
 
 `FixedProjectionFactory` is a fresh-projection reconstruction policy, not a
@@ -307,11 +339,12 @@ source-supported construction of that trace and it does not prove that any
 nonterminal compressed instance reaches additive-half termination.
 `DefinitionProjectionFactory` now supplies the missing current-snapshot
 coordinate construction for every snapshot in its checked fixed-point domain.
-P9.5e.3 still needs public construction of structural parameters and initial
-source state for every compressed input, together with
-an explicitly declared broader compressed-MRD input domain. Until that
-semantic and no-fallback campaign passes, `Backend::require_complete()` remains
-unavailable.
+P9.5e.3 still needs an explicit-target strict initial source state for every
+supported compressed input, together with an explicitly declared broader
+compressed-MRD input domain. Until that semantic and no-fallback campaign
+passes, `Backend::require_complete()` remains unavailable. CKLPPS22 p.24 and
+Algorithm 7 do not yet establish a decision invariant for an incorrect target;
+therefore no binary-search wrapper may infer or replace `F*`.
 
 `ReciprocalSlackProjectionFactory` remains a deliberately incomplete
 approximation policy with a 64-update nonterminal regression. Arbitrary-
