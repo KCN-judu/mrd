@@ -6,9 +6,9 @@
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current phase: P9.5e.3g
 - Current phase state: in_progress
-- Last completed phase: P9.5e.3g.1
-- Last pushed SHA: 07018227e003154d8aad891df1537384126ff4f1
-- Plan last updated: 2026-07-31T04:30:19Z
+- Last completed phase: P9.5e.3g.2
+- Last pushed SHA: 059f3b68d33816a6a94aea4dd90cefb9bf1493d2
+- Plan last updated: 2026-07-31T04:50:24Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1480,11 +1480,17 @@ It is split into the following completed substeps:
           because it applies to every `kappa` in `(0, 1)`; that remains a
           caller-selected semantic value and creates no runtime claim.
        2. **P9.5e.3g.2 - Explicit-target initial-point entry. State:
-          in_progress.** Compose the existing O(m)-edge Appendix B.1
-          augmentation with the source driver for a caller-provided exact
-          integral target. It must retain the target as a checked precondition,
-          reject an invalid strict point, and never call an Oracle to supply
-          it.
+          complete.** `Backend::begin_augmented_source_with_target` constructs
+          the O(m)-edge Appendix B.1 augmentation, a certified strict initial
+          snapshot, and a snapshot-bound potential budget for one
+          caller-provided integral target. `ExactTargetDriver` owns that target
+          through source execution and rejects terminal recovery whose original
+          cost differs. `Circulation::run_source_with_exact_target` is the
+          compressed-flow adapter: it starts that driver and decodes only the
+          recovered original circulation. The source and compressed regressions
+          confirm that a valid `F*` reaches the augmented factory and a target
+          equal to the initial-flow cost rejects before factory execution. This
+          performs no Oracle call or target inference.
        3. **P9.5e.3g.3 - Exact-target search contract. State: blocked.**
           CKLPPS22 p.24 states that knowing `F*` can be removed by binary
           search, and Algorithm 7 takes a `guess of the optimal flow F*`; the
@@ -1836,15 +1842,15 @@ and AN19 runtime claims.
 | P9.5e | in_progress | 0410b79 | 90f51ae, 58bf417 | pending | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md`; `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | terminal handoff plus one exact nonterminal compressed update/witness | 2026-07-30T03:13:00Z | pending | full chord/rectangle driver differential and complete-backend gate remain |
 | P9.5e.1 | complete | b068bea | 90f51ae | pending closeout | pending | `docs/phase-reports/P09-5e-1-terminal-compressed-driver.md` | source driver to terminal matching/cover recovery across explicit, chord, and formal rectangle fixtures | 2026-07-30T03:13:00Z | 2026-07-30T03:38:00Z | terminal-only evidence; no nonterminal projection preparation |
 | P9.5e.2 | complete | 90f51ae | 58bf417 | pending closeout | pending | `docs/phase-reports/P09-5e-2-nonterminal-compressed-projection.md` | rational structural normalization, Theorem 4.3-certified one-by-one compressed projection, one accepted source update, and explicit nonterminal limit witness | 2026-07-30T03:36:00Z | 2026-07-30T03:36:56Z | one supported compressed fixture only; P9.5e.3 must run the broad campaign |
-| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461, pending closeout | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | fixed/scheduled/reciprocal and independently recomputed Definition 4.2 coordinate factories, source-certified conditional potential budget, derived finite source configuration, 64 nonterminal Definition 4.2 updates, pure compact decoding, and exact `1 x 1`, `2 x 2`, chord, Figure 3, and 410-mask isolated-lattice nonterminal-to-terminal differentials | 2026-07-30T03:41:01Z | pending | coordinate construction, configuration derivation, and execution-state decoupling are complete for the checked fixed-point domain; explicit-target initialization and `Backend::require_complete()` remain unavailable |
+| P9.5e.3 | in_progress | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461, 2802323, pending closeout | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | fixed/scheduled/reciprocal and independently recomputed Definition 4.2 coordinate factories, source-certified conditional potential budget, derived finite source configuration, explicit-target Appendix B.1 initialization, 64 nonterminal Definition 4.2 updates, pure compact decoding, and exact `1 x 1`, `2 x 2`, chord, Figure 3, and 410-mask isolated-lattice nonterminal-to-terminal differentials | 2026-07-30T03:41:01Z | pending | coordinate construction, configuration derivation, execution-state decoupling, and supplied-target initialization are complete for their checked domains; target search and `Backend::require_complete()` remain unavailable |
 | P9.5e.3a | complete | 2796465 | 45849b1, c902c37, 5391ada, 20f8a18, 8668461 | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | two-snapshot fresh exact coordinate schedules and interval-independent reciprocal reconstruction | 2026-07-30T03:41:01Z | 2026-07-30T04:39:00Z | finite fixtures only; no terminating source session |
 | P9.5e.3b | complete | 8668461 | pending closeout | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-relative power-of-two structural topology, arbitrary-precision candidate arithmetic, 64 accepted reciprocal-slack successors, and a one-step `1 x 1` terminating source session; full audit passed | 2026-07-30T04:39:00Z | 2026-07-31T01:10:39Z | no general termination or runtime claim |
 | P9.5e.3c | complete | pending | pending closeout | pending | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | nonterminal explicit, chord, Figure 3, and exhaustive 410-member isolated-lattice flow/matching/cover/chord/rectangle differentials; explicit finite `CanonicalTree` for cyclic buckets | 2026-07-31T00:33:53Z | 2026-07-31T02:10:00Z | P9.5e.3 parent still requires a general termination policy; no complete backend gate or runtime claim |
 | P9.5e.3d | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | snapshot-bound fixed-`kappa` potential budget, nonterminal `1 x 1` budgeted source run, and changed-`kappa` no-mutation regression | 2026-07-31T02:10:00Z | 2026-07-31T03:24:04Z | conditional on every fresh projection succeeding; no general source-coordinate maintenance, complete backend gate, or runtime claim |
 | P9.5e.3e | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | independently recomputed dyadic Definition 4.2 coordinates, 64 nonterminal successor preparations, and the complete declared compressed-MRD population using the new factory | 2026-07-31T03:24:04Z | pending | no public all-input exact-target initial-state construction, complete backend gate, or runtime claim |
 | P9.5e.3f | complete | pending | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | pure compact-cycle decoding and source-flow execution-state decoupling from hidden-stability ledger/witness construction | 2026-07-31T03:24:04Z | pending | P8/P9.4 ledger auditing remains; no Theorem 5.1, public all-input exact-target initial-state construction, complete backend gate, or runtime claim |
-| P9.5e.3g | in_progress | 0701822 | 6be878a, pending closeout | pending | pending | derived finite source configuration, explicit-target initialization, and source-backed exact-target search contract | 2026-07-31T04:06:37Z | pending | g.1 is complete; no lower-bound substitution for `F*`; `Backend::require_complete()` remains unavailable until the source binary-search decision invariant is recovered and verified |
+| P9.5e.3g | in_progress | 0701822 | 6be878a, 2802323, pending closeout | pending | pending | derived finite source configuration, explicit-target initialization, and source-backed exact-target search contract | 2026-07-31T04:06:37Z | pending | g.1 and g.2 are complete; no lower-bound substitution for `F*`; `Backend::require_complete()` remains unavailable until the source binary-search decision invariant is recovered and verified |
 | P9.5e.3g.1 | complete | 0701822 | 6be878a | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | pure exact `Input -> Parameters` derivation of root, minimal dyadic bound, and finite canonical-tree policy; all factories derive per projection | 2026-07-31T04:06:37Z | 2026-07-31T04:30:19Z | no initial strict point, exact-target entry, complete-backend gate, or runtime claim |
-| P9.5e.3g.2 | in_progress | pending | pending | pending | pending | caller-provided exact-target initial-point composition | 2026-07-31T04:06:37Z | pending | must preserve `F*` as checked input; no Oracle and no inferred target |
+| P9.5e.3g.2 | complete | 059f3b6 | 2802323 | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | Appendix B.1 exact-target driver and compressed-flow adapter with checked target-preserving recovery; full audit: 385 passed, 3 existing ignored | 2026-07-31T04:30:19Z | 2026-07-31T04:50:24Z | no target inference, wrong-target decision contract, complete-backend gate, or runtime claim |
 | P9.5e.3g.3 | blocked | pending | pending | pending | pending | recovered source decision invariant for incorrect exact-target guesses | pending source evidence | pending | CKLPPS22 p.24/Algorithm 7 do not yet provide a verified decision invariant; binary search is forbidden |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

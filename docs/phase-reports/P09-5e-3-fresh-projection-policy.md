@@ -7,17 +7,18 @@ population. P9.5e.3d state: complete for a snapshot-bound conditional
 potential budget. P9.5e.3e state: complete for independently recomputed
 Definition 4.2 coordinates in the checked fixed-point domain. P9.5e.3f state:
 complete for execution-state decoupling from hidden-stability auditing.
-P9.5e.3g.1 state: complete for derived finite source configuration. P9.5e.3
-state: in progress.** Implementation commits:
-`45849b1`, `c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`.
+P9.5e.3g.1 state: complete for derived finite source configuration.
+P9.5e.3g.2 state: complete for the caller-supplied exact-target initial-point
+entry. P9.5e.3 state: in progress.** Implementation commits: `45849b1`,
+`c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`, `2802323`.
 
 This report records the completed P9.5e.3b terminating-range evidence and the
 completed P9.5e.3c isolated-lattice output differential, together with the
 P9.5e.3d conditional potential-reduction budget, the P9.5e.3e complete
 Definition 4.2 coordinate policy, and the P9.5e.3f execution-state decoupling.
 It also records P9.5e.3g.1's exact per-input structural configuration
-derivation. It does not close P9.5e.3, P9.5, or
-`Backend::require_complete()`.
+derivation and P9.5e.3g.2's target-preserving Appendix B.1 source entry. It
+does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
 
 ## Issue Matrix
 
@@ -31,6 +32,7 @@ derivation. It does not close P9.5e.3, P9.5, or
 | Arbitrary cap versus source potential progress | `Driver::run` accepts a caller-selected update cap, which is necessary for a nontermination witness but does not record why a terminating run has sufficient fuel. | A source-facing terminating entry may use only a snapshot-bound cap derived from the Equation (9)/Lemma 4.1 potential threshold and the separately certified Lemma 4.4 per-update decrease. It must reject a changed snapshot or `kappa`, a failed projection, or budget exhaustion; it must not recover a nonterminal session. | `PotentialBudget` records one exact initial snapshot, one exact `kappa`, the conservative dyadic lower potential endpoint, termination threshold, and per-update decrease. `run_source_with_potential_budget` recovers the nonterminal `1 x 1` fixture after one source update. A changed-`kappa` regression rejects before the session mutates. |
 | Cyclic bucket construction | The finite Algorithm 4 decomposition subset rejects the formal Figure 3 cyclic bucket with `Decomposition(InvalidCertificate)`. | A chosen finite source construction must provide stable selected source edges and exact paths for every bucket edge without an Oracle or a retry after failure. | `bucket::Construction::CanonicalTree` is selected explicitly before construction. Stable-source-order union-find selects a spanning tree and stable BFS reconstructs every rejected-edge tree path; the certificate is revalidated from the immutable bucket. A parallel-edge cycle regression preserves source IDs `0` and `2` and embeds source `1` through source `0`. |
 | Finite source configuration | Projection factories accepted fixture-specific roots and dyadic bounds, including an exponent `64` unrelated to the snapshot's exact structural graph. | Derive the canonical root, minimal accepted finite dyadic bound, and explicit cyclic-bucket construction from every exact `Input`; no factory constructor may retain those values. | `spanner::Parameters::derive` contracts the exact singleton forest and derives `FlowNodeId(0)`, the current maximum absolute exponent, and `CanonicalTree`. A focused exponent-four test and the 64-successor Definition 4.2 regression pass through that derivation. The source-flow audit requires the production call. |
+| Caller-supplied exact target | The source driver accepted a certified snapshot but had no public composition from a caller-provided integral `F*` through Appendix B.1 recovery into the compressed matching/cover decoder. | Build the strict augmented initial point and its one-snapshot potential budget for exactly the supplied target; preserve it through recovery, reject a non-strict initial point, and never query or infer an optimum. | `Backend::begin_augmented_source_with_target` constructs `ExactTargetDriver`; `run` compares the recovered original cost with the retained target. `Circulation::run_source_with_exact_target` decodes only that checked recovered flow. The `1 x 1` target `-1` fixture invokes its factory once with the augmented network; a `2 x 2` target equal to the integral initial-flow cost rejects before the factory executes. |
 | Backend completeness | The checked fixed-point coordinate policy and finite configuration derivation are general within their stated domains, but callers cannot yet enter through an independently constructed strict initial point with a checked exact target. | Do not enable a complete backend from coordinate reconstruction and configuration derivation alone. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
 | Execution-state dependency | Source execution previously required `StableMinRatioLedger` solely because `decode_candidate` returned its edge count; selection and source certificates did not consume its witness. | Decode compact cycles through the source graph, chain, shifts, bindings, and circulation only; retain the ledger audit boundary separately. | **Complete:** pure `query::decode` serves source execution. `decode_candidate` remains the P8/P9.4 audit adapter, and source-flow plus compressed-MRD regressions construct no `StableWitness`. |
 
@@ -241,7 +243,58 @@ outer endpoints leaves a strictly interior active circulation and still returns
 the original `2`-by-`3` cover dimensions, with every isolated endpoint
 uncovered.
 
+### P9.5e.3g.2 Explicit Exact-Target Entry
+
+`Backend::begin_augmented_source_with_target` accepts one integral target
+`F*` as a checked domain value. It creates the existing Appendix B.1
+augmentation, evaluates the certified strict initial snapshot against that same
+target, derives the `PotentialBudget` from that augmented snapshot and network,
+and starts a source driver with no arbitrary iteration cap. `ExactTargetDriver`
+retains the target and the immutable augmentation. Its `run` method recovers
+only through `recover_augmented_terminated` and rejects a recovered original
+cost that differs from the supplied target.
+
+`Circulation::run_source_with_exact_target` is the compressed-flow boundary.
+It creates that driver, runs it, and passes only `recovered.original` into
+`recover_certified`; it has no Oracle dependency and no alternate flow path.
+The `1 x 1` compressed fixture supplies the exact optimum `-1` and observes
+one factory call with the Appendix B.1 augmented network and the same target in
+the certified snapshot. Its factory then returns `NoSourceCandidate`, which is
+propagated as a source failure: this fixture verifies initialization and target
+preservation, not terminal source completion. The `2 x 2` fixture supplies a
+target equal to the augmentation's integral initial-flow cost. Strict
+initialization rejects it before the factory is called.
+
+This is not an incorrect-target decision procedure. In particular, the source
+does not establish whether an arbitrary failure means the supplied target is
+too low, too high, or unavailable for another reason. P9.5e.3g.3 therefore
+remains blocked, no binary-search wrapper exists, and
+`Backend::require_complete()` remains `Error::Incomplete`.
+
 ## Verification
+
+### P9.5e.3g.2 Full Audit
+
+Phase baseline: `059f3b68d33816a6a94aea4dd90cefb9bf1493d2`. The following
+commands exited `0` on 2026-07-31 after the target-entry tests were added.
+The complete workspace audit also passed with 385 tests passed and 3 existing
+ignored campaigns.
+
+| Command | Exit | Result |
+| --- | ---: | --- |
+| `cargo test -p dominance exact_target_entry -- --nocapture` | 0 | 2 exact-target compressed-entry tests passed |
+| `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 18 compressed-source tests passed, including the target-entry regressions |
+| `cargo test -p graph source_flow -- --nocapture` | 0 | 30 source-flow tests passed, including direct target-driver checks |
+| `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
+| `python3 tools/check_source_flow_audit.py` | 0 | audit requires both exact-target entry boundaries and found no fallback |
+| `git diff --check` | 0 | no whitespace errors |
+| `python3 tools/check_biclique_bound.py` | 0 | compact biclique bound accepted |
+| `python3 tools/check_source_min_ratio_audit.py` | 0 | finite tree-chain/core boundary has no Oracle fallback |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | 0 | no workspace warnings |
+| `cargo test --workspace` | 0 | 385 passed, 3 existing ignored across 13 suites |
+| `env RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | 0 | workspace documentation built with warnings denied |
+| `cargo build --workspace --release` | 0 | six workspace crates built in release mode |
+| `python3 tools/check_release_consistency.py` | 0 | release provenance accepted |
 
 ### P9.5e.3g.1 Full Audit
 
@@ -308,14 +361,12 @@ source-flow projections, candidates, selected state, and factory constructors
 use it. The existing ledger adapter remains for P8/P9.4 auditing; this change
 does not expose a hidden witness or claim its construction.
 
-The remaining P9.5e.3 boundary is public all-input construction of a strict
-initial source state for the declared compressed-MRD domain with a caller-
-provided exact integral target `F*`. The finite structural configuration is
-now derived from every exact input, and `kappa = 1/2` is a permitted semantic
-choice, but neither fact supplies the strict point or target. That work must
-be independently justified and cannot be filled by an Oracle or a synthetic
-witness. It is distinct from P9.4's missing general Theorem 5.1 dynamic
-construction and does not enable
+P9.5e.3g.2 completes the explicit-target boundary only: for a caller-supplied
+integral `F*` within the checked source domain, it constructs and validates the
+strict Appendix B.1 starting point, runs the budgeted source path, and verifies
+target-preserving recovery before compressed decoding. It neither discovers
+`F*` nor supplies the missing interpretation of failures for a wrong target.
+That source gap is P9.5e.3g.3, remains blocked, and does not enable
 `Backend::require_complete()`.
 
 `FixedProjectionFactory` is a fresh-projection reconstruction policy, not a
@@ -339,12 +390,11 @@ source-supported construction of that trace and it does not prove that any
 nonterminal compressed instance reaches additive-half termination.
 `DefinitionProjectionFactory` now supplies the missing current-snapshot
 coordinate construction for every snapshot in its checked fixed-point domain.
-P9.5e.3 still needs an explicit-target strict initial source state for every
-supported compressed input, together with an explicitly declared broader
-compressed-MRD input domain. Until that semantic and no-fallback campaign
-passes, `Backend::require_complete()` remains unavailable. CKLPPS22 p.24 and
-Algorithm 7 do not yet establish a decision invariant for an incorrect target;
-therefore no binary-search wrapper may infer or replace `F*`.
+P9.5e.3 still needs a source-backed target-search decision invariant and a
+broader public compressed-MRD acceptance campaign. CKLPPS22 p.24 and Algorithm
+7 do not yet establish a decision invariant for an incorrect target; therefore
+no binary-search wrapper may infer or replace `F*`, and
+`Backend::require_complete()` remains unavailable.
 
 `ReciprocalSlackProjectionFactory` remains a deliberately incomplete
 approximation policy with a 64-update nonterminal regression. Arbitrary-
