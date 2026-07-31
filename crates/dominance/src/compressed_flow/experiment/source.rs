@@ -7,8 +7,8 @@
 use std::collections::VecDeque;
 
 use graph::{
-    CirculationArcId, CirculationNetwork, FlowNodeId, MinCostCirculationError, MinCostSolution,
-    VertexCover,
+    CirculationArcId, CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId,
+    MinCostCirculationError, MinCostSolution, VertexCover,
     source_flow::{
         Backend, Error as SourceFlowError,
         iteration::{
@@ -52,6 +52,21 @@ pub struct Solution {
 /// One completed source-driver run and its recovered compressed certificate.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Run {
+    /// Exact additive-half completion and every accepted source transition.
+    pub completion: Completion,
+    /// Recovered matching and Konig cover for this compressed circulation.
+    pub solution: Solution,
+}
+
+/// One source run started from a caller-supplied exact optimum target.
+///
+/// The target remains observable at this boundary because it is a checked
+/// precondition of the Appendix B.1 initial point, not a result inferred from
+/// a reference solver or a target-search policy.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExactTargetRun {
+    /// The caller-supplied integral optimum target used by the source driver.
+    pub target_cost: i128,
     /// Exact additive-half completion and every accepted source transition.
     pub completion: Completion,
     /// Recovered matching and Konig cover for this compressed circulation.
@@ -299,6 +314,47 @@ impl Circulation {
         })
     }
 
+    /// Builds and runs the Appendix B.1 source path for one caller-supplied
+    /// exact integral target.
+    ///
+    /// This entry never queries an Oracle, derives a target from a lower bound,
+    /// or interprets a successful run as evidence about a different target. It
+    /// only recovers the original circulation after source-flow has checked
+    /// that terminal recovery returns this exact target.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the supplied target cannot certify a strict
+    /// augmented initial point, source iteration cannot terminate, exact target
+    /// recovery disagrees, or the recovered circulation cannot decode to a
+    /// matching and Konig cover.
+    pub fn run_source_with_exact_target<F: Factory>(
+        &self,
+        target_cost: i128,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+        kappa: ExactRatio,
+        factory: F,
+    ) -> Result<ExactTargetRun, Error> {
+        let mut driver = Backend
+            .begin_augmented_source_with_target(
+                &self.network,
+                target_cost,
+                maximum_abs_input,
+                fixed_point_config,
+                kappa,
+                factory,
+            )
+            .map_err(Error::SourceFlow)?;
+        let completed = driver.run().map_err(Error::SourceFlow)?;
+        let solution = self.recover_certified(&completed.recovered.original)?;
+        Ok(ExactTargetRun {
+            target_cost: completed.target_cost,
+            completion: completed.completion,
+            solution,
+        })
+    }
+
     fn flow(solution: &MinCostSolution, arc: CirculationArcId) -> Result<i128, Error> {
         solution
             .arc_flows
@@ -482,11 +538,13 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+    use std::{cell::Cell, rc::Rc};
+
     use graph::{
         BipartiteGraph, CertifiedIpmError, CertifiedIpmSnapshot, CirculationArcId,
         CirculationNetwork, ExactRatio, FixedPointConfig, FlowNodeId, FractionalCirculation,
         source_flow::{
-            Backend,
+            Backend, Error as SourceFlowError,
             iteration::{
                 self, DefinitionProjectionFactory, FixedProjectionFactory, PotentialBudget,
                 ReciprocalSlackProjectionFactory, ScheduledProjectionFactory,
@@ -1624,5 +1682,67 @@ mod tests {
         assert!(u64::try_from(run.completion.records.len()).unwrap() <= budget.maximum_updates());
         assert_eq!(run.solution.matching, vec![(0, 0)]);
         assert_eq!(run.solution.vertex_cover.size, 1);
+    }
+
+    #[test]
+    fn exact_target_entry_starts_the_augmented_source_path_for_a_supplied_optimum() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let expected_augmented = circulation
+            .network()
+            .initial_point_augmentation(2)
+            .unwrap()
+            .network;
+        let calls = Rc::new(Cell::new(0));
+        let observed_calls = Rc::clone(&calls);
+        let factory = move |snapshot: &CertifiedIpmSnapshot, active: &CirculationNetwork| {
+            observed_calls.set(observed_calls.get() + 1);
+            assert_eq!(active, &expected_augmented);
+            assert_eq!(snapshot.optimal_cost(), ExactRatio::new(-1, 1).unwrap());
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+
+        assert_eq!(
+            circulation.run_source_with_exact_target(
+                -1,
+                2,
+                FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+                ratio(1, 2),
+                factory,
+            ),
+            Err(Error::SourceFlow(SourceFlowError::Iteration(
+                iteration::Error::NoSourceCandidate
+            )))
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(Backend.require_complete(), Err(SourceFlowError::Incomplete));
+    }
+
+    #[test]
+    fn exact_target_entry_rejects_a_non_strict_initial_point_before_factory_execution() {
+        let circulation =
+            Circulation::from_partition(2, 2, &complete_two_by_two_partition()).unwrap();
+        let augmentation = circulation.network().initial_point_augmentation(3).unwrap();
+        assert!(augmentation.initial_flow.cost.is_integral());
+        let invalid_target = augmentation.initial_flow.cost.numerator_i128().unwrap();
+        let calls = Rc::new(Cell::new(0));
+        let observed_calls = Rc::clone(&calls);
+        let factory = move |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| {
+            observed_calls.set(observed_calls.get() + 1);
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+
+        assert_eq!(
+            circulation.run_source_with_exact_target(
+                invalid_target,
+                3,
+                FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+                ratio(1, 2),
+                factory,
+            ),
+            Err(Error::SourceFlow(SourceFlowError::Ipm(
+                CertifiedIpmError::InvalidSourceDomain
+            )))
+        );
+        assert_eq!(calls.get(), 0);
     }
 }

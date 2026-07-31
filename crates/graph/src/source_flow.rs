@@ -7,9 +7,10 @@
 use thiserror::Error;
 
 use crate::{
-    CertifiedIpmError, CertifiedIpmSnapshot, CertifiedLowerBoundInitialPoint, CirculationNetwork,
-    CostedFlowRoundingResult, InitialPointAugmentation, IpmTerminationCertificate,
-    MinCostCirculationError, MinCostSolution,
+    CertifiedIpmError, CertifiedIpmInitialPoint, CertifiedIpmSnapshot,
+    CertifiedLowerBoundInitialPoint, CirculationNetwork, CostedFlowRoundingResult, ExactRatio,
+    FixedPointConfig, InitialPointAugmentation, IpmTerminationCertificate, MinCostCirculationError,
+    MinCostSolution,
 };
 
 pub mod coordinates;
@@ -176,6 +177,122 @@ impl Backend {
             maximum_iterations,
         ))
     }
+
+    /// Constructs the Appendix B.1 initial point for one caller-supplied
+    /// exact integral target and starts its source-selected driver.
+    ///
+    /// The target is a checked input, not an optimum query: this boundary does
+    /// not infer it from a reference solver, a lower bound, or a terminating
+    /// run. An incorrect target may fail initial certification, source
+    /// iteration, or terminal recovery explicitly. In particular, this does
+    /// not establish the decision contract needed for binary search.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when Appendix B.1 cannot construct a strict certified
+    /// initial point for the supplied target, the potential budget cannot be
+    /// certified, or the source driver cannot initialize its Detect ledger.
+    pub fn begin_augmented_source_with_target<F: iteration::Factory>(
+        self,
+        network: &CirculationNetwork,
+        target_cost: i128,
+        maximum_abs_input: i128,
+        fixed_point_config: FixedPointConfig,
+        kappa: ExactRatio,
+        factory: F,
+    ) -> Result<ExactTargetDriver<F>, Error> {
+        let target = ExactRatio::new(target_cost, 1).map_err(|_| Error::InvalidTarget)?;
+        let initial = CertifiedIpmSnapshot::initial_point_augmented(
+            network,
+            target,
+            maximum_abs_input,
+            fixed_point_config,
+        )
+        .map_err(Error::Ipm)?;
+        let budget = iteration::PotentialBudget::new(
+            &initial.snapshot,
+            &initial.augmentation.network,
+            kappa,
+        )
+        .map_err(Error::Iteration)?;
+        let driver = self.begin_source_iterations(initial.snapshot.clone(), factory, 0)?;
+        Ok(ExactTargetDriver {
+            target_cost,
+            initial,
+            budget,
+            driver,
+        })
+    }
+}
+
+/// A source driver bound to one Appendix B.1 initial point and exact target.
+///
+/// The driver owns no target-search policy. It can use only the augmented
+/// network and snapshot certified at construction time.
+#[derive(Debug)]
+pub struct ExactTargetDriver<F> {
+    target_cost: i128,
+    initial: CertifiedIpmInitialPoint,
+    budget: iteration::PotentialBudget,
+    driver: iteration::Driver<F>,
+}
+
+impl<F> ExactTargetDriver<F> {
+    /// Returns the caller-supplied exact integral target.
+    #[must_use]
+    pub const fn target_cost(&self) -> i128 {
+        self.target_cost
+    }
+
+    /// Returns the immutable certified initial-point augmentation.
+    #[must_use]
+    pub const fn initial(&self) -> &CertifiedIpmInitialPoint {
+        &self.initial
+    }
+
+    /// Returns the conditional source-progress budget for this exact initial state.
+    #[must_use]
+    pub const fn budget(&self) -> &iteration::PotentialBudget {
+        &self.budget
+    }
+
+    /// Returns the source-selected driver bound to the augmented network.
+    #[must_use]
+    pub const fn driver(&self) -> &iteration::Driver<F> {
+        &self.driver
+    }
+}
+
+impl<F: iteration::Factory> ExactTargetDriver<F> {
+    /// Runs the exact-target source driver to additive-half termination and
+    /// recovers the original circulation through its initial augmentation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a source projection fails, the budget does not
+    /// reach termination, recovery fails, or the recovered original cost does
+    /// not equal the caller-supplied target.
+    pub fn run(&mut self) -> Result<ExactTargetRun, Error> {
+        let completion = self
+            .driver
+            .run_with_potential_budget(&self.initial.augmentation.network, &self.budget)
+            .map_err(Error::Iteration)?;
+        let recovered = Backend.recover_augmented_terminated(
+            self.driver.session().snapshot(),
+            &self.initial.augmentation,
+        )?;
+        if recovered.original.cost != self.target_cost {
+            return Err(Error::TargetRecoveryMismatch {
+                target: self.target_cost,
+                actual: recovered.original.cost,
+            });
+        }
+        Ok(ExactTargetRun {
+            target_cost: self.target_cost,
+            completion,
+            recovered,
+        })
+    }
 }
 
 /// An exact integral recovery paired with its terminal certificate.
@@ -198,6 +315,14 @@ pub struct RecoveredLowerBoundFlow {
     pub terminal: RecoveredFlow,
     pub normalized: MinCostSolution,
     pub original: MinCostSolution,
+}
+
+/// One completed source run bound to a caller-provided exact target.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExactTargetRun {
+    pub target_cost: i128,
+    pub completion: iteration::Completion,
+    pub recovered: RecoveredAugmentedFlow,
 }
 
 /// The source-shaped backend is not complete enough to execute.
@@ -227,6 +352,12 @@ pub enum Error {
     /// A supplied certified iteration step failed validation.
     #[error("source-shaped iteration failed: {0}")]
     Iteration(#[source] iteration::Error),
+    /// The supplied integer target cannot be represented as an exact ratio.
+    #[error("caller-supplied exact target is invalid")]
+    InvalidTarget,
+    /// Terminal recovery disagreed with the caller-supplied exact target.
+    #[error("recovered original cost {actual} differs from supplied target {target}")]
+    TargetRecoveryMismatch { target: i128, actual: i128 },
 }
 
 #[cfg(test)]
@@ -271,6 +402,71 @@ mod tests {
         let completion = driver.run(&network).unwrap();
         assert!(completion.records.is_empty());
         assert_eq!(Backend.require_complete(), Err(Error::Incomplete));
+    }
+
+    fn exact_target_network() -> CirculationNetwork {
+        let mut network = CirculationNetwork::new(2);
+        network.set_demand(FlowNodeId(0), -1).unwrap();
+        network.set_demand(FlowNodeId(1), 1).unwrap();
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        network
+    }
+
+    #[test]
+    fn binds_an_augmented_source_driver_to_a_caller_supplied_exact_target() {
+        let network = exact_target_network();
+        let expected_augmented = network.initial_point_augmentation(2).unwrap().network;
+        let factory = move |snapshot: &CertifiedIpmSnapshot, active: &CirculationNetwork| {
+            assert_eq!(active, &expected_augmented);
+            assert_eq!(snapshot.optimal_cost(), ExactRatio::new(1, 1).unwrap());
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+        let mut driver = Backend
+            .begin_augmented_source_with_target(
+                &network,
+                1,
+                2,
+                FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+                ExactRatio::new(1, 2).unwrap(),
+                factory,
+            )
+            .unwrap();
+
+        assert_eq!(driver.target_cost(), 1);
+        assert_eq!(
+            driver.initial().snapshot.optimal_cost(),
+            ExactRatio::new(1, 1).unwrap()
+        );
+        assert!(driver.budget().maximum_updates() > 0);
+        assert_eq!(
+            driver.run(),
+            Err(Error::Iteration(iteration::Error::NoSourceCandidate))
+        );
+        assert_eq!(Backend.require_complete(), Err(Error::Incomplete));
+    }
+
+    #[test]
+    fn rejects_a_target_that_does_not_leave_the_augmented_initial_point_strict() {
+        let network = exact_target_network();
+        let augmentation = network.initial_point_augmentation(2).unwrap();
+        assert!(augmentation.initial_flow.cost.is_integral());
+        let invalid_target = augmentation.initial_flow.cost.numerator_i128().unwrap();
+        let factory = |_: &CertifiedIpmSnapshot, _: &CirculationNetwork| {
+            Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
+        };
+
+        assert!(matches!(
+            Backend.begin_augmented_source_with_target(
+                &network,
+                invalid_target,
+                2,
+                FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
+                ExactRatio::new(1, 2).unwrap(),
+                factory,
+            ),
+            Err(Error::Ipm(CertifiedIpmError::InvalidSourceDomain))
+        ));
     }
 
     #[test]
