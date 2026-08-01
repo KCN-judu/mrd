@@ -1496,13 +1496,20 @@ It is split into the following completed substeps:
           returns `TargetNotMet` for target `-1`. This
           performs no Oracle call or target inference.
        3. **P9.5e.3g.3 - Target-search contract. State: blocked.**
-          CKLPPS22 p.24 states that knowing `F*` can be removed by binary
-          search, and Algorithm 7 takes a `guess of the optimal flow F*`; the
-          extracted source does not yet provide a verified decision invariant
-          for an incorrect guess. Do not substitute a lower bound for `F*`,
-          infer it from a terminating target run, or claim public all-input
-          completeness. Recover and record that invariant before implementing
-          a binary-search wrapper.
+          Direct source audit of arXiv:2203.00671v2 (Section 4, Equation (9),
+          Theorem 4.3, Lemma 4.4, Lemma 4.12, Algorithm 7, Appendix B.1/C)
+          confirms that the sole binary-search claim ("we assume that we know
+          `F*`, as running our algorithm allows us to binary search for `F*`",
+          Section 4, p. 24) is a remark with no decision invariant, no
+          certificate for `F_opt > T`, and no analysis of an incorrect guess.
+          The paper does not maintain dual variables, so no negative
+          `epsilon`-optimality certificate is available from the IPM path.
+          Consequently a failed target run must remain unclassified
+          (`UnsupportedOrUndetermined`), a successful run proves only
+          `F_opt <= T`, and no binary-search wrapper may be implemented.
+          Do not substitute a lower bound for `F*`, infer it from a terminating
+          target run, or claim public all-input completeness. Evidence:
+          `docs/phase-reports/P09-5e-3g-3-target-search-contract.md`.
        Until all three rows have source-backed acceptance evidence,
        `Backend::require_complete()` remains `Error::Incomplete`, P9.5e.3
        remains in progress, and P9.3.2d remains separate deferred proof debt.
@@ -1856,5 +1863,5 @@ and AN19 runtime claims.
 | P9.5e.3g | in_progress | 0701822 | 6be878a, 2802323, pending closeout | pending | pending | derived finite source configuration, inclusive-target initialization, and source-backed target-search contract | 2026-07-31T04:06:37Z | pending | g.1 and g.2 are complete; no lower-bound substitution for `F*`; `Backend::require_complete()` remains unavailable until the source binary-search decision invariant is recovered and verified |
 | P9.5e.3g.1 | complete | 0701822 | 6be878a | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | pure exact `Input -> Parameters` derivation of root, minimal dyadic bound, and finite canonical-tree policy; all factories derive per projection | 2026-07-31T04:06:37Z | 2026-07-31T04:30:19Z | no initial strict point, inclusive-target entry, complete-backend gate, or runtime claim |
 | P9.5e.3g.2 | complete | 059f3b6 | 2802323, pending closeout | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | Appendix B.1 inclusive-target driver and compressed-flow adapter with checked at-most-target recovery; graph regression accepts cost below target and rejects `TargetNotMet` | 2026-07-31T04:30:19Z | 2026-08-01T00:00:00Z | no target inference, wrong-target decision contract, complete-backend gate, or runtime claim |
-| P9.5e.3g.3 | blocked | pending | pending | pending | pending | recovered source decision invariant for incorrect target guesses | pending source evidence | pending | CKLPPS22 p.24/Algorithm 7 do not yet provide a verified decision invariant; binary search is forbidden |
+| P9.5e.3g.3 | blocked | 059f3b6 | pending | pending | pending | `docs/phase-reports/P09-5e-3g-3-target-search-contract.md` | direct source audit: no decision invariant for an incorrect target guess; binary search is forbidden; failures remain unclassified | 2026-07-31T04:30:19Z | pending | arXiv:2203.00671v2 Section 4 p.24 binary-search remark is not a theorem; no dual variables; no negative certificate; `Backend::require_complete()` remains `Error::Incomplete` |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |

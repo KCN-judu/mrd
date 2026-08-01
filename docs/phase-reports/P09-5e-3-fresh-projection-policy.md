@@ -9,9 +9,11 @@ Definition 4.2 coordinates in the checked fixed-point domain. P9.5e.3f state:
 complete for execution-state decoupling from hidden-stability auditing.
 P9.5e.3g.1 state: complete for derived finite source configuration.
 P9.5e.3g.2 state: complete for the caller-supplied inclusive-target initial-point
-entry. P9.5e.3 state: in progress.** Implementation commits: `45849b1`,
-`c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`, `2802323`, and the
-uncommitted inclusive-target recovery refinement.
+entry. P9.5e.3g.3 state: blocked with source-audit evidence in
+`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`. P9.5e.3 state:
+in progress.** Implementation commits: `45849b1`,
+`c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`, `2802323`, `1c58cee`,
+and `ae1352a`.
 
 This report records the completed P9.5e.3b terminating-range evidence and the
 completed P9.5e.3c isolated-lattice output differential, together with the
@@ -374,7 +376,9 @@ at-most-target-preserving recovery before compressed decoding. A completed run
 may recover an original integral cost at most the target; it does not require
 equality. It neither discovers `F*` nor supplies the missing interpretation of
 failures for a wrong target. That source gap is P9.5e.3g.3, remains blocked,
-and does not enable `Backend::require_complete()`.
+and does not enable `Backend::require_complete()`. The blocked status is
+supported by a direct source audit of arXiv:2203.00671v2 recorded in
+`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`.
 
 `FixedProjectionFactory` is a fresh-projection reconstruction policy, not a
 general dynamic coordinate-maintenance or termination policy. It supports only
