@@ -58,15 +58,15 @@ pub struct Run {
     pub solution: Solution,
 }
 
-/// One source run started from a caller-supplied exact optimum target.
+/// One source run started from a caller-supplied inclusive cost target.
 ///
 /// The target remains observable at this boundary because it is a checked
-/// precondition of the Appendix B.1 initial point, not a result inferred from
-/// a reference solver or a target-search policy.
+/// precondition of the Appendix B.1 initial point. A successful run recovers a
+/// cost at most this target; it is not a target-search policy.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExactTargetRun {
-    /// The caller-supplied integral optimum target used by the source driver.
-    pub target_cost: i128,
+pub struct TargetRun {
+    /// The caller-supplied inclusive integral target used by the source driver.
+    pub target: i128,
     /// Exact additive-half completion and every accepted source transition.
     pub completion: Completion,
     /// Recovered matching and Konig cover for this compressed circulation.
@@ -315,31 +315,31 @@ impl Circulation {
     }
 
     /// Builds and runs the Appendix B.1 source path for one caller-supplied
-    /// exact integral target.
+    /// inclusive integral target.
     ///
     /// This entry never queries an Oracle, derives a target from a lower bound,
-    /// or interprets a successful run as evidence about a different target. It
+    /// or interprets a source failure as evidence about a different target. It
     /// only recovers the original circulation after source-flow has checked
-    /// that terminal recovery returns this exact target.
+    /// that terminal recovery returns a cost at most this target.
     ///
     /// # Errors
     ///
     /// Returns an error when the supplied target cannot certify a strict
-    /// augmented initial point, source iteration cannot terminate, exact target
-    /// recovery disagrees, or the recovered circulation cannot decode to a
+    /// augmented initial point, source iteration cannot terminate, terminal
+    /// recovery exceeds the target, or the recovered circulation cannot decode to a
     /// matching and Konig cover.
-    pub fn run_source_with_exact_target<F: Factory>(
+    pub fn run_with_target<F: Factory>(
         &self,
-        target_cost: i128,
+        target: i128,
         maximum_abs_input: i128,
         fixed_point_config: FixedPointConfig,
         kappa: ExactRatio,
         factory: F,
-    ) -> Result<ExactTargetRun, Error> {
+    ) -> Result<TargetRun, Error> {
         let mut driver = Backend
-            .begin_augmented_source_with_target(
+            .begin_with_target(
                 &self.network,
-                target_cost,
+                target,
                 maximum_abs_input,
                 fixed_point_config,
                 kappa,
@@ -348,8 +348,8 @@ impl Circulation {
             .map_err(Error::SourceFlow)?;
         let completed = driver.run().map_err(Error::SourceFlow)?;
         let solution = self.recover_certified(&completed.recovered.original)?;
-        Ok(ExactTargetRun {
-            target_cost: completed.target_cost,
+        Ok(TargetRun {
+            target: completed.target,
             completion: completed.completion,
             solution,
         })
@@ -1685,7 +1685,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_target_entry_starts_the_augmented_source_path_for_a_supplied_optimum() {
+    fn target_entry_starts_the_augmented_source_path_for_a_supplied_optimum() {
         let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
         let expected_augmented = circulation
             .network()
@@ -1702,7 +1702,7 @@ mod tests {
         };
 
         assert_eq!(
-            circulation.run_source_with_exact_target(
+            circulation.run_with_target(
                 -1,
                 2,
                 FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),
@@ -1718,7 +1718,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_target_entry_rejects_a_non_strict_initial_point_before_factory_execution() {
+    fn target_entry_rejects_a_non_strict_initial_point_before_factory_execution() {
         let circulation =
             Circulation::from_partition(2, 2, &complete_two_by_two_partition()).unwrap();
         let augmentation = circulation.network().initial_point_augmentation(3).unwrap();
@@ -1732,7 +1732,7 @@ mod tests {
         };
 
         assert_eq!(
-            circulation.run_source_with_exact_target(
+            circulation.run_with_target(
                 invalid_target,
                 3,
                 FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap(),

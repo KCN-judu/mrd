@@ -78,14 +78,49 @@ impl Backend {
         snapshot: &CertifiedIpmSnapshot,
         network: &CirculationNetwork,
     ) -> Result<RecoveredFlow, Error> {
-        let termination = self.certify_termination(snapshot, network)?;
-        let rounding = recovery::round(network, snapshot.flow()).map_err(Error::Recovery)?;
+        let (termination, rounding) = self.recover_terminal_rounding(snapshot, network)?;
         let optimal = snapshot.optimal_cost();
         if !optimal.is_integral() || optimal.numerator_i128().ok() != Some(rounding.solution.cost) {
             return Err(Error::RecoveryNotOptimal);
         }
         // The additive-half certificate and exact cost equality above establish
         // optimality; recovery only needs a no-Oracle feasibility check.
+        network.verify_feasible_solution(&rounding.solution)?;
+        Ok(RecoveredFlow {
+            termination,
+            rounding,
+        })
+    }
+
+    /// Recovers a feasible integral flow certified to meet an inclusive target.
+    ///
+    /// This is the positive side of CKLPPS22's target-decision contract: a
+    /// completed run may return a flow whose original integral cost is at most
+    /// the supplied target. It deliberately does not classify a failed run as
+    /// evidence that no such flow exists.
+    ///
+    /// Unlike [`Self::recover_terminated`], the snapshot's retained objective
+    /// may be an upper target rather than the recovered flow's exact optimum.
+    /// The strict recovery method remains available for paths that know the
+    /// exact optimum.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when termination or recovery fails, or the integral
+    /// rounded cost exceeds `target`.
+    pub fn recover_terminated_at_most(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+        target: i128,
+    ) -> Result<RecoveredFlow, Error> {
+        let (termination, rounding) = self.recover_terminal_rounding(snapshot, network)?;
+        if rounding.solution.cost > target {
+            return Err(Error::TargetNotMet {
+                target,
+                actual: rounding.solution.cost,
+            });
+        }
         network.verify_feasible_solution(&rounding.solution)?;
         Ok(RecoveredFlow {
             termination,
@@ -109,6 +144,32 @@ impl Backend {
         let original = augmentation
             .recover_original_feasible(&terminal.rounding.solution)
             .map_err(Error::Augmentation)?;
+        Ok(RecoveredAugmentedFlow { terminal, original })
+    }
+
+    /// Recovers an augmented terminal flow that satisfies an inclusive original
+    /// cost target without asserting that the target is the exact optimum.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when terminal recovery fails, an artificial arc carries
+    /// flow, or the recovered original cost exceeds `target`.
+    pub fn recover_augmented_terminated_at_most(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        augmentation: &InitialPointAugmentation,
+        target: i128,
+    ) -> Result<RecoveredAugmentedFlow, Error> {
+        let terminal = self.recover_terminated_at_most(snapshot, &augmentation.network, target)?;
+        let original = augmentation
+            .recover_original_feasible(&terminal.rounding.solution)
+            .map_err(Error::Augmentation)?;
+        if original.cost > target {
+            return Err(Error::TargetNotMet {
+                target,
+                actual: original.cost,
+            });
+        }
         Ok(RecoveredAugmentedFlow { terminal, original })
     }
 
@@ -179,32 +240,33 @@ impl Backend {
     }
 
     /// Constructs the Appendix B.1 initial point for one caller-supplied
-    /// exact integral target and starts its source-selected driver.
+    /// integral target and starts its source-selected driver.
     ///
     /// The target is a checked input, not an optimum query: this boundary does
     /// not infer it from a reference solver, a lower bound, or a terminating
-    /// run. An incorrect target may fail initial certification, source
-    /// iteration, or terminal recovery explicitly. In particular, this does
-    /// not establish the decision contract needed for binary search.
+    /// run. A completed run may return an integral original flow with cost at
+    /// most this target. An incorrect target may otherwise fail initial
+    /// certification, source iteration, or terminal recovery explicitly; those
+    /// failures do not classify a target for binary search.
     ///
     /// # Errors
     ///
     /// Returns an error when Appendix B.1 cannot construct a strict certified
     /// initial point for the supplied target, the potential budget cannot be
     /// certified, or the source driver cannot initialize its Detect ledger.
-    pub fn begin_augmented_source_with_target<F: iteration::Factory>(
+    pub fn begin_with_target<F: iteration::Factory>(
         self,
         network: &CirculationNetwork,
-        target_cost: i128,
+        target: i128,
         maximum_abs_input: i128,
         fixed_point_config: FixedPointConfig,
         kappa: ExactRatio,
         factory: F,
-    ) -> Result<ExactTargetDriver<F>, Error> {
-        let target = ExactRatio::new(target_cost, 1).map_err(|_| Error::InvalidTarget)?;
+    ) -> Result<TargetDriver<F>, Error> {
+        let exact_target = ExactRatio::new(target, 1).map_err(|_| Error::InvalidTarget)?;
         let initial = CertifiedIpmSnapshot::initial_point_augmented(
             network,
-            target,
+            exact_target,
             maximum_abs_input,
             fixed_point_config,
         )
@@ -216,32 +278,42 @@ impl Backend {
         )
         .map_err(Error::Iteration)?;
         let driver = self.begin_source_iterations(initial.snapshot.clone(), factory, 0)?;
-        Ok(ExactTargetDriver {
-            target_cost,
+        Ok(TargetDriver {
+            target,
             initial,
             budget,
             driver,
         })
     }
+
+    fn recover_terminal_rounding(
+        self,
+        snapshot: &CertifiedIpmSnapshot,
+        network: &CirculationNetwork,
+    ) -> Result<(IpmTerminationCertificate, CostedFlowRoundingResult), Error> {
+        let termination = self.certify_termination(snapshot, network)?;
+        let rounding = recovery::round(network, snapshot.flow()).map_err(Error::Recovery)?;
+        Ok((termination, rounding))
+    }
 }
 
-/// A source driver bound to one Appendix B.1 initial point and exact target.
+/// A source driver bound to one Appendix B.1 initial point and integral target.
 ///
 /// The driver owns no target-search policy. It can use only the augmented
 /// network and snapshot certified at construction time.
 #[derive(Debug)]
-pub struct ExactTargetDriver<F> {
-    target_cost: i128,
+pub struct TargetDriver<F> {
+    target: i128,
     initial: CertifiedIpmInitialPoint,
     budget: iteration::PotentialBudget,
     driver: iteration::Driver<F>,
 }
 
-impl<F> ExactTargetDriver<F> {
-    /// Returns the caller-supplied exact integral target.
+impl<F> TargetDriver<F> {
+    /// Returns the caller-supplied inclusive integral target.
     #[must_use]
-    pub const fn target_cost(&self) -> i128 {
-        self.target_cost
+    pub const fn target(&self) -> i128 {
+        self.target
     }
 
     /// Returns the immutable certified initial-point augmentation.
@@ -263,32 +335,27 @@ impl<F> ExactTargetDriver<F> {
     }
 }
 
-impl<F: iteration::Factory> ExactTargetDriver<F> {
-    /// Runs the exact-target source driver to additive-half termination and
+impl<F: iteration::Factory> TargetDriver<F> {
+    /// Runs the target-bound source driver to additive-half termination and
     /// recovers the original circulation through its initial augmentation.
     ///
     /// # Errors
     ///
     /// Returns an error when a source projection fails, the budget does not
-    /// reach termination, recovery fails, or the recovered original cost does
-    /// not equal the caller-supplied target.
-    pub fn run(&mut self) -> Result<ExactTargetRun, Error> {
+    /// reach termination, recovery fails, or the recovered original cost
+    /// exceeds the caller-supplied target.
+    pub fn run(&mut self) -> Result<TargetRun, Error> {
         let completion = self
             .driver
             .run_with_potential_budget(&self.initial.augmentation.network, &self.budget)
             .map_err(Error::Iteration)?;
-        let recovered = Backend.recover_augmented_terminated(
+        let recovered = Backend.recover_augmented_terminated_at_most(
             self.driver.session().snapshot(),
             &self.initial.augmentation,
+            self.target,
         )?;
-        if recovered.original.cost != self.target_cost {
-            return Err(Error::TargetRecoveryMismatch {
-                target: self.target_cost,
-                actual: recovered.original.cost,
-            });
-        }
-        Ok(ExactTargetRun {
-            target_cost: self.target_cost,
+        Ok(TargetRun {
+            target: self.target,
             completion,
             recovered,
         })
@@ -317,10 +384,10 @@ pub struct RecoveredLowerBoundFlow {
     pub original: MinCostSolution,
 }
 
-/// One completed source run bound to a caller-provided exact target.
+/// One completed source run bound to a caller-provided integral target.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExactTargetRun {
-    pub target_cost: i128,
+pub struct TargetRun {
+    pub target: i128,
     pub completion: iteration::Completion,
     pub recovered: RecoveredAugmentedFlow,
 }
@@ -355,9 +422,9 @@ pub enum Error {
     /// The supplied integer target cannot be represented as an exact ratio.
     #[error("caller-supplied exact target is invalid")]
     InvalidTarget,
-    /// Terminal recovery disagreed with the caller-supplied exact target.
-    #[error("recovered original cost {actual} differs from supplied target {target}")]
-    TargetRecoveryMismatch { target: i128, actual: i128 },
+    /// Terminal recovery did not meet the caller-supplied inclusive target.
+    #[error("recovered original cost {actual} exceeds supplied target {target}")]
+    TargetNotMet { target: i128, actual: i128 },
 }
 
 #[cfg(test)]
@@ -414,7 +481,7 @@ mod tests {
     }
 
     #[test]
-    fn binds_an_augmented_source_driver_to_a_caller_supplied_exact_target() {
+    fn binds_an_augmented_source_driver_to_a_caller_supplied_target() {
         let network = exact_target_network();
         let expected_augmented = network.initial_point_augmentation(2).unwrap().network;
         let factory = move |snapshot: &CertifiedIpmSnapshot, active: &CirculationNetwork| {
@@ -423,7 +490,7 @@ mod tests {
             Err::<iteration::Projection, iteration::Error>(iteration::Error::NoSourceCandidate)
         };
         let mut driver = Backend
-            .begin_augmented_source_with_target(
+            .begin_with_target(
                 &network,
                 1,
                 2,
@@ -433,7 +500,7 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(driver.target_cost(), 1);
+        assert_eq!(driver.target(), 1);
         assert_eq!(
             driver.initial().snapshot.optimal_cost(),
             ExactRatio::new(1, 1).unwrap()
@@ -457,7 +524,7 @@ mod tests {
         };
 
         assert!(matches!(
-            Backend.begin_augmented_source_with_target(
+            Backend.begin_with_target(
                 &network,
                 invalid_target,
                 2,
@@ -557,6 +624,44 @@ mod tests {
             .unwrap();
         assert_eq!(recovered.original.arc_flows, vec![0, 0]);
         assert_eq!(recovered.original.cost, 0);
+    }
+
+    #[test]
+    fn target_recovery_accepts_an_original_cost_below_the_target() {
+        let mut network = CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let config = FixedPointConfig::source_bounded(1 << 20, 96, 48, 3).unwrap();
+        let augmentation = network.initial_point_augmentation(4).unwrap();
+        let quarter = ExactRatio::new(1, 4).unwrap();
+        let snapshot = CertifiedIpmSnapshot::evaluate(
+            &augmentation.network,
+            &FractionalCirculation {
+                arc_flows: vec![quarter.clone(); 2],
+                cost: quarter,
+            },
+            ExactRatio::new(0, 1).unwrap(),
+            augmentation.maximum_abs_input,
+            config,
+        )
+        .unwrap();
+
+        let strict = Backend
+            .recover_augmented_terminated(&snapshot, &augmentation)
+            .unwrap();
+        assert_eq!(strict.original.cost, 0);
+        let recovered = Backend
+            .recover_augmented_terminated_at_most(&snapshot, &augmentation, 1)
+            .unwrap();
+        assert_eq!(recovered.original.cost, 0);
+        assert_eq!(
+            Backend.recover_augmented_terminated_at_most(&snapshot, &augmentation, -1),
+            Err(Error::TargetNotMet {
+                target: -1,
+                actual: 0
+            })
+        );
+        assert_eq!(Backend.require_complete(), Err(Error::Incomplete));
     }
 
     #[test]
