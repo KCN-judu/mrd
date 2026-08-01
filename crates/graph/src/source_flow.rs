@@ -13,6 +13,7 @@ use crate::{
     MinCostSolution,
 };
 
+pub mod certificate;
 pub mod coordinates;
 pub mod iteration;
 pub mod recovery;
@@ -295,6 +296,44 @@ impl Backend {
         let rounding = recovery::round(network, snapshot.flow()).map_err(Error::Recovery)?;
         Ok((termination, rounding))
     }
+
+    /// Verifies a caller-supplied dual certificate proving `F_opt > target`.
+    ///
+    /// This is the exact negative side of the inclusive-target contract: a
+    /// feasible dual solution whose objective value strictly exceeds `target`
+    /// certifies that no feasible integral flow has cost at most `target`. The
+    /// certificate is supplied and verified exactly; no reference solver
+    /// constructs or selects it. This deliberately does not classify a failed
+    /// or absent certificate as infeasibility, so it does not by itself enable
+    /// a target-search wrapper.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the certificate is not exactly feasible, or when
+    /// its verified dual objective does not strictly exceed `target`.
+    pub fn prove_infeasible_below(
+        self,
+        network: &CirculationNetwork,
+        target: i128,
+        dual: &certificate::DualLowerBoundCertificate,
+    ) -> Result<certificate::InfeasibilityProof, Error> {
+        let dual_objective = dual.verify(network).map_err(Error::Certificate)?;
+        let target_ratio = ExactRatio::new(target, 1).map_err(|_| Error::InvalidTarget)?;
+        if target_ratio
+            .at_least(&dual_objective)
+            .map_err(certificate::Error::from)
+            .map_err(Error::Certificate)?
+        {
+            return Err(Error::CertificateInsufficient {
+                target,
+                dual_objective,
+            });
+        }
+        Ok(certificate::InfeasibilityProof {
+            target,
+            dual_objective,
+        })
+    }
 }
 
 /// A source driver bound to one Appendix B.1 initial point and integral target.
@@ -425,6 +464,15 @@ pub enum Error {
     /// Terminal recovery did not meet the caller-supplied inclusive target.
     #[error("recovered original cost {actual} exceeds supplied target {target}")]
     TargetNotMet { target: i128, actual: i128 },
+    /// A supplied negative-decision certificate could not be verified.
+    #[error("negative-decision certificate verification failed: {0}")]
+    Certificate(#[source] certificate::Error),
+    /// The verified dual certificate does not prove a strict lower bound.
+    #[error("verified dual certificate objective does not strictly exceed target {target}")]
+    CertificateInsufficient {
+        target: i128,
+        dual_objective: ExactRatio,
+    },
 }
 
 #[cfg(test)]
