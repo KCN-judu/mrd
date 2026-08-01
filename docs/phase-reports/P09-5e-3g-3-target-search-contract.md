@@ -2,9 +2,11 @@
 
 ## Status
 
-**State: blocked with direct source audit evidence.** No automatic `F*`
-solver is implemented. `Backend::require_complete()` remains `Error::Incomplete`,
-P9.5e.3 and P9.5 remain in progress, and no AN19 runtime claim is made.
+**State: blocked for automatic `F*` search with direct source audit evidence,
+but with exact negative-certificate *types* implemented and verifiable.** No
+automatic binary-search wrapper is implemented. `Backend::require_complete()`
+remains `Error::Incomplete`, P9.5e.3 and P9.5 remain in progress, and no AN19
+runtime claim is made.
 
 ## Primary goal
 
@@ -270,14 +272,27 @@ Without a certified negative direction, any search that treated a failed run as
 - A completed run at `T` proves `F_opt <= T` (one-sided positive certificate).
 - A failed run returns an explicit error; it is not classified as
   "target too low".
+- **Negative-certificate verifiers (new):** a caller may *prove* `F_opt > T`
+  by supplying an exactly verified certificate. No reference solver constructs
+  or selects it, and a missing or failed certificate is never an infeasibility
+  decision:
+  - `source_flow::certificate::DualLowerBoundCertificate` (vertex potentials
+    `y` and slacks `s-`, `s+`) with `Backend::prove_infeasible_below`, which
+    verifies exact dual feasibility and requires the dual objective to be
+    strictly greater than `T`.
+  - `Circulation::certify_cover_below` for the compressed MRD, which verifies a
+    caller-supplied vertex cover and requires `cover_size < -T`; by Konig's
+    theorem this certifies `max_matching < -T`, hence `F_opt > T`.
 
 ## Remaining theorem needed
 
 A theorem that, for any incorrect guess `T`, either produces a certified dual /
 `epsilon`-optimality witness proving `F_opt > T`, or certifies that the failure
 is an implementation/domain failure, is required before any binary-search
-wrapper may be implemented. No such theorem is present in the cited source, and
-one must not be fabricated from generic optimization folklore.
+wrapper may be implemented. The certificate *types* above let a caller verify a
+supplied negative certificate exactly, but they do not automatically *find*
+one; automatic search remains blocked because the source does not construct the
+certificate.
 
 ## Code audit
 
@@ -291,9 +306,13 @@ one must not be fabricated from generic optimization folklore.
   inclusive-target path.
 - `tools/check_source_flow_audit.py` now additionally requires the
   negative-unclassified contract wording in both the root and compressed
-  modules and the inclusive-target wording of `InvalidTarget`.
-- No binary-search, infeasibility-certificate, or dual-potential code exists in
-  production.
+  modules, the inclusive-target wording of `InvalidTarget`, and the new
+  certificate verifiers (`prove_infeasible_below`, `certify_cover_below`,
+  `DualLowerBoundCertificate`, `InfeasibilityProof`, `CoverBelowProof`).
+- The negative-certificate verifiers perform only exact feasibility/objective
+  arithmetic over immutable network and partition data; the static audit's
+  forbidden list rejects any reference-flow or Oracle dependency in them.
+- No automatic binary-search or target-inference code exists in production.
 
 ## Tests
 
@@ -319,8 +338,35 @@ covered by:
   (compressed `2 x 2`): a target equal to the integral initial-flow cost
   rejects before factory execution.
 
-No test claims `T < F_opt` returns certified infeasible, because no such
-certificate exists. No binary-search or negative-decision test is added.
+The negative-certificate verifiers are covered by `source_flow::certificate`
+tests (graph) and `cover_certificate_*` tests (compressed):
+
+- `dual_certificate_certifies_a_strict_lower_bound_on_the_optimum` (graph):
+  `prove_infeasible_below` returns a proof for `T = -1` on a zero-flow optimum.
+- `dual_certificate_rejects_a_target_that_is_not_exceeded` (graph): a dual
+  objective equal to `T` is rejected as `CertificateInsufficient`.
+- `dual_certificate_rejects_an_infeasible_slack_assignment` and
+  `dual_certificate_rejects_negative_slack` (graph): exact per-arc dual
+  feasibility and nonnegativity are enforced.
+- `dual_certificate_uses_demands_in_the_objective` (graph): demands contribute
+  to the dual objective, and an infeasible reference circulation is rejected.
+- `dual_certificate_dimension_mismatch_rejects` and
+  `from_potentials_never_constructs_an_infeasible_certificate` (graph):
+  dimension checks and the constructive `from_potentials` invariant.
+- `cover_certificate_proves_optimum_above_a_supplied_target` (compressed):
+  a size-`1` cover certifies `F_opt > -2` on the `1 x 1` fixture.
+- `cover_certificate_rejects_a_target_that_is_not_exceeded` (compressed):
+  a cover matching `-T` is rejected as `CoverCertificateInsufficient`.
+- `cover_certificate_rejects_a_cover_that_omits_a_conflict_edge` (compressed):
+  an uncovered compressed biclique edge rejects.
+- `cover_certificate_rejects_a_wrong_declared_size` and
+  `cover_certificate_agrees_with_the_recovered_minimum_cover` (compressed):
+  declared-size recomputation and agreement with the recovered minimum cover.
+
+No test claims `T < F_opt` returns certified infeasible automatically from a
+failed run: that still requires a caller-supplied certificate, and automatic
+search remains blocked. No binary-search wrapper or target-inference test is
+added.
 
 ## Audit
 
@@ -343,8 +389,12 @@ commands exit `0`.
 
 ## Remaining blockers
 
-1. **P9.5e.3g.3 remains blocked**: no source-backed negative target decision
-   invariant exists. Binary search and automatic `F*` solving are forbidden.
+1. **P9.5e.3g.3 remains blocked for automatic search**: exact negative
+   certificate *types* are implemented and independently verifiable
+   (`DualLowerBoundCertificate` / `prove_infeasible_below`,
+   `certify_cover_below`), but the source provides no automatic construction of
+   those certificates, so a failed run still cannot be classified as
+   "target too low" and no binary-search / automatic `F*` solving is allowed.
 2. **P9.5e.3 and P9.5 remain in progress**: `Backend::require_complete()`
    returns `Error::Incomplete`.
 3. **P9.3.2d remains deferred proof debt**: no AN19 runtime claim.
