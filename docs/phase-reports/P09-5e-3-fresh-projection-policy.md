@@ -8,9 +8,10 @@ potential budget. P9.5e.3e state: complete for independently recomputed
 Definition 4.2 coordinates in the checked fixed-point domain. P9.5e.3f state:
 complete for execution-state decoupling from hidden-stability auditing.
 P9.5e.3g.1 state: complete for derived finite source configuration.
-P9.5e.3g.2 state: complete for the caller-supplied exact-target initial-point
+P9.5e.3g.2 state: complete for the caller-supplied inclusive-target initial-point
 entry. P9.5e.3 state: in progress.** Implementation commits: `45849b1`,
-`c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`, `2802323`.
+`c902c37`, `5391ada`, `20f8a18`, `8668461`, `6be878a`, `2802323`, and the
+uncommitted inclusive-target recovery refinement.
 
 This report records the completed P9.5e.3b terminating-range evidence and the
 completed P9.5e.3c isolated-lattice output differential, together with the
@@ -32,8 +33,8 @@ does not close P9.5e.3, P9.5, or `Backend::require_complete()`.
 | Arbitrary cap versus source potential progress | `Driver::run` accepts a caller-selected update cap, which is necessary for a nontermination witness but does not record why a terminating run has sufficient fuel. | A source-facing terminating entry may use only a snapshot-bound cap derived from the Equation (9)/Lemma 4.1 potential threshold and the separately certified Lemma 4.4 per-update decrease. It must reject a changed snapshot or `kappa`, a failed projection, or budget exhaustion; it must not recover a nonterminal session. | `PotentialBudget` records one exact initial snapshot, one exact `kappa`, the conservative dyadic lower potential endpoint, termination threshold, and per-update decrease. `run_source_with_potential_budget` recovers the nonterminal `1 x 1` fixture after one source update. A changed-`kappa` regression rejects before the session mutates. |
 | Cyclic bucket construction | The finite Algorithm 4 decomposition subset rejects the formal Figure 3 cyclic bucket with `Decomposition(InvalidCertificate)`. | A chosen finite source construction must provide stable selected source edges and exact paths for every bucket edge without an Oracle or a retry after failure. | `bucket::Construction::CanonicalTree` is selected explicitly before construction. Stable-source-order union-find selects a spanning tree and stable BFS reconstructs every rejected-edge tree path; the certificate is revalidated from the immutable bucket. A parallel-edge cycle regression preserves source IDs `0` and `2` and embeds source `1` through source `0`. |
 | Finite source configuration | Projection factories accepted fixture-specific roots and dyadic bounds, including an exponent `64` unrelated to the snapshot's exact structural graph. | Derive the canonical root, minimal accepted finite dyadic bound, and explicit cyclic-bucket construction from every exact `Input`; no factory constructor may retain those values. | `spanner::Parameters::derive` contracts the exact singleton forest and derives `FlowNodeId(0)`, the current maximum absolute exponent, and `CanonicalTree`. A focused exponent-four test and the 64-successor Definition 4.2 regression pass through that derivation. The source-flow audit requires the production call. |
-| Caller-supplied exact target | The source driver accepted a certified snapshot but had no public composition from a caller-provided integral `F*` through Appendix B.1 recovery into the compressed matching/cover decoder. | Build the strict augmented initial point and its one-snapshot potential budget for exactly the supplied target; preserve it through recovery, reject a non-strict initial point, and never query or infer an optimum. | `Backend::begin_augmented_source_with_target` constructs `ExactTargetDriver`; `run` compares the recovered original cost with the retained target. `Circulation::run_source_with_exact_target` decodes only that checked recovered flow. The `1 x 1` target `-1` fixture invokes its factory once with the augmented network; a `2 x 2` target equal to the integral initial-flow cost rejects before the factory executes. |
-| Backend completeness | The checked fixed-point coordinate policy and finite configuration derivation are general within their stated domains, but callers cannot yet enter through an independently constructed strict initial point with a checked exact target. | Do not enable a complete backend from coordinate reconstruction and configuration derivation alone. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
+| Caller-supplied inclusive target | The source driver accepted a certified snapshot but had no public composition from a caller-provided integral `F*` through Appendix B.1 recovery into the compressed matching/cover decoder. | Build the strict augmented initial point and its one-snapshot potential budget for the supplied target; preserve it through recovery, reject a non-strict initial point, and never query or infer an optimum. A completed run may recover an original integral cost at most the target. | `Backend::begin_with_target` constructs `TargetDriver`; `run` recovers only through `recover_augmented_terminated_at_most`, accepting an original cost at most the supplied target and rejecting one that exceeds it. `Circulation::run_with_target` decodes only that recovered flow. The `1 x 1` target `-1` fixture invokes its factory once with the augmented network; a `2 x 2` target equal to the integral initial-flow cost rejects before the factory executes. A graph regression accepts original cost `0` under target `1` and rejects target `-1` with `TargetNotMet`. |
+| Backend completeness | The checked fixed-point coordinate policy and finite configuration derivation are general within their stated domains, but callers cannot yet enter through an independently constructed strict initial point with a checked inclusive target. | Do not enable a complete backend from coordinate reconstruction and configuration derivation alone. | `Backend::require_complete()` remains `Error::Incomplete`; its no-fallback static audit still passes. |
 | Execution-state dependency | Source execution previously required `StableMinRatioLedger` solely because `decode_candidate` returned its edge count; selection and source certificates did not consume its witness. | Decode compact cycles through the source graph, chain, shifts, bindings, and circulation only; retain the ledger audit boundary separately. | **Complete:** pure `query::decode` serves source execution. `decode_candidate` remains the P8/P9.4 audit adapter, and source-flow plus compressed-MRD regressions construct no `StableWitness`. |
 
 ## Contract and Result
@@ -116,7 +117,7 @@ snapshot's certified Definition 4.2 intervals under Theorem 4.3, so a changed
 formula, insufficient precision, or an invalid representative rejects before
 candidate selection. This is a general coordinate constructor for the checked
 fixed-point domain, not a claim that any arbitrary compressed input has already
-supplied its ledger, strict initial source state, and exact target.
+supplied its ledger, strict initial source state, and inclusive target.
 
 The exact source coordinates remain the P9.5e.2 fixture values:
 
@@ -243,27 +244,32 @@ outer endpoints leaves a strictly interior active circulation and still returns
 the original `2`-by-`3` cover dimensions, with every isolated endpoint
 uncovered.
 
-### P9.5e.3g.2 Explicit Exact-Target Entry
+### P9.5e.3g.2 Explicit Inclusive-Target Entry
 
-`Backend::begin_augmented_source_with_target` accepts one integral target
-`F*` as a checked domain value. It creates the existing Appendix B.1
-augmentation, evaluates the certified strict initial snapshot against that same
-target, derives the `PotentialBudget` from that augmented snapshot and network,
-and starts a source driver with no arbitrary iteration cap. `ExactTargetDriver`
-retains the target and the immutable augmentation. Its `run` method recovers
-only through `recover_augmented_terminated` and rejects a recovered original
-cost that differs from the supplied target.
+`Backend::begin_with_target` accepts one integral target `F*` as a checked
+domain value. It creates the existing Appendix B.1 augmentation, evaluates the
+certified strict initial snapshot against that same target, derives the
+`PotentialBudget` from that augmented snapshot and network, and starts a source
+driver with no arbitrary iteration cap. `TargetDriver` retains the target and
+the immutable augmentation. Its `run` method recovers only through
+`recover_augmented_terminated_at_most`, so a completed run accepts an original
+integral cost at most the supplied target and rejects one that exceeds it; it
+does not require the target to equal the recovered optimum.
 
-`Circulation::run_source_with_exact_target` is the compressed-flow boundary.
-It creates that driver, runs it, and passes only `recovered.original` into
-`recover_certified`; it has no Oracle dependency and no alternate flow path.
-The `1 x 1` compressed fixture supplies the exact optimum `-1` and observes
-one factory call with the Appendix B.1 augmented network and the same target in
-the certified snapshot. Its factory then returns `NoSourceCandidate`, which is
-propagated as a source failure: this fixture verifies initialization and target
-preservation, not terminal source completion. The `2 x 2` fixture supplies a
-target equal to the augmentation's integral initial-flow cost. Strict
-initialization rejects it before the factory is called.
+`Circulation::run_with_target` is the compressed-flow boundary. It creates that
+driver, runs it, and passes only `recovered.original` into `recover_certified`;
+it has no Oracle dependency and no alternate flow path. The `1 x 1` compressed
+fixture supplies the exact optimum `-1` and observes one factory call with the
+Appendix B.1 augmented network and the same target in the certified snapshot.
+Its factory then returns `NoSourceCandidate`, which is propagated as a source
+failure: this fixture verifies initialization and target preservation, not
+terminal source completion. The `2 x 2` fixture supplies a target equal to the
+augmentation's integral initial-flow cost. Strict initialization rejects it
+before the factory is called. A graph-level regression builds a valid
+additive-half terminal snapshot on the two-arc cycle, recovers original cost
+`0` through both the strict `recover_augmented_terminated` and the inclusive
+`recover_augmented_terminated_at_most` under target `1`, and returns
+`TargetNotMet` for target `-1`.
 
 This is not an incorrect-target decision procedure. In particular, the source
 does not establish whether an arbitrary failure means the supplied target is
@@ -282,11 +288,11 @@ ignored campaigns.
 
 | Command | Exit | Result |
 | --- | ---: | --- |
-| `cargo test -p dominance exact_target_entry -- --nocapture` | 0 | 2 exact-target compressed-entry tests passed |
+| `cargo test -p dominance target_entry -- --nocapture` | 0 | 2 inclusive-target compressed-entry tests passed |
 | `cargo test -p dominance compressed_flow::experiment::source -- --nocapture` | 0 | 18 compressed-source tests passed, including the target-entry regressions |
-| `cargo test -p graph source_flow -- --nocapture` | 0 | 30 source-flow tests passed, including direct target-driver checks |
+| `cargo test -p graph source_flow -- --nocapture` | 0 | 31 source-flow tests passed, including direct target-driver checks and the at-most recovery boundary |
 | `cargo fmt --all -- --check` | 0 | Rust formatting accepted |
-| `python3 tools/check_source_flow_audit.py` | 0 | audit requires both exact-target entry boundaries and found no fallback |
+| `python3 tools/check_source_flow_audit.py` | 0 | audit requires both inclusive-target entry boundaries and found no fallback |
 | `git diff --check` | 0 | no whitespace errors |
 | `python3 tools/check_biclique_bound.py` | 0 | compact biclique bound accepted |
 | `python3 tools/check_source_min_ratio_audit.py` | 0 | finite tree-chain/core boundary has no Oracle fallback |
@@ -361,13 +367,14 @@ source-flow projections, candidates, selected state, and factory constructors
 use it. The existing ledger adapter remains for P8/P9.4 auditing; this change
 does not expose a hidden witness or claim its construction.
 
-P9.5e.3g.2 completes the explicit-target boundary only: for a caller-supplied
+P9.5e.3g.2 completes the inclusive-target boundary only: for a caller-supplied
 integral `F*` within the checked source domain, it constructs and validates the
 strict Appendix B.1 starting point, runs the budgeted source path, and verifies
-target-preserving recovery before compressed decoding. It neither discovers
-`F*` nor supplies the missing interpretation of failures for a wrong target.
-That source gap is P9.5e.3g.3, remains blocked, and does not enable
-`Backend::require_complete()`.
+at-most-target-preserving recovery before compressed decoding. A completed run
+may recover an original integral cost at most the target; it does not require
+equality. It neither discovers `F*` nor supplies the missing interpretation of
+failures for a wrong target. That source gap is P9.5e.3g.3, remains blocked,
+and does not enable `Backend::require_complete()`.
 
 `FixedProjectionFactory` is a fresh-projection reconstruction policy, not a
 general dynamic coordinate-maintenance or termination policy. It supports only
