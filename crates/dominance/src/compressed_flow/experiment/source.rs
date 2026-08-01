@@ -73,6 +73,15 @@ pub struct TargetRun {
     pub solution: Solution,
 }
 
+/// Exact evidence that a caller-supplied cover certifies `F_opt > target`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoverBelowProof {
+    /// The target that the optimal cost strictly exceeds.
+    pub target: i128,
+    /// The verified vertex-cover size bounding the maximum matching.
+    pub cover_size: usize,
+}
+
 impl Circulation {
     /// Builds the exact min-cost circulation for one biclique partition.
     ///
@@ -355,6 +364,67 @@ impl Circulation {
         })
     }
 
+    /// Certifies `F_opt > target` from a caller-supplied vertex cover.
+    ///
+    /// The compressed circulation encodes `F_opt = -max_matching` through its
+    /// negative return arc. By Konig's theorem a vertex cover of size `c`
+    /// bounds `max_matching <= c`, so a cover with `c < -target` certifies
+    /// `max_matching < -target`, hence `F_opt > target`. The cover is supplied
+    /// and verified exactly against the immutable biclique partition; no
+    /// reference solver constructs it. A certificate that does not strictly
+    /// exceed the target, or that omits a compressed conflict edge, is an
+    /// explicit rejection rather than an infeasibility decision.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the cover dimensions do not match, the declared
+    /// size does not match the recomputed size, a compressed biclique edge is
+    /// uncovered, or the verified cover size does not prove `F_opt > target`.
+    pub fn certify_cover_below(
+        &self,
+        cover: &VertexCover,
+        target: i128,
+    ) -> Result<CoverBelowProof, Error> {
+        if cover.left.len() != self.horizontal_arcs.len()
+            || cover.right.len() != self.vertical_arcs.len()
+        {
+            return Err(Error::CoverCertificateDimensionMismatch);
+        }
+        let recomputed = cover.left.iter().filter(|selected| **selected).count()
+            + cover.right.iter().filter(|selected| **selected).count();
+        if recomputed != cover.size {
+            return Err(Error::CoverCertificateSizeMismatch {
+                declared: cover.size,
+                recomputed,
+            });
+        }
+        for block in &self.blocks {
+            for &left_endpoint in &block.left {
+                for &right_endpoint in &block.right {
+                    if !cover.left[left_endpoint] && !cover.right[right_endpoint] {
+                        return Err(Error::CoverCertificateUncoveredEdge {
+                            left: left_endpoint,
+                            right: right_endpoint,
+                        });
+                    }
+                }
+            }
+        }
+        let threshold = target.checked_neg().ok_or(Error::TargetOverflow)?;
+        let cover_i128 =
+            i128::try_from(cover.size).map_err(|_| Error::CoverCertificateSizeOverflow)?;
+        if cover_i128 >= threshold {
+            return Err(Error::CoverCertificateInsufficient {
+                target,
+                cover_size: cover.size,
+            });
+        }
+        Ok(CoverBelowProof {
+            target,
+            cover_size: cover.size,
+        })
+    }
+
     fn flow(solution: &MinCostSolution, arc: CirculationArcId) -> Result<i128, Error> {
         solution
             .arc_flows
@@ -362,7 +432,6 @@ impl Circulation {
             .copied()
             .ok_or(Error::MalformedSolution)
     }
-
     fn verify_outer_arcs(
         &self,
         solution: &MinCostSolution,
@@ -534,6 +603,18 @@ pub enum Error {
     UncoveredBicliqueEdge,
     #[error("compressed circulation model is malformed")]
     MalformedModel,
+    #[error("cover-certificate dimensions do not match the compressed network")]
+    CoverCertificateDimensionMismatch,
+    #[error("cover-certificate declared size {declared} differs from recomputed size {recomputed}")]
+    CoverCertificateSizeMismatch { declared: usize, recomputed: usize },
+    #[error("cover certificate omits compressed conflict edge ({left}, {right})")]
+    CoverCertificateUncoveredEdge { left: usize, right: usize },
+    #[error("target negation overflowed the supported exact domain")]
+    TargetOverflow,
+    #[error("verified cover size exceeds the supported exact domain")]
+    CoverCertificateSizeOverflow,
+    #[error("cover size {cover_size} does not prove F_opt > target {target}")]
+    CoverCertificateInsufficient { target: i128, cover_size: usize },
 }
 
 #[cfg(test)]
@@ -1744,5 +1825,82 @@ mod tests {
             )))
         );
         assert_eq!(calls.get(), 0);
+    }
+
+    #[test]
+    fn cover_certificate_proves_optimum_above_a_supplied_target() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let cover = graph::VertexCover {
+            left: vec![true],
+            right: vec![false],
+            size: 1,
+        };
+        let proof = circulation.certify_cover_below(&cover, -2).unwrap();
+        assert_eq!(proof.target, -2);
+        assert_eq!(proof.cover_size, 1);
+        assert_eq!(Backend.require_complete(), Err(SourceFlowError::Incomplete));
+    }
+
+    #[test]
+    fn cover_certificate_rejects_a_target_that_is_not_exceeded() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let cover = graph::VertexCover {
+            left: vec![true],
+            right: vec![false],
+            size: 1,
+        };
+        assert_eq!(
+            circulation.certify_cover_below(&cover, -1),
+            Err(Error::CoverCertificateInsufficient {
+                target: -1,
+                cover_size: 1
+            })
+        );
+    }
+
+    #[test]
+    fn cover_certificate_rejects_a_cover_that_omits_a_conflict_edge() {
+        let circulation =
+            Circulation::from_partition(2, 2, &complete_two_by_two_partition()).unwrap();
+        let cover = graph::VertexCover {
+            left: vec![true, false],
+            right: vec![false, false],
+            size: 1,
+        };
+        assert_eq!(
+            circulation.certify_cover_below(&cover, -3),
+            Err(Error::CoverCertificateUncoveredEdge { left: 1, right: 0 })
+        );
+    }
+
+    #[test]
+    fn cover_certificate_rejects_a_wrong_declared_size() {
+        let circulation = Circulation::from_partition(1, 1, &single_edge_partition()).unwrap();
+        let cover = graph::VertexCover {
+            left: vec![true],
+            right: vec![false],
+            size: 0,
+        };
+        assert_eq!(
+            circulation.certify_cover_below(&cover, -2),
+            Err(Error::CoverCertificateSizeMismatch {
+                declared: 0,
+                recomputed: 1
+            })
+        );
+    }
+
+    #[test]
+    fn cover_certificate_agrees_with_the_recovered_minimum_cover() {
+        let circulation =
+            Circulation::from_partition(2, 2, &complete_two_by_two_partition()).unwrap();
+        let cover = graph::VertexCover {
+            left: vec![true, true],
+            right: vec![false, false],
+            size: 2,
+        };
+        let proof = circulation.certify_cover_below(&cover, -3).unwrap();
+        assert_eq!(proof.cover_size, 2);
+        assert!(circulation.certify_cover_below(&cover, -2).is_err());
     }
 }

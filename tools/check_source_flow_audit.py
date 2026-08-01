@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = {
     "root": ROOT / "crates/graph/src/source_flow.rs",
+    "certificate": ROOT / "crates/graph/src/source_flow/certificate.rs",
     "coordinates": ROOT / "crates/graph/src/source_flow/coordinates.rs",
     "recovery": ROOT / "crates/graph/src/source_flow/recovery.rs",
     "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
@@ -28,6 +29,8 @@ REQUIRED = {
         "pub fn begin_with_target",
         "pub struct TargetDriver",
         "TargetNotMet",
+        "pub fn prove_infeasible_below",
+        "CertificateInsufficient",
         "does not classify a failed run",
         "failures do not classify a target for binary search",
         "exceeds the caller-supplied target",
@@ -40,6 +43,13 @@ REQUIRED = {
         "snapshot.flow()",
         "snapshot.optimal_cost()",
         "network.fractional_slacks",
+    ),
+    "certificate": (
+        "pub struct DualLowerBoundCertificate",
+        "pub fn from_potentials",
+        "pub fn verify",
+        "pub struct InfeasibilityProof",
+        "exact dual objective",
     ),
     "recovery": ("pub fn round", "validate_signed_circulation", "verify_fractional_solution"),
     "iteration": (
@@ -72,6 +82,8 @@ REQUIRED = {
         "pub fn run_source",
         "pub fn run_with_target",
         "pub struct TargetRun",
+        "pub fn certify_cover_below",
+        "pub struct CoverBelowProof",
         "SourceIteration",
         "recover_terminated",
         "verify_feasible_solution",
