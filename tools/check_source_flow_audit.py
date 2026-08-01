@@ -28,6 +28,9 @@ REQUIRED = {
         "pub fn begin_with_target",
         "pub struct TargetDriver",
         "TargetNotMet",
+        "does not classify a failed run",
+        "failures do not classify a target for binary search",
+        "exceeds the caller-supplied target",
         "verify_feasible_solution",
         "recover_original_feasible",
         "an19_runtime_verified: false",
@@ -72,6 +75,7 @@ REQUIRED = {
         "SourceIteration",
         "recover_terminated",
         "verify_feasible_solution",
+        "interprets a source failure as evidence about a different target",
     ),
 }
 FORBIDDEN = (

@@ -420,7 +420,7 @@ pub enum Error {
     #[error("source-shaped iteration failed: {0}")]
     Iteration(#[source] iteration::Error),
     /// The supplied integer target cannot be represented as an exact ratio.
-    #[error("caller-supplied exact target is invalid")]
+    #[error("caller-supplied inclusive target is invalid")]
     InvalidTarget,
     /// Terminal recovery did not meet the caller-supplied inclusive target.
     #[error("recovered original cost {actual} exceeds supplied target {target}")]
@@ -654,6 +654,10 @@ mod tests {
             .recover_augmented_terminated_at_most(&snapshot, &augmentation, 1)
             .unwrap();
         assert_eq!(recovered.original.cost, 0);
+        let at_target = Backend
+            .recover_augmented_terminated_at_most(&snapshot, &augmentation, 0)
+            .unwrap();
+        assert_eq!(at_target.original.cost, 0);
         assert_eq!(
             Backend.recover_augmented_terminated_at_most(&snapshot, &augmentation, -1),
             Err(Error::TargetNotMet {
