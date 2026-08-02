@@ -43,6 +43,10 @@ enum Command {
     Solve {
         #[arg(long, value_enum)]
         solver: SolverArg,
+        #[arg(long, value_enum, default_value_t = BackendArg::Reference)]
+        backend: BackendArg,
+        #[arg(long, allow_hyphen_values = true)]
+        target: Option<i128>,
         #[arg(long)]
         input: PathBuf,
         #[arg(long, value_enum, default_value_t = InputFormatArg::Auto)]
@@ -211,6 +215,16 @@ enum Command {
         #[arg(long)]
         markdown: PathBuf,
     },
+    VerifyNegativeCertificate {
+        #[arg(long)]
+        network: PathBuf,
+        #[arg(long)]
+        certificate: PathBuf,
+        #[arg(long, allow_hyphen_values = true)]
+        target: i128,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -220,6 +234,17 @@ enum SolverArg {
     DominanceC0,
     DominanceCompressed,
     DominanceCompactOnly,
+}
+
+/// Explicit layered backend selection for `solve`.
+///
+/// `SourceWithTarget` requires `--target`; there is no automatic source mode.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum BackendArg {
+    /// Complete exact reference-backed solve.
+    Reference,
+    /// Source-shaped solve under a caller-supplied inclusive target.
+    SourceWithTarget,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -528,6 +553,8 @@ fn run() -> Result<(), CliError> {
     match cli.command {
         Command::Solve {
             solver,
+            backend,
+            target,
             input_format,
             input,
             output,
@@ -549,6 +576,8 @@ fn run() -> Result<(), CliError> {
             sparse_validator,
         } => solve_command(
             solver,
+            backend,
+            target,
             input_format,
             chord_enumerator,
             completion_backend,
@@ -730,7 +759,54 @@ fn run() -> Result<(), CliError> {
             an19_event_trace.as_deref(),
             an19_charge_analysis.as_deref(),
         ),
+        Command::VerifyNegativeCertificate {
+            network,
+            certificate,
+            target,
+            output,
+        } => verify_negative_certificate_command(&network, &certificate, target, output.as_deref()),
     }
+}
+
+fn verify_negative_certificate_command(
+    network_path: &Path,
+    certificate_path: &Path,
+    target: i128,
+    output: Option<&Path>,
+) -> Result<(), CliError> {
+    let network_spec: mrd::layered::CirculationNetworkSpec = serde_json::from_slice(
+        &fs::read(network_path)
+            .map_err(|error| CliError::Input(format!("cannot read network file: {error}")))?,
+    )
+    .map_err(|error| CliError::Input(format!("invalid network JSON: {error}")))?;
+    let network = graph::CirculationNetwork::try_from(&network_spec)
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    let dual: mrd::layered::DualLowerBoundCertificateJson = serde_json::from_slice(
+        &fs::read(certificate_path)
+            .map_err(|error| CliError::Input(format!("cannot read certificate file: {error}")))?,
+    )
+    .map_err(|error| CliError::Input(format!("invalid certificate JSON: {error}")))?;
+    let dual = dual
+        .into_exact()
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    let objective = mrd::layered::verify_source_infeasible_below(&network, target, &dual)
+        .map_err(|error| CliError::Verification(error.to_string()))?;
+    let numerator = objective
+        .numerator_i128()
+        .map_err(|_| CliError::Verification("dual objective numerator overflow".to_owned()))?;
+    let denominator = objective
+        .denominator_i128()
+        .map_err(|_| CliError::Verification("dual objective denominator overflow".to_owned()))?;
+    let value = serde_json::json!({
+        "verified": true,
+        "target": target,
+        "dual_objective": {
+            "numerator": numerator,
+            "denominator": denominator,
+        },
+        "certificate": "dual-lower-bound",
+    });
+    write_json(&value, output)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1404,6 +1480,8 @@ fn generate_command(
 #[allow(clippy::too_many_lines)]
 fn solve_command(
     solver: SolverArg,
+    backend: BackendArg,
+    target: Option<i128>,
     input_format: InputFormatArg,
     chord_enumerator: Option<ChordEnumeratorArg>,
     completion_backend: Option<CompletionBackendArg>,
@@ -1424,8 +1502,29 @@ fn solve_command(
     output: Option<&Path>,
     svg: Option<&Path>,
 ) -> Result<(), CliError> {
+    if matches!(backend, BackendArg::SourceWithTarget) && target.is_none() {
+        return Err(CliError::Input(
+            "source-with-target backend requires --target".to_owned(),
+        ));
+    }
+    if matches!(backend, BackendArg::SourceWithTarget)
+        && !matches!(
+            solver,
+            SolverArg::DominanceCompressed | SolverArg::DominanceCompactOnly
+        )
+    {
+        return Err(CliError::Input(
+            "source-with-target backend requires a dominance compressed solver".to_owned(),
+        ));
+    }
     match load_input(input, input_format)? {
         LoadedInput::Grid(grid) => {
+            if matches!(backend, BackendArg::SourceWithTarget) {
+                return Err(CliError::Input(
+                    "source-with-target backend currently supports only formal-polygon input"
+                        .to_owned(),
+                ));
+            }
             if polygon_geometry.is_some()
                 || polygon_validator.is_some()
                 || polygon_chords.is_some()
@@ -1474,6 +1573,12 @@ fn solve_command(
             )
         }
         LoadedInput::Polygon(polygon) => {
+            if matches!(backend, BackendArg::SourceWithTarget) {
+                return Err(CliError::Input(
+                    "source-with-target backend currently supports only formal-polygon input"
+                        .to_owned(),
+                ));
+            }
             if !matches!(
                 solver,
                 SolverArg::DominanceCompressed | SolverArg::DominanceCompactOnly
@@ -1597,6 +1702,30 @@ fn solve_command(
                     "formal polygon solving uses the source-fixed formal chord, matching, completion, recovery, and validation pipeline"
                         .to_owned(),
                 ));
+            }
+            if matches!(backend, BackendArg::SourceWithTarget) {
+                let target = target.ok_or_else(|| {
+                    CliError::Input("source-with-target backend requires --target".to_owned())
+                })?;
+                let result = mrd::layered::solve_source_with_target(
+                    &polygon,
+                    &mrd::layered::SourceConfig {
+                        target,
+                        maximum_abs_input: 3,
+                        fixed_point: mrd::layered::FixedPointConfigSpec {
+                            input_encoding_bits: 1 << 20,
+                            fractional_bits: 96,
+                            series_terms: 48,
+                            word_log_exponent: 4,
+                        },
+                        kappa: mrd::layered::RatioSpec {
+                            numerator: 1,
+                            denominator: 2,
+                        },
+                    },
+                )
+                .map_err(|error| CliError::Solver(error.to_string()))?;
+                return write_json(&result, output);
             }
             let analysis = complete_formal_polygon(&polygon)
                 .map_err(|error| CliError::Solver(error.to_string()))?;
@@ -2211,8 +2340,8 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        ChordEnumeratorArg, Cli, Command, CompletionBackendArg, EventEngineArg, EventFamilyArg,
-        InputFormatArg, LoadedInput, PathTreeOrientationArg, PolygonArrangementArg,
+        BackendArg, ChordEnumeratorArg, Cli, Command, CompletionBackendArg, EventEngineArg,
+        EventFamilyArg, InputFormatArg, LoadedInput, PathTreeOrientationArg, PolygonArrangementArg,
         PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg, PolygonValidatorArg,
         RegionDualArg, RepresentationArg, SolverArg, load_input, solve_command,
     };
@@ -2279,6 +2408,8 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            BackendArg::Reference,
+            None,
             InputFormatArg::Grid,
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
@@ -2335,6 +2466,8 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            BackendArg::Reference,
+            None,
             InputFormatArg::Grid,
             Some(ChordEnumeratorArg::GridInteriorRuns),
             Some(CompletionBackendArg::IndexedFrontier),
@@ -2390,6 +2523,8 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            BackendArg::Reference,
+            None,
             InputFormatArg::Auto,
             None,
             None,
@@ -2486,6 +2621,8 @@ mod tests {
             let svg = root.join(format!("{name}.svg"));
             solve_command(
                 SolverArg::DominanceCompactOnly,
+                BackendArg::Reference,
+                None,
                 InputFormatArg::Auto,
                 None,
                 None,
@@ -2546,6 +2683,8 @@ mod tests {
         .unwrap();
         solve_command(
             SolverArg::DominanceCompactOnly,
+            BackendArg::Reference,
+            None,
             InputFormatArg::Polygon,
             None,
             None,
@@ -2676,5 +2815,146 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn solve_cli_defaults_to_reference_backend_without_a_target() {
+        let cli = Cli::try_parse_from([
+            "mrd",
+            "solve",
+            "--solver",
+            "dominance-compact-only",
+            "--input",
+            "input.json",
+        ])
+        .unwrap();
+        let Command::Solve {
+            backend, target, ..
+        } = cli.command
+        else {
+            panic!("wrong command parsed");
+        };
+        assert_eq!(backend, BackendArg::Reference);
+        assert!(target.is_none());
+    }
+
+    #[test]
+    fn solve_cli_accepts_source_with_target_when_target_is_supplied() {
+        let cli = Cli::try_parse_from([
+            "mrd",
+            "solve",
+            "--solver",
+            "dominance-compact-only",
+            "--backend",
+            "source-with-target",
+            "--target",
+            "-3",
+            "--input",
+            "input.json",
+        ])
+        .unwrap();
+        let Command::Solve {
+            backend, target, ..
+        } = cli.command
+        else {
+            panic!("wrong command parsed");
+        };
+        assert_eq!(backend, BackendArg::SourceWithTarget);
+        assert_eq!(target, Some(-3));
+    }
+
+    #[test]
+    fn source_with_target_requires_a_target() {
+        let root =
+            std::env::temp_dir().join(format!("mrd-source-target-reject-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("input.json");
+        let output = root.join("output.json");
+        fs::write(
+            &input,
+            br#"{
+                "type": "formal-rectilinear-polygon",
+                "fixture": "source-figure-three",
+                "outer": [[0, 0], [12, 0], [12, 12], [0, 12]],
+                "holes": [[[2, 6], [5, 6], [5, 9], [2, 9]]],
+                "ornament": {
+                    "isolated_points": [[6, 3], [6, 9], [8, 9]],
+                    "segments": [
+                        [[10, 0], [10, 3]],
+                        [[2, 3], [5, 3]],
+                        [[10, 6], [12, 6]],
+                        [[10, 9], [10, 12]]
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+        // Missing --target is rejected before any solve.
+        let error = solve_command(
+            SolverArg::DominanceCompactOnly,
+            BackendArg::SourceWithTarget,
+            None,
+            InputFormatArg::FormalPolygon,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            input.as_path(),
+            Some(output.as_path()),
+            None,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("requires --target"));
+    }
+
+    #[test]
+    fn source_with_target_grid_input_is_explicitly_unsupported() {
+        let root =
+            std::env::temp_dir().join(format!("mrd-source-target-grid-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let input = root.join("input.json");
+        let output = root.join("output.json");
+        fs::write(
+            &input,
+            br#"{"width":2,"height":2,"cells":["a","a","a","a"]}"#,
+        )
+        .unwrap();
+        let error = solve_command(
+            SolverArg::DominanceCompactOnly,
+            BackendArg::SourceWithTarget,
+            Some(-1),
+            InputFormatArg::Grid,
+            Some(ChordEnumeratorArg::GridInteriorRuns),
+            Some(CompletionBackendArg::IndexedFrontier),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            input.as_path(),
+            Some(output.as_path()),
+            None,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("formal-polygon input"));
     }
 }
