@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P9.5e.3g
+- Current phase: P10
 - Current phase state: in_progress
-- Last completed phase: P9.5e.3g.2
-- Last pushed SHA: 059f3b68d33816a6a94aea4dd90cefb9bf1493d2
-- Plan last updated: 2026-07-31T04:50:24Z
+- Last completed phase: P9.5e.3g.3 (blocked; certificate verifiers implemented)
+- Last pushed SHA: c5c0e687ac6693a3f85ecaaea7f0fa27818930e0
+- Plan last updated: 2026-08-02T09:01:15Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1708,7 +1708,76 @@ After the phase has passed its full audit, been committed, and been pushed:
 6. Update `Current phase`, `Current phase state`, `Last completed phase`, and `Last pushed SHA`.
 7. Begin P10 automatically unless a persisted hard blocker exists.
 
-## P10 - Direct grid parity embedding
+## P10 - Layered public backend architecture
+
+**State:** in_progress. Make the repository usable, testable, and publishable
+through an explicit three-layer solver architecture without weakening or
+bypassing the unresolved automatic `F*` search blocker (P9.5e.3g.3). The
+layers are: (1) a complete reference-backed exact solver; (2) a source backend
+executed only under a caller-supplied inclusive target; (3) exact independent
+certificate verification. No `solve_source -> optimum` automatic entry is
+exposed. `Backend::require_complete()` stays `Error::Incomplete`; no AN19
+runtime claim is made. Subphases:
+
+- **P10.1 - Solver mode and provenance model. State: pending.** Define
+  `SolverMode { Reference, SourceWithTarget { target, source_config } }`,
+  `SolverProvenance { ReferenceExact, SourceCertifiedAtMost { target } }`, and
+  a stable public result model with objective, matching, cover, chords,
+  rectangle decomposition, provenance, and verification summary. No
+  `AutomaticSource` mode.
+- **P10.2 - Complete reference-backed public solver. State: pending.** Wrap
+  the permanent reference backends in a deterministic `solve_reference` path
+  that returns exact MRD output (matching, cover, chords, rectangles) and is
+  independently verified, clearly marked reference-backed.
+- **P10.3 - Source-with-target public solver. State: pending.** Wrap the
+  source-shaped production path in `solve_source_with_target(instance, target,
+  config)`, preserving the inclusive target, returning certified results only
+  when recovered cost `<= target`, and returning explicit
+  `UnsupportedOrUndetermined` errors otherwise, with no reference fallback and
+  no `F*` inference.
+- **P10.4 - Certificate-verification public entries. State: pending.** Expose
+  `verify_source_feasible_at_most` and `verify_source_infeasible_below`, the
+  latter accepting `DualLowerBoundCertificate` (general circulation) and
+  `CoverBelowProof` (compressed bipartite MRD), verified exactly and
+  independently.
+- **P10.5 - CLI and deterministic serialization. State: pending.** Add
+  `mrd solve --backend reference|source --target <integer>` and a
+  `verify-negative-certificate` command, require a target in source mode,
+  never silently fall back, and serialize provenance deterministically.
+- **P10.6 - End-to-end supported pipeline. State: pending.** Wire
+  geometry -> chords -> conflict -> compressed matching network -> selected
+  backend -> matching/cover -> chord selection -> rectangle completion -> exact
+  verification for both reference and source-with-target modes on supported
+  fixtures, without leaking augmentation arcs.
+- **P10.7 - Direct grid parity path. State: pending.** See the direct-grid
+  parity section below (renumbered P11). Do not begin it before P10.1-P10.6
+  unless it is independent of the automatic `F*` blocker.
+- **P10.8 - Benchmark and evidence separation. State: pending.** Separate
+  reference-complete, source-with-known-target, certificate-verification,
+  direct-grid vs polygon-derived, geometry-only, compressed-representation, and
+  recovery-only benchmark categories; label reference-provided-target runs and
+  record target-provider/source/recovery/verification/total-hybrid timings
+  separately.
+- **P10.9 - Documentation and release audit. State: pending.** Update
+  README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS,
+  NEAR_LINEAR_FLOW_IMPLEMENTATION, and TESTING with the layered architecture,
+  the blocked automatic `F*` constructor, the unresolved AN19 proof, and which
+  features are production-ready versus research-only. Run the full audit and
+  record phase evidence.
+
+### Mandatory transition after this phase
+
+After the phase has passed its full audit, been committed, and been pushed:
+
+1. Run `git fetch origin`.
+2. Verify `origin/codex/full-implementation` equals local `HEAD`.
+3. Reopen and reread `docs/IMPLEMENTATION_MASTER_PLAN.md`.
+4. Reread the complete Global Rules section.
+5. Reread the complete P11 phase section. Do not rely on memory.
+6. Update `Current phase`, `Current phase state`, `Last completed phase`, and `Last pushed SHA`.
+7. Begin P11 automatically unless a persisted hard blocker exists.
+
+## P11 - Direct grid parity embedding
 
 **State:** planned. Add `EmbeddingCoordinateBackend` with `RankedCoordinates`
 and `DirectGridParity`. For finite integer pixel grids encode horizontal as
@@ -1728,11 +1797,11 @@ After the phase has passed its full audit, been committed, and been pushed:
 2. Verify `origin/codex/full-implementation` equals local `HEAD`.
 3. Reopen and reread `docs/IMPLEMENTATION_MASTER_PLAN.md`.
 4. Reread the complete Global Rules section.
-5. Reread the complete P11 phase section. Do not rely on memory.
+5. Reread the complete P13 phase section. Do not rely on memory.
 6. Update `Current phase`, `Current phase state`, `Last completed phase`, and `Last pushed SHA`.
-7. Begin P11 automatically unless a persisted hard blocker exists.
+7. Begin P13 automatically unless a persisted hard blocker exists.
 
-## P11 - Constant-factor performance hardening
+## P13 - Constant-factor performance hardening
 
 **State:** planned. Profile verified code and reduce constants without weakening
 certificates. Candidates: scratch reuse, capacity planning, SoA dominance
@@ -1750,11 +1819,11 @@ After the phase has passed its full audit, been committed, and been pushed:
 2. Verify `origin/codex/full-implementation` equals local `HEAD`.
 3. Reopen and reread `docs/IMPLEMENTATION_MASTER_PLAN.md`.
 4. Reread the complete Global Rules section.
-5. Reread the complete P12 phase section. Do not rely on memory.
+5. Reread the complete P14 phase section. Do not rely on memory.
 6. Update `Current phase`, `Current phase state`, `Last completed phase`, and `Last pushed SHA`.
-7. Begin P12 automatically unless a persisted hard blocker exists.
+7. Begin P14 automatically unless a persisted hard blocker exists.
 
-## P12 - Final verification, benchmark, and strict report
+## P14 - Final verification, benchmark, and strict report
 
 **State:** planned. Run exhaustive, random, polyomino, polygon, formal-hole,
 metamorphic, fuzz, external CP-SAT, generic-flow, compressed-flow, memory, and
@@ -1774,7 +1843,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 1. Run `git fetch origin`.
 2. Verify `origin/codex/full-implementation` equals local `HEAD`.
 3. Reopen and reread this plan and the complete Global Rules section.
-4. Mark P12 complete only after all final outputs and release gates pass.
+4. Mark P14 complete only after all final outputs and release gates pass.
 5. Update phase fields and stop unless an explicitly authorized release action remains.
 
 ## Append-only progress log
