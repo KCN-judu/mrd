@@ -10,7 +10,8 @@
 //!
 //! There is deliberately no `solve_source -> optimum` automatic entry:
 //! automatic target discovery remains blocked (P9.5e.3g.3), so no public API
-//! here may claim to find `F*`. Every result records its [`SolverProvenance`].
+//! here may claim to find `F*`, and there is no automatic source mode. Every
+//! result records its [`SolverProvenance`].
 
 use graph::{
     ExactRatio, FixedPointConfig, MinCostSolution, VertexCover,
@@ -332,6 +333,139 @@ pub fn solve_source_with_target(
     })
 }
 
+/// A serialization-friendly exact-ratio dual-certificate representation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DualLowerBoundCertificateJson {
+    pub vertex_potentials: Vec<(i128, i128)>,
+    pub lower_slack: Vec<(i128, i128)>,
+    pub upper_slack: Vec<(i128, i128)>,
+}
+
+impl DualLowerBoundCertificateJson {
+    /// Converts into the exact certificate type.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LayeredError::InvalidRatio`] when any component is invalid.
+    pub fn into_exact(self) -> Result<DualLowerBoundCertificate, LayeredError> {
+        fn ratios(pairs: &[(i128, i128)]) -> Result<Vec<ExactRatio>, LayeredError> {
+            pairs
+                .iter()
+                .map(|(numerator, denominator)| {
+                    ExactRatio::new(*numerator, *denominator)
+                        .map_err(|_| LayeredError::InvalidRatio)
+                })
+                .collect()
+        }
+        Ok(DualLowerBoundCertificate {
+            vertex_potentials: ratios(&self.vertex_potentials)?,
+            lower_slack: ratios(&self.lower_slack)?,
+            upper_slack: ratios(&self.upper_slack)?,
+        })
+    }
+
+    /// Serializes an exact certificate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LayeredError::InvalidRatio`] when a component is outside the
+    /// supported integer domain.
+    pub fn from_exact(certificate: &DualLowerBoundCertificate) -> Result<Self, LayeredError> {
+        fn pairs(values: &[ExactRatio]) -> Result<Vec<(i128, i128)>, LayeredError> {
+            values
+                .iter()
+                .map(|value| {
+                    Ok((
+                        value
+                            .numerator_i128()
+                            .map_err(|_| LayeredError::InvalidRatio)?,
+                        value
+                            .denominator_i128()
+                            .map_err(|_| LayeredError::InvalidRatio)?,
+                    ))
+                })
+                .collect()
+        }
+        Ok(Self {
+            vertex_potentials: pairs(&certificate.vertex_potentials)?,
+            lower_slack: pairs(&certificate.lower_slack)?,
+            upper_slack: pairs(&certificate.upper_slack)?,
+        })
+    }
+}
+
+/// A serialization-friendly circulation network specification.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CirculationNetworkSpec {
+    pub node_count: usize,
+    pub demands: Vec<i128>,
+    pub arcs: Vec<ArcSpec>,
+}
+
+/// One serialization-friendly circulation arc.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ArcSpec {
+    pub from: usize,
+    pub to: usize,
+    pub capacity: i128,
+    pub cost: i128,
+}
+
+impl TryFrom<&CirculationNetworkSpec> for graph::CirculationNetwork {
+    type Error = LayeredError;
+
+    fn try_from(spec: &CirculationNetworkSpec) -> Result<Self, Self::Error> {
+        let mut network = graph::CirculationNetwork::new(spec.node_count);
+        for (node, demand) in spec.demands.iter().copied().enumerate() {
+            network
+                .set_demand(graph::FlowNodeId(node), demand)
+                .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
+        }
+        for (index, arc) in spec.arcs.iter().enumerate() {
+            network
+                .add_arc(
+                    graph::FlowNodeId(arc.from),
+                    graph::FlowNodeId(arc.to),
+                    arc.capacity,
+                    arc.cost,
+                )
+                .map_err(|error| {
+                    LayeredError::UnsupportedOrUndetermined(format!("arc {index}: {error}"))
+                })?;
+        }
+        Ok(network)
+    }
+}
+
+impl TryFrom<&graph::CirculationNetwork> for CirculationNetworkSpec {
+    type Error = LayeredError;
+
+    fn try_from(network: &graph::CirculationNetwork) -> Result<Self, Self::Error> {
+        let node_count = network.node_count();
+        let demands = network.demands().to_vec();
+        let mut arcs = Vec::with_capacity(network.arc_count());
+        for index in 0..network.arc_count() {
+            let (from, to) = network
+                .arc_endpoints(graph::CirculationArcId(index))
+                .ok_or_else(|| LayeredError::UnsupportedOrUndetermined("missing arc".to_owned()))?;
+            let (capacity, cost) = network
+                .arc_capacity_cost(graph::CirculationArcId(index))
+                .ok_or_else(|| LayeredError::UnsupportedOrUndetermined("missing arc".to_owned()))?;
+            arcs.push(ArcSpec {
+                from: from.0,
+                to: to.0,
+                capacity,
+                cost,
+            });
+        }
+        Ok(Self {
+            node_count,
+            demands,
+            arcs,
+        })
+    }
+}
+
 /// Verifies a caller-supplied dual lower-bound certificate.
 ///
 /// Returns the certified dual objective only when it is exactly feasible and
@@ -585,6 +719,54 @@ mod tests {
         // automatic-source constructor to call.
         let mode = super::SolverMode::Reference;
         assert!(matches!(mode, super::SolverMode::Reference));
+    }
+
+    #[test]
+    fn circulation_spec_round_trips_and_verifies() {
+        let mut network = graph::CirculationNetwork::new(2);
+        network.add_arc(FlowNodeId(0), FlowNodeId(1), 2, 1).unwrap();
+        network.add_arc(FlowNodeId(1), FlowNodeId(0), 2, 0).unwrap();
+        let spec = super::CirculationNetworkSpec::try_from(&network).unwrap();
+        let rebuilt = graph::CirculationNetwork::try_from(&spec).unwrap();
+        assert_eq!(rebuilt.node_count(), 2);
+        assert_eq!(rebuilt.arc_count(), 2);
+        let dual = graph::source_flow::certificate::DualLowerBoundCertificate::from_potentials(
+            &network,
+            vec![
+                ExactRatio::new(0, 1).unwrap(),
+                ExactRatio::new(0, 1).unwrap(),
+            ],
+        )
+        .unwrap();
+        let json = super::DualLowerBoundCertificateJson::from_exact(&dual).unwrap();
+        let exact = json.into_exact().unwrap();
+        assert_eq!(
+            exact.verify(&network).unwrap(),
+            ExactRatio::new(0, 1).unwrap()
+        );
+    }
+
+    #[test]
+    fn verification_summary_requires_no_fallback_and_target_met() {
+        let summary = super::VerificationSummary {
+            objective_verified: true,
+            matching_verified: true,
+            cover_verified: true,
+            rectangles_verified: true,
+            source_target_met: true,
+            no_fallback: true,
+        };
+        assert!(summary.verified());
+        let fallback = super::VerificationSummary {
+            no_fallback: false,
+            ..summary.clone()
+        };
+        assert!(!fallback.verified());
+        let unmet = super::VerificationSummary {
+            source_target_met: false,
+            ..summary
+        };
+        assert!(!unmet.verified());
     }
 
     #[test]

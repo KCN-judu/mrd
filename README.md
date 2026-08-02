@@ -255,3 +255,44 @@ cut-family acceptance contract.
 The CompactOnly geometry path now shares one component-local prepared context
 across grid-run chord enumeration, dense cut completion, dense rectangle
 recovery, and final validation. See `docs/PREPARED_GRID_PIPELINE.md`.
+
+## Layered public backend architecture
+
+The repository exposes an explicit three-layer backend model in
+`mrd::layered` (`crates/mrd/src/layered.rs`):
+
+1. **Reference-backed exact solver** (`solve_reference`): runs the permanent
+   reference backends and returns exact matching, minimum vertex cover,
+   selected chords, and rectangle decomposition with `ReferenceExact`
+   provenance.
+2. **Source backend under a caller-supplied inclusive target**
+   (`solve_source_with_target`): runs only the source-shaped production path.
+   A completed run is certified "source-certified under a caller-supplied
+   inclusive target" (recovered cost at most the target). Automatic target
+   discovery is **not implemented**; failures are reported honestly as
+   `UnsupportedOrUndetermined` and never classified as target infeasibility.
+3. **Negative certificate verifier** (`verify_source_infeasible_below`,
+   `verify_cover_below`, `verify_source_feasible_at_most`): verifies
+   `DualLowerBoundCertificate` and compressed cover-below certificates exactly
+   and independently.
+
+There is deliberately no `solve_source -> optimum` automatic entry, no
+`AutomaticSource` mode, and no binary-search wrapper for `F*`. Every result
+records its `SolverProvenance`.
+
+CLI selection:
+
+```bash
+mrd solve --solver dominance-compact-only --backend reference \
+  --input-format formal-polygon --input test-data/polygons/formal/source-figure-three.json
+
+mrd solve --solver dominance-compact-only --backend source-with-target --target -3 \
+  --input-format formal-polygon --input test-data/polygons/formal/source-figure-three.json
+
+mrd verify-negative-certificate --network network.json --certificate certificate.json --target -1
+```
+
+The source-with-target backend currently supports formal-polygon input only and
+requires `--target`. It never silently falls back to a reference backend. See
+`docs/phase-reports/P10-layered-backend.md` and
+`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`.

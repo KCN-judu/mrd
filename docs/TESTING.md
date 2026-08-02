@@ -117,3 +117,26 @@ path-tree advantage search, q=2,052 representation comparison, deterministic
 witness search, and all stored regressions. It archives logs, JSON and CSV
 evidence, witness/regression bundles, and SVG diagnostics for minimized Rust
 failures.
+
+## Layered backend tests
+
+`cargo test -p mrd` covers the layered public backend (`mrd::layered`):
+
+- `reference_mode_returns_provenance_and_verified_output` and
+  `reference_result_serializes_deterministically_with_provenance`: the
+  reference solver returns `ReferenceExact` provenance and deterministic
+  serialization on the Figure 3 fixture.
+- `source_with_target_reports_a_source_failure_honestly`: a source failure is
+  an explicit error, never a fallback.
+- `source_with_target_returns_certified_at_most_provenance_on_supported_fixture`
+  (`#[ignore]`, slow Appendix B.1 path): when it completes, it returns
+  `SourceCertifiedAtMost` with recovered cost at most the target.
+- `verify_dual_lower_bound_certificate_is_exact` and the CLI
+  `verify-negative-certificate` tests: exact dual-certificate verification,
+  including strict-bound rejection.
+- CLI tests: default reference backend, source-with-target target parsing,
+  missing-target rejection, and explicit grid-input unsupported.
+
+`tools/check_source_flow_audit.py` scans `crates/mrd/src/layered.rs` and
+rejects an `AutomaticSource` mode, an automatic `solve_source` entry, and
+binary-search wrappers; it requires the layered API and provenance fields.

@@ -61,7 +61,6 @@ circulation and rounding Oracle first; P8 must split the dynamic structures
 into source-backed subphases before claiming their amortized guarantees.
 
 ## Current P9.3.2d deferred proof debt
-
 The formal SIAM version of Abraham--Neiman, *Using Petal-Decompositions to
 Build a Low Stretch Spanning Tree*, SIAM J. Comput. 48(2), 2019, pp. 227--248,
 DOI `10.1137/17M1115575`, has been obtained and checked. It does not establish
@@ -95,3 +94,21 @@ Retrieve and archive the exact cited predecessor versions, especially CKLPPS22
 for the IPM/data-structure interface, KP15 Section 4 for deterministic
 rounding, and CS21 for decremental expander shortest paths. Then split P8 into
 source-backed subphases before implementing the dynamic structures.
+
+## Layered public backend and claim separation
+
+`mrd::layered` exposes the reference-backed exact solver, the source backend
+under a caller-supplied inclusive target, and exact negative-certificate
+verification. Claim separation is strict:
+
+- **Implementation evidence:** the reference solver, the target-bound source
+  backend, the negative certificate verifiers, and the source-flow static
+  audit.
+- **Theorem-backed (reference):** exact matching/cover/rectangle recovery via
+  the permanent backends.
+- **Not claimed:** automatic `F*` discovery, `solve_source -> optimum`,
+  `AlmostLinear`, `an19_runtime_verified: true`, or any AN19 asymptotic runtime.
+  The source backend is "source-certified under a caller-supplied inclusive
+  target", never an automatic almost-linear solver. The unresolved automatic
+  `F*` constructor and the unresolved AN19 runtime proof remain the authoritative
+  blockers; `Backend::require_complete()` stays `Error::Incomplete`.

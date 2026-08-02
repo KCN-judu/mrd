@@ -98,3 +98,13 @@
   rather than a default unit test because its runtime is machine-dependent.
 - Experimental agreement is finite evidence, not a proof that the practical
   implementation realizes the paper's full `n^(1+o(1))` algorithm.
+- The layered public backend (`mrd::layered`) exposes a reference solver, a
+  source-with-target solver, and exact negative-certificate verification.
+  Automatic `F*` discovery is **not implemented**: there is no `solve_source ->
+  optimum` entry, no `AutomaticSource` mode, and no binary-search wrapper. A
+  failed source target run is reported as `UnsupportedOrUndetermined` and is
+  never classified as target infeasibility. The source-with-target backend
+  currently supports formal-polygon input only, and the Appendix B.1 path on
+  the full Figure 3 fixture is slow (its positive unit test is ignored; the
+  honest-failure contract is tested). `Backend::require_complete()` remains
+  `Error::Incomplete`; no AN19 runtime claim is made.

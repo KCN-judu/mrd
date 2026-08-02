@@ -319,3 +319,21 @@ not an approximate dynamic cycle solver.
 The implementation starts the comparability-bigraph recursion with four
 coordinates. Therefore the general Cardinal--Yuditsky bound specializes to
 `O(q log^4 q)`, not `O(q log^3 q)`.
+
+## Layered backend architecture
+
+The public backend (`mrd::layered`) separates three layers:
+
+1. Reference-backed exact solver (`solve_reference`): uses the permanent
+   reference matching/flow/completion backends and returns exact MRD output.
+2. Source-with-target solver (`solve_source_with_target`): uses only the
+   source-shaped production path under a caller-supplied inclusive target. A
+   completed run is certified "at most target"; no `F*` inference and no
+   reference fallback occur.
+3. Negative certificate verifiers (`verify_source_infeasible_below`,
+   `verify_cover_below`): verify `DualLowerBoundCertificate` (weak-duality
+   lower bound) and compressed cover-below proofs (Konig) exactly.
+
+Automatic `F*` search is not implemented (see
+`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`); the source path
+never classifies an execution failure as target infeasibility.
