@@ -13,6 +13,7 @@ MODULES = {
     "recovery": ROOT / "crates/graph/src/source_flow/recovery.rs",
     "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
     "compressed": ROOT / "crates/dominance/src/compressed_flow/experiment/source.rs",
+    "layered": ROOT / "crates/mrd/src/layered.rs",
 }
 REQUIRED = {
     "root": (
@@ -89,6 +90,22 @@ REQUIRED = {
         "verify_feasible_solution",
         "interprets a source failure as evidence about a different target",
     ),
+    "layered": (
+        "pub enum SolverMode",
+        "pub enum SolverProvenance",
+        "pub struct SourceConfig",
+        "pub struct LayeredResult",
+        "pub struct VerificationSummary",
+        "pub fn solve_reference",
+        "pub fn solve_source_with_target",
+        "pub fn verify_source_infeasible_below",
+        "pub fn verify_source_feasible_at_most",
+        "pub enum LayeredError",
+        "UnsupportedOrUndetermined",
+        "automatic target discovery remains blocked",
+        "no automatic source mode",
+        "provenance",
+    ),
 }
 FORBIDDEN = (
     "Dinic",
@@ -101,6 +118,14 @@ FORBIDDEN = (
     "recover_isolation_perturbed",
     "dynamic_min_ratio",
     ".verify_solution(",
+)
+LAYERED_FORBIDDEN = (
+    "AutomaticSource,",
+    "AutomaticSource }",
+    "fn solve_source(",
+    "fn solve_source_with_target_auto",
+    "binary_search_wrapper",
+    "binary_search(",
 )
 COORDINATE_FORBIDDEN = (
     "snapshot.lengths()",
@@ -140,6 +165,10 @@ def main() -> None:
             for forbidden in COORDINATE_FORBIDDEN:
                 if forbidden in source:
                     fail(f"forbidden interval read {forbidden!r} in {path.relative_to(ROOT)}")
+        if name == "layered":
+            for forbidden in LAYERED_FORBIDDEN:
+                if forbidden in source:
+                    fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
     print(
         "source_flow audit: derived source configuration with no reference-flow, "
         "recovery fallback, or hidden-stability execution dependency"

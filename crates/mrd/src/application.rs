@@ -2344,6 +2344,7 @@ mod tests {
         EventFamilyArg, InputFormatArg, LoadedInput, PathTreeOrientationArg, PolygonArrangementArg,
         PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg, PolygonValidatorArg,
         RegionDualArg, RepresentationArg, SolverArg, load_input, solve_command,
+        verify_negative_certificate_command,
     };
 
     #[test]
@@ -2956,5 +2957,76 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.to_string().contains("formal-polygon input"));
+    }
+
+    #[test]
+    fn verify_negative_certificate_cli_verifies_a_dual_lower_bound() {
+        let root =
+            std::env::temp_dir().join(format!("mrd-verify-negative-cert-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        let network = root.join("network.json");
+        let certificate = root.join("certificate.json");
+        let output = root.join("output.json");
+        fs::write(
+            &network,
+            br#"{
+                "node_count": 2,
+                "demands": [0, 0],
+                "arcs": [
+                    {"from": 0, "to": 1, "capacity": 2, "cost": 1},
+                    {"from": 1, "to": 0, "capacity": 2, "cost": 0}
+                ]
+            }"#,
+        )
+        .unwrap();
+        fs::write(
+            &certificate,
+            br#"{
+                "vertex_potentials": [[0, 1], [0, 1]],
+                "lower_slack": [[1, 1], [0, 1]],
+                "upper_slack": [[0, 1], [0, 1]]
+            }"#,
+        )
+        .unwrap();
+        verify_negative_certificate_command(&network, &certificate, -1, Some(&output)).unwrap();
+        let value: Value = serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+        assert_eq!(value["verified"], true);
+        assert_eq!(value["target"], -1);
+        assert_eq!(value["certificate"], "dual-lower-bound");
+    }
+
+    #[test]
+    fn verify_negative_certificate_cli_rejects_a_non_strict_bound() {
+        let root = std::env::temp_dir().join(format!(
+            "mrd-verify-negative-cert-reject-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let network = root.join("network.json");
+        let certificate = root.join("certificate.json");
+        fs::write(
+            &network,
+            br#"{
+                "node_count": 2,
+                "demands": [0, 0],
+                "arcs": [
+                    {"from": 0, "to": 1, "capacity": 2, "cost": 1},
+                    {"from": 1, "to": 0, "capacity": 2, "cost": 0}
+                ]
+            }"#,
+        )
+        .unwrap();
+        fs::write(
+            &certificate,
+            br#"{
+                "vertex_potentials": [[0, 1], [0, 1]],
+                "lower_slack": [[0, 1], [0, 1]],
+                "upper_slack": [[0, 1], [0, 1]]
+            }"#,
+        )
+        .unwrap();
+        let error =
+            verify_negative_certificate_command(&network, &certificate, 0, None).unwrap_err();
+        assert!(error.to_string().contains("certificate"));
     }
 }
