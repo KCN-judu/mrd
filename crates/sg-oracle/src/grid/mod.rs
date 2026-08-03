@@ -942,8 +942,12 @@ impl Enumerator for experiment::InteriorRuns {
         &self,
         context: &PreparedComponentContext<'_, C>,
     ) -> Result<Families, SgError> {
-        let mut horizontal_records = BTreeSet::new();
-        let mut vertical_records = BTreeSet::new();
+        // Reflex rows/columns, interior runs, and each row/column's coordinates
+        // are all canonical ascending sequences. Their nested traversal emits
+        // each chord once in canonical order, so a BTreeSet would only repeat
+        // ordering work and allocate tree nodes.
+        let mut horizontal_records = Vec::new();
+        let mut vertical_records = Vec::new();
         let mut horizontal_interior_run_count = 0;
         let mut vertical_interior_run_count = 0;
         let mut candidate_reflex_pair_count = 0;
@@ -967,7 +971,7 @@ impl Enumerator for experiment::InteriorRuns {
                 for (index, &left) in aligned.iter().enumerate() {
                     for &right in &aligned[index + 1..] {
                         candidate_reflex_pair_count += 1;
-                        horizontal_records.insert((y, left, right));
+                        horizontal_records.push((y, left, right));
                     }
                 }
             }
@@ -992,7 +996,7 @@ impl Enumerator for experiment::InteriorRuns {
                 for (index, &bottom) in aligned.iter().enumerate() {
                     for &top in &aligned[index + 1..] {
                         candidate_reflex_pair_count += 1;
-                        vertical_records.insert((x, bottom, top));
+                        vertical_records.push((x, bottom, top));
                     }
                 }
             }
