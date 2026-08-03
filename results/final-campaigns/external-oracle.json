@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "git_commit": "69cf77d0c537b665d5c04ae666767fd58bd3cf83",
+  "git_commit": "f35a9bd9690ddb8b8b6d1e05d3a0360119663cd9",
   "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-  "command": "tools/external-oracle/verify_suite.py --mrd target/release/mrd --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-p14-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --max-time-seconds 30 --work-dir /tmp/mrd-p14-external-work-rerun --output results/final-campaigns/external-oracle.json",
+  "command": "tools/external-oracle/verify_suite.py --mrd target/release/mrd --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir target/p14-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --max-time-seconds 30 --work-dir target/p14-external-work --output results/final-campaigns/external-oracle.json",
   "seed": 0,
-  "timestamp": 1785764365,
+  "timestamp": 1785765495,
   "input_count": 6998,
   "component_count": 27228,
   "cp_sat_solved_component_count": 27228,
@@ -81,7 +81,7 @@
       }
     }
   },
-  "runtime_seconds": 43.844229292008094,
+  "runtime_seconds": 44.904121582978405,
   "cases": [
     {
       "suite": "exhaustive-binary",

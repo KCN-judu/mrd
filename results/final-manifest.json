@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "artifact_state": "complete",
-  "git_commit": "0752fce60d5a801173e963b4a1fb55c8a331949e",
+  "git_commit": "f35a9bd9690ddb8b8b6d1e05d3a0360119663cd9",
   "generated_at_utc": "2026-08-03T13:44:12Z",
   "environment": {
     "operating_system": "Darwin 25.5.0",
@@ -82,8 +82,8 @@
       "disposition": "executed",
       "claim_boundary": "bounded CP-SAT optimality comparisons for supported grid components",
       "completed_at_utc": "2026-08-03T13:42:00Z",
-      "commands": [{"command":"tools/external-oracle/verify_suite.py --mrd target/release/mrd --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-p14-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --max-time-seconds 30 --work-dir /tmp/mrd-p14-external-work-rerun --output results/final-campaigns/external-oracle.json","exit_status":0,"duration_seconds":44.14}],
-      "artifacts": [{"path":"results/final-campaigns/external-oracle.json","sha256":"ad6e9feb0cb9ebc107874efc20cc26fbf6f3cc663c919d0903ff58f09aa5025f"}],
+      "commands": [{"command":"tools/external-oracle/verify_suite.py --mrd target/release/mrd --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir target/p14-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --max-time-seconds 30 --work-dir target/p14-external-work --output results/final-campaigns/external-oracle.json","exit_status":0,"duration_seconds":44.90}],
+      "artifacts": [{"path":"results/final-campaigns/external-oracle.json","sha256":"4fba9fc458bb652218f8545df2e06b3a3b0ef8b5a7d5d8858346bc001358101a"}],
       "population": {"input_count":6998,"component_count":27228,"input_model":"bounded-grid-cp-sat-differential-oracle"},
       "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
     },
