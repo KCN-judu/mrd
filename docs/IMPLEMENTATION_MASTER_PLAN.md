@@ -7,8 +7,8 @@
 - Current phase: P11
 - Current phase state: in_progress
 - Last completed phase: P10
-- Last pushed SHA: ab7c390af465590c02ddae6adc81546578c7a99b
-- Plan last updated: 2026-08-03T10:58:31Z
+- Last pushed SHA: 06a030d84fcd9b86b451c580f72be818e885c0e7
+- Plan last updated: 2026-08-03T11:03:42Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1793,6 +1793,27 @@ cross-side equality, exact biclique/network/flow/cut/rectangle equality, and
 Keep RankedCoordinates permanently as Oracle. Suggested release:
 `v2.1.0-direct-grid-parity-embedding`.
 
+P11 is split before implementation into these source-of-truth subphases:
+
+- **P11.1 - Backend contract and counters. State: in_progress.** Define the
+  zero-cost backend selection boundary, stable embedding result, and explicit
+  allocation/ordering counters without weakening the permanent ranked Oracle.
+- **P11.2 - Exact direct parity encoder. State: planned.** Implement the four
+  checked formulas for finite integer grid chords, with no rank sets, maps, or
+  sorted coordinate vectors in the direct branch.
+- **P11.3 - Grid pipeline integration. State: planned.** Route the grid
+  dominance, biclique, flow, cut, and rectangle pipeline through both backends;
+  keep polygon and source-shaped paths on their existing ranked/reference
+  contract until separately audited.
+- **P11.4 - Differential and invariant campaign. State: planned.** Prove by
+  exhaustive and metamorphic finite campaigns that direct and ranked embeddings
+  agree on intersections, explicit graphs, partitions, flows, covers, and
+  rectangles; assert cross-side coordinate inequality and zero direct counters.
+- **P11.5 - Release evidence and performance boundary. State: planned.** Add
+  machine-readable direct-vs-ranked evidence, document the measured benefit,
+  run the complete phase audit, and preserve RankedCoordinates as the
+  correctness Oracle.
+
 ### Mandatory transition after this phase
 
 After the phase has passed its full audit, been committed, and been pushed:
@@ -1952,4 +1973,9 @@ and AN19 runtime claims.
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
 | P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | complete | c9de7a8 | ab7c390 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:58:31Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
-| P11 | in_progress | ab7c390 | pending | pending | pending | pending | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | implementation and phase subplan pending; direct path must allocate no rank structures |
+| P11 | in_progress | 06a030d | pending | pending | pending | pending | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | implementation subphases are persisted; direct path must allocate no rank structures |
+| P11.1 | in_progress | 06a030d | pending | pending | pending | pending | backend contract, stable result, and zero-rank-allocation counters | 2026-08-03T11:03:42Z | pending | no code committed yet |
+| P11.2 | planned | pending | pending | pending | pending | pending | exact direct parity formula encoder | pending | pending | depends on P11.1 |
+| P11.3 | planned | pending | pending | pending | pending | pending | grid pipeline integration through biclique, flow, cut, and rectangle recovery | pending | pending | depends on P11.2 |
+| P11.4 | planned | pending | pending | pending | pending | pending | exhaustive/metamorphic differential and invariant campaign | pending | pending | depends on P11.3 |
+| P11.5 | planned | pending | pending | pending | pending | pending | direct-vs-ranked release evidence and performance boundary | pending | pending | depends on P11.4 |
