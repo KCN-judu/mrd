@@ -1,5 +1,6 @@
 pub mod adversarial;
 pub mod benchmark;
+pub mod direct_grid_parity;
 pub mod external;
 pub mod formal_campaign;
 pub mod gap_differential;

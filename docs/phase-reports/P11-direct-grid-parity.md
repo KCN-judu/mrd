@@ -2,11 +2,11 @@
 
 ## Status
 
-**State: P11.1-P11.4 complete; P11.5 remains.** The permanent
+**State: P11.1-P11.5 complete.** The permanent
 `RankedCoordinates` Oracle remains the default construction. The new direct
 encoder is exact, independently testable, and routed through the finite-grid
-solver. P11.5 remains for release evidence and the measured performance
-boundary.
+solver. P11.5 provides release evidence and the measured performance
+boundary without a portable end-to-end speed claim.
 
 ## P11.1 - Backend Contract and Counters
 
@@ -47,8 +47,8 @@ equivalence, exact explicit-graph equality with the ranked Oracle, ranked
 counter presence, and all three zero direct counters. A separate fixture checks
 the literal formula coordinates.
 
-No direct-grid performance claim is made in this checkpoint. P11.4 must still
-establish exhaustive and metamorphic end-to-end equality of biclique
+No direct-grid performance claim was made in this checkpoint. P11.4 later
+established exhaustive and metamorphic end-to-end equality of biclique
 partitions, networks, flows, covers, selected cuts, and rectangles on grid
 inputs.
 
@@ -63,8 +63,8 @@ selection boundary.
 Both result paths persist the selected backend and the three rank counters in
 `Diagnostics`. The direct-grid regression runs both verification modes on the
 same component and requires equal objective and rectangles against the ranked
-run, together with `direct-grid-parity` and three zero counters. The wider
-P11.4 campaign remains necessary for exhaustive and metamorphic evidence.
+run, together with `direct-grid-parity` and three zero counters. P11.4 supplies
+the wider exhaustive and metamorphic evidence.
 
 P11.3 has passed its integration audit. It does not broaden the direct backend
 to polygon or source-shaped paths. Its fixture-level comparison was deliberately
@@ -92,6 +92,23 @@ projection of the existing network construction and does not add solver-state
 allocation or alter the production flow path. `FlowNetwork::arcs` is a
 zero-allocation immutable iterator used by that test-only projection.
 
+## P11.5 - Release Evidence and Performance Boundary
+
+`mrd benchmark --suite direct-grid-parity --output <path>` writes a
+machine-readable release report over the same 897-component finite population
+and both verification modes. The executed P11.5 report recorded 1,794 exact
+comparisons, no mismatches, no solver errors, and direct totals of zero rank
+sorts, map entries, and map-owned bytes. Its ranked Oracle totals were 3,588
+sorts, 624 map entries, and 18,240 estimated map-owned bytes.
+
+The report also records local cumulative `dominance_embedding` times. This run
+observed 535 microseconds for direct coordinates and 4,710 microseconds for
+ranked coordinates. Those values are reproducible observations for the stated
+toolchain and input population, not a portable end-to-end speed claim. The
+deterministic benefit remains the persisted zero structural counters. The
+direct backend remains finite-grid-only and `RankedCoordinates` remains the
+permanent correctness Oracle.
+
 ## Audit
 
 Phase baseline: `feef7e71fdc873e6bb48bb71bfe3dfde543f46f8`.
@@ -101,6 +118,7 @@ Phase baseline: `feef7e71fdc873e6bb48bb71bfe3dfde543f46f8`.
 | `cargo fmt --all -- --check` | passed |
 | `cargo test -p dominance direct_grid_embedding_preserves_grid_pipeline_output` | 1 passed, 60 filtered out |
 | `cargo test -p dominance direct_grid_embedding_matches` | 2 passed, 61 filtered out; 897 exhaustive components and 30 metamorphic inputs |
+| `cargo run -p mrd -- benchmark --suite direct-grid-parity --output <temporary>.json` | 897 components, 1,794 comparisons, zero mismatches/errors, and zero direct rank counters |
 | `cargo clippy -p dominance --all-targets --all-features -- -D warnings` | passed |
 | `cargo test -p dominance` | 61 passed, 2 ignored |
 | `git diff --check` | passed |

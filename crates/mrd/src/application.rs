@@ -388,6 +388,7 @@ enum BenchmarkSuiteArg {
     DenseConflict,
     DenseCompactOnly,
     DenseCompletion,
+    DirectGridParity,
     CompletionHeavy,
     AreaHeavy,
     PathTreeComparison,
@@ -1043,6 +1044,19 @@ fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
         )?;
         return Ok(());
     }
+    if suite == BenchmarkSuiteArg::DirectGridParity {
+        let report = verification::direct_grid_parity::exhaustive_three_by_three(context);
+        write_json(&report, Some(output))?;
+        return if report.verified() {
+            Ok(())
+        } else {
+            Err(CliError::Verification(format!(
+                "direct-grid parity evidence recorded {} mismatches and {} solver errors",
+                report.mismatches.len(),
+                report.solver_errors.len()
+            )))
+        };
+    }
     if suite == BenchmarkSuiteArg::PolygonDifferential {
         let report =
             verification::polygon_campaign::exhaustive_grid_polygon_campaign(context, sizes);
@@ -1366,7 +1380,8 @@ fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
         | BenchmarkSuiteArg::PolygonNativeFixtures
         | BenchmarkSuiteArg::PolygonScaling
         | BenchmarkSuiteArg::FormalFixtures
-        | BenchmarkSuiteArg::Layered => unreachable!(),
+        | BenchmarkSuiteArg::Layered
+        | BenchmarkSuiteArg::DirectGridParity => unreachable!(),
     };
     let csv = report
         .to_csv()
