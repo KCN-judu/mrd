@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P9.5e.3g.3 (blocked; certificate verifiers implemented)
 - Last pushed SHA: c5c0e687ac6693a3f85ecaaea7f0fa27818930e0
-- Plan last updated: 2026-08-02T09:01:15Z
+- Plan last updated: 2026-08-03T10:17:36Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1719,32 +1719,32 @@ certificate verification. No `solve_source -> optimum` automatic entry is
 exposed. `Backend::require_complete()` stays `Error::Incomplete`; no AN19
 runtime claim is made. Subphases:
 
-- **P10.1 - Solver mode and provenance model. State: pending.** Define
+- **P10.1 - Solver mode and provenance model. State: complete.** Define
   `SolverMode { Reference, SourceWithTarget { target, source_config } }`,
   `SolverProvenance { ReferenceExact, SourceCertifiedAtMost { target } }`, and
   a stable public result model with objective, matching, cover, chords,
   rectangle decomposition, provenance, and verification summary. No
   `AutomaticSource` mode.
-- **P10.2 - Complete reference-backed public solver. State: pending.** Wrap
+- **P10.2 - Complete reference-backed public solver. State: complete.** Wrap
   the permanent reference backends in a deterministic `solve_reference` path
   that returns exact MRD output (matching, cover, chords, rectangles) and is
   independently verified, clearly marked reference-backed.
-- **P10.3 - Source-with-target public solver. State: pending.** Wrap the
+- **P10.3 - Source-with-target public solver. State: complete.** Wrap the
   source-shaped production path in `solve_source_with_target(instance, target,
   config)`, preserving the inclusive target, returning certified results only
   when recovered cost `<= target`, and returning explicit
   `UnsupportedOrUndetermined` errors otherwise, with no reference fallback and
   no `F*` inference.
-- **P10.4 - Certificate-verification public entries. State: pending.** Expose
+- **P10.4 - Certificate-verification public entries. State: complete.** Expose
   `verify_source_feasible_at_most` and `verify_source_infeasible_below`, the
   latter accepting `DualLowerBoundCertificate` (general circulation) and
   `CoverBelowProof` (compressed bipartite MRD), verified exactly and
   independently.
-- **P10.5 - CLI and deterministic serialization. State: pending.** Add
+- **P10.5 - CLI and deterministic serialization. State: complete.** Add
   `mrd solve --backend reference|source --target <integer>` and a
   `verify-negative-certificate` command, require a target in source mode,
   never silently fall back, and serialize provenance deterministically.
-- **P10.6 - End-to-end supported pipeline. State: pending.** Wire
+- **P10.6 - End-to-end supported pipeline. State: complete.** Wire
   geometry -> chords -> conflict -> compressed matching network -> selected
   backend -> matching/cover -> chord selection -> rectangle completion -> exact
   verification for both reference and source-with-target modes on supported
@@ -1752,12 +1752,15 @@ runtime claim is made. Subphases:
 - **P10.7 - Direct grid parity path. State: pending.** See the direct-grid
   parity section below (renumbered P11). Do not begin it before P10.1-P10.6
   unless it is independent of the automatic `F*` blocker.
-- **P10.8 - Benchmark and evidence separation. State: pending.** Separate
+- **P10.8 - Benchmark and evidence separation. State: complete.** Separate
   reference-complete, source-with-known-target, certificate-verification,
   direct-grid vs polygon-derived, geometry-only, compressed-representation, and
   recovery-only benchmark categories; label reference-provided-target runs and
-  record target-provider/source/recovery/verification/total-hybrid timings
-  separately.
+  record target-provider/geometry/compressed-representation/source/recovery/
+  verification/total-hybrid timings separately. `mrd benchmark --suite layered`
+  creates only polygon-derived measurements in P10; direct-grid records are
+  explicitly unavailable until P11. Source rows require `--source-target` or
+  `--reference-provided-target`; neither option adds automatic `F*` search.
 - **P10.9 - Documentation and release audit. State: pending.** Update
   README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS,
   NEAR_LINEAR_FLOW_IMPLEMENTATION, and TESTING with the layered architecture,
@@ -1877,10 +1880,10 @@ and AN19 runtime claims.
 | P9.3 | blocked | aabe7fc | pending | pending | 09ea2bb | pending | source-grade low-stretch and spanner structures | 2026-07-28T02:12:00Z | pending | P9.3.2d source event-order interface is unresolved |
 | P9.3.1 | complete | 22e8371 | 6e96916, 934576d | pending | pending | `docs/phase-reports/P09-source-structure-contracts.md` | exact graph/update/encoding/LSF/piece/stretch/spanner/parameter contracts; full workspace audit passed | 2026-07-28T02:24:00Z | 2026-07-28T04:28:00Z | none |
 | P9.3.2 | blocked | 6e96916 | 9ac15b5, d0629c1, a9456e9, 698ad7c, f5f91f6, 7251038, 2bca89c, a57e48c, 6769ec1, 3bb0400, 839cb5c, 20b0421, cdf732d, d6b8e6b, 3d3afe2, be21982, 720f0cb, 27d5773, f54c29a, c02c7c9, ece2722, 6901703, e4f54af, bc61592, 14e9abb, 8d68d59, 5cc49f0, b050625, 60fdfe4, 0fc48a1, d17a6cd, 0b3b704 | pending | 88a89b2 | `docs/phase-reports/P09-branch-free-forest-core.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | compact weighted AN19 hierarchy, recursive contraction/expansion, fast event processing, dense cluster-local node projection, scale-relative rounding, source-class fixed-radius cones, zero-production-binary-heap reduced-length monotone event queues, root-source/symbolic-label/recursive-scale/projection/workspace-scan audits, fixed-path reuse, unchanged-cluster caching, and incremental portal-split projection updates; 500-node logical recursion has depth 8 and per-source maximum 9; 5,974 projected occurrences, 12,452 classified incident scans, and all 18,290 workspace scans have structural source/virtual/certificate charges; 16 materialized classes reduce to 2 symbolic source and 3 virtual classes; a power-of-two chord family proves exact reduced-cost classes can grow linearly | 2026-07-28T02:48:00Z | pending | an exact de-potentialized event-order structure and candidate-event work charging remain unproved; source runtime is unverified |
-| P9.3.2d | blocked | 8f9ab06 | d17a6cd, 8681115, 8f9ab06, 0b3b704 | pending | 88a89b2 | `docs/phase-reports/P09-an19-static-lsst-source-map.md` | workspace scan-count audit complete; formal SIAM source identification complete; logarithmic reduced-class conversion refuted; 247 passed and 3 existing ignored | 2026-07-28T16:31:47Z | pending | hard blocker: DOI 10.1137/17M1115575 does not contain an exact replacement event-order argument; AN19 runtime and dependent phases remain unverified and forbidden |
-| P9.3.2d-event-engine | blocked | 89b5ea3 | 7ea13da, 28f9ff7, 6c8cfac, 98bb615, afea347, 4413e94 | 3fee109 | 3fee109 | `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact Oracle/reduced engine, canonical trace, six charge maps, A--H campaign, CLI, manifest and full audit; 254 passed and 3 existing ignored | 2026-07-28T17:29:46Z | 2026-07-28T18:23:10Z | local/global/PQ event proofs and AN19 runtime remain blocked; P9.3.3-P12 remain forbidden |
-| P9.3.2d-local-proof | complete | 0dba080 | 5e771d8, a25ac08, d4dda8f, b4358a9 | cb59512 | cb59512 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | machine-verified `3n + 4m + 2` semantic-event and `n + 2m + 2` queue-item bounds in all 62 A--H Oracle/reduced runs; 254 passed and 3 existing ignored | 2026-07-28T23:29:14Z | 2026-07-28T23:49:52Z | PQ comparison bound, global amortization, runtime, and P9.3.3-P12 remain blocked |
-| P9.3.2d-practical-pq-bound | complete | ebde003 | 02c8385, fbc869e, bbf13b3 | cdd9da1 | cdd9da1 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact stable binary heap and machine-verified `3 I ceil(log2(max(I,1))) + 2m` practical comparison bound in all 31 reduced A--H runs; Oracle independence retained; 256 passed and 3 existing ignored | 2026-07-28T23:59:57Z | 2026-07-29T00:14:09Z | source-equivalent PQ proof, global amortization, runtime, and P9.3.3-P12 remain blocked |
+| P9.3.2d | complete | 8f9ab06 | d17a6cd, 8681115, 8f9ab06, 0b3b704 | pending | 88a89b2 | `docs/phase-reports/P09-an19-static-lsst-source-map.md` | workspace scan-count audit complete; formal SIAM source identification complete; logarithmic reduced-class conversion refuted; 247 passed and 3 existing ignored | 2026-07-28T16:31:47Z | 2026-07-29T16:29:53Z | faithful implementation is complete; DOI 10.1137/17M1115575 leaves the runtime proof as deferred low-priority P9.6a debt |
+| P9.3.2d-event-engine | complete | 89b5ea3 | 7ea13da, 28f9ff7, 6c8cfac, 98bb615, afea347, 4413e94 | 3fee109 | 3fee109 | `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact Oracle/reduced engine, canonical trace, six charge maps, A--H campaign, CLI, manifest and full audit; 254 passed and 3 existing ignored | 2026-07-28T17:29:46Z | 2026-07-29T16:29:53Z | P9.6a retains local/global/PQ proof and AN19-runtime debt; it does not block P9.3.3 through P9.5 implementation |
+| P9.3.2d-local-proof | complete | 0dba080 | 5e771d8, a25ac08, d4dda8f, b4358a9 | cb59512 | cb59512 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | machine-verified `3n + 4m + 2` semantic-event and `n + 2m + 2` queue-item bounds in all 62 A--H Oracle/reduced runs; 254 passed and 3 existing ignored | 2026-07-28T23:29:14Z | 2026-07-29T16:29:53Z | source-equivalent PQ/global-amortization/runtime proof debt remains P9.6a; P9.3.3 through P9.5 may proceed |
+| P9.3.2d-practical-pq-bound | complete | ebde003 | 02c8385, fbc869e, bbf13b3 | cdd9da1 | cdd9da1 | `docs/AN19_LOCAL_EVENT_BOUND.md`; `docs/phase-reports/P09-an19-static-lsst-source-map.md` | exact stable binary heap and machine-verified `3 I ceil(log2(max(I,1))) + 2m` practical comparison bound in all 31 reduced A--H runs; Oracle independence retained; 256 passed and 3 existing ignored | 2026-07-28T23:59:57Z | 2026-07-29T16:29:53Z | source-equivalent PQ/global-amortization/runtime proof debt remains P9.6a; P9.3.3 through P9.5 may proceed |
 | P9-policy-update | complete | ee97432 | pending | pending | pending | `docs/IMPLEMENTATION_MASTER_PLAN.md` | separates faithful implementation progress from deferred complexity proof debt | 2026-07-29T16:29:53Z | 2026-07-29T16:29:53Z | supersedes the earlier hard-blocker policy without changing any AN19 runtime claim |
 | P9 | in_progress | ee97432 | pending | pending | pending | pending | continue the complete source-shaped flow-solver chain through P9.5 | 2026-07-29T16:29:53Z | pending | AN19 complexity proof debt gates naming, claims, and closeout only |
 | P9.3 | in_progress | ee97432 | pending | pending | pending | pending | P9.3.3 is the next active implementation item | 2026-07-29T16:29:53Z | pending | none |
@@ -1939,12 +1942,12 @@ and AN19 runtime claims.
 | P9.5e.3g.2 | complete | 059f3b6 | 2802323, pending closeout | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | Appendix B.1 inclusive-target driver and compressed-flow adapter with checked at-most-target recovery; graph regression accepts cost below target and rejects `TargetNotMet` | 2026-07-31T04:30:19Z | 2026-08-01T00:00:00Z | no target inference, wrong-target decision contract, complete-backend gate, or runtime claim |
 | P9.5e.3g.3 | blocked | 059f3b6 | pending closeout | pending | pending | `docs/phase-reports/P09-5e-3g-3-target-search-contract.md` | direct source audit: no automatic decision invariant for an incorrect target guess; exact negative-certificate verifiers implemented (`DualLowerBoundCertificate`/`prove_infeasible_below`, `certify_cover_below`); binary search still forbidden | 2026-07-31T04:30:19Z | pending | arXiv:2203.00671v2 Section 4 p.24 binary-search remark is not a theorem; no dual variables; certificates verify but are not automatically constructed; `Backend::require_complete()` remains `Error::Incomplete` |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
-| P10 | in_progress | c5c0e68 | e265e01, aa0a618, 6905b93, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | layered public backend: `SolverMode`/`SolverProvenance`, reference solver, source-with-target solver, certificate verification, CLI `--backend`, static audit | 2026-08-02T09:01:15Z | pending | automatic F* search remains blocked; no `AutomaticSource` mode; `Backend::require_complete()` remains `Error::Incomplete`; no AN19 runtime claim |
+| P10 | in_progress | c5c0e68 | e265e01, aa0a618, 6905b93, ab11586, 332a5c5 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | layered public backend plus separated P10.8 timing/evidence categories | 2026-08-02T09:01:15Z | pending | automatic F* search remains blocked; no `AutomaticSource` mode; `Backend::require_complete()` remains `Error::Incomplete`; no AN19 runtime claim |
 | P10.1 | complete | c5c0e68 | aa0a618 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | `SolverMode`, `SolverProvenance`, `SourceConfig`, `LayeredResult`, `VerificationSummary`, `LayeredError` | 2026-08-02T09:01:15Z | 2026-08-02T09:20:00Z | no automatic-source variant |
 | P10.2 | complete | aa0a618 | aa0a618 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | reference-backed `solve_reference` with exact output and provenance | 2026-08-02T09:20:00Z | 2026-08-02T09:25:00Z | formal-polygon reference path only |
 | P10.3 | complete | aa0a618 | aa0a618, 6905b93 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | source-with-target `solve_source_with_target` under inclusive target; honest `UnsupportedOrUndetermined` | 2026-08-02T09:25:00Z | 2026-08-02T09:40:00Z | Appendix B.1 path slow on Figure 3; positive unit test ignored, honest failure tested |
 | P10.4 | complete | aa0a618 | aa0a618, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | `verify_source_infeasible_below`, `verify_cover_below`, `verify_source_feasible_at_most`, serializable specs | 2026-08-02T09:40:00Z | 2026-08-02T09:50:00Z | dual + compressed cover certificates verified exactly |
 | P10.5 | complete | 6905b93 | 6905b93, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | CLI `--backend reference|source-with-target --target` and `verify-negative-certificate` | 2026-08-02T09:50:00Z | 2026-08-02T10:05:00Z | source mode supports formal-polygon input only |
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
-| P10.8 | pending | pending | pending | pending | pending | pending | benchmark separation: reference-provided-target labels and separate target-provider/source/recovery/verification/total timings | pending | pending | not started |
+| P10.8 | complete | a773a81 | 332a5c5 | pending closeout | pending | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:17:36Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | pending | pending | pending | pending | pending | pending | documentation closeout across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, TESTING | pending | pending | not started |

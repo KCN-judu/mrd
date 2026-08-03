@@ -2,13 +2,14 @@
 
 ## Status
 
-**State: P10.1-P10.4 complete (solver mode, reference solver, source-with-target
-solver, certificate verification) with CLI integration (P10.5) and static
-audit coverage (P10.6).** Direct-grid parity (P11), benchmark separation
-(P10.8), and documentation closeout (P10.9) remain. `Backend::require_complete()`
-stays `Error::Incomplete`; no AN19 runtime claim is made.
+**State: P10.1-P10.8 complete (solver mode, reference solver, source-with-target
+solver, certificate verification, CLI/static audit, and separated benchmark
+evidence).** Direct-grid parity (P11) and documentation closeout (P10.9)
+remain. `Backend::require_complete()` stays `Error::Incomplete`; no AN19
+runtime claim is made.
 
-Implementation commits: `e265e01`, `aa0a618`, `6905b93`, `ab11586`.
+Implementation commits: `e265e01`, `aa0a618`, `6905b93`, `ab11586`,
+`332a5c5`.
 
 ## P10.1 - Solver mode and provenance model
 
@@ -87,6 +88,43 @@ it requires the layered API surface (`SolverMode`, `SolverProvenance`,
 fields) and forbids an `AutomaticSource` mode, an automatic `solve_source`
 entry, and binary-search wrappers.
 
+## P10.8 - Benchmark and evidence separation
+
+`mrd::layered::experiment` is a dedicated measurement namespace, and
+`mrd benchmark --suite layered --output <path>` emits deterministic categories
+instead of one opaque hybrid timing. The standard run records independent
+polygon-derived measurements for:
+
+- complete reference solving;
+- formal-family geometry;
+- compact dominance/circulation representation;
+- recovery-only rectangle completion;
+- independent dual-certificate verification.
+
+The report also carries an explicit direct-grid `unavailable` row: P11 is the
+only phase allowed to make a direct-grid measurement. This prevents a
+polygon-derived result from being relabelled as direct-grid evidence.
+
+Source rows are opt-in. `--source-target <integer>` records
+`caller-supplied`; `--reference-provided-target` first measures a reference
+solve and records `reference-exact` separately from the source call. Neither
+mode is exposed by the source solver itself and neither performs automatic
+`F*` search. A source failure is `source-undetermined`, never a fallback or an
+infeasibility conclusion. Source targets serialize as decimal strings so every
+valid `i128` target is preserved exactly in JSON.
+
+Completed source runs obtain separate geometry, compressed-representation,
+source-driver, recovery, verification, and total-hybrid timings from the
+private `layered::execution` boundary. When a source run fails before a
+completed result, only its total source-entry time is recorded; unexecuted
+later stages stay absent rather than receiving invented timings.
+
+The standard run was checked with a deliberately impossible caller target
+`-85070591730234615865843651857942052864`. It produced a
+`caller-supplied` / `source-undetermined` record, retained the exact decimal
+target, and did not fall back. This validates reporting semantics only; it is
+not source-backend success evidence and does not change P9.5e.3g.3.
+
 ## Audit
 
 Phase baseline: `c5c0e687ac6693a3f85ecaaea7f0fa27818930e0`. The following
@@ -106,11 +144,34 @@ commands exit `0`.
 | `cargo build --workspace --release` | release build passed |
 | `python3 tools/check_release_consistency.py` | release provenance accepted |
 
+P10.8 incremental checks at code commit `332a5c5` all exited `0`:
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt --all -- --check` | Rust formatting accepted |
+| `cargo clippy -p mrd --all-targets --all-features -- -D warnings` | no warnings in the public/experiment boundary |
+| `cargo test -p mrd` | 27 passed, 1 existing ignored |
+| `python3 tools/check_source_flow_audit.py` | scans both the public layered API and private source execution module; no reference fallback or automatic target discovery |
+| `mrd benchmark --suite layered --output <temporary file>` | five verified polygon-derived rows plus explicit direct-grid unavailable row |
+| `mrd benchmark --suite layered --source-target -85070591730234615865843651857942052864 --output <temporary file>` | exact decimal target and honest `source-undetermined` outcome; no fallback |
+
+The closeout audit reran the mandatory workspace gates after the code commit:
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt --all -- --check` | passed |
+| `python3 tools/check_biclique_bound.py` | passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | passed with no warnings |
+| `cargo test --workspace` | 419 passed, 4 existing ignored; exit `0` (15 suites, 540.07s) |
+| `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | passed |
+| `cargo build --workspace --release` | passed |
+| `python3 tools/check_source_flow_audit.py` | passed |
+| `python3 tools/check_release_consistency.py` | passed |
+| `git diff --check` | passed |
+
 ## Remaining work
 
 - P11 (renumbered): direct grid parity embedding.
-- P10.8: benchmark and evidence separation (reference-provided-target labels,
-  separate target-provider/source/recovery/verification/total timings).
 - P10.9: documentation closeout across README, ARCHITECTURE, ALGORITHMS,
   KNOWN_LIMITATIONS, NEAR_LINEAR_FLOW_IMPLEMENTATION, and TESTING.
 - Automatic `F*` search remains blocked (P9.5e.3g.3); `Backend::require_complete()`
