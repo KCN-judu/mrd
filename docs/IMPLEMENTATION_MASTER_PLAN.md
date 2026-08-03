@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P14.4
-- Current phase state: in_progress
-- Last completed phase: P14.3
-- Last pushed SHA: 4c0caac14e7bcc95001dfbc0d9efc7f89624fee4
-- Plan last updated: 2026-08-03T13:47:00Z
+- Current phase: P14
+- Current phase state: complete
+- Last completed phase: P14.5
+- Last pushed SHA: 0752fce60d5a801173e963b4a1fb55c8a331949e
+- Plan last updated: 2026-08-03T13:55:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1922,11 +1922,13 @@ P14 is split before final-artifact work into these source-of-truth subphases:
   in `docs/phase-reports/P14-final-artifact.md` and
   `results/final-campaigns/external-oracle.json`. Profiler-only claims remain
   explicitly unavailable.
-- **P14.4 - Performance and complexity synthesis. State: in_progress.** Consolidate
+- **P14.4 - Performance and complexity synthesis. State: complete.** Consolidate
   local timing observations, structural counters, backend crossover evidence,
   P13 ledger, source assumptions, and deferred proof debt into reports that
-  make no unsupported portability, asymptotic, or AN19-runtime claim.
-- **P14.5 - Final artifact closeout. State: planned.** Generate all required
+  make no unsupported portability, asymptotic, or AN19-runtime claim. The
+  resulting reports are `results/final-performance-report.md` and
+  `results/final-complexity-report.md`.
+- **P14.5 - Final artifact closeout. State: complete.** Generated all required
   final reports and manifest, perform the complete release audit, inspect every
   generated artifact and staged diff, then close P14.
 
@@ -2061,6 +2063,5 @@ and AN19 runtime claims.
 | P14.1 | complete | 37fa506 | 9e7bdd6 | 9e7bdd6 | 9e7bdd6 | `docs/phase-reports/P14-final-artifact.md`; `docs/final-manifest.schema.json` | campaign inventory and final-manifest contract | 2026-08-03T13:09:00Z | 2026-08-03T13:22:30Z | CP-SAT package, external profilers, and cargo-fuzz are not installed locally; P14.3 must execute or record exact unavailable/deferred dispositions |
 | P14.2 | complete | 2351cc6 | 69cf77d | 69cf77d | 69cf77d | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/` exact correctness data and isolated local manifest | 2026-08-03T13:26:47Z | 2026-08-03T13:35:00Z | 4x4 exhaustive, random, polyomino, polygon, formal, direct-parity, generic-flow, and compressed-flow activities passed; fuzz has no runner/target and remains unavailable |
 | P14.3 | complete | 69cf77d | 4c0caac | 4c0caac | 4c0caac | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/external-oracle.json` | 2026-08-03T13:40:00Z | 2026-08-03T13:45:00Z | OR-Tools 9.15.6755 isolated rerun: 6,998 inputs/27,228 components all verified; only local RSS observations are available |
-| P14.4 | in_progress | 4c0caac | pending | pending | pending | `docs/phase-reports/P14-final-artifact.md` | pending performance and complexity reports | 2026-08-03T13:47:00Z | pending | local timing and structural evidence only; P9.6a AN19 proof debt remains deferred |
-| P14.4 | planned | pending | pending | pending | pending | pending | performance and complexity synthesis | pending | pending | depends on P14.1-P14.3 |
-| P14.5 | planned | pending | pending | pending | pending | pending | final artifact closeout | pending | pending | depends on P14.2-P14.4 |
+| P14.4 | complete | 4c0caac | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-performance-report.md`; `results/final-complexity-report.md` | 2026-08-03T13:47:00Z | 2026-08-03T13:44:12Z | local timing and structural evidence only; P9.6a AN19 proof debt remains deferred |
+| P14.5 | complete | 0752fce | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | final reports, benchmarks, and strict manifest | 2026-08-03T13:44:12Z | 2026-08-03T13:55:00Z | full audit passed; fuzz unavailable and P9.6a AN19 proof debt remain explicit limitations |

@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "artifact_state": "complete",
+  "git_commit": "0752fce60d5a801173e963b4a1fb55c8a331949e",
+  "generated_at_utc": "2026-08-03T13:44:12Z",
+  "environment": {
+    "operating_system": "Darwin 25.5.0",
+    "architecture": "arm64",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "cargo_version": "cargo 1.89.0 (c24e10642 2025-06-23)"
+  },
+  "campaigns": [
+    {
+      "id": "grid-exhaustive-4x4",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "finite 4x4 grid population only",
+      "completed_at_utc": "2026-08-03T13:32:34Z",
+      "commands": [{"command":"cargo run --release -p mrd -- exhaustive --width 4 --height 4 --output results/final-campaigns/grid-exhaustive-4x4.json","exit_status":0,"duration_seconds":10.84}],
+      "artifacts": [{"path":"results/final-campaigns/grid-exhaustive-4x4.json","sha256":"f4497aba398e2dfe5dd7a2d2660a6c3d1ea62f2d2d270bac51e00ac2ce592fe6"}],
+      "population": {"input_count":65536,"component_count":337058,"input_model":"finite-colored-unit-cell-grid"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "grid-random-8x8-seed42",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "deterministic finite random sample only",
+      "completed_at_utc": "2026-08-03T13:31:54Z",
+      "commands": [{"command":"cargo run --release -p mrd -- random --width 8 --height 8 --cases 10000 --seed 42 --output results/final-campaigns/random-8x8-seed42.json","exit_status":0,"duration_seconds":11.70}],
+      "artifacts": [{"path":"results/final-campaigns/random-8x8-seed42.json","sha256":"046a5a0cf828c089cafcd6322ce0824aca849ce04b312487eaaf70398b70317f"}],
+      "population": {"input_count":10000,"component_count":162162,"input_model":"finite-colored-unit-cell-grid","seed":42},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "polyomino-through-12",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "canonical free polyominoes through 12 cells",
+      "completed_at_utc": "2026-08-03T13:32:17Z",
+      "commands": [{"command":"cargo run --release -p mrd -- polyomino --max-cells 12 --all-solvers --output results/final-campaigns/polyomino-max12.json","exit_status":0,"duration_seconds":9.34}],
+      "artifacts": [{"path":"results/final-campaigns/polyomino-max12-summary.json","sha256":"b35b4e43daa717a1375fab886fb953e6a163a6bcd905a77050aea6a72363d3f2"}],
+      "population": {"input_count":87148,"component_count":87148,"input_model":"finite-colored-unit-cell-grid"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "polygon-differential",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "finite ordinary grid-derived polygon population; model rejections excluded explicitly",
+      "completed_at_utc": "2026-08-03T13:32:43Z",
+      "commands": [{"command":"cargo run --release -p mrd -- benchmark --suite polygon-differential --sizes 3,4 --output results/final-campaigns/polygon-differential.json","exit_status":0,"duration_seconds":9.50}],
+      "artifacts": [{"path":"results/final-campaigns/polygon-differential.json","sha256":"9562f78d1aec7e429b0cacfeb04aed605d57d3bc67d9f1d51bb22463f96a9284"},{"path":"results/final-campaigns/polygon-differential.counterexamples.json","sha256":"37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"}],
+      "population": {"input_count":66046,"component_count":169426,"input_model":"boundary-native-ordinary-rectilinear-polygon-differential"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "formal-fixtures",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "eight named formal-boundary fixtures and ordinary parity records",
+      "completed_at_utc": "2026-08-03T13:31:46Z",
+      "commands": [{"command":"cargo run --release -p mrd -- benchmark --suite formal-fixtures --output results/final-campaigns/formal-fixtures.json","exit_status":0,"duration_seconds":0.67}],
+      "artifacts": [{"path":"results/final-campaigns/formal-fixtures.json","sha256":"a48b40f510515b369c7df899c5add43fa87662245d468e04d469d86ea180513b"}],
+      "population": {"input_count":8,"component_count":8,"input_model":"formal-rectilinear-polygon"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "direct-grid-parity",
+      "category": "correctness",
+      "disposition": "executed",
+      "claim_boundary": "finite 3x3 direct-versus-ranked parity and zero direct rank counters",
+      "completed_at_utc": "2026-08-03T13:31:37Z",
+      "commands": [{"command":"cargo run --release -p mrd -- benchmark --suite direct-grid-parity --output results/final-campaigns/direct-grid-parity.json","exit_status":0,"duration_seconds":0.34}],
+      "artifacts": [{"path":"results/final-campaigns/direct-grid-parity.json","sha256":"1693f7e9794e612aeaf64474e14f880253d795da5894fbe275f9294459c48d2f"}],
+      "population": {"input_count":511,"component_count":897,"input_model":"finite-colored-unit-cell-grid"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "external-cp-sat",
+      "category": "external",
+      "disposition": "executed",
+      "claim_boundary": "bounded CP-SAT optimality comparisons for supported grid components",
+      "completed_at_utc": "2026-08-03T13:42:00Z",
+      "commands": [{"command":"tools/external-oracle/verify_suite.py --mrd target/release/mrd --exhaustive-width 3 --exhaustive-height 3 --polyomino-max-cells 10 --adversarial-dir /tmp/mrd-p14-adversarial --max-adversarial-grid-cells 20000 --max-component-cells 40 --max-time-seconds 30 --work-dir /tmp/mrd-p14-external-work-rerun --output results/final-campaigns/external-oracle.json","exit_status":0,"duration_seconds":44.14}],
+      "artifacts": [{"path":"results/final-campaigns/external-oracle.json","sha256":"ad6e9feb0cb9ebc107874efc20cc26fbf6f3cc663c919d0903ff58f09aa5025f"}],
+      "population": {"input_count":6998,"component_count":27228,"input_model":"bounded-grid-cp-sat-differential-oracle"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "performance-and-complexity",
+      "category": "performance",
+      "disposition": "executed",
+      "claim_boundary": "finite structural counters and local timing observations only",
+      "completed_at_utc": "2026-08-03T13:44:12Z",
+      "commands": [{"command":"synthesize results/final-campaigns and P13 evidence","exit_status":0,"duration_seconds":0}],
+      "artifacts": [{"path":"results/final-performance-report.md","sha256":"b6f8d4d5dbc9d1ac8c54f3cb8bcc0ca59bd60a2b125f57b00dfc8d8dfe58151a"},{"path":"results/final-complexity-report.md","sha256":"c034431a5c8eb65ce38be595fdb0d34db35481907761c07fac1afa224bc34a1f"}],
+      "population": {"input_count":1,"component_count":1,"input_model":"evidence-synthesis"},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "fuzz-engine",
+      "category": "correctness",
+      "disposition": "unavailable",
+      "claim_boundary": "no fuzzing claim",
+      "availability_probe": [{"command":"command -v cargo-fuzz","exit_status":1,"duration_seconds":0.01},{"command":"repository fuzz-target scan","exit_status":1,"duration_seconds":0.01}],
+      "unavailable_reason": "No registered fuzz target exists and cargo-fuzz is unavailable on the host.",
+      "omitted_claims": ["fuzz campaign coverage","fuzz-discovered regression population"],
+      "next_action": "Add and run a registered fuzz target before making a fuzz-coverage claim."
+    },
+    {
+      "id": "an19-runtime-proof",
+      "category": "complexity",
+      "disposition": "deferred",
+      "claim_boundary": "no AN19 runtime or AlmostLinear claim",
+      "deferred_debt": "P9.6a reduced-event ordering/counting and hierarchy-wide amortization proof",
+      "deferred_reason": "DOI 10.1137/17M1115575 does not provide the conversion required by the implementation.",
+      "omitted_claims": ["reduced-event class bound","priority-queue bound","AN19 asymptotic runtime"],
+      "next_action": "Prove the explicit reduced-event equivalence-class bound and ordering transformation, or document a counterexample."
+    }
+  ],
+  "limitations": [
+    "All correctness and timing evidence is finite or local.",
+    "Profiler-only allocation evidence is unavailable.",
+    "P9.6a AN19 runtime proof remains deferred low-priority debt."
+  ]
+}

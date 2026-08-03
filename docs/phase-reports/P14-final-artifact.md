@@ -112,6 +112,19 @@ does not claim allocation counts, portable peak memory, or a profiler-derived
 performance result. In-process `MemoryEstimate` values and P13 structural
 counters remain separate diagnostic evidence.
 
+## P14.4 Performance and Complexity Synthesis
+
+**State: complete.** The final performance report retains only local timing
+observations and deterministic structural counters. The final complexity report
+separates finite exactness evidence from the deferred P9.6a reduced-event proof
+obligation. Neither report claims a portable speedup, a profiler-derived memory
+bound, an automatic backend crossover, or an AN19 runtime.
+
+The required final reports, benchmark CSV/JSON, and strict manifest are now in
+`results/`. The manifest has executed entries only for recorded successful
+activities, an unavailable fuzz entry with its probes, and a deferred AN19
+proof-debt entry. It does not convert either absence into success.
+
 ## Availability Probes
 
 P14.1 performed these local probes on 2026-08-03:

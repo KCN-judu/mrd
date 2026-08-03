@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "git_commit": "0752fce60d5a801173e963b4a1fb55c8a331949e",
+  "claim_boundary": "finite populations and local observations only",
+  "rows": [
+    {"campaign":"grid-exhaustive-4x4","input_count":65536,"component_count":337058,"verified_count":337058,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"grid-random-8x8-seed42","input_count":10000,"component_count":162162,"verified_count":10000,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"polyomino-through-12","input_count":87148,"component_count":87148,"verified_count":87148,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"polygon-differential","input_count":66046,"component_count":169426,"verified_count":167082,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"formal-fixtures","input_count":8,"component_count":8,"verified_count":8,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"direct-grid-parity","input_count":511,"component_count":897,"verified_count":1794,"disagreement_count":0,"solver_error_count":0},
+    {"campaign":"external-cp-sat","input_count":6998,"component_count":27228,"verified_count":6998,"disagreement_count":0,"solver_error_count":0}
+  ]
+}

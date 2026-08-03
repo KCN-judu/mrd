@@ -1,0 +1,8 @@
+campaign,input_count,component_count,verified_count,disagreement_count,solver_error_count,local_timing_boundary
+grid-exhaustive-4x4,65536,337058,337058,0,0,finite-only
+grid-random-8x8-seed42,10000,162162,10000,0,0,finite-only
+polyomino-through-12,87148,87148,87148,0,0,finite-only
+polygon-differential,66046,169426,167082,0,0,finite-supported-only
+formal-fixtures,8,8,8,0,0,finite-only
+direct-grid-parity,511,897,1794,0,0,finite-only
+external-cp-sat,6998,27228,6998,0,0,bounded-cp-sat-only
