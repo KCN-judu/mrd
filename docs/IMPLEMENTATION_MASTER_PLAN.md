@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P14
-- Current phase state: complete
+- Current phase: P9.5e.3g.3
+- Current phase state: blocked
 - Last completed phase: P14.5
-- Last pushed SHA: 0752fce60d5a801173e963b4a1fb55c8a331949e
-- Plan last updated: 2026-08-03T13:55:00Z
+- Last pushed SHA: 2cb63de11b23d06be28418c11b57155c3213f7af
+- Plan last updated: 2026-08-03T14:03:41Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1890,12 +1890,13 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P14 - Final verification, benchmark, and strict report
 
-**State:** in_progress. Run exhaustive, random, polyomino, polygon, formal-hole,
-metamorphic, fuzz, external CP-SAT, generic-flow, compressed-flow, memory, and
-performance campaigns. Produce `results/final-correctness-report.md`,
+**State:** complete. The exhaustive, random, polyomino, polygon, formal-hole,
+metamorphic, external CP-SAT, generic-flow, compressed-flow, memory, and
+performance campaigns have been recorded. The finalized artifacts are
+`results/final-correctness-report.md`,
 `results/final-performance-report.md`, `results/final-complexity-report.md`,
 `results/final-benchmarks.csv`, `results/final-benchmarks.json`, and
-`results/final-manifest.json`. Reports include theorem/code traceability;
+`results/final-manifest.json`. They include theorem/code traceability;
 backend claims/assumptions; populations; disagreements/regressions; timings;
 memory; flow crossover; direct-parity benefit; constant-factor changes;
 environment/SHAs; reproduction; and limitations. Suggested release:
@@ -1929,8 +1930,8 @@ P14 is split before final-artifact work into these source-of-truth subphases:
   resulting reports are `results/final-performance-report.md` and
   `results/final-complexity-report.md`.
 - **P14.5 - Final artifact closeout. State: complete.** Generated all required
-  final reports and manifest, perform the complete release audit, inspect every
-  generated artifact and staged diff, then close P14.
+  final reports and manifest, performed the complete release audit, inspected
+  every generated artifact and staged diff, and closed P14.
 
 ### Mandatory transition after this phase
 
@@ -1939,8 +1940,9 @@ After the phase has passed its full audit, been committed, and been pushed:
 1. Run `git fetch origin`.
 2. Verify `origin/codex/full-implementation` equals local `HEAD`.
 3. Reopen and reread this plan and the complete Global Rules section.
-4. Mark P14 complete only after all final outputs and release gates pass.
-5. Update phase fields and stop unless an explicitly authorized release action remains.
+4. Record P14 as complete only after all final outputs and release gates pass.
+5. Return to any separately persisted unresolved phase; no release action is
+   authorized by this closeout.
 
 ## Append-only progress log
 
@@ -2065,3 +2067,4 @@ and AN19 runtime claims.
 | P14.3 | complete | 69cf77d | 4c0caac | 4c0caac | 4c0caac | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/external-oracle.json` | 2026-08-03T13:40:00Z | 2026-08-03T13:45:00Z | OR-Tools 9.15.6755 isolated rerun: 6,998 inputs/27,228 components all verified; only local RSS observations are available |
 | P14.4 | complete | 4c0caac | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-performance-report.md`; `results/final-complexity-report.md` | 2026-08-03T13:47:00Z | 2026-08-03T13:44:12Z | local timing and structural evidence only; P9.6a AN19 proof debt remains deferred |
 | P14.5 | complete | 0752fce | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | final reports, benchmarks, and strict manifest | 2026-08-03T13:44:12Z | 2026-08-03T13:55:00Z | full audit passed; fuzz unavailable and P9.6a AN19 proof debt remain explicit limitations |
+| P14 | complete | 6b7ead9 | f35a9bd, 1200202 | 1200202 | 2cb63de | `docs/phase-reports/P14-final-artifact.md` | final reports, strict manifest, exact-correctness campaign evidence, and refreshed external CP-SAT evidence | 2026-08-03T13:07:55Z | 2026-08-03T13:59:11Z | P14 verification is complete; fuzz remains unavailable and P9.6a AN19 proof debt remains explicit. `2cb63de` is the subsequent P9.5e.3g.3 source-audit refresh. |
