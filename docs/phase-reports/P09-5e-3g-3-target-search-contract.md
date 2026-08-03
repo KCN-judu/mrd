@@ -150,6 +150,25 @@ Consequently the repository cannot obtain a dual-potential certificate from the
 implemented source path without reintroducing a reference solver, which is
 forbidden by the static audit.
 
+### Appendix C.9 cannot bootstrap target decisions
+
+The original PDF was reread directly on 2026-08-03, including the rendered
+page containing Lemma C.9. That lemma is a **dual-extraction reduction after
+exact solution**, not an algorithm for deciding an unchecked target. Its proof
+first computes the optimal primal flow in `T_MCC(m, C, U)` time. Only because
+that flow is already optimal can it assert that the residual graph has no
+negative cycle. It then computes a residual distance label by another
+un-capacitated min-cost-flow call in `O(T_MCC(m, C, U))` time before constructing
+the dual slacks.
+
+Algorithm 9 invokes this lemma only after it asks to solve each rounded
+residual instance exactly. Consequently, neither Algorithm 9 nor Lemma C.9 can
+construct `DualLowerBoundCertificate` from a `TargetDriver` failure: doing so
+would either assume the exact minimizer that target discovery is meant to
+obtain, or call a general exact min-cost-flow solver as a fallback. Both are
+outside the source-shaped production contract. Appendix C therefore does not
+turn an unclassified failed target run into `ProvenInfeasibleBelow(T)`.
+
 ## Required mathematical analysis
 
 ### 1. What problem is solved for T below / equal / above F_opt
