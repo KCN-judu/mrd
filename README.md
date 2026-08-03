@@ -34,8 +34,9 @@ each major subsystem's purpose, implementation evidence, and remaining
 limitations. The separate
 [`docs/BENCHMARK_SAMPLING_REPORT.md`](docs/BENCHMARK_SAMPLING_REPORT.md)
 describes the controlled repeated-process benchmark protocol and links its raw
-samples. Historical phase reports and machine-readable campaign artifacts
-remain under `docs/phase-reports/` and `results/`.
+samples. The concise historical record is
+[`docs/HISTORY.md`](docs/HISTORY.md); machine-readable campaign artifacts
+remain under `results/`.
 
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a
@@ -311,8 +312,7 @@ mrd verify-negative-certificate --network network.json --certificate certificate
 
 The source-with-target backend currently supports formal-polygon input only and
 requires `--target`. It never silently falls back to a reference backend. See
-`docs/phase-reports/P10-layered-backend.md` and
-`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`.
+`docs/HISTORY.md` and `docs/IMPLEMENTATION_MASTER_PLAN.md`.
 
 ### Layered benchmark evidence
 

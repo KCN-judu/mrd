@@ -14,8 +14,8 @@ runtime.
 
 The source and result baseline summarized here is commit
 `94aecfe481d6c92d13e09bb9a9420933d8afa55f`. The implementation evidence at
-that commit is preserved in the final artifacts and phase reports. Later
-documentation-only commits do not change the algorithms or rerun history.
+that commit is preserved in the final artifacts and the consolidated history.
+Later documentation-only commits do not change the algorithms or rerun history.
 
 ## Scope and Reading Order
 
@@ -31,10 +31,12 @@ holes. The intended reading order is:
 4. [`EXPERIMENTS.md`](EXPERIMENTS.md) and
    [`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md) for the
    experimental protocol and data boundaries; and
-5. `docs/phase-reports/` and `results/` for immutable, detailed evidence.
+5. [`HISTORY.md`](HISTORY.md) and `results/` for the historical decisions and
+   immutable detailed evidence.
 
-The phase reports are retained as primary historical evidence. This document
-does not replace their commands, hashes, counterexamples, or source maps.
+Machine-readable artifacts and current source documents remain the detailed
+evidence. This document does not replace their commands, hashes,
+counterexamples, or source maps.
 
 ## Terminology and Claim Classes
 
@@ -269,7 +271,7 @@ types, traits, certificates, and pure orchestration. The CLI owns filesystem
 IO, clock reads, process exit, and command dispatch.
 
 **Evidence.** The breaking namespace refactor is recorded in
-`docs/phase-reports/P09-functional-architecture-refactor.md`. The architecture
+[`HISTORY.md`](HISTORY.md). The architecture
 uses static enums/generics and monomorphized traits rather than runtime
 registries or compatibility re-exports.
 
@@ -328,7 +330,7 @@ recorded host and build.
 
 ## Maintenance Rules
 
-When this report changes, update the associated result or phase-report link,
+When this report changes, update the associated result or history link,
 state the population and command, and identify whether the change is an
 implementation fact, finite empirical evidence, local measurement, or proof.
 Do not upgrade an AN19 runtime, automatic target search, or a cross-machine

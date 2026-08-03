@@ -9,11 +9,11 @@
 
    `mrd-domain::formal_polygon` implements the ornament, formal-boundary,
    vertex, and elementary-segment contracts in Definitions 1, 3, and 4.
-   `sg-oracle` uses Definition 7's four effective-chord conditions, the
-   admissible-family reduction, the rectangle-count formula, and Section 10's
-   horizontal-then-vertical completion. The current input adapter implements
-   ordinary nondegenerate grid-cell polygons. Formal-hole chord enumeration
-   and completion remain a later phase.
+   `sg-oracle` and `dominance::formal` implement Definition 7 effective
+   chords, the admissible-family reduction, the rectangle-count formula, and
+   Section 10 completion for the accepted formal model. The exact input scope
+   and remaining contour-contact limits are documented in
+   `FORMAL_BOUNDARY_MODEL.md`.
 
 2. David Eppstein, "Graph-Theoretic Solutions to Computational Geometry
    Problems," arXiv:0908.3916, 2009.

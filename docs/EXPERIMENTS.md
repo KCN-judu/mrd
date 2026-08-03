@@ -215,7 +215,7 @@ validation contains the known 87,146 canonical free polyominoes through 12
 cells plus two separately generated ordinary-hole fixtures. All 87,148 inputs
 and components were verified, with 0 in every other status, in 6.40 seconds.
 The record-level max-12 JSON is not committed because it is about 35 MB; its
-command and aggregate are retained here and in the release notes.
+command and aggregate are retained here and in [`HISTORY.md`](HISTORY.md).
 
 ## 4. Adversarial verification
 

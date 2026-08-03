@@ -335,7 +335,7 @@ The public backend (`mrd::layered`) separates three layers:
    lower bound) and compressed cover-below proofs (Konig) exactly.
 
 Automatic `F*` search is not implemented (see
-`docs/phase-reports/P09-5e-3g-3-target-search-contract.md`); the source path
+`docs/HISTORY.md`); the source path
 never classifies an execution failure as target infeasibility.
 
 The reference layer is the complete production-ready solver on its supported
