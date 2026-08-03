@@ -147,6 +147,14 @@ enum Command {
         oracle_cell_limit: usize,
         #[arg(long, default_value_t = 100_000)]
         random_cases: usize,
+        #[arg(
+            long,
+            allow_hyphen_values = true,
+            conflicts_with = "reference_provided_target"
+        )]
+        source_target: Option<i128>,
+        #[arg(long)]
+        reference_provided_target: bool,
         #[arg(long, default_value = "4,8,16,32,64,128")]
         sizes: String,
         #[arg(
@@ -398,6 +406,7 @@ enum BenchmarkSuiteArg {
     PolygonNativeFixtures,
     PolygonScaling,
     FormalFixtures,
+    Layered,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -692,21 +701,25 @@ fn run() -> Result<(), CliError> {
             max_cells,
             oracle_cell_limit,
             random_cases,
+            source_target,
+            reference_provided_target,
             sizes,
             families,
             output,
         } => {
             let sizes = parse_sizes(&sizes)?;
             let families = parse_families(&families);
-            benchmark_command(
+            benchmark_command(BenchmarkOptions {
                 suite,
                 max_cells,
                 oracle_cell_limit,
                 random_cases,
-                &sizes,
-                &families,
-                &output,
-            )
+                source_target,
+                reference_provided_target,
+                sizes: &sizes,
+                families: &families,
+                output: &output,
+            })
         }
         Command::Generate {
             family,
@@ -982,22 +995,54 @@ fn search_path_tree_witness_command(
     write_json(&report, Some(&output_dir.join("report.json")))
 }
 
-#[allow(clippy::too_many_lines)]
-fn benchmark_command(
+#[derive(Clone, Copy)]
+struct BenchmarkOptions<'a> {
     suite: BenchmarkSuiteArg,
     max_cells: usize,
     oracle_cell_limit: usize,
     random_cases: usize,
-    sizes: &[usize],
-    families: &[String],
-    output: &Path,
-) -> Result<(), CliError> {
+    source_target: Option<i128>,
+    reference_provided_target: bool,
+    sizes: &'a [usize],
+    families: &'a [String],
+    output: &'a Path,
+}
+
+#[allow(clippy::too_many_lines)]
+fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
+    let BenchmarkOptions {
+        suite,
+        max_cells,
+        oracle_cell_limit,
+        random_cases,
+        source_target,
+        reference_provided_target,
+        sizes,
+        families,
+        output,
+    } = options;
     if suite == BenchmarkSuiteArg::Polyomino && max_cells == 0 {
         return Err(CliError::Input(
             "polyomino benchmark requires --max-cells greater than zero".to_owned(),
         ));
     }
     let context = benchmark_context()?;
+    if suite == BenchmarkSuiteArg::Layered {
+        let source_target = source_target
+            .map(mrd::layered::experiment::SourceTarget::CallerSupplied)
+            .or(reference_provided_target
+                .then_some(mrd::layered::experiment::SourceTarget::ReferenceProvided));
+        let report = mrd::layered::experiment::Report::standard(source_target);
+        write_json(
+            &serde_json::json!({
+                "metadata": context,
+                "report": report,
+                "source_target_search": "not implemented; source rows require an explicit caller target or explicit reference-provided-target experiment",
+            }),
+            Some(output),
+        )?;
+        return Ok(());
+    }
     if suite == BenchmarkSuiteArg::PolygonDifferential {
         let report =
             verification::polygon_campaign::exhaustive_grid_polygon_campaign(context, sizes);
@@ -1320,7 +1365,8 @@ fn benchmark_command(
         | BenchmarkSuiteArg::PolygonNegative
         | BenchmarkSuiteArg::PolygonNativeFixtures
         | BenchmarkSuiteArg::PolygonScaling
-        | BenchmarkSuiteArg::FormalFixtures => unreachable!(),
+        | BenchmarkSuiteArg::FormalFixtures
+        | BenchmarkSuiteArg::Layered => unreachable!(),
     };
     let csv = report
         .to_csv()
@@ -1709,20 +1755,7 @@ fn solve_command(
                 })?;
                 let result = mrd::layered::solve_source_with_target(
                     &polygon,
-                    &mrd::layered::SourceConfig {
-                        target,
-                        maximum_abs_input: 3,
-                        fixed_point: mrd::layered::FixedPointConfigSpec {
-                            input_encoding_bits: 1 << 20,
-                            fractional_bits: 96,
-                            series_terms: 48,
-                            word_log_exponent: 4,
-                        },
-                        kappa: mrd::layered::RatioSpec {
-                            numerator: 1,
-                            denominator: 2,
-                        },
-                    },
+                    &mrd::layered::SourceConfig::standard(target),
                 )
                 .map_err(|error| CliError::Solver(error.to_string()))?;
                 return write_json(&result, output);
@@ -2340,11 +2373,11 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        BackendArg, ChordEnumeratorArg, Cli, Command, CompletionBackendArg, EventEngineArg,
-        EventFamilyArg, InputFormatArg, LoadedInput, PathTreeOrientationArg, PolygonArrangementArg,
-        PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg, PolygonValidatorArg,
-        RegionDualArg, RepresentationArg, SolverArg, load_input, solve_command,
-        verify_negative_certificate_command,
+        BackendArg, BenchmarkSuiteArg, ChordEnumeratorArg, Cli, Command, CompletionBackendArg,
+        EventEngineArg, EventFamilyArg, InputFormatArg, LoadedInput, PathTreeOrientationArg,
+        PolygonArrangementArg, PolygonChordsArg, PolygonCompletionArg, PolygonGeometryArg,
+        PolygonValidatorArg, RegionDualArg, RepresentationArg, SolverArg, load_input,
+        solve_command, verify_negative_certificate_command,
     };
 
     #[test]
@@ -3028,5 +3061,32 @@ mod tests {
         let error =
             verify_negative_certificate_command(&network, &certificate, 0, None).unwrap_err();
         assert!(error.to_string().contains("certificate"));
+    }
+
+    #[test]
+    fn layered_benchmark_accepts_an_explicit_source_target() {
+        let cli = Cli::try_parse_from([
+            "mrd",
+            "benchmark",
+            "--suite",
+            "layered",
+            "--source-target",
+            "-3",
+            "--output",
+            "layered.json",
+        ])
+        .unwrap();
+        let Command::Benchmark {
+            suite,
+            source_target,
+            reference_provided_target,
+            ..
+        } = cli.command
+        else {
+            panic!("wrong command parsed");
+        };
+        assert_eq!(suite, BenchmarkSuiteArg::Layered);
+        assert_eq!(source_target, Some(-3));
+        assert!(!reference_provided_target);
     }
 }

@@ -14,6 +14,7 @@ MODULES = {
     "iteration": ROOT / "crates/graph/src/source_flow/iteration.rs",
     "compressed": ROOT / "crates/dominance/src/compressed_flow/experiment/source.rs",
     "layered": ROOT / "crates/mrd/src/layered.rs",
+    "layered_execution": ROOT / "crates/mrd/src/layered/execution.rs",
 }
 REQUIRED = {
     "root": (
@@ -106,6 +107,15 @@ REQUIRED = {
         "no automatic source mode",
         "provenance",
     ),
+    "layered_execution": (
+        "pub(crate) fn run_source_with_target",
+        "analyze_formal_admissible_family",
+        "Circulation::from_partition",
+        "begin_with_target",
+        "recover_certified",
+        "complete_formal",
+        "recovered original cost exceeds the supplied target",
+    ),
 }
 FORBIDDEN = (
     "Dinic",
@@ -126,6 +136,12 @@ LAYERED_FORBIDDEN = (
     "fn solve_source_with_target_auto",
     "binary_search_wrapper",
     "binary_search(",
+)
+LAYERED_EXECUTION_FORBIDDEN = (
+    "solve_reference",
+    "verify_source_infeasible_below",
+    "verify_cover_below",
+    "verify_source_feasible_at_most",
 )
 COORDINATE_FORBIDDEN = (
     "snapshot.lengths()",
@@ -167,6 +183,10 @@ def main() -> None:
                     fail(f"forbidden interval read {forbidden!r} in {path.relative_to(ROOT)}")
         if name == "layered":
             for forbidden in LAYERED_FORBIDDEN:
+                if forbidden in source:
+                    fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
+        if name == "layered_execution":
+            for forbidden in LAYERED_EXECUTION_FORBIDDEN:
                 if forbidden in source:
                     fail(f"forbidden {forbidden!r} in {path.relative_to(ROOT)}")
     print(

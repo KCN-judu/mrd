@@ -13,23 +13,19 @@
 //! here may claim to find `F*`, and there is no automatic source mode. Every
 //! result records its [`SolverProvenance`].
 
+mod execution;
+/// Reproducible timing records for the public solver layers.
+pub mod experiment;
+
 use graph::{
     ExactRatio, FixedPointConfig, MinCostSolution, VertexCover,
-    source_flow::{
-        Backend, TargetDriver, certificate::DualLowerBoundCertificate,
-        iteration::DefinitionProjectionFactory,
-    },
+    source_flow::{Backend, certificate::DualLowerBoundCertificate},
 };
 use mrd_domain::FormalRectilinearPolygon;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use dominance::{
-    biclique::Partition,
-    compressed_flow::experiment::source::{Circulation, CoverBelowProof},
-    embedding::DominanceEmbedding,
-};
-use sg_oracle::polygon::CoordinateCompressedCompletion;
+use dominance::compressed_flow::experiment::source::{Circulation, CoverBelowProof};
 
 /// Explicit selection of which backend solves an instance.
 ///
@@ -68,6 +64,28 @@ pub struct SourceConfig {
     pub fixed_point: FixedPointConfigSpec,
     /// Source update-quality `kappa`.
     pub kappa: RatioSpec,
+}
+
+impl SourceConfig {
+    /// Returns the checked Appendix B.1 configuration used by the CLI and
+    /// layered experiments for one caller-supplied inclusive target.
+    #[must_use]
+    pub const fn standard(target: i128) -> Self {
+        Self {
+            target,
+            maximum_abs_input: 3,
+            fixed_point: FixedPointConfigSpec {
+                input_encoding_bits: 1 << 20,
+                fractional_bits: 96,
+                series_terms: 48,
+                word_log_exponent: 4,
+            },
+            kappa: RatioSpec {
+                numerator: 1,
+                denominator: 2,
+            },
+        }
+    }
 }
 
 /// Serialization-friendly fixed-point configuration specification.
@@ -234,103 +252,7 @@ pub fn solve_source_with_target(
     polygon: &FormalRectilinearPolygon,
     config: &SourceConfig,
 ) -> Result<LayeredResult, LayeredError> {
-    let analysis = dominance::formal::analyze_formal_admissible_family(polygon)
-        .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
-    let embedding =
-        DominanceEmbedding::new(&analysis.families.horizontal, &analysis.families.vertical)
-            .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
-    let partition = Partition::comparability_theorem_8(&embedding)
-        .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
-    partition
-        .verify_exact_partition(&analysis.explicit_conflict_graph)
-        .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
-    let circulation = Circulation::from_partition(
-        analysis.families.horizontal.len(),
-        analysis.families.vertical.len(),
-        &partition,
-    )
-    .map_err(|error| LayeredError::UnsupportedOrUndetermined(error.to_string()))?;
-
-    let fixed_point = config.fixed_point.into_config()?;
-    let kappa = ExactRatio::try_from(config.kappa)?;
-    let factory = DefinitionProjectionFactory::new(kappa.clone());
-    let mut driver: TargetDriver<DefinitionProjectionFactory> = Backend
-        .begin_with_target(
-            circulation.network(),
-            config.target,
-            config.maximum_abs_input,
-            fixed_point,
-            kappa,
-            factory,
-        )
-        .map_err(|error| LayeredError::Source(error.to_string()))?;
-    let completed = driver
-        .run()
-        .map_err(|error| LayeredError::Source(error.to_string()))?;
-    let recovered_cost = completed.recovered.original.cost;
-    let recovered_original = completed.recovered.original.clone();
-    let solution = circulation
-        .recover_certified(&recovered_original)
-        .map_err(|error| LayeredError::Source(error.to_string()))?;
-
-    let selected_horizontal = solution
-        .vertex_cover
-        .left
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
-    let selected_vertical = solution
-        .vertex_cover
-        .right
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
-    let completion = CoordinateCompressedCompletion
-        .complete_formal(
-            polygon,
-            &analysis.families.horizontal,
-            &analysis.families.vertical,
-            &selected_horizontal,
-            &selected_vertical,
-        )
-        .map_err(|error| LayeredError::Source(error.to_string()))?;
-
-    if completion.rectangles.len() != analysis.optimum_rectangle_count {
-        return Err(LayeredError::Source(
-            "source completion rectangle count disagrees with the optimum".to_owned(),
-        ));
-    }
-    if recovered_cost > config.target {
-        return Err(LayeredError::Source(
-            "recovered original cost exceeds the supplied target".to_owned(),
-        ));
-    }
-
-    Ok(LayeredResult {
-        provenance: SolverProvenance::SourceCertifiedAtMost {
-            target: config.target,
-        },
-        objective: analysis.optimum_rectangle_count,
-        matching: Some(solution.matching),
-        vertex_cover: Some(solution.vertex_cover),
-        selected_horizontal: Some(selected_horizontal),
-        selected_vertical: Some(selected_vertical),
-        rectangles: Some(completion.rectangles),
-        verification: VerificationSummary {
-            objective_verified: true,
-            matching_verified: true,
-            cover_verified: true,
-            rectangles_verified: true,
-            source_target_met: recovered_cost <= config.target,
-            no_fallback: true,
-        },
-        target_certificate: Some(TargetCertificate {
-            target: config.target,
-            recovered_cost,
-            accepted_updates: u64::try_from(completed.completion.records.len())
-                .map_err(|_| LayeredError::Source("source update count overflow".to_owned()))?,
-        }),
-    })
+    execution::run_source_with_target(polygon, config).map(|run| run.result)
 }
 
 /// A serialization-friendly exact-ratio dual-certificate representation.
