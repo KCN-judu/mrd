@@ -7,8 +7,8 @@
 - Current phase: P10
 - Current phase state: in_progress
 - Last completed phase: P9.5e.3g.3 (blocked; certificate verifiers implemented)
-- Last pushed SHA: c5c0e687ac6693a3f85ecaaea7f0fa27818930e0
-- Plan last updated: 2026-08-03T10:17:36Z
+- Last pushed SHA: 4555070fe8e7d0076b65e6fdc6becc0eb59224a4
+- Plan last updated: 2026-08-03T10:39:25Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1949,5 +1949,5 @@ and AN19 runtime claims.
 | P10.4 | complete | aa0a618 | aa0a618, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | `verify_source_infeasible_below`, `verify_cover_below`, `verify_source_feasible_at_most`, serializable specs | 2026-08-02T09:40:00Z | 2026-08-02T09:50:00Z | dual + compressed cover certificates verified exactly |
 | P10.5 | complete | 6905b93 | 6905b93, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | CLI `--backend reference|source-with-target --target` and `verify-negative-certificate` | 2026-08-02T09:50:00Z | 2026-08-02T10:05:00Z | source mode supports formal-polygon input only |
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
-| P10.8 | complete | a773a81 | 332a5c5 | pending closeout | pending | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:17:36Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
+| P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | pending | pending | pending | pending | pending | pending | documentation closeout across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, TESTING | pending | pending | not started |
