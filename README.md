@@ -266,7 +266,7 @@ The repository exposes an explicit three-layer backend model in
    selected chords, and rectangle decomposition with `ReferenceExact`
    provenance.
 2. **Source backend under a caller-supplied inclusive target**
-   (`solve_source_with_target`): runs only the source-shaped production path.
+   (`solve_source_with_target`): runs only the source-shaped execution path.
    A completed run is certified "source-certified under a caller-supplied
    inclusive target" (recovered cost at most the target). Automatic target
    discovery is **not implemented**; failures are reported honestly as
@@ -279,6 +279,12 @@ The repository exposes an explicit three-layer backend model in
 There is deliberately no `solve_source -> optimum` automatic entry, no
 `AutomaticSource` mode, and no binary-search wrapper for `F*`. Every result
 records its `SolverProvenance`.
+
+On the supported formal-polygon domain, the reference-backed solver is the
+complete production-ready surface. The source-with-target solver is a
+research-only, target-bound interface: it can report a certified result for a
+caller-supplied target, but it is not an automatic solver and does not carry an
+AN19 runtime claim.
 
 CLI selection:
 
@@ -296,3 +302,29 @@ The source-with-target backend currently supports formal-polygon input only and
 requires `--target`. It never silently falls back to a reference backend. See
 `docs/phase-reports/P10-layered-backend.md` and
 `docs/phase-reports/P09-5e-3g-3-target-search-contract.md`.
+
+### Layered benchmark evidence
+
+`mrd benchmark --suite layered --output <path>` writes deterministic,
+separated evidence records rather than one opaque hybrid duration. The default
+run contains verified polygon-derived rows for complete reference solving,
+formal geometry, compact representation, recovery-only completion, and
+certificate verification. It also contains a direct-grid `unavailable` row:
+direct-grid parity is reserved for P11 and no P10 result is direct-grid
+evidence.
+
+Source measurement is opt-in. `--source-target <integer>` records a
+caller-supplied inclusive target; `--reference-provided-target` separately
+measures a reference solve and labels that target as experimental input. Neither
+option performs automatic `F*` discovery. A source result that cannot be
+certified is recorded as `source-undetermined`, never as a fallback or target
+infeasibility result. Exact source targets are serialized as decimal strings so
+every `i128` value is preserved in JSON.
+
+```bash
+cargo run --release -p mrd -- benchmark --suite layered \
+  --output /tmp/mrd-layered.json
+
+cargo run --release -p mrd -- benchmark --suite layered --source-target -3 \
+  --output /tmp/mrd-layered-source.json
+```

@@ -51,7 +51,7 @@ adapters, so the namespace boundaries add no runtime allocation or dispatch.
 - `SolverProvenance` (`ReferenceExact`, `SourceCertifiedAtMost { target }`) is
   recorded on every `LayeredResult`.
 - `solve_reference` wraps the permanent reference backends; `solve_source_with_target`
-  wraps the source-shaped production path under a caller-supplied inclusive
+  wraps the source-shaped execution path under a caller-supplied inclusive
   target; `verify_source_infeasible_below`, `verify_cover_below`, and
   `verify_source_feasible_at_most` verify caller-supplied certificates exactly.
 
@@ -59,3 +59,17 @@ The source layer never calls a reference solver, never infers `F*`, and never
 classifies an ordinary execution failure as target infeasibility. Automatic
 target search remains blocked (P9.5e.3g.3); `Backend::require_complete()`
 stays `Error::Incomplete`.
+
+The reference layer is the complete production-ready solver surface for its
+supported formal-polygon domain. The source layer is research-only and
+target-bound: its exact outputs are useful for experiments and certificates,
+but it is neither an automatic solver nor an AN19 runtime implementation.
+
+`mrd::layered::experiment` is the public, serializable measurement boundary.
+Its records explicitly separate category, input representation, target
+provider, outcome, and stage timings. The private `layered::execution` module
+owns source-run timing collection; it does not widen the public solver API.
+P10 rows are polygon-derived only. An explicit direct-grid `unavailable` record
+prevents the measurement layer from implying a P11 implementation, while a
+reference-provided target remains a separately labelled experiment rather than
+automatic `F*` search.

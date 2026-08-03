@@ -327,7 +327,7 @@ The public backend (`mrd::layered`) separates three layers:
 1. Reference-backed exact solver (`solve_reference`): uses the permanent
    reference matching/flow/completion backends and returns exact MRD output.
 2. Source-with-target solver (`solve_source_with_target`): uses only the
-   source-shaped production path under a caller-supplied inclusive target. A
+   source-shaped execution path under a caller-supplied inclusive target. A
    completed run is certified "at most target"; no `F*` inference and no
    reference fallback occur.
 3. Negative certificate verifiers (`verify_source_infeasible_below`,
@@ -337,3 +337,17 @@ The public backend (`mrd::layered`) separates three layers:
 Automatic `F*` search is not implemented (see
 `docs/phase-reports/P09-5e-3g-3-target-search-contract.md`); the source path
 never classifies an execution failure as target infeasibility.
+
+The reference layer is the complete production-ready solver on its supported
+formal-polygon domain. The source-with-target layer is a research-only,
+target-bound execution interface; exact finite agreement and certificates do
+not turn it into an automatic solver or establish an AN19 runtime.
+
+The `mrd::layered::experiment` benchmark boundary reports reference-complete,
+geometry-only, compact-representation, recovery-only, certificate-verification,
+and opt-in source-with-known-target work as separate records. A
+reference-provided target is explicitly an experiment input, not a source
+backend capability. All P10 measurement rows are polygon-derived; the explicit
+direct-grid `unavailable` record reserves direct-grid parity claims for P11.
+These records establish measured execution evidence only and do not change the
+blocked automatic-target or AN19-runtime claims.

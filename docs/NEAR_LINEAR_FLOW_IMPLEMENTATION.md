@@ -112,3 +112,9 @@ verification. Claim separation is strict:
   target", never an automatic almost-linear solver. The unresolved automatic
   `F*` constructor and the unresolved AN19 runtime proof remain the authoritative
   blockers; `Backend::require_complete()` stays `Error::Incomplete`.
+- **Benchmark boundary:** `mrd::layered::experiment` keeps reference target
+  provision, source execution, recovery, and verification as separately
+  labelled timing stages. Reference-provided targets are experiment inputs, not
+  source-target search; a source failure is `source-undetermined`. P10 records
+  are polygon-derived and include an explicit direct-grid `unavailable` row
+  until P11 supplies that implementation.

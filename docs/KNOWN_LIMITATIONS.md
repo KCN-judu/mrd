@@ -107,4 +107,7 @@
   currently supports formal-polygon input only, and the Appendix B.1 path on
   the full Figure 3 fixture is slow (its positive unit test is ignored; the
   honest-failure contract is tested). `Backend::require_complete()` remains
-  `Error::Incomplete`; no AN19 runtime claim is made.
+  `Error::Incomplete`; no AN19 runtime claim is made. Layered benchmark rows
+  are polygon-derived; their explicit direct-grid `unavailable` record reserves
+  direct-grid claims for P11. A reference-provided benchmark target is labelled
+  experimental input, never automatic `F*` discovery.

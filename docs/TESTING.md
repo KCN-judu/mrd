@@ -140,3 +140,22 @@ failures.
 `tools/check_source_flow_audit.py` scans `crates/mrd/src/layered.rs` and
 rejects an `AutomaticSource` mode, an automatic `solve_source` entry, and
 binary-search wrappers; it requires the layered API and provenance fields.
+
+P10.8 benchmark evidence is reproducible without enabling source target
+search:
+
+```bash
+cargo run --release -p mrd -- benchmark --suite layered \
+  --output /tmp/mrd-layered.json
+
+cargo run --release -p mrd -- benchmark --suite layered \
+  --source-target -85070591730234615865843651857942052864 \
+  --output /tmp/mrd-layered-impossible-target.json
+```
+
+The default report must contain five verified polygon-derived rows and one
+direct-grid `unavailable` row. The second command must retain the decimal
+target and report its source row as `caller-supplied` / `source-undetermined`,
+without a reference fallback or target-infeasibility conclusion. The
+`layered_benchmark_accepts_an_explicit_source_target` CLI regression preserves
+the explicit target parsing boundary.

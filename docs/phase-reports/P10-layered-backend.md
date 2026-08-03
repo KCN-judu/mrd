@@ -2,11 +2,11 @@
 
 ## Status
 
-**State: P10.1-P10.8 complete (solver mode, reference solver, source-with-target
-solver, certificate verification, CLI/static audit, and separated benchmark
-evidence).** Direct-grid parity (P11) and documentation closeout (P10.9)
-remain. `Backend::require_complete()` stays `Error::Incomplete`; no AN19
-runtime claim is made.
+**State: P10.1-P10.9 complete (solver mode, reference solver, source-with-target
+solver, certificate verification, CLI/static audit, separated benchmark
+evidence, and public-status audit).** Direct-grid parity is P11.
+`Backend::require_complete()` stays `Error::Incomplete`; no AN19 runtime claim
+is made.
 
 Implementation commits: `e265e01`, `aa0a618`, `6905b93`, `ab11586`,
 `332a5c5`.
@@ -125,6 +125,24 @@ The standard run was checked with a deliberately impossible caller target
 target, and did not fall back. This validates reporting semantics only; it is
 not source-backend success evidence and does not change P9.5e.3g.3.
 
+## P10.9 - Documentation and release audit
+
+The public README, architecture, algorithm, limitations, near-linear-flow, and
+testing documents now use the exact public names and status boundaries:
+
+- the CLI accepts `--backend reference|source-with-target`, not `source`;
+- `solve_source_with_target(polygon, config)` obtains its inclusive target from
+  `config.target`, rather than taking a separate target parameter;
+- no document turns reference-provided benchmark input into automatic `F*`
+  search, fallback, target infeasibility, `AlmostLinear`, or an AN19 runtime
+  claim;
+- P10 benchmark evidence is polygon-derived, while its explicit direct-grid
+  `unavailable` record reserves direct-grid parity for P11.
+
+This audit preserves the production/reference contract and documents the
+source path as research-only, target-bound execution. The source target-search
+and AN19-runtime proof obligations remain separate blockers.
+
 ## Audit
 
 Phase baseline: `c5c0e687ac6693a3f85ecaaea7f0fa27818930e0`. The following
@@ -169,10 +187,34 @@ The closeout audit reran the mandatory workspace gates after the code commit:
 | `python3 tools/check_release_consistency.py` | passed |
 | `git diff --check` | passed |
 
+P10.9 command-level documentation checks at the P10.8 closeout checkpoint all
+exited `0`:
+
+| Command | Result |
+| --- | --- |
+| `mrd solve --help` | exposes only `reference` and `source-with-target` backend values |
+| `mrd benchmark --help` | exposes `layered`, `--source-target`, and `--reference-provided-target` |
+| `mrd benchmark --suite layered --output <temporary file>` | five verified polygon-derived rows plus one direct-grid unavailable row |
+| `mrd benchmark --suite layered --source-target -85070591730234615865843651857942052864 --output <temporary file>` | exact decimal target and `caller-supplied` / `source-undetermined`; no fallback |
+
+The P10.9 documentation closeout then reran the complete workspace audit. All
+commands exited `0`:
+
+| Command | Result |
+| --- | --- |
+| `git diff --check` | no whitespace errors |
+| `cargo fmt --all -- --check` | passed |
+| `python3 tools/check_biclique_bound.py` | passed |
+| `python3 tools/check_source_flow_audit.py` | passed |
+| `python3 tools/check_source_lsst_audit.py` | passed |
+| `cargo clippy --workspace --all-targets --all-features -- -D warnings` | passed with no warnings |
+| `cargo test --workspace` | 419 passed, 4 existing ignored (15 suites, 530.88s) |
+| `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | passed |
+| `cargo build --workspace --release` | passed |
+| `python3 tools/check_release_consistency.py` | passed |
+
 ## Remaining work
 
 - P11 (renumbered): direct grid parity embedding.
-- P10.9: documentation closeout across README, ARCHITECTURE, ALGORITHMS,
-  KNOWN_LIMITATIONS, NEAR_LINEAR_FLOW_IMPLEMENTATION, and TESTING.
 - Automatic `F*` search remains blocked (P9.5e.3g.3); `Backend::require_complete()`
   remains `Error::Incomplete`; no AN19 runtime claim is made.
