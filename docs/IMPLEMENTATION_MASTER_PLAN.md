@@ -7,8 +7,8 @@
 - Current phase: P13.5
 - Current phase state: in_progress
 - Last completed phase: P13.4
-- Last pushed SHA: 3e3f1bef8cac6f954a9d730a9ec91c88402cb139
-- Plan last updated: 2026-08-03T13:00:20Z
+- Last pushed SHA: c638e31564e5434d01ec13f6897b2cc4d817284b
+- Plan last updated: 2026-08-03T13:03:06Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1869,10 +1869,10 @@ subphases:
   `3e3f1be`.** Regenerate the direct-grid
   machine-readable evidence and record the exact environment, population,
   structural counters, phase maps, result path, and comparison baseline.
-- **P13.5b - Optimization ledger. State: in_progress.** Record every retained and
+- **P13.5b - Optimization ledger. State: complete.** Record every retained and
   rejected P13 optimization, its isolated commit, correctness gate, memory or
   allocation boundary, and whether a portable performance claim is forbidden.
-- **P13.5c - P13 closeout audit. State: planned.** Rerun the complete mandatory
+- **P13.5c - P13 closeout audit. State: in_progress.** Rerun the complete mandatory
   audit, inspect generated evidence and staged diffs, close P13, and transition
   to P14 only after the final report is committed and pushed.
 
@@ -2026,5 +2026,5 @@ and AN19 runtime claims.
 | P13.4 | complete | d5fcd67 | 367206f | 4c27d44 | 4c27d44 | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | 2026-08-03T12:55:12Z | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
 | P13.5 | in_progress | 4c27d44 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | pending | depends on P13.2-P13.4; consolidate benchmark and retained/rejected optimization evidence |
 | P13.5a | complete | 4c27d44 | 3e3f1be | 3e3f1be | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | direct-grid benchmark archive and environment evidence | 2026-08-03T12:57:07Z | pending | committed result and environment manifest; no portable timing claim |
-| P13.5b | in_progress | 3e3f1be | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | pending | depends on P13.5a |
-| P13.5c | planned | pending | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | pending | pending | depends on P13.5a-P13.5b |
+| P13.5b | complete | 3e3f1be | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | 2026-08-03T13:03:06Z | retained/rejected decisions and exact acceptance boundaries recorded |
+| P13.5c | in_progress | c638e31 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | pending | depends on P13.5a-P13.5b |

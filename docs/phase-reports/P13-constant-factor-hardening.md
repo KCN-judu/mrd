@@ -2,7 +2,7 @@
 
 ## Status
 
-**State: P13.1-P13.4 and P13.5a complete; P13.5b-P13.5c remain.** P13.4
+**State: P13.1-P13.5b complete; P13.5c closeout audit remains.** P13.4
 implementation commit is `367206f`, and P13.5a benchmark archive commit is
 `3e3f1be`. This phase starts with a reproducible baseline, not an optimization
 claim. All timings below are local development-profile observations for the
@@ -111,6 +111,21 @@ the baseline observation of 607/4,553. This is deliberately archived without a
 speedup claim: each timing is local to its recorded command and environment.
 The complete per-mode phase maps remain in the JSON evidence for reproducible
 same-environment comparison.
+
+## P13.5b - Optimization Ledger
+
+| Decision | Commit | Retained/rejected reason | Semantic acceptance evidence | Performance boundary |
+| --- | --- | --- | --- | --- |
+| Canonical chord records use `Vec` in `InteriorRuns` | `089187e` | Retained: the already canonical nested traversal emits each record once and in lexical order, so a per-record `BTreeSet` is redundant. | 3x3/4x4 exhaustive chord-family differentials; P11 direct/ranked pipeline campaign; permanent `Pairwise` `BTreeSet` Oracle. | Removes tree-node allocation and balancing only; no asymptotic or portable timing claim. |
+| Compressed-flow node layout derives contiguous IDs | `d5fcd67` | Retained: three vectors of predictable `FlowNodeId` values contained no additional state. | Exact P11 network snapshot differential; flow/cut/cover/rectangle equality; out-of-bounds endpoint regression. | Removes three allocations and stored ID words per solve; node and arc order stay identical; no timing claim. |
+| Grid verification component scheduler | `367206f` | Retained as an explicit opt-in verification boundary, not as a solver policy. | Serial/two-worker component semantic differential; generic ordered-output and earliest-failure tests; CLI worker parsing test. | Fixed worker and reorder upper bounds; no auto sizing, no polygon/solve/benchmark scheduling, no throughput claim. |
+| Direct-grid parity encoder | `ab95125` (P11) | Retained prerequisite measured by P13, not a P13 optimization commit. | 897-component / 1,794-comparison direct-versus-ranked campaign; zero direct rank counters; RankedCoordinates permanent Oracle. | Structural zero-counter benefit is portable for the finite direct-grid path; microseconds remain local observations. |
+| Scratch arenas, flattened adjacency, narrow integer encodings, and certificate elision | none | Rejected for P13: no measured hotspot and no isolated evidence justified altering exact layout, overflow contracts, or certificate availability. | Existing exact certificates and full differential population remain unchanged. | Not implemented; no conclusion about potential future benefit. |
+| Automatic worker selection or parallel solver/polygon execution | none | Rejected for P13: would add environment-dependent behavior or expand side-effect/concurrency boundaries beyond independent grid verification. | P13.4 explicitly rejects non-grid parallel worker requests. | Not implemented; no scalability or speed claim. |
+
+The ledger records only changes that survived exact differential evidence, plus
+candidates deliberately left out. It does not interpret absence of a retained
+change as evidence that the candidate is unprofitable in every environment.
 
 ## Audit
 
