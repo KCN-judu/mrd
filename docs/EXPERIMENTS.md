@@ -2,6 +2,12 @@
 
 Evidence date: 2026-07-25 (Asia/Tokyo).
 
+For a current narrative account of subsystem scope and evidence, read
+[`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). The separate
+[`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md) records a
+controlled repeated-process protocol for the direct-grid parity workload; it
+does not replace the finite correctness populations documented here.
+
 ## v1.3 output-sensitive sparse geometry evidence
 
 The v1.3 scaling report contains 56 verified boundary-native rows at sizes

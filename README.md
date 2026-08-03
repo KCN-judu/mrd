@@ -26,6 +26,17 @@ Every solver returns explicit rectangles and runs its exact native validator.
 The crate and namespace ownership map is documented in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Documentation
+
+The consolidated implementation account is
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). It explains
+each major subsystem's purpose, implementation evidence, and remaining
+limitations. The separate
+[`docs/BENCHMARK_SAMPLING_REPORT.md`](docs/BENCHMARK_SAMPLING_REPORT.md)
+describes the controlled repeated-process benchmark protocol and links its raw
+samples. Historical phase reports and machine-readable campaign artifacts
+remain under `docs/phase-reports/` and `results/`.
+
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a
 physically sparse dynamic stabbing tree. The v1.2 range-scan subdivision and
