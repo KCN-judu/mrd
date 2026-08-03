@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    mem::size_of,
+};
 
 use graph::{BipartiteGraph, GraphError};
 use mrd_domain::{Coord, HorizontalChord, VerticalChord, closed_chords_intersect};
@@ -10,10 +13,36 @@ pub struct DominancePoint {
     pub coordinates: [i128; 4],
 }
 
+/// Coordinate construction used to embed one chord family.
+///
+/// `RankedCoordinates` is the permanent general-coordinate Oracle.
+/// `DirectGridParity` is valid for the finite integer grid pipeline and uses
+/// the direct even/odd formula without coordinate ranking.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum EmbeddingCoordinateBackend {
+    RankedCoordinates,
+    DirectGridParity,
+}
+
+/// Structural counters for one embedding construction.
+///
+/// The ranked fields describe only coordinate-ranking work. In particular, a
+/// direct-grid construction reports zero for all three fields rather than an
+/// unavailable estimate.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EmbeddingMetrics {
+    pub rank_sort_count: usize,
+    pub rank_map_entry_count: usize,
+    pub rank_map_owned_bytes: usize,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct DominanceEmbedding {
     pub horizontal: Vec<DominancePoint>,
     pub vertical: Vec<DominancePoint>,
+    pub backend: EmbeddingCoordinateBackend,
+    pub metrics: EmbeddingMetrics,
 }
 
 impl DominanceEmbedding {
@@ -23,6 +52,42 @@ impl DominanceEmbedding {
     ///
     /// Returns [`EmbeddingError`] if a rank is missing or checked arithmetic overflows.
     pub fn new(
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+    ) -> Result<Self, EmbeddingError> {
+        Self::new_with_backend(
+            horizontal_chords,
+            vertical_chords,
+            EmbeddingCoordinateBackend::RankedCoordinates,
+        )
+    }
+
+    /// Builds one exact embedding through the selected coordinate backend.
+    ///
+    /// `DirectGridParity` must only be selected by the finite integer grid
+    /// pipeline. It deliberately does not construct rank sets, maps, or sorted
+    /// coordinate vectors.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EmbeddingError`] when checked coordinate arithmetic overflows
+    /// or a ranked coordinate is missing.
+    pub fn new_with_backend(
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+        backend: EmbeddingCoordinateBackend,
+    ) -> Result<Self, EmbeddingError> {
+        match backend {
+            EmbeddingCoordinateBackend::RankedCoordinates => {
+                Self::ranked(horizontal_chords, vertical_chords)
+            }
+            EmbeddingCoordinateBackend::DirectGridParity => {
+                Self::direct_grid_parity(horizontal_chords, vertical_chords)
+            }
+        }
+    }
+
+    fn ranked(
         horizontal_chords: &[HorizontalChord],
         vertical_chords: &[VerticalChord],
     ) -> Result<Self, EmbeddingError> {
@@ -51,6 +116,33 @@ impl DominanceEmbedding {
         Ok(Self {
             horizontal,
             vertical,
+            backend: EmbeddingCoordinateBackend::RankedCoordinates,
+            metrics: EmbeddingMetrics {
+                rank_sort_count: 2,
+                rank_map_entry_count: x_ranks.len() + y_ranks.len(),
+                rank_map_owned_bytes: rank_map_owned_bytes(&x_ranks)
+                    + rank_map_owned_bytes(&y_ranks),
+            },
+        })
+    }
+
+    fn direct_grid_parity(
+        horizontal_chords: &[HorizontalChord],
+        vertical_chords: &[VerticalChord],
+    ) -> Result<Self, EmbeddingError> {
+        let horizontal = horizontal_chords
+            .iter()
+            .map(|chord| direct_alpha(*chord))
+            .collect::<Result<Vec<_>, _>>()?;
+        let vertical = vertical_chords
+            .iter()
+            .map(|chord| direct_beta(*chord))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            horizontal,
+            vertical,
+            backend: EmbeddingCoordinateBackend::DirectGridParity,
+            metrics: EmbeddingMetrics::default(),
         })
     }
 
@@ -137,6 +229,10 @@ fn coordinate_ranks(values: impl Iterator<Item = Coord>) -> HashMap<Coord, usize
         .collect()
 }
 
+fn rank_map_owned_bytes(map: &HashMap<Coord, usize>) -> usize {
+    map.capacity().saturating_mul(size_of::<(Coord, usize)>())
+}
+
 fn twice_rank(ranks: &HashMap<Coord, usize>, value: Coord) -> Result<i128, EmbeddingError> {
     let rank = *ranks
         .get(&value)
@@ -191,6 +287,48 @@ fn beta(
     })
 }
 
+fn doubled(value: Coord) -> Result<i128, EmbeddingError> {
+    i128::from(value)
+        .checked_mul(2)
+        .ok_or(EmbeddingError::ArithmeticOverflow)
+}
+
+fn direct_alpha(chord: HorizontalChord) -> Result<DominancePoint, EmbeddingError> {
+    let left = doubled(chord.left())?;
+    let right = doubled(chord.right())?;
+    let y = doubled(chord.y())?;
+    Ok(DominancePoint {
+        coordinates: [
+            left,
+            right
+                .checked_neg()
+                .ok_or(EmbeddingError::ArithmeticOverflow)?,
+            y,
+            y.checked_neg().ok_or(EmbeddingError::ArithmeticOverflow)?,
+        ],
+    })
+}
+
+fn direct_beta(chord: VerticalChord) -> Result<DominancePoint, EmbeddingError> {
+    let x = doubled(chord.x())?;
+    let top = doubled(chord.top())?;
+    let bottom = doubled(chord.bottom())?;
+    Ok(DominancePoint {
+        coordinates: [
+            x.checked_add(1).ok_or(EmbeddingError::ArithmeticOverflow)?,
+            x.checked_neg()
+                .and_then(|value| value.checked_add(1))
+                .ok_or(EmbeddingError::ArithmeticOverflow)?,
+            top.checked_add(1)
+                .ok_or(EmbeddingError::ArithmeticOverflow)?,
+            bottom
+                .checked_neg()
+                .and_then(|value| value.checked_add(1))
+                .ok_or(EmbeddingError::ArithmeticOverflow)?,
+        ],
+    })
+}
+
 #[derive(Debug, Error)]
 pub enum EmbeddingError {
     #[error("coordinate {value} is missing from its rank map")]
@@ -218,7 +356,7 @@ pub enum EmbeddingError {
 mod tests {
     use mrd_domain::{HorizontalChord, HorizontalChordId, VerticalChord, VerticalChordId};
 
-    use super::DominanceEmbedding;
+    use super::{DominanceEmbedding, EmbeddingCoordinateBackend};
 
     #[test]
     fn exhaustively_preserves_closed_endpoint_intersection() {
@@ -244,9 +382,42 @@ mod tests {
                 }
             }
         }
-        let embedding = DominanceEmbedding::new(&horizontal, &vertical).unwrap();
-        embedding
+        let ranked = DominanceEmbedding::new(&horizontal, &vertical).unwrap();
+        ranked
             .assert_pairwise_equivalence(&horizontal, &vertical)
             .unwrap();
+        let direct = DominanceEmbedding::new_with_backend(
+            &horizontal,
+            &vertical,
+            EmbeddingCoordinateBackend::DirectGridParity,
+        )
+        .unwrap();
+        direct
+            .assert_pairwise_equivalence(&horizontal, &vertical)
+            .unwrap();
+        assert_eq!(
+            direct.explicit_graph().unwrap(),
+            ranked.explicit_graph().unwrap()
+        );
+        assert_eq!(ranked.metrics.rank_sort_count, 2);
+        assert!(ranked.metrics.rank_map_entry_count > 0);
+        assert!(ranked.metrics.rank_map_owned_bytes > 0);
+        assert_eq!(direct.metrics.rank_sort_count, 0);
+        assert_eq!(direct.metrics.rank_map_entry_count, 0);
+        assert_eq!(direct.metrics.rank_map_owned_bytes, 0);
+    }
+
+    #[test]
+    fn direct_grid_parity_uses_the_declared_even_odd_formula() {
+        let horizontal = [HorizontalChord::new(HorizontalChordId(0), 1, 3, 2).unwrap()];
+        let vertical = [VerticalChord::new(VerticalChordId(0), 2, 0, 4).unwrap()];
+        let embedding = DominanceEmbedding::new_with_backend(
+            &horizontal,
+            &vertical,
+            EmbeddingCoordinateBackend::DirectGridParity,
+        )
+        .unwrap();
+        assert_eq!(embedding.horizontal[0].coordinates, [2, -6, 4, -4]);
+        assert_eq!(embedding.vertical[0].coordinates, [5, -3, 9, 1]);
     }
 }

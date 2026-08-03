@@ -566,6 +566,8 @@ mod tests {
         DominanceEmbedding {
             horizontal,
             vertical,
+            backend: crate::embedding::EmbeddingCoordinateBackend::RankedCoordinates,
+            metrics: crate::embedding::EmbeddingMetrics::default(),
         }
     }
 
