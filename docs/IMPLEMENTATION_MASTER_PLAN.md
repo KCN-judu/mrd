@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P14.2
+- Current phase: P14.4
 - Current phase state: in_progress
-- Last completed phase: P14.1
-- Last pushed SHA: 9e7bdd6fff27be976eb6975a562904b67de34374
-- Plan last updated: 2026-08-03T13:26:47Z
+- Last completed phase: P14.3
+- Last pushed SHA: 4c0caac14e7bcc95001dfbc0d9efc7f89624fee4
+- Plan last updated: 2026-08-03T13:47:00Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1922,7 +1922,7 @@ P14 is split before final-artifact work into these source-of-truth subphases:
   in `docs/phase-reports/P14-final-artifact.md` and
   `results/final-campaigns/external-oracle.json`. Profiler-only claims remain
   explicitly unavailable.
-- **P14.4 - Performance and complexity synthesis. State: planned.** Consolidate
+- **P14.4 - Performance and complexity synthesis. State: in_progress.** Consolidate
   local timing observations, structural counters, backend crossover evidence,
   P13 ledger, source assumptions, and deferred proof debt into reports that
   make no unsupported portability, asymptotic, or AN19-runtime claim.
@@ -2059,7 +2059,8 @@ and AN19 runtime claims.
 | P13.5c | complete | c638e31 | 6b7ead9 | 6b7ead9 | 6b7ead9 | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | 2026-08-03T13:06:21Z | complete phase audit and transient benchmark rerun passed; only timestamp/commit/local timing observations differed from archived JSON |
 | P14 | in_progress | 6b7ead9 | pending | pending | pending | pending | final verification, benchmark, and strict report | 2026-08-03T13:07:55Z | pending | split before final-artifact work; P9.6a AN19 proof debt remains deferred |
 | P14.1 | complete | 37fa506 | 9e7bdd6 | 9e7bdd6 | 9e7bdd6 | `docs/phase-reports/P14-final-artifact.md`; `docs/final-manifest.schema.json` | campaign inventory and final-manifest contract | 2026-08-03T13:09:00Z | 2026-08-03T13:22:30Z | CP-SAT package, external profilers, and cargo-fuzz are not installed locally; P14.3 must execute or record exact unavailable/deferred dispositions |
-| P14.2 | complete | 2351cc6 | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/` exact correctness data and isolated local manifest | 2026-08-03T13:26:47Z | 2026-08-03T13:35:00Z | 4x4 exhaustive, random, polyomino, polygon, formal, direct-parity, generic-flow, and compressed-flow activities passed; fuzz has no runner/target and remains unavailable |
-| P14.3 | complete | 69cf77d | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/external-oracle.json` | 2026-08-03T13:40:00Z | 2026-08-03T13:45:00Z | OR-Tools 9.15.6755 isolated rerun: 6,998 inputs/27,228 components all verified; only local RSS observations are available |
+| P14.2 | complete | 2351cc6 | 69cf77d | 69cf77d | 69cf77d | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/` exact correctness data and isolated local manifest | 2026-08-03T13:26:47Z | 2026-08-03T13:35:00Z | 4x4 exhaustive, random, polyomino, polygon, formal, direct-parity, generic-flow, and compressed-flow activities passed; fuzz has no runner/target and remains unavailable |
+| P14.3 | complete | 69cf77d | 4c0caac | 4c0caac | 4c0caac | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/external-oracle.json` | 2026-08-03T13:40:00Z | 2026-08-03T13:45:00Z | OR-Tools 9.15.6755 isolated rerun: 6,998 inputs/27,228 components all verified; only local RSS observations are available |
+| P14.4 | in_progress | 4c0caac | pending | pending | pending | `docs/phase-reports/P14-final-artifact.md` | pending performance and complexity reports | 2026-08-03T13:47:00Z | pending | local timing and structural evidence only; P9.6a AN19 proof debt remains deferred |
 | P14.4 | planned | pending | pending | pending | pending | pending | performance and complexity synthesis | pending | pending | depends on P14.1-P14.3 |
 | P14.5 | planned | pending | pending | pending | pending | pending | final artifact closeout | pending | pending | depends on P14.2-P14.4 |
