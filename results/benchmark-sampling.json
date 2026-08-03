@@ -1,0 +1,3457 @@
+{
+  "claim_boundary": "Local process-level observations on one fixed finite workload; no cross-machine, throughput, asymptotic, or causal performance claim.",
+  "correctness_gate": {
+    "components_examined": 897,
+    "direct_rank_map_entry_count": 0,
+    "direct_rank_map_owned_bytes": 0,
+    "direct_rank_sort_count": 0,
+    "masks_examined": 511,
+    "pipeline_comparisons": 1794,
+    "ranked_rank_map_entry_count": 624,
+    "ranked_rank_map_owned_bytes": 18240,
+    "ranked_rank_sort_count": 3588
+  },
+  "environment": {
+    "cpu_model": "Apple M4",
+    "logical_cpu_count": 10,
+    "machine": "arm64",
+    "operating_system": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.6"
+  },
+  "protocol": {
+    "backend_order": "Within each mode the workload executes ranked-coordinates before direct-grid-parity.",
+    "exclusion_rule": "Only the configured warm-up processes are excluded. A nonzero exit, mismatch, solver error, or changed structural counter aborts the campaign rather than being dropped.",
+    "measured_process_repetitions": 31,
+    "measurement_unit": "one fresh CLI process executing the complete finite workload",
+    "pairing": "Every measured process runs both backends for every component and mode.",
+    "population": {
+      "foreground_components": 897,
+      "nonzero_three_by_three_masks": 511,
+      "paired_pipeline_comparisons": 1794,
+      "verification_modes": [
+        "fully-audited",
+        "compact-only"
+      ]
+    },
+    "randomization": "None. The input census and backend order are fixed; this controls the workload but leaves possible order and host-load bias explicit.",
+    "statistics": "Minimum, inclusive-linear-interpolation quartiles (R type 7), median, and maximum; no significance test or confidence interval is reported.",
+    "warmup_runs_excluded": 3,
+    "workload_command": "target/release/mrd benchmark --suite direct-grid-parity --output <temporary-relative-path>"
+  },
+  "runs": [
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1144,
+              "boundary_extraction": 682,
+              "component_preparation": 0,
+              "compressed_flow": 6,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 5,
+              "geometric_completion": 382,
+              "horizontal_simple_chord_completion": 8,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1218,
+              "boundary_extraction": 716,
+              "component_preparation": 0,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 534,
+              "horizontal_simple_chord_completion": 53,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 2
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 61,
+              "boundary_effective_chords": 2984,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 606,
+              "horizontal_simple_chord_completion": 18,
+              "rectangle_recovery": 41,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 79,
+              "boundary_effective_chords": 3126,
+              "compressed_flow": 10,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 866,
+              "horizontal_simple_chord_completion": 122,
+              "rectangle_recovery": 101,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 6
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8677818181818182,
+      "direct_total_phase_microseconds": 5966,
+      "process_wall_microseconds": 66417,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6875,
+      "sample": 1
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1153,
+              "boundary_extraction": 682,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 420,
+              "horizontal_simple_chord_completion": 10,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1218,
+              "boundary_extraction": 706,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 558,
+              "horizontal_simple_chord_completion": 52,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 8
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 58,
+              "boundary_effective_chords": 3014,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 627,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 46,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 73,
+              "boundary_effective_chords": 3172,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 10,
+              "geometric_completion": 871,
+              "horizontal_simple_chord_completion": 118,
+              "rectangle_recovery": 83,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8752349284371838,
+      "direct_total_phase_microseconds": 6054,
+      "process_wall_microseconds": 66311,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6917,
+      "sample": 2
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1067,
+              "boundary_extraction": 618,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 388,
+              "horizontal_simple_chord_completion": 8,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1126,
+              "boundary_extraction": 656,
+              "component_preparation": 0,
+              "compressed_flow": 3,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 481,
+              "horizontal_simple_chord_completion": 47,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 58,
+              "boundary_effective_chords": 2823,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 2,
+              "geometric_completion": 577,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 32,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 67,
+              "boundary_effective_chords": 3020,
+              "compressed_flow": 6,
+              "dominance_embedding": 9,
+              "final_output_validation": 2,
+              "geometric_completion": 809,
+              "horizontal_simple_chord_completion": 112,
+              "rectangle_recovery": 83,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8708527131782946,
+      "direct_total_phase_microseconds": 5617,
+      "process_wall_microseconds": 64111,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6450,
+      "sample": 3
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1174,
+              "boundary_extraction": 681,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 4,
+              "geometric_completion": 427,
+              "horizontal_simple_chord_completion": 28,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1210,
+              "boundary_extraction": 681,
+              "component_preparation": 1,
+              "compressed_flow": 7,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 5,
+              "geometric_completion": 565,
+              "horizontal_simple_chord_completion": 69,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 60,
+              "boundary_effective_chords": 2924,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 571,
+              "horizontal_simple_chord_completion": 13,
+              "rectangle_recovery": 27,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 74,
+              "boundary_effective_chords": 3114,
+              "compressed_flow": 15,
+              "dominance_embedding": 9,
+              "final_output_validation": 3,
+              "geometric_completion": 841,
+              "horizontal_simple_chord_completion": 127,
+              "rectangle_recovery": 81,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8689796515883472,
+      "direct_total_phase_microseconds": 5936,
+      "process_wall_microseconds": 65295,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6831,
+      "sample": 4
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 11,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1086,
+              "boundary_extraction": 629,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 375,
+              "horizontal_simple_chord_completion": 12,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1113,
+              "boundary_extraction": 644,
+              "component_preparation": 0,
+              "compressed_flow": 4,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 6,
+              "geometric_completion": 522,
+              "horizontal_simple_chord_completion": 48,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 56,
+              "boundary_effective_chords": 2804,
+              "compressed_flow": 10,
+              "dominance_embedding": 11,
+              "final_output_validation": 0,
+              "geometric_completion": 591,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 38,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 69,
+              "boundary_effective_chords": 3042,
+              "compressed_flow": 7,
+              "dominance_embedding": 13,
+              "final_output_validation": 1,
+              "geometric_completion": 846,
+              "horizontal_simple_chord_completion": 131,
+              "rectangle_recovery": 84,
+              "selected_chord_cut_materialization": 3,
+              "vertical_simple_chord_completion": 2
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 13,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 11,
+      "direct_over_ranked_embedding_ratio": 0.8461538461538461,
+      "direct_over_ranked_total_phase_ratio": 0.8614751600121914,
+      "direct_total_phase_microseconds": 5653,
+      "process_wall_microseconds": 64658,
+      "ranked_embedding_microseconds": 13,
+      "ranked_total_phase_microseconds": 6562,
+      "sample": 5
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 6,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1158,
+              "boundary_extraction": 712,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 5,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 415,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1180,
+              "boundary_extraction": 713,
+              "component_preparation": 1,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 546,
+              "horizontal_simple_chord_completion": 68,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 58,
+              "boundary_effective_chords": 2982,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 603,
+              "horizontal_simple_chord_completion": 13,
+              "rectangle_recovery": 43,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 76,
+              "boundary_effective_chords": 3175,
+              "compressed_flow": 8,
+              "dominance_embedding": 10,
+              "final_output_validation": 7,
+              "geometric_completion": 849,
+              "horizontal_simple_chord_completion": 116,
+              "rectangle_recovery": 86,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 11,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 6,
+      "direct_over_ranked_embedding_ratio": 0.5454545454545454,
+      "direct_over_ranked_total_phase_ratio": 0.8788055353241078,
+      "direct_total_phase_microseconds": 6033,
+      "process_wall_microseconds": 66038,
+      "ranked_embedding_microseconds": 11,
+      "ranked_total_phase_microseconds": 6865,
+      "sample": 6
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1062,
+              "boundary_extraction": 644,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 375,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 8,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1091,
+              "boundary_extraction": 655,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 5,
+              "geometric_completion": 550,
+              "horizontal_simple_chord_completion": 56,
+              "rectangle_recovery": 6,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 6
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 57,
+              "boundary_effective_chords": 2850,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 584,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 35,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 74,
+              "boundary_effective_chords": 3086,
+              "compressed_flow": 10,
+              "dominance_embedding": 10,
+              "final_output_validation": 1,
+              "geometric_completion": 861,
+              "horizontal_simple_chord_completion": 128,
+              "rectangle_recovery": 82,
+              "selected_chord_cut_materialization": 10,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8513066987083208,
+      "direct_total_phase_microseconds": 5668,
+      "process_wall_microseconds": 64674,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6658,
+      "sample": 7
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1043,
+              "boundary_extraction": 639,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 377,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1081,
+              "boundary_extraction": 662,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 504,
+              "horizontal_simple_chord_completion": 46,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 2860,
+              "compressed_flow": 22,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 578,
+              "horizontal_simple_chord_completion": 16,
+              "rectangle_recovery": 43,
+              "selected_chord_cut_materialization": 5,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 72,
+              "boundary_effective_chords": 3071,
+              "compressed_flow": 13,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 851,
+              "horizontal_simple_chord_completion": 124,
+              "rectangle_recovery": 81,
+              "selected_chord_cut_materialization": 9,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8678669514800122,
+      "direct_total_phase_microseconds": 5688,
+      "process_wall_microseconds": 65610,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6554,
+      "sample": 8
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1148,
+              "boundary_extraction": 686,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 409,
+              "horizontal_simple_chord_completion": 7,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 31,
+              "boundary_effective_chords": 1169,
+              "boundary_extraction": 702,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 498,
+              "horizontal_simple_chord_completion": 52,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 56,
+              "boundary_effective_chords": 2845,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 609,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 37,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 69,
+              "boundary_effective_chords": 3063,
+              "compressed_flow": 8,
+              "dominance_embedding": 8,
+              "final_output_validation": 2,
+              "geometric_completion": 846,
+              "horizontal_simple_chord_completion": 120,
+              "rectangle_recovery": 79,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.878213802435724,
+      "direct_total_phase_microseconds": 5841,
+      "process_wall_microseconds": 65922,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6651,
+      "sample": 9
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1285,
+              "boundary_extraction": 735,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 421,
+              "horizontal_simple_chord_completion": 12,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 35,
+              "boundary_effective_chords": 1379,
+              "boundary_extraction": 776,
+              "component_preparation": 1,
+              "compressed_flow": 2,
+              "dominance_embedding": 3,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 547,
+              "horizontal_simple_chord_completion": 51,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 60,
+              "boundary_effective_chords": 3051,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 645,
+              "horizontal_simple_chord_completion": 19,
+              "rectangle_recovery": 52,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 76,
+              "boundary_effective_chords": 3227,
+              "compressed_flow": 9,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 916,
+              "horizontal_simple_chord_completion": 136,
+              "rectangle_recovery": 106,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 1
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 12,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.08333333333333333,
+      "direct_over_ranked_total_phase_ratio": 0.867152081329853,
+      "direct_total_phase_microseconds": 6312,
+      "process_wall_microseconds": 68125,
+      "ranked_embedding_microseconds": 12,
+      "ranked_total_phase_microseconds": 7279,
+      "sample": 10
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 3,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1196,
+              "boundary_extraction": 700,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 6,
+              "geometric_completion": 422,
+              "horizontal_simple_chord_completion": 11,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 33,
+              "boundary_effective_chords": 1252,
+              "boundary_extraction": 709,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 6,
+              "geometric_completion": 535,
+              "horizontal_simple_chord_completion": 46,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 6
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 61,
+              "boundary_effective_chords": 2999,
+              "compressed_flow": 0,
+              "dominance_embedding": 3,
+              "final_output_validation": 0,
+              "geometric_completion": 629,
+              "horizontal_simple_chord_completion": 18,
+              "rectangle_recovery": 47,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 69,
+              "boundary_effective_chords": 3199,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 9,
+              "geometric_completion": 888,
+              "horizontal_simple_chord_completion": 126,
+              "rectangle_recovery": 88,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 3,
+      "direct_over_ranked_embedding_ratio": 0.3,
+      "direct_over_ranked_total_phase_ratio": 0.8757692858165164,
+      "direct_total_phase_microseconds": 6119,
+      "process_wall_microseconds": 66320,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6987,
+      "sample": 11
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 32,
+              "boundary_effective_chords": 1233,
+              "boundary_extraction": 704,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 414,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1293,
+              "boundary_extraction": 723,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 534,
+              "horizontal_simple_chord_completion": 42,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 62,
+              "boundary_effective_chords": 3043,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 646,
+              "horizontal_simple_chord_completion": 19,
+              "rectangle_recovery": 48,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 75,
+              "boundary_effective_chords": 3205,
+              "compressed_flow": 7,
+              "dominance_embedding": 10,
+              "final_output_validation": 2,
+              "geometric_completion": 881,
+              "horizontal_simple_chord_completion": 116,
+              "rectangle_recovery": 98,
+              "selected_chord_cut_materialization": 1,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8859586600142552,
+      "direct_total_phase_microseconds": 6215,
+      "process_wall_microseconds": 67253,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 7015,
+      "sample": 12
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798886
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1111,
+              "boundary_extraction": 644,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 386,
+              "horizontal_simple_chord_completion": 8,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1136,
+              "boundary_extraction": 675,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 499,
+              "horizontal_simple_chord_completion": 40,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 57,
+              "boundary_effective_chords": 2887,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 589,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 45,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 70,
+              "boundary_effective_chords": 3101,
+              "compressed_flow": 7,
+              "dominance_embedding": 9,
+              "final_output_validation": 2,
+              "geometric_completion": 826,
+              "horizontal_simple_chord_completion": 112,
+              "rectangle_recovery": 90,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.8752274105518496,
+      "direct_total_phase_microseconds": 5773,
+      "process_wall_microseconds": 65336,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6596,
+      "sample": 13
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 30,
+              "boundary_effective_chords": 1115,
+              "boundary_extraction": 643,
+              "component_preparation": 0,
+              "compressed_flow": 5,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 386,
+              "horizontal_simple_chord_completion": 6,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 32,
+              "boundary_effective_chords": 1132,
+              "boundary_extraction": 675,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 503,
+              "horizontal_simple_chord_completion": 43,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 54,
+              "boundary_effective_chords": 2839,
+              "compressed_flow": 11,
+              "dominance_embedding": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 586,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 24,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 67,
+              "boundary_effective_chords": 3066,
+              "compressed_flow": 7,
+              "dominance_embedding": 10,
+              "final_output_validation": 1,
+              "geometric_completion": 824,
+              "horizontal_simple_chord_completion": 120,
+              "rectangle_recovery": 75,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.871282598749428,
+      "direct_total_phase_microseconds": 5713,
+      "process_wall_microseconds": 66272,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6557,
+      "sample": 14
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1189,
+              "boundary_extraction": 702,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 420,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 8
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1242,
+              "boundary_extraction": 727,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 542,
+              "horizontal_simple_chord_completion": 46,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 61,
+              "boundary_effective_chords": 3042,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 631,
+              "horizontal_simple_chord_completion": 16,
+              "rectangle_recovery": 45,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 72,
+              "boundary_effective_chords": 3194,
+              "compressed_flow": 10,
+              "dominance_embedding": 9,
+              "final_output_validation": 2,
+              "geometric_completion": 872,
+              "horizontal_simple_chord_completion": 114,
+              "rectangle_recovery": 97,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8842892051171481,
+      "direct_total_phase_microseconds": 6152,
+      "process_wall_microseconds": 66734,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6957,
+      "sample": 15
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1338,
+              "boundary_extraction": 735,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 434,
+              "horizontal_simple_chord_completion": 15,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 29,
+              "boundary_effective_chords": 1344,
+              "boundary_extraction": 758,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 4,
+              "geometric_completion": 574,
+              "horizontal_simple_chord_completion": 71,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 3086,
+              "compressed_flow": 3,
+              "dominance_embedding": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 655,
+              "horizontal_simple_chord_completion": 27,
+              "rectangle_recovery": 54,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 80,
+              "boundary_effective_chords": 3312,
+              "compressed_flow": 8,
+              "dominance_embedding": 12,
+              "final_output_validation": 1,
+              "geometric_completion": 932,
+              "horizontal_simple_chord_completion": 139,
+              "rectangle_recovery": 122,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 12,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8710244958722425,
+      "direct_total_phase_microseconds": 6436,
+      "process_wall_microseconds": 69311,
+      "ranked_embedding_microseconds": 12,
+      "ranked_total_phase_microseconds": 7389,
+      "sample": 16
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1360,
+              "boundary_extraction": 782,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 2,
+              "geometric_completion": 462,
+              "horizontal_simple_chord_completion": 18,
+              "rectangle_recovery": 1,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 10
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1371,
+              "boundary_extraction": 757,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 622,
+              "horizontal_simple_chord_completion": 86,
+              "rectangle_recovery": 1,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 6
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 3128,
+              "compressed_flow": 2,
+              "dominance_embedding": 0,
+              "final_output_validation": 2,
+              "geometric_completion": 676,
+              "horizontal_simple_chord_completion": 23,
+              "rectangle_recovery": 48,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 82,
+              "boundary_effective_chords": 3340,
+              "compressed_flow": 7,
+              "dominance_embedding": 52,
+              "final_output_validation": 12,
+              "geometric_completion": 969,
+              "horizontal_simple_chord_completion": 150,
+              "rectangle_recovery": 113,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 53,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8688330482831207,
+      "direct_total_phase_microseconds": 6604,
+      "process_wall_microseconds": 71209,
+      "ranked_embedding_microseconds": 53,
+      "ranked_total_phase_microseconds": 7601,
+      "sample": 17
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1240,
+              "boundary_extraction": 734,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 399,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 30,
+              "boundary_effective_chords": 1300,
+              "boundary_extraction": 737,
+              "component_preparation": 0,
+              "compressed_flow": 3,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 580,
+              "horizontal_simple_chord_completion": 73,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 59,
+              "boundary_effective_chords": 3054,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 639,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 45,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 72,
+              "boundary_effective_chords": 3242,
+              "compressed_flow": 8,
+              "dominance_embedding": 8,
+              "final_output_validation": 6,
+              "geometric_completion": 963,
+              "horizontal_simple_chord_completion": 175,
+              "rectangle_recovery": 111,
+              "selected_chord_cut_materialization": 5,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.8511074651353568,
+      "direct_total_phase_microseconds": 6225,
+      "process_wall_microseconds": 68047,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 7314,
+      "sample": 18
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1127,
+              "boundary_extraction": 673,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 409,
+              "horizontal_simple_chord_completion": 11,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1196,
+              "boundary_extraction": 710,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 540,
+              "horizontal_simple_chord_completion": 54,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 10
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 67,
+              "boundary_effective_chords": 2960,
+              "compressed_flow": 9,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 624,
+              "horizontal_simple_chord_completion": 25,
+              "rectangle_recovery": 54,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 77,
+              "boundary_effective_chords": 3224,
+              "compressed_flow": 6,
+              "dominance_embedding": 10,
+              "final_output_validation": 7,
+              "geometric_completion": 911,
+              "horizontal_simple_chord_completion": 136,
+              "rectangle_recovery": 108,
+              "selected_chord_cut_materialization": 5,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8527485046995158,
+      "direct_total_phase_microseconds": 5988,
+      "process_wall_microseconds": 67503,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 7022,
+      "sample": 19
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1191,
+              "boundary_extraction": 688,
+              "component_preparation": 0,
+              "compressed_flow": 5,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 406,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 5,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1214,
+              "boundary_extraction": 702,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 504,
+              "horizontal_simple_chord_completion": 48,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 57,
+              "boundary_effective_chords": 2897,
+              "compressed_flow": 7,
+              "dominance_embedding": 0,
+              "final_output_validation": 6,
+              "geometric_completion": 629,
+              "horizontal_simple_chord_completion": 24,
+              "rectangle_recovery": 39,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 71,
+              "boundary_effective_chords": 3108,
+              "compressed_flow": 6,
+              "dominance_embedding": 11,
+              "final_output_validation": 1,
+              "geometric_completion": 846,
+              "horizontal_simple_chord_completion": 120,
+              "rectangle_recovery": 82,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 11,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8881637496291902,
+      "direct_total_phase_microseconds": 5988,
+      "process_wall_microseconds": 66479,
+      "ranked_embedding_microseconds": 11,
+      "ranked_total_phase_microseconds": 6742,
+      "sample": 20
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1133,
+              "boundary_extraction": 660,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 404,
+              "horizontal_simple_chord_completion": 11,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 1,
+              "vertical_simple_chord_completion": 6
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1157,
+              "boundary_extraction": 684,
+              "component_preparation": 0,
+              "compressed_flow": 12,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 542,
+              "horizontal_simple_chord_completion": 50,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 2975,
+              "compressed_flow": 3,
+              "dominance_embedding": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 617,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 46,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 1
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 76,
+              "boundary_effective_chords": 3139,
+              "compressed_flow": 6,
+              "dominance_embedding": 9,
+              "final_output_validation": 2,
+              "geometric_completion": 865,
+              "horizontal_simple_chord_completion": 119,
+              "rectangle_recovery": 96,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8782967437748637,
+      "direct_total_phase_microseconds": 5961,
+      "process_wall_microseconds": 65782,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6787,
+      "sample": 21
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1238,
+              "boundary_extraction": 693,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 406,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1297,
+              "boundary_extraction": 739,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 9,
+              "final_output_validation": 0,
+              "geometric_completion": 509,
+              "horizontal_simple_chord_completion": 47,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 60,
+              "boundary_effective_chords": 3052,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 629,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 38,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 72,
+              "boundary_effective_chords": 3202,
+              "compressed_flow": 9,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 848,
+              "horizontal_simple_chord_completion": 120,
+              "rectangle_recovery": 88,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.8836509528585758,
+      "direct_total_phase_microseconds": 6167,
+      "process_wall_microseconds": 66149,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6979,
+      "sample": 22
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1208,
+              "boundary_extraction": 716,
+              "component_preparation": 0,
+              "compressed_flow": 5,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 438,
+              "horizontal_simple_chord_completion": 10,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 1,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 10
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 38,
+              "boundary_effective_chords": 1229,
+              "boundary_extraction": 731,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 560,
+              "horizontal_simple_chord_completion": 55,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 5
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 59,
+              "boundary_effective_chords": 3069,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "final_output_validation": 6,
+              "geometric_completion": 655,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 63,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 6
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 78,
+              "boundary_effective_chords": 3225,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 881,
+              "horizontal_simple_chord_completion": 122,
+              "rectangle_recovery": 110,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.8919761837255458,
+      "direct_total_phase_microseconds": 6292,
+      "process_wall_microseconds": 66097,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 7054,
+      "sample": 23
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1239,
+              "boundary_extraction": 708,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 413,
+              "horizontal_simple_chord_completion": 18,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1264,
+              "boundary_extraction": 726,
+              "component_preparation": 1,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 7,
+              "geometric_completion": 543,
+              "horizontal_simple_chord_completion": 42,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 57,
+              "boundary_effective_chords": 3049,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 622,
+              "horizontal_simple_chord_completion": 21,
+              "rectangle_recovery": 40,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 71,
+              "boundary_effective_chords": 3186,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 2,
+              "geometric_completion": 852,
+              "horizontal_simple_chord_completion": 111,
+              "rectangle_recovery": 89,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8922500720253529,
+      "direct_total_phase_microseconds": 6194,
+      "process_wall_microseconds": 67275,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6942,
+      "sample": 24
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 6,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1229,
+              "boundary_extraction": 705,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 420,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 5,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 29,
+              "boundary_effective_chords": 1243,
+              "boundary_extraction": 714,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 582,
+              "horizontal_simple_chord_completion": 72,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 6
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 3004,
+              "compressed_flow": 0,
+              "dominance_embedding": 6,
+              "final_output_validation": 0,
+              "geometric_completion": 632,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 45,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 84,
+              "boundary_effective_chords": 3218,
+              "compressed_flow": 17,
+              "dominance_embedding": 8,
+              "final_output_validation": 1,
+              "geometric_completion": 901,
+              "horizontal_simple_chord_completion": 130,
+              "rectangle_recovery": 103,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 6,
+      "direct_over_ranked_embedding_ratio": 0.6666666666666666,
+      "direct_over_ranked_total_phase_ratio": 0.8661417322834646,
+      "direct_total_phase_microseconds": 6160,
+      "process_wall_microseconds": 67296,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 7112,
+      "sample": 25
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1048,
+              "boundary_extraction": 621,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 2,
+              "final_output_validation": 5,
+              "geometric_completion": 391,
+              "horizontal_simple_chord_completion": 14,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 35,
+              "boundary_effective_chords": 1062,
+              "boundary_extraction": 660,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 9,
+              "geometric_completion": 495,
+              "horizontal_simple_chord_completion": 45,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 59,
+              "boundary_effective_chords": 2759,
+              "compressed_flow": 1,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 589,
+              "horizontal_simple_chord_completion": 10,
+              "rectangle_recovery": 33,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 5
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 69,
+              "boundary_effective_chords": 3025,
+              "compressed_flow": 7,
+              "dominance_embedding": 10,
+              "final_output_validation": 1,
+              "geometric_completion": 813,
+              "horizontal_simple_chord_completion": 121,
+              "rectangle_recovery": 78,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 10,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1,
+      "direct_over_ranked_total_phase_ratio": 0.8648942786069652,
+      "direct_total_phase_microseconds": 5563,
+      "process_wall_microseconds": 65483,
+      "ranked_embedding_microseconds": 10,
+      "ranked_total_phase_microseconds": 6432,
+      "sample": 26
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798887
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1253,
+              "boundary_extraction": 705,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 440,
+              "horizontal_simple_chord_completion": 13,
+              "rectangle_recovery": 10,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 41,
+              "boundary_effective_chords": 1312,
+              "boundary_extraction": 761,
+              "component_preparation": 0,
+              "compressed_flow": 2,
+              "dominance_embedding": 2,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 546,
+              "horizontal_simple_chord_completion": 62,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 7
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 56,
+              "boundary_effective_chords": 2963,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 640,
+              "horizontal_simple_chord_completion": 20,
+              "rectangle_recovery": 46,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 75,
+              "boundary_effective_chords": 3171,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 884,
+              "horizontal_simple_chord_completion": 122,
+              "rectangle_recovery": 105,
+              "selected_chord_cut_materialization": 7,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 11,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.09090909090909091,
+      "direct_over_ranked_total_phase_ratio": 0.8680252986647927,
+      "direct_total_phase_microseconds": 6176,
+      "process_wall_microseconds": 66353,
+      "ranked_embedding_microseconds": 11,
+      "ranked_total_phase_microseconds": 7115,
+      "sample": 27
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798888
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 26,
+              "boundary_effective_chords": 1250,
+              "boundary_extraction": 727,
+              "component_preparation": 0,
+              "compressed_flow": 2,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 413,
+              "horizontal_simple_chord_completion": 9,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 5
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 30,
+              "boundary_effective_chords": 1273,
+              "boundary_extraction": 746,
+              "component_preparation": 0,
+              "compressed_flow": 1,
+              "dominance_embedding": 4,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 514,
+              "horizontal_simple_chord_completion": 48,
+              "rectangle_recovery": 6,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 56,
+              "boundary_effective_chords": 3001,
+              "compressed_flow": 0,
+              "dominance_embedding": 1,
+              "final_output_validation": 0,
+              "geometric_completion": 622,
+              "horizontal_simple_chord_completion": 18,
+              "rectangle_recovery": 39,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 70,
+              "boundary_effective_chords": 3208,
+              "compressed_flow": 9,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 855,
+              "horizontal_simple_chord_completion": 121,
+              "rectangle_recovery": 90,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 13,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.07692307692307693,
+      "direct_over_ranked_total_phase_ratio": 0.8829254329469014,
+      "direct_total_phase_microseconds": 6169,
+      "process_wall_microseconds": 66357,
+      "ranked_embedding_microseconds": 13,
+      "ranked_total_phase_microseconds": 6987,
+      "sample": 28
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798888
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1355,
+              "boundary_extraction": 742,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 10,
+              "geometric_completion": 435,
+              "horizontal_simple_chord_completion": 10,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 28,
+              "boundary_effective_chords": 1370,
+              "boundary_extraction": 761,
+              "component_preparation": 0,
+              "compressed_flow": 3,
+              "dominance_embedding": 1,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 559,
+              "horizontal_simple_chord_completion": 47,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 68,
+              "boundary_effective_chords": 3110,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 9,
+              "geometric_completion": 660,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 54,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 80,
+              "boundary_effective_chords": 3279,
+              "compressed_flow": 8,
+              "dominance_embedding": 10,
+              "final_output_validation": 1,
+              "geometric_completion": 900,
+              "horizontal_simple_chord_completion": 119,
+              "rectangle_recovery": 113,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 11,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.09090909090909091,
+      "direct_over_ranked_total_phase_ratio": 0.8927345144897679,
+      "direct_total_phase_microseconds": 6500,
+      "process_wall_microseconds": 68060,
+      "ranked_embedding_microseconds": 11,
+      "ranked_total_phase_microseconds": 7281,
+      "sample": 29
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 0,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798888
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1125,
+              "boundary_extraction": 633,
+              "component_preparation": 0,
+              "compressed_flow": 2,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 1,
+              "geometric_completion": 411,
+              "horizontal_simple_chord_completion": 19,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 27,
+              "boundary_effective_chords": 1151,
+              "boundary_extraction": 664,
+              "component_preparation": 0,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 493,
+              "horizontal_simple_chord_completion": 46,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 57,
+              "boundary_effective_chords": 2849,
+              "compressed_flow": 6,
+              "dominance_embedding": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 608,
+              "horizontal_simple_chord_completion": 17,
+              "rectangle_recovery": 31,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 5
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 70,
+              "boundary_effective_chords": 3053,
+              "compressed_flow": 7,
+              "dominance_embedding": 13,
+              "final_output_validation": 2,
+              "geometric_completion": 844,
+              "horizontal_simple_chord_completion": 125,
+              "rectangle_recovery": 80,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 0
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 13,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 0,
+      "direct_over_ranked_embedding_ratio": 0.0,
+      "direct_over_ranked_total_phase_ratio": 0.8801885358065987,
+      "direct_total_phase_microseconds": 5789,
+      "process_wall_microseconds": 65315,
+      "ranked_embedding_microseconds": 13,
+      "ranked_total_phase_microseconds": 6577,
+      "sample": 30
+    },
+    {
+      "benchmark_report": {
+        "components_examined": 897,
+        "direct_embedding_microseconds": 1,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "metadata": {
+          "command": "mrd benchmark --suite direct-grid-parity --output results/.benchmark-sampling-ml4g66ku/direct-grid-parity.json",
+          "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+          "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+          "seed": null,
+          "timestamp": 1785798888
+        },
+        "mismatches": [],
+        "mode_baselines": {
+          "compact-only": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 25,
+              "boundary_effective_chords": 1175,
+              "boundary_extraction": 671,
+              "component_preparation": 5,
+              "compressed_flow": 1,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 426,
+              "horizontal_simple_chord_completion": 11,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 32,
+              "boundary_effective_chords": 1220,
+              "boundary_extraction": 708,
+              "component_preparation": 1,
+              "compressed_flow": 0,
+              "dominance_embedding": 0,
+              "effective_chord_enumeration": 0,
+              "final_output_validation": 0,
+              "geometric_completion": 530,
+              "horizontal_simple_chord_completion": 51,
+              "rectangle_recovery": 0,
+              "reflex_grouping": 0,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            }
+          },
+          "fully-audited": {
+            "comparisons": 897,
+            "direct_phase_microseconds": {
+              "biclique_partition": 63,
+              "boundary_effective_chords": 2911,
+              "compressed_flow": 2,
+              "dominance_embedding": 1,
+              "final_output_validation": 1,
+              "geometric_completion": 613,
+              "horizontal_simple_chord_completion": 19,
+              "rectangle_recovery": 35,
+              "selected_chord_cut_materialization": 0,
+              "vertical_simple_chord_completion": 0
+            },
+            "ranked_phase_microseconds": {
+              "biclique_partition": 70,
+              "boundary_effective_chords": 3136,
+              "compressed_flow": 8,
+              "dominance_embedding": 9,
+              "final_output_validation": 1,
+              "geometric_completion": 871,
+              "horizontal_simple_chord_completion": 122,
+              "rectangle_recovery": 95,
+              "selected_chord_cut_materialization": 2,
+              "vertical_simple_chord_completion": 9
+            }
+          }
+        },
+        "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.",
+        "pipeline_comparisons": 1794,
+        "ranked_embedding_microseconds": 9,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588,
+        "solver_errors": []
+      },
+      "correctness": {
+        "components_examined": 897,
+        "direct_rank_map_entry_count": 0,
+        "direct_rank_map_owned_bytes": 0,
+        "direct_rank_sort_count": 0,
+        "masks_examined": 511,
+        "pipeline_comparisons": 1794,
+        "ranked_rank_map_entry_count": 624,
+        "ranked_rank_map_owned_bytes": 18240,
+        "ranked_rank_sort_count": 3588
+      },
+      "direct_embedding_microseconds": 1,
+      "direct_over_ranked_embedding_ratio": 0.1111111111111111,
+      "direct_over_ranked_total_phase_ratio": 0.8680262199563,
+      "direct_total_phase_microseconds": 5959,
+      "process_wall_microseconds": 65318,
+      "ranked_embedding_microseconds": 9,
+      "ranked_total_phase_microseconds": 6865,
+      "sample": 31
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "binary": "target/release/mrd",
+    "binary_sha256": "c64868de59b74cbdded38c8da634434e2f56c7bdc6ed49a0caf634c97b88c0c9",
+    "git_commit": "6608cacdf733561224de9328474401febb7719dd",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "working_tree_clean": true
+  },
+  "summary": {
+    "direct_embedding_microseconds": {
+      "count": 31,
+      "max": 11,
+      "median": 1,
+      "min": 0,
+      "q1": 1,
+      "q3": 1
+    },
+    "direct_over_ranked_embedding_ratio": {
+      "count": 31,
+      "max": 0.8461538461538461,
+      "median": 0.1,
+      "min": 0,
+      "q1": 0.08012820512820512,
+      "q3": 0.1111111111111111
+    },
+    "direct_over_ranked_total_phase_ratio": {
+      "count": 31,
+      "max": 0.8927345144897679,
+      "median": 0.871282598749428,
+      "min": 0.8511074651353568,
+      "q1": 0.8678243848309153,
+      "q3": 0.8815569843767501
+    },
+    "direct_total_phase_microseconds": {
+      "count": 31,
+      "max": 6604,
+      "median": 6033,
+      "min": 5563,
+      "q1": 5815,
+      "q3": 6185
+    },
+    "process_wall_microseconds": {
+      "count": 31,
+      "max": 71209,
+      "median": 66311,
+      "min": 64111,
+      "q1": 65546.5,
+      "q3": 67264
+    },
+    "ranked_embedding_microseconds": {
+      "count": 31,
+      "max": 53,
+      "median": 10,
+      "min": 9,
+      "q1": 9,
+      "q3": 11
+    },
+    "ranked_total_phase_microseconds": {
+      "count": 31,
+      "max": 7601,
+      "median": 6917,
+      "min": 6432,
+      "q1": 6654.5,
+      "q3": 7038
+    }
+  }
+}

@@ -106,25 +106,36 @@ summaries are more defensible than a general population inference.
 
 ## Recorded Results
 
-The campaign output is generated from the clean source state before the
-evidence-publication commit. The result fields below are copied from
-`results/benchmark-sampling.json`; raw per-process data is in that JSON and
-the parallel CSV. Values are microseconds except ratios.
+The campaign was generated from clean source state
+`6608cacdf733561224de9328474401febb7719dd`. The release binary was
+`target/release/mrd`, SHA-256
+`c64868de59b74cbdded38c8da634434e2f56c7bdc6ed49a0caf634c97b88c0c9`, built
+with `rustc 1.89.0 (29483883e 2025-08-04)`. The host reports macOS 26.5 on
+arm64, an Apple M4, and 10 logical CPUs. Three warm-up processes were excluded
+before 31 measured processes. The result fields below are copied from
+[`results/benchmark-sampling.json`](../results/benchmark-sampling.json);
+the flat raw samples are in
+[`results/benchmark-sampling-runs.csv`](../results/benchmark-sampling-runs.csv).
+Their SHA-256 values are respectively
+`56e140dce41773e04a890556c6406acdf6e7f4ab9f1fa85189dadea5825d4b08` and
+`3488bbe8848aa2b639951a6467072d91465f08f6be237e291cd4d56b08b60962`.
+Values are microseconds except ratios.
 
 | Metric | n | Min | Q1 | Median | Q3 | Max |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Process wall time | pending | pending | pending | pending | pending | pending |
-| Direct embedding time | pending | pending | pending | pending | pending | pending |
-| Ranked embedding time | pending | pending | pending | pending | pending | pending |
-| Direct all-phase time | pending | pending | pending | pending | pending | pending |
-| Ranked all-phase time | pending | pending | pending | pending | pending | pending |
-| Direct/ranked embedding ratio | pending | pending | pending | pending | pending | pending |
-| Direct/ranked all-phase ratio | pending | pending | pending | pending | pending | pending |
+| Process wall time | 31 | 64,111 | 65,546.5 | 66,311 | 67,264 | 71,209 |
+| Direct embedding time | 31 | 0 | 1 | 1 | 1 | 11 |
+| Ranked embedding time | 31 | 9 | 9 | 10 | 11 | 53 |
+| Direct all-phase time | 31 | 5,563 | 5,815 | 6,033 | 6,185 | 6,604 |
+| Ranked all-phase time | 31 | 6,432 | 6,654.5 | 6,917 | 7,038 | 7,601 |
+| Direct/ranked embedding ratio | 31 | 0 | 0.0801 | 0.1000 | 0.1111 | 0.8462 |
+| Direct/ranked all-phase ratio | 31 | 0.8511 | 0.8678 | 0.8713 | 0.8816 | 0.8927 |
 
 ### Correctness Gate
 
-The actual campaign will be reported as a success only if every one of the 31
-measured process reports has all of the following fixed outcomes:
+All 31 measured process reports and all three predeclared warm-ups satisfied
+the following gate. No run had a mismatch or solver error; both verification
+modes contributed exactly 897 comparisons in every measured process.
 
 | Check | Required value |
 | --- | ---: |
@@ -135,6 +146,23 @@ measured process reports has all of the following fixed outcomes:
 | Solver errors | 0 |
 | Direct rank sorts / map entries / owned bytes | 0 / 0 / 0 |
 | Ranked rank sorts / map entries / owned bytes | 3,588 / 624 / 18,240 |
+
+### Descriptive Reading
+
+The process-wall-time median is 66.311 ms (IQR 65.547--67.264 ms) for the
+entire finite differential workload, including process startup. The diagnostic
+all-phase accumulator has a median direct/ranked ratio of 0.8713 (IQR
+0.8678--0.8816). It is an internally paired local observation: direct-grid
+parity was executed second in the fixed implementation order, so this result
+does not identify how much, if any, observed difference is caused solely by
+the coordinate encoder.
+
+The direct embedding accumulator has a median of 1 microsecond versus 10
+microseconds for ranked embedding, but seven direct observations quantized to
+0 microseconds. It is therefore too close to the diagnostic clock resolution
+to support a precise embedding-only comparison. The raw values are preserved
+for transparency; the stable structural result is instead that all 31 runs
+reported zero direct rank sorts, rank-map entries, and rank-map owned bytes.
 
 ## Interpretation Boundary
 

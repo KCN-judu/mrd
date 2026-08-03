@@ -13,6 +13,15 @@
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
 
+## Evidence Companions
+
+[`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) is the consolidated
+paper-style account of subsystem purpose, implementation evidence, and open
+limitations. [`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md)
+is the separate protocol and result account for repeated local direct-grid
+benchmark observations. Neither document changes a phase state, substitutes
+finite evidence for a proof, or upgrades the deferred P9.6a runtime claim.
+
 ## Verified baseline and gaps
 
 The baseline is workspace version `1.3.0` at `72ce32a`; release tag
