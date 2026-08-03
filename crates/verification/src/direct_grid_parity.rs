@@ -4,6 +4,7 @@ use dominance::{
 };
 use mrd_domain::ColorGrid;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::benchmark::BenchmarkContext;
 
@@ -24,7 +25,16 @@ pub struct Evidence {
     pub ranked_rank_map_owned_bytes: usize,
     pub direct_embedding_microseconds: u128,
     pub ranked_embedding_microseconds: u128,
+    pub mode_baselines: BTreeMap<String, ModeBaseline>,
     pub performance_boundary: String,
+}
+
+/// Aggregate phase observations for one verification mode and coordinate backend.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ModeBaseline {
+    pub comparisons: usize,
+    pub direct_phase_microseconds: BTreeMap<String, u128>,
+    pub ranked_phase_microseconds: BTreeMap<String, u128>,
 }
 
 impl Evidence {
@@ -61,6 +71,7 @@ pub fn exhaustive_three_by_three(context: BenchmarkContext) -> Evidence {
         ranked_rank_map_owned_bytes: 0,
         direct_embedding_microseconds: 0,
         ranked_embedding_microseconds: 0,
+        mode_baselines: BTreeMap::new(),
         performance_boundary: "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path.".to_owned(),
     };
     for mask in 1_u16..(1_u16 << 9) {
@@ -87,7 +98,7 @@ pub fn exhaustive_three_by_three(context: BenchmarkContext) -> Evidence {
                 match (ranked, direct) {
                     (Ok(ranked), Ok(direct)) => {
                         evidence.pipeline_comparisons += 1;
-                        if !record_metrics(&mut evidence, &ranked, &direct)
+                        if !record_metrics(&mut evidence, mode, &ranked, &direct)
                             || !results_match(&ranked, &direct)
                         {
                             evidence.mismatches.push(label);
@@ -105,6 +116,7 @@ pub fn exhaustive_three_by_three(context: BenchmarkContext) -> Evidence {
 
 fn record_metrics(
     evidence: &mut Evidence,
+    mode: Verification,
     ranked: &mrd_domain::DissectionResult,
     direct: &mrd_domain::DissectionResult,
 ) -> bool {
@@ -144,7 +156,33 @@ fn record_metrics(
         .get("dominance_embedding")
         .copied()
         .unwrap_or(0);
+    let baseline = evidence
+        .mode_baselines
+        .entry(verification_mode_name(mode).to_owned())
+        .or_default();
+    baseline.comparisons += 1;
+    accumulate_phase_times(
+        &mut baseline.direct_phase_microseconds,
+        &direct.diagnostics.phase_microseconds,
+    );
+    accumulate_phase_times(
+        &mut baseline.ranked_phase_microseconds,
+        &ranked.diagnostics.phase_microseconds,
+    );
     true
+}
+
+fn accumulate_phase_times(target: &mut BTreeMap<String, u128>, phases: &BTreeMap<String, u128>) {
+    for (phase, microseconds) in phases {
+        *target.entry(phase.clone()).or_default() += microseconds;
+    }
+}
+
+const fn verification_mode_name(mode: Verification) -> &'static str {
+    match mode {
+        Verification::FullyAudited => "fully-audited",
+        Verification::CompactOnly => "compact-only",
+    }
 }
 
 fn results_match(
