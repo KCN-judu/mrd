@@ -94,6 +94,23 @@ is a local scheduling observation; the contract is the worker-count upper
 bound, not a fixed reorder count. This is an execution-boundary check only,
 not a throughput or speedup claim.
 
+## P13.5a - Benchmark Archive
+
+`results/p13-direct-grid-parity.json` is the regenerated machine-readable
+direct-grid campaign, and `results/p13-direct-grid-parity-manifest.json` binds
+it to the exact command, evidence commit, implementation commit, local
+environment, baseline observation, and claim boundary. The campaign recorded
+511 nonzero masks, 897 foreground components, and 1,794 direct-versus-ranked
+comparisons across both verification modes with zero mismatches and solver
+errors. The direct counters remain zero; the ranked Oracle recorded 3,588 rank
+sorts, 624 rank-map entries, and 18,240 estimated rank-map-owned bytes.
+
+The current direct/ranked embedding totals are 1,177/7,498 microseconds, versus
+the baseline observation of 607/4,553. This is deliberately archived without a
+speedup claim: each timing is local to its recorded command and environment.
+The complete per-mode phase maps remain in the JSON evidence for reproducible
+same-environment comparison.
+
 ## Audit
 
 Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.

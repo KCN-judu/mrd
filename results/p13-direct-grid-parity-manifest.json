@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "phase": "P13.5a",
+  "generated_at_utc": "2026-08-03T12:58:25Z",
+  "command": "mrd benchmark --suite direct-grid-parity --output results/p13-direct-grid-parity.json",
+  "evidence_commit": "7de43d9d8b99d5a7ce6145b9cd0732a0c120d687",
+  "implementation_commit": "367206f68534fa6a16b0cc793b8749e806f80c5a",
+  "environment": {
+    "operating_system": "Darwin 25.5.0 arm64",
+    "cpu_model": "Mac16,12",
+    "logical_cpu_count": 10,
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "build_profile": "dev"
+  },
+  "result_file": "results/p13-direct-grid-parity.json",
+  "baseline": {
+    "commit": "3bcf4a284d947f1d2cce015d79711135fc9daaa1",
+    "direct_embedding_microseconds": 607,
+    "ranked_embedding_microseconds": 4553
+  },
+  "population": {
+    "nonzero_three_by_three_masks": 511,
+    "foreground_components": 897,
+    "verification_modes": [
+      "fully-audited",
+      "compact-only"
+    ],
+    "direct_ranked_comparisons": 1794
+  },
+  "structural_counters": {
+    "direct_rank_sort_count": 0,
+    "direct_rank_map_entry_count": 0,
+    "direct_rank_map_owned_bytes": 0,
+    "ranked_rank_sort_count": 3588,
+    "ranked_rank_map_entry_count": 624,
+    "ranked_rank_map_owned_bytes": 18240
+  },
+  "local_timing_observation": {
+    "direct_embedding_microseconds": 1177,
+    "ranked_embedding_microseconds": 7498,
+    "comparison_boundary": "These timings are local observations only. The phase maps in result_file are retained for same-environment comparison, not as portable end-to-end speed or complexity claims."
+  },
+  "verification": {
+    "mismatch_count": 0,
+    "solver_error_count": 0
+  }
+}
