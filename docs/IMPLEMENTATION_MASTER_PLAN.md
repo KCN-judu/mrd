@@ -7,8 +7,8 @@
 - Current phase: P11
 - Current phase state: in_progress
 - Last completed phase: P10
-- Last pushed SHA: 06a030d84fcd9b86b451c580f72be818e885c0e7
-- Plan last updated: 2026-08-03T11:19:20Z
+- Last pushed SHA: 8cadec8fd881d492b1d02b048b487ec2e62125d0
+- Plan last updated: 2026-08-03T11:21:30Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1973,9 +1973,9 @@ and AN19 runtime claims.
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
 | P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | complete | c9de7a8 | ab7c390 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:58:31Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
-| P11 | in_progress | 06a030d | pending P11.1-P11.2 closeout | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | direct formula and counters complete; P11.3 must integrate the path through the grid solver |
-| P11.1 | complete | 06a030d | pending P11.1-P11.2 closeout | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | backend contract, stable result, and zero-rank-allocation counters | 2026-08-03T11:03:42Z | 2026-08-03T11:19:20Z | RankedCoordinates remains the default permanent Oracle |
-| P11.2 | complete | 06a030d | pending P11.1-P11.2 closeout | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | exact direct parity formula encoder | 2026-08-03T11:03:42Z | 2026-08-03T11:19:20Z | P11.3 must route only finite grid calls through this backend |
-| P11.3 | planned | pending | pending | pending | pending | pending | grid pipeline integration through biclique, flow, cut, and rectangle recovery | pending | pending | depends on P11.2 |
+| P11 | in_progress | 06a030d | 8cadec8 | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | direct formula and counters complete; P11.3 must integrate the path through the grid solver |
+| P11.1 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | backend contract, stable result, and zero-rank-allocation counters | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | RankedCoordinates remains the default permanent Oracle |
+| P11.2 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | exact direct parity formula encoder | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | P11.3 must route only finite grid calls through this backend |
+| P11.3 | in_progress | 8cadec8 | pending | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | pending | direct path must remain finite-grid-only and preserve ranked differential coverage |
 | P11.4 | planned | pending | pending | pending | pending | pending | exhaustive/metamorphic differential and invariant campaign | pending | pending | depends on P11.3 |
 | P11.5 | planned | pending | pending | pending | pending | pending | direct-vs-ranked release evidence and performance boundary | pending | pending | depends on P11.4 |
