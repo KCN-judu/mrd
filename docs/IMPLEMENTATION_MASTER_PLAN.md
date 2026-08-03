@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P10
+- Current phase: P11
 - Current phase state: in_progress
-- Last completed phase: P9.5e.3g.3 (blocked; certificate verifiers implemented)
-- Last pushed SHA: 4555070fe8e7d0076b65e6fdc6becc0eb59224a4
-- Plan last updated: 2026-08-03T10:43:57Z
+- Last completed phase: P10
+- Last pushed SHA: ab7c390af465590c02ddae6adc81546578c7a99b
+- Plan last updated: 2026-08-03T10:58:31Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1783,7 +1783,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P11 - Direct grid parity embedding
 
-**State:** planned. Add `EmbeddingCoordinateBackend` with `RankedCoordinates`
+**State:** in_progress. Add `EmbeddingCoordinateBackend` with `RankedCoordinates`
 and `DirectGridParity`. For finite integer pixel grids encode horizontal as
 `(2*l, -2*r, 2*y, -2*y)` and vertical as
 `(2*x+1, -2*x+1, 2*t+1, -2*b+1)`. DirectGridParity must build no coordinate
@@ -1943,7 +1943,7 @@ and AN19 runtime claims.
 | P9.5e.3g.2 | complete | 059f3b6 | 2802323, pending closeout | pending closeout | pending | `docs/phase-reports/P09-5e-3-fresh-projection-policy.md` | Appendix B.1 inclusive-target driver and compressed-flow adapter with checked at-most-target recovery; graph regression accepts cost below target and rejects `TargetNotMet` | 2026-07-31T04:30:19Z | 2026-08-01T00:00:00Z | no target inference, wrong-target decision contract, complete-backend gate, or runtime claim |
 | P9.5e.3g.3 | blocked | 059f3b6 | pending closeout | pending | pending | `docs/phase-reports/P09-5e-3g-3-target-search-contract.md` | direct source audit: no automatic decision invariant for an incorrect target guess; exact negative-certificate verifiers implemented (`DualLowerBoundCertificate`/`prove_infeasible_below`, `certify_cover_below`); binary search still forbidden | 2026-07-31T04:30:19Z | pending | arXiv:2203.00671v2 Section 4 p.24 binary-search remark is not a theorem; no dual variables; certificates verify but are not automatically constructed; `Backend::require_complete()` remains `Error::Incomplete` |
 | P9.6a | planned | pending | pending | pending | pending | pending | deferred P9.3.2d global-amortization, exact event-order, and runtime-proof closure | deferred until P9.5 closeout | pending | low priority; gates only `AlmostLinear`, `an19_runtime_verified: true`, and AN19 runtime claims |
-| P10 | complete | c5c0e68 | e265e01, aa0a618, 6905b93, ab11586, 332a5c5, pending documentation closeout | pending | pending | `docs/phase-reports/P10-layered-backend.md` | layered public backend, separated P10.8 timing/evidence categories, and P10.9 public-status audit | 2026-08-02T09:01:15Z | 2026-08-03T10:43:57Z | automatic F* search remains blocked; no `AutomaticSource` mode; `Backend::require_complete()` remains `Error::Incomplete`; no AN19 runtime claim |
+| P10 | complete | c5c0e68 | e265e01, aa0a618, 6905b93, ab11586, 332a5c5 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | layered public backend, separated P10.8 timing/evidence categories, and P10.9 public-status audit | 2026-08-02T09:01:15Z | 2026-08-03T10:58:31Z | automatic F* search remains blocked; no `AutomaticSource` mode; `Backend::require_complete()` remains `Error::Incomplete`; no AN19 runtime claim |
 | P10.1 | complete | c5c0e68 | aa0a618 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | `SolverMode`, `SolverProvenance`, `SourceConfig`, `LayeredResult`, `VerificationSummary`, `LayeredError` | 2026-08-02T09:01:15Z | 2026-08-02T09:20:00Z | no automatic-source variant |
 | P10.2 | complete | aa0a618 | aa0a618 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | reference-backed `solve_reference` with exact output and provenance | 2026-08-02T09:20:00Z | 2026-08-02T09:25:00Z | formal-polygon reference path only |
 | P10.3 | complete | aa0a618 | aa0a618, 6905b93 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | source-with-target `solve_source_with_target` under inclusive target; honest `UnsupportedOrUndetermined` | 2026-08-02T09:25:00Z | 2026-08-02T09:40:00Z | Appendix B.1 path slow on Figure 3; positive unit test ignored, honest failure tested |
@@ -1951,4 +1951,5 @@ and AN19 runtime claims.
 | P10.5 | complete | 6905b93 | 6905b93, ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | CLI `--backend reference|source-with-target --target` and `verify-negative-certificate` | 2026-08-02T09:50:00Z | 2026-08-02T10:05:00Z | source mode supports formal-polygon input only |
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
 | P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
-| P10.9 | complete | c9de7a8 | pending documentation closeout | pending | pending | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:43:57Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
+| P10.9 | complete | c9de7a8 | ab7c390 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:58:31Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
+| P11 | in_progress | ab7c390 | pending | pending | pending | pending | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | implementation and phase subplan pending; direct path must allocate no rank structures |
