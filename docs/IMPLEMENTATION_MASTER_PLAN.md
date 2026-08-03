@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P11.5
+- Current phase: P13
 - Current phase state: in_progress
-- Last completed phase: P11.4
-- Last pushed SHA: 7ea43cd94b2b13403d6eaa86f43e94c49c3248ab
-- Plan last updated: 2026-08-03T12:04:53Z
+- Last completed phase: P11
+- Last pushed SHA: 69270a57d1a7ac9dbf586facb3c2fea699ed7f52
+- Plan last updated: 2026-08-03T12:06:51Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1828,13 +1828,32 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P13 - Constant-factor performance hardening
 
-**State:** planned. Profile verified code and reduce constants without weakening
+**State:** in_progress. Profile verified code and reduce constants without weakening
 certificates. Candidates: scratch reuse, capacity planning, SoA dominance
 points, safe narrow integers, flattened flow adjacency, iterative traversal,
 biclique arenas, deterministic component parallelism, specialized pipelines,
 evidence-backed backend selection, and optional certificate materialization.
 Every optimization needs isolated before/after commit and benchmark; revert
 regressions. Suggested release: `v2.2.0-constant-factor-hardening`.
+
+P13 is split before implementation into these source-of-truth subphases:
+
+- **P13.1 - Reproducible hot-path baseline. State: in_progress.** Establish
+  direct-grid, biclique, compressed-flow, completion, and end-to-end baseline
+  evidence with checked structural counters and an explicit machine/runtime
+  boundary. No optimization claim is allowed before this baseline is pushed.
+- **P13.2 - Geometry and embedding storage. State: planned.** Reduce measured
+  allocation or traversal cost in prepared geometry and direct-grid embedding
+  only when exact parity and the baseline comparison justify it.
+- **P13.3 - Biclique and flow layout. State: planned.** Improve measured
+  compact partition or flow-network constants while preserving deterministic
+  partitions, cuts, covers, and certificates.
+- **P13.4 - Deterministic execution policy. State: planned.** Consider
+  component scheduling or reuse only with deterministic output, bounded memory,
+  and evidence that parallelism does not conceal a semantic regression.
+- **P13.5 - Release evidence. State: planned.** Consolidate before/after
+  measurements, complete the phase audit, and document every retained and
+  rejected optimization.
 
 ### Mandatory transition after this phase
 
@@ -1973,9 +1992,15 @@ and AN19 runtime claims.
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
 | P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | complete | c9de7a8 | ab7c390 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:58:31Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
-| P11 | in_progress | 06a030d | 8cadec8, ab95125, 7ea43cd | pending checkpoint | pending closeout | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | P11.1-P11.5 are complete pending the release-evidence checkpoint push |
+| P11 | complete | 06a030d | 8cadec8, ab95125, 7ea43cd, 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | 2026-08-03T12:06:51Z | finite-grid-only direct encoder, exhaustive parity evidence, and nonportable local timing boundary complete; RankedCoordinates remains Oracle |
 | P11.1 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | backend contract, stable result, and zero-rank-allocation counters | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | RankedCoordinates remains the default permanent Oracle |
 | P11.2 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | exact direct parity formula encoder | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | P11.3 must route only finite grid calls through this backend |
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
-| P11.5 | complete | 7ea43cd | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:04:53Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
+| P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
+| P13 | in_progress | 69270a5 | pending | pending | pending | pending | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1 baseline must precede any optimization claim |
+| P13.1 | in_progress | 69270a5 | pending | pending | pending | pending | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | pending | direct-grid, partition, flow, completion, and total timing must remain separated |
+| P13.2 | planned | pending | pending | pending | pending | pending | geometry and embedding storage optimization | pending | pending | depends on P13.1 evidence |
+| P13.3 | planned | pending | pending | pending | pending | pending | biclique and flow layout optimization | pending | pending | depends on P13.1 evidence |
+| P13.4 | planned | pending | pending | pending | pending | pending | deterministic execution-policy optimization | pending | pending | depends on P13.2-P13.3 evidence |
+| P13.5 | planned | pending | pending | pending | pending | pending | consolidated release evidence | pending | pending | depends on P13.2-P13.4 |
