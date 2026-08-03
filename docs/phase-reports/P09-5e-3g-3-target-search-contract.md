@@ -43,6 +43,12 @@ The paper text of arXiv:2203.00671v2 was retrieved and inspected directly for
 this audit (Section 4, Equation (9), Theorem 4.3, Lemma 4.4, Lemma 4.12,
 Algorithm 7, and Appendix B.1 / C).
 
+The source registry was rechecked on 2026-08-03. arXiv still identifies
+`2203.00671v2` (last revised 2022-04-22) as the latest CKLPPS version and
+`2309.16629v1` (submitted 2023-09-28) as the only version of the deterministic
+primary source. No later revision or erratum supplies the missing target
+decision invariant.
+
 ## Source passages inspected
 
 ### Section 4 / Equation (9) and the binary-search remark
