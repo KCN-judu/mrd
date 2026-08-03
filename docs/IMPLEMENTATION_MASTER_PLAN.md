@@ -7,8 +7,8 @@
 - Current phase: P14
 - Current phase state: in_progress
 - Last completed phase: P13.5
-- Last pushed SHA: 83b901e0c687bc58d10cd2b2a64fcb749e14d4f2
-- Plan last updated: 2026-08-03T13:06:21Z
+- Last pushed SHA: 6b7ead94c76c6c71d95fff73abf02a7bffa2cf21
+- Plan last updated: 2026-08-03T13:07:55Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1890,7 +1890,7 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P14 - Final verification, benchmark, and strict report
 
-**State:** planned. Run exhaustive, random, polyomino, polygon, formal-hole,
+**State:** in_progress. Run exhaustive, random, polyomino, polygon, formal-hole,
 metamorphic, fuzz, external CP-SAT, generic-flow, compressed-flow, memory, and
 performance campaigns. Produce `results/final-correctness-report.md`,
 `results/final-performance-report.md`, `results/final-complexity-report.md`,
@@ -1900,6 +1900,28 @@ backend claims/assumptions; populations; disagreements/regressions; timings;
 memory; flow crossover; direct-parity benefit; constant-factor changes;
 environment/SHAs; reproduction; and limitations. Suggested release:
 `v3.0.0-complete-artifact`.
+
+P14 is split before final-artifact work into these source-of-truth subphases:
+
+- **P14.1 - Campaign inventory and final-manifest contract. State: in_progress.**
+  Inventory each reproducible existing campaign, required external dependency,
+  output schema, result population, and exact claim boundary. Define a strict
+  final-manifest schema that distinguishes executed, unavailable, and deferred
+  work without converting a missing external run or proof into success.
+- **P14.2 - Final exact-correctness campaigns. State: planned.** Run and archive
+  exhaustive, random, polyomino, polygon, formal-hole, metamorphic, fuzz,
+  generic-flow, compressed-flow, and direct-parity gates available locally.
+  Minimize and commit any disagreement before continuing.
+- **P14.3 - External and resource evidence. State: planned.** Run available
+  external CP-SAT comparisons and memory/resource campaigns; otherwise record
+  precise availability evidence and the exact omitted claim.
+- **P14.4 - Performance and complexity synthesis. State: planned.** Consolidate
+  local timing observations, structural counters, backend crossover evidence,
+  P13 ledger, source assumptions, and deferred proof debt into reports that
+  make no unsupported portability, asymptotic, or AN19-runtime claim.
+- **P14.5 - Final artifact closeout. State: planned.** Generate all required
+  final reports and manifest, perform the complete release audit, inspect every
+  generated artifact and staged diff, then close P14.
 
 ### Mandatory transition after this phase
 
@@ -2019,12 +2041,18 @@ and AN19 runtime claims.
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
-| P13 | complete | 69270a5 | c36c267, 089187e, d5fcd67, 367206f, 3e3f1be, 83b901e | pending closeout | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | 2026-08-03T13:06:21Z | all retained/rejected changes and direct-grid evidence are recorded; no portable timing or complexity claim |
+| P13 | complete | 69270a5 | c36c267, 089187e, d5fcd67, 367206f, 3e3f1be, 83b901e | 6b7ead9 | 6b7ead9 | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | 2026-08-03T13:06:21Z | all retained/rejected changes and direct-grid evidence are recorded; no portable timing or complexity claim |
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
 | P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
 | P13.4 | complete | d5fcd67 | 367206f | 4c27d44 | 4c27d44 | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | 2026-08-03T12:55:12Z | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
-| P13.5 | complete | 4c27d44 | 3e3f1be, 83b901e | pending closeout | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | 2026-08-03T13:06:21Z | direct-grid archive, optimization ledger, and final audit complete; no portable timing claim |
+| P13.5 | complete | 4c27d44 | 3e3f1be, 83b901e | 6b7ead9 | 6b7ead9 | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | 2026-08-03T13:06:21Z | direct-grid archive, optimization ledger, and final audit complete; no portable timing claim |
 | P13.5a | complete | 4c27d44 | 3e3f1be | c638e31 | c638e31 | `docs/phase-reports/P13-constant-factor-hardening.md` | direct-grid benchmark archive and environment evidence | 2026-08-03T12:57:07Z | 2026-08-03T13:00:20Z | committed result and environment manifest; no portable timing claim |
 | P13.5b | complete | 3e3f1be | 83b901e | 83b901e | 83b901e | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | 2026-08-03T13:03:06Z | retained/rejected decisions and exact acceptance boundaries recorded |
-| P13.5c | complete | c638e31 | pending closeout | pending closeout | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | 2026-08-03T13:06:21Z | complete phase audit and transient benchmark rerun passed; only timestamp/commit/local timing observations differed from archived JSON |
+| P13.5c | complete | c638e31 | 6b7ead9 | 6b7ead9 | 6b7ead9 | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | 2026-08-03T13:06:21Z | complete phase audit and transient benchmark rerun passed; only timestamp/commit/local timing observations differed from archived JSON |
+| P14 | in_progress | 6b7ead9 | pending | pending | pending | pending | final verification, benchmark, and strict report | 2026-08-03T13:07:55Z | pending | split before final-artifact work; P9.6a AN19 proof debt remains deferred |
+| P14.1 | in_progress | 6b7ead9 | pending | pending | pending | pending | campaign inventory and final-manifest contract | 2026-08-03T13:07:55Z | pending | must distinguish executed, unavailable, and deferred evidence |
+| P14.2 | planned | pending | pending | pending | pending | pending | final exact-correctness campaigns | pending | pending | depends on P14.1 |
+| P14.3 | planned | pending | pending | pending | pending | pending | external and resource evidence | pending | pending | depends on P14.1 |
+| P14.4 | planned | pending | pending | pending | pending | pending | performance and complexity synthesis | pending | pending | depends on P14.1-P14.3 |
+| P14.5 | planned | pending | pending | pending | pending | pending | final artifact closeout | pending | pending | depends on P14.2-P14.4 |
