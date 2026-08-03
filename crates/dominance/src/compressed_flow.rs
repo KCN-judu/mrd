@@ -49,9 +49,11 @@ pub enum Error {
 mod tests {
     use graph::{BipartiteGraph, DinicBackend, PushRelabelBackend, hopcroft_karp};
 
-    use crate::biclique::Partition;
+    use mrd_domain::BicliqueId;
 
-    use super::{experiment, oracle};
+    use crate::biclique::{Block, Partition};
+
+    use super::{Error, experiment, oracle};
 
     #[test]
     fn c0_flow_equals_explicit_matching() {
@@ -102,5 +104,18 @@ mod tests {
             let parity = oracle::audit(&graph, &partition).unwrap();
             assert_eq!(parity.matching_size, hopcroft_karp(&graph).size);
         }
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_biclique_endpoint_before_flow() {
+        let partition = Partition {
+            blocks: vec![Block {
+                id: BicliqueId(0),
+                left: vec![1],
+                right: vec![0],
+            }],
+        };
+        let error = experiment::solve(1, 1, &partition, &DinicBackend).unwrap_err();
+        assert!(matches!(error, Error::BicliqueEndpointOutOfBounds));
     }
 }

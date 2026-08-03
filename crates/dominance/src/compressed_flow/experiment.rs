@@ -60,15 +60,14 @@ pub fn solve(
 
     let mut internal_cut_arc_count = 0;
     for (block_index, block) in partition.blocks.iter().enumerate() {
-        let block_node = layout.block_nodes[block_index];
+        let block_node = layout.block_node(block_index);
         for &left in &block.left {
-            if flow.source_side[layout.horizontal_nodes[left].0] && !flow.source_side[block_node.0]
-            {
+            if flow.source_side[layout.horizontal_node(left).0] && !flow.source_side[block_node.0] {
                 internal_cut_arc_count += 1;
             }
         }
         for &right in &block.right {
-            if flow.source_side[block_node.0] && !flow.source_side[layout.vertical_nodes[right].0] {
+            if flow.source_side[block_node.0] && !flow.source_side[layout.vertical_node(right).0] {
                 internal_cut_arc_count += 1;
             }
         }
@@ -79,15 +78,11 @@ pub fn solve(
         });
     }
 
-    let left = layout
-        .horizontal_nodes
-        .iter()
-        .map(|node| !flow.source_side[node.0])
+    let left = (0..layout.horizontal_count)
+        .map(|index| !flow.source_side[layout.horizontal_node(index).0])
         .collect::<Vec<_>>();
-    let right = layout
-        .vertical_nodes
-        .iter()
-        .map(|node| flow.source_side[node.0])
+    let right = (0..layout.vertical_count)
+        .map(|index| flow.source_side[layout.vertical_node(index).0])
         .collect::<Vec<_>>();
     let size = left.iter().filter(|&&selected| selected).count()
         + right.iter().filter(|&&selected| selected).count();
@@ -112,10 +107,26 @@ struct NetworkLayout {
     network: FlowNetwork,
     source: FlowNodeId,
     sink: FlowNodeId,
-    horizontal_nodes: Vec<FlowNodeId>,
-    block_nodes: Vec<FlowNodeId>,
-    vertical_nodes: Vec<FlowNodeId>,
+    horizontal_start: usize,
+    block_start: usize,
+    vertical_start: usize,
+    horizontal_count: usize,
+    vertical_count: usize,
     internal_capacity: u64,
+}
+
+impl NetworkLayout {
+    const fn horizontal_node(&self, index: usize) -> FlowNodeId {
+        FlowNodeId(self.horizontal_start + index)
+    }
+
+    const fn block_node(&self, index: usize) -> FlowNodeId {
+        FlowNodeId(self.block_start + index)
+    }
+
+    const fn vertical_node(&self, index: usize) -> FlowNodeId {
+        FlowNodeId(self.vertical_start + index)
+    }
 }
 
 fn build_network(
@@ -133,49 +144,44 @@ fn build_network(
     let block_start = horizontal_start + horizontal_count;
     let vertical_start = block_start + partition.blocks.len();
     let sink = FlowNodeId(node_count - 1);
-    let horizontal_nodes = (0..horizontal_count)
-        .map(|index| FlowNodeId(horizontal_start + index))
-        .collect::<Vec<_>>();
-    let block_nodes = (0..partition.blocks.len())
-        .map(|index| FlowNodeId(block_start + index))
-        .collect::<Vec<_>>();
-    let vertical_nodes = (0..vertical_count)
-        .map(|index| FlowNodeId(vertical_start + index))
-        .collect::<Vec<_>>();
     let internal_capacity = horizontal_count
         .min(vertical_count)
         .checked_add(1)
         .and_then(|value| u64::try_from(value).ok())
         .ok_or(Error::CapacityOverflow)?;
     let mut network = FlowNetwork::new(node_count);
-    for &node in &horizontal_nodes {
-        network.add_arc(source, node, 1)?;
+    for index in 0..horizontal_count {
+        network.add_arc(source, FlowNodeId(horizontal_start + index), 1)?;
     }
     for (index, block) in partition.blocks.iter().enumerate() {
-        let block_node = block_nodes[index];
+        let block_node = FlowNodeId(block_start + index);
         for &left in &block.left {
-            let node = *horizontal_nodes
-                .get(left)
-                .ok_or(Error::BicliqueEndpointOutOfBounds)?;
+            if left >= horizontal_count {
+                return Err(Error::BicliqueEndpointOutOfBounds);
+            }
+            let node = FlowNodeId(horizontal_start + left);
             network.add_arc(node, block_node, internal_capacity)?;
         }
         for &right in &block.right {
-            let node = *vertical_nodes
-                .get(right)
-                .ok_or(Error::BicliqueEndpointOutOfBounds)?;
+            if right >= vertical_count {
+                return Err(Error::BicliqueEndpointOutOfBounds);
+            }
+            let node = FlowNodeId(vertical_start + right);
             network.add_arc(block_node, node, internal_capacity)?;
         }
     }
-    for &node in &vertical_nodes {
-        network.add_arc(node, sink, 1)?;
+    for index in 0..vertical_count {
+        network.add_arc(FlowNodeId(vertical_start + index), sink, 1)?;
     }
     Ok(NetworkLayout {
         network,
         source,
         sink,
-        horizontal_nodes,
-        block_nodes,
-        vertical_nodes,
+        horizontal_start,
+        block_start,
+        vertical_start,
+        horizontal_count,
+        vertical_count,
         internal_capacity,
     })
 }

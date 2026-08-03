@@ -2,7 +2,7 @@
 
 ## Status
 
-**State: P13.1-P13.2 complete; P13.3-P13.5 remain.** This phase starts with a
+**State: P13.1-P13.3 complete; P13.4-P13.5 remain.** This phase starts with a
 reproducible baseline, not an optimization claim. All timings below are local
 development-profile observations for the exact 3x3 finite-grid population; they
 are only valid for comparison against later runs with the same recorded
@@ -46,6 +46,22 @@ microsecond variance is too small and environment-sensitive for that purpose.
 This is a local storage/traversal reduction with an explicit permanent Oracle,
 not a complexity-bound change.
 
+## P13.3 - Biclique and Flow Layout
+
+The compressed-flow layout previously allocated three vectors containing only
+contiguous `FlowNodeId` values for horizontal endpoints, biclique blocks, and
+vertical endpoints. The layout now stores the three starts and two side counts;
+all node IDs are derived directly. This removes three allocations and their
+stored ID words on every compressed-flow solve without changing node numbering
+or arc insertion order.
+
+P11's exact network snapshot differential verifies the materialized node/source/
+sink/ordered-arc topology, flow, cut, cover, and rectangles under both
+coordinate backends. A new compressed-flow regression additionally proves an
+out-of-bounds biclique endpoint still returns `BicliqueEndpointOutOfBounds`
+before flow execution. The local baseline command remained correct; its timing
+is retained as an observation only, not a portable speed claim.
+
 ## Audit
 
 Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
@@ -57,6 +73,7 @@ Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
 | `cargo clippy -p verification -p mrd --all-targets --all-features -- -D warnings` | passed |
 | `cargo run -p mrd -- benchmark --suite direct-grid-parity --output <temporary>.json` | 897 components, 1,794 comparisons, zero mismatches/errors, and per-mode phase maps |
 | `cargo test -p sg-oracle` | passed, including exhaustive 3x3/4x4 chord-family and completion differentials |
+| `cargo test -p dominance compressed_flow` | passed, including invalid biclique endpoint rejection |
 | `python3 tools/check_biclique_bound.py` | passed |
 | `python3 tools/check_source_flow_audit.py` | passed |
 | `python3 tools/check_release_consistency.py` | passed |
