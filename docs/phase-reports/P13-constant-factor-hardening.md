@@ -2,7 +2,7 @@
 
 ## Status
 
-**State: P13.1-P13.5b complete; P13.5c closeout audit remains.** P13.4
+**State: P13 complete.** P13.4
 implementation commit is `367206f`, and P13.5a benchmark archive commit is
 `3e3f1be`. This phase starts with a reproducible baseline, not an optimization
 claim. All timings below are local development-profile observations for the
@@ -126,6 +126,29 @@ same-environment comparison.
 The ledger records only changes that survived exact differential evidence, plus
 candidates deliberately left out. It does not interpret absence of a retained
 change as evidence that the candidate is unprofitable in every environment.
+
+## P13.5c - Final Audit and Closeout
+
+The final audit passed at commit `83b901e`. The archived benchmark JSON and a
+fresh temporary rerun both satisfied the 897-component, 1,794-comparison,
+zero-mismatch, zero-solver-error, and zero-direct-rank-counter gates. Comparing
+the two reports found only expected metadata and local timing differences; the
+population and every structural counter were unchanged.
+
+`cargo fmt --all -- --check`, both repository audit scripts,
+`cargo clippy --workspace --all-targets --all-features -- -D warnings`,
+`cargo test --workspace`, `RUSTDOCFLAGS='-D warnings' cargo doc --workspace
+--no-deps`, `cargo build --workspace --release`, and
+`python3 tools/check_release_consistency.py` all returned zero. The staged-diff
+and generated-artifact checks found no local absolute path, stale result, or
+positive AN19-runtime assertion.
+
+P13 closes with three retained local changes: canonical chord record storage,
+contiguous compressed-flow node layout, and an opt-in bounded grid-verification
+execution policy. Its direct-grid archive records structural zero counters and
+finite exact parity; neither it nor this report claims a portable speedup,
+end-to-end performance result, asymptotic complexity change, or AN19 runtime
+verification.
 
 ## Audit
 

@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P13.5
+- Current phase: P14
 - Current phase state: in_progress
-- Last completed phase: P13.4
-- Last pushed SHA: c638e31564e5434d01ec13f6897b2cc4d817284b
-- Plan last updated: 2026-08-03T13:03:06Z
+- Last completed phase: P13.5
+- Last pushed SHA: 83b901e0c687bc58d10cd2b2a64fcb749e14d4f2
+- Plan last updated: 2026-08-03T13:06:21Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1857,7 +1857,7 @@ P13 is split before implementation into these source-of-truth subphases:
   execution, and results/errors are recovered in original component order.
   No automatic worker selection, polygon scheduling, solver execution change,
   or speed claim is allowed. The full audit passed; no speed claim was made.
-- **P13.5 - Release evidence. State: in_progress.** Consolidate before/after
+- **P13.5 - Release evidence. State: complete.** Consolidate before/after
   measurements, complete the phase audit, and document every retained and
   rejected optimization. Keep structural counters, exact differentials, and
   local timing observations separate from portable performance claims.
@@ -1872,7 +1872,7 @@ subphases:
 - **P13.5b - Optimization ledger. State: complete.** Record every retained and
   rejected P13 optimization, its isolated commit, correctness gate, memory or
   allocation boundary, and whether a portable performance claim is forbidden.
-- **P13.5c - P13 closeout audit. State: in_progress.** Rerun the complete mandatory
+- **P13.5c - P13 closeout audit. State: complete.** Rerun the complete mandatory
   audit, inspect generated evidence and staged diffs, close P13, and transition
   to P14 only after the final report is committed and pushed.
 
@@ -2019,12 +2019,12 @@ and AN19 runtime claims.
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
-| P13 | in_progress | 69270a5 | c36c267, 089187e, d5fcd67, 367206f | pending P13.5 | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1-P13.4 are complete; P13.5 remains |
+| P13 | complete | 69270a5 | c36c267, 089187e, d5fcd67, 367206f, 3e3f1be, 83b901e | pending closeout | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | 2026-08-03T13:06:21Z | all retained/rejected changes and direct-grid evidence are recorded; no portable timing or complexity claim |
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
 | P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
 | P13.4 | complete | d5fcd67 | 367206f | 4c27d44 | 4c27d44 | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | 2026-08-03T12:55:12Z | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
-| P13.5 | in_progress | 4c27d44 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | pending | depends on P13.2-P13.4; consolidate benchmark and retained/rejected optimization evidence |
-| P13.5a | complete | 4c27d44 | 3e3f1be | 3e3f1be | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | direct-grid benchmark archive and environment evidence | 2026-08-03T12:57:07Z | pending | committed result and environment manifest; no portable timing claim |
-| P13.5b | complete | 3e3f1be | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | 2026-08-03T13:03:06Z | retained/rejected decisions and exact acceptance boundaries recorded |
-| P13.5c | in_progress | c638e31 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | pending | depends on P13.5a-P13.5b |
+| P13.5 | complete | 4c27d44 | 3e3f1be, 83b901e | pending closeout | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | 2026-08-03T13:06:21Z | direct-grid archive, optimization ledger, and final audit complete; no portable timing claim |
+| P13.5a | complete | 4c27d44 | 3e3f1be | c638e31 | c638e31 | `docs/phase-reports/P13-constant-factor-hardening.md` | direct-grid benchmark archive and environment evidence | 2026-08-03T12:57:07Z | 2026-08-03T13:00:20Z | committed result and environment manifest; no portable timing claim |
+| P13.5b | complete | 3e3f1be | 83b901e | 83b901e | 83b901e | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | 2026-08-03T13:03:06Z | retained/rejected decisions and exact acceptance boundaries recorded |
+| P13.5c | complete | c638e31 | pending closeout | pending closeout | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | 2026-08-03T13:06:21Z | complete phase audit and transient benchmark rerun passed; only timestamp/commit/local timing observations differed from archived JSON |
