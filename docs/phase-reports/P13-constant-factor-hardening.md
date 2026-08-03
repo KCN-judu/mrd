@@ -82,4 +82,7 @@ Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
 | `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | passed |
 | `cargo build --workspace --release` | passed |
 
-The complete workspace audit remains required before this checkpoint is pushed.
+The complete workspace audit passed before the P13.3 implementation commit was
+pushed as `d5fcd67`. Local and remote `codex/full-implementation` both point
+to that SHA. P13.4 now evaluates a bounded deterministic component execution
+policy; no parallelism or speed claim is included in this report yet.

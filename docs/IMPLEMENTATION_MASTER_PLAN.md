@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P13.3
+- Current phase: P13.4
 - Current phase state: in_progress
-- Last completed phase: P13.2
-- Last pushed SHA: 089187e554263e5e4c09cabffd57ab69dc0706da
-- Plan last updated: 2026-08-03T12:26:57Z
+- Last completed phase: P13.3
+- Last pushed SHA: d5fcd67c59cb2683166e135aa4fb7160740e5e7f
+- Plan last updated: 2026-08-03T12:35:58Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1998,9 +1998,9 @@ and AN19 runtime claims.
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
-| P13 | in_progress | 69270a5 | c36c267, 089187e | pending checkpoint | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1-P13.3 are complete pending checkpoint push; P13.4-P13.5 remain |
+| P13 | in_progress | 69270a5 | c36c267, 089187e, d5fcd67 | pending P13.4/P13.5 | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1-P13.3 are complete; P13.4-P13.5 remain |
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
-| P13.3 | complete | 089187e | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:26:57Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained |
-| P13.4 | planned | pending | pending | pending | pending | pending | deterministic execution-policy optimization | pending | pending | depends on P13.2-P13.3 evidence |
+| P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
+| P13.4 | in_progress | d5fcd67 | pending | pending | pending | pending | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | component scheduling must preserve canonical output/error order and bounded in-flight work |
 | P13.5 | planned | pending | pending | pending | pending | pending | consolidated release evidence | pending | pending | depends on P13.2-P13.4 |
