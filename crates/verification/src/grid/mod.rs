@@ -3,6 +3,8 @@ use mrd_domain::{ColorGrid, DissectionResult, GridComponent};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::execution::{ComponentExecutionPolicy, ordered_map};
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ComponentVerification {
     pub component_id: usize,
@@ -19,6 +21,9 @@ pub struct VerificationReport {
     pub component_count: usize,
     pub verified_components: Vec<ComponentVerification>,
     pub exact_cover_cell_limit: usize,
+    pub component_execution_policy: ComponentExecutionPolicy,
+    pub max_in_flight_components: usize,
+    pub max_reorder_buffered_components: usize,
 }
 
 /// Runs every solver on every four-connected monochromatic component.
@@ -26,19 +31,23 @@ pub struct VerificationReport {
 /// # Errors
 ///
 /// Returns [`VerificationError`] on a solver failure or optimum mismatch.
-pub fn verify_grid<C: Clone + Eq>(
+pub fn verify_grid<C: Clone + Eq + Send>(
     grid: &ColorGrid<C>,
     exact_cover_cell_limit: usize,
+    component_execution_policy: ComponentExecutionPolicy,
 ) -> Result<VerificationReport, VerificationError> {
     let components = grid.four_connected_components();
-    let mut verified_components = Vec::with_capacity(components.len());
-    for component in &components {
-        verified_components.push(verify_component(component, exact_cover_cell_limit)?);
-    }
+    let component_count = components.len();
+    let execution = ordered_map(components, component_execution_policy, |component| {
+        verify_component(&component, exact_cover_cell_limit)
+    })?;
     Ok(VerificationReport {
-        component_count: components.len(),
-        verified_components,
+        component_count,
+        verified_components: execution.values,
         exact_cover_cell_limit,
+        component_execution_policy,
+        max_in_flight_components: execution.max_in_flight,
+        max_reorder_buffered_components: execution.max_reorder_buffered,
     })
 }
 
@@ -412,6 +421,8 @@ impl VerificationError {
 mod tests {
     use mrd_domain::{ColorGrid, GridComponent};
 
+    use crate::execution::ComponentExecutionPolicy;
+
     use super::{exhaustive_binary, verify_component, verify_grid};
 
     #[test]
@@ -428,7 +439,64 @@ mod tests {
             vec![true, true, true, true, false, true, true, true, true],
         )
         .unwrap();
-        verify_grid(&grid, 40).unwrap();
+        verify_grid(&grid, 40, ComponentExecutionPolicy::Sequential).unwrap();
+    }
+
+    #[test]
+    fn bounded_parallel_grid_verification_matches_the_serial_report() {
+        let grid = ColorGrid::new(
+            3,
+            3,
+            vec![true, false, true, false, true, false, true, false, true],
+        )
+        .unwrap();
+        let serial = verify_grid(&grid, 40, ComponentExecutionPolicy::Sequential).unwrap();
+        let parallel = verify_grid(
+            &grid,
+            40,
+            ComponentExecutionPolicy::from_component_workers(2).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(parallel.component_count, serial.component_count);
+        assert_eq!(
+            parallel
+                .verified_components
+                .iter()
+                .map(component_semantics)
+                .collect::<Vec<_>>(),
+            serial
+                .verified_components
+                .iter()
+                .map(component_semantics)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            parallel.exact_cover_cell_limit,
+            serial.exact_cover_cell_limit
+        );
+        assert_eq!(parallel.max_in_flight_components, 2);
+        assert!(parallel.max_reorder_buffered_components <= 2);
+    }
+
+    fn component_semantics(component: &super::ComponentVerification) -> serde_json::Value {
+        serde_json::json!({
+            "component_id": component.component_id,
+            "cell_count": component.cell_count,
+            "exact_cover": component.exact_cover.as_ref().map(result_semantics),
+            "sg_explicit": result_semantics(&component.sg_explicit),
+            "dominance_c0": result_semantics(&component.dominance_c0),
+            "dominance_compact": result_semantics(&component.dominance_compact),
+            "dominance_compact_only": result_semantics(&component.dominance_compact_only),
+        })
+    }
+
+    fn result_semantics(result: &mrd_domain::DissectionResult) -> serde_json::Value {
+        serde_json::json!({
+            "optimum_rectangle_count": result.optimum_rectangle_count,
+            "rectangles": result.rectangles,
+            "certificate": result.certificate,
+        })
     }
 
     #[test]

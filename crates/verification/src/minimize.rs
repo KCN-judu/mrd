@@ -8,7 +8,10 @@ use mrd_domain::{ColorGrid, Diagnostics, DissectionResult, SvgOverlay, render_di
 use serde_json::{Value, json};
 use thiserror::Error;
 
-use crate::grid::{GridFixture, verify_grid};
+use crate::{
+    execution::ComponentExecutionPolicy,
+    grid::{GridFixture, verify_grid},
+};
 
 #[must_use]
 pub fn minimize_counterexample(fixture: &GridFixture) -> GridFixture {
@@ -199,7 +202,7 @@ where
 fn fixture_fails(fixture: &GridFixture) -> bool {
     ColorGrid::new(fixture.width, fixture.height, fixture.cells.clone())
         .ok()
-        .is_some_and(|grid| verify_grid(&grid, 40).is_err())
+        .is_some_and(|grid| verify_grid(&grid, 40, ComponentExecutionPolicy::Sequential).is_err())
 }
 
 fn remove_row(fixture: &GridFixture, row: usize) -> GridFixture {
@@ -316,7 +319,10 @@ mod tests {
 
     use mrd_domain::ColorGrid;
 
-    use crate::grid::{GridFixture, verify_grid};
+    use crate::{
+        execution::ComponentExecutionPolicy,
+        grid::{GridFixture, verify_grid},
+    };
 
     use super::dihedral_variants;
 
@@ -349,7 +355,7 @@ mod tests {
             }
             let fixture: GridFixture = serde_json::from_slice(&fs::read(&input).unwrap()).unwrap();
             let grid = ColorGrid::new(fixture.width, fixture.height, fixture.cells).unwrap();
-            verify_grid(&grid, 40)
+            verify_grid(&grid, 40, ComponentExecutionPolicy::Sequential)
                 .unwrap_or_else(|error| panic!("regression {} failed: {error}", input.display()));
         }
     }

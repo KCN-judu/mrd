@@ -8,7 +8,7 @@
 - Current phase state: in_progress
 - Last completed phase: P13.3
 - Last pushed SHA: d5fcd67c59cb2683166e135aa4fb7160740e5e7f
-- Plan last updated: 2026-08-03T12:35:58Z
+- Plan last updated: 2026-08-03T12:46:16Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1848,9 +1848,14 @@ P13 is split before implementation into these source-of-truth subphases:
 - **P13.3 - Biclique and flow layout. State: complete.** Improve measured
   compact partition or flow-network constants while preserving deterministic
   partitions, cuts, covers, and certificates.
-- **P13.4 - Deterministic execution policy. State: planned.** Consider
+- **P13.4 - Deterministic execution policy. State: in_progress.** Consider
   component scheduling or reuse only with deterministic output, bounded memory,
-  and evidence that parallelism does not conceal a semantic regression.
+  and evidence that parallelism does not conceal a semantic regression. The
+  selected boundary is grid verification only: a caller chooses a positive
+  worker count, the policy records serial versus bounded deterministic parallel
+  execution, and results/errors are recovered in original component order.
+  No automatic worker selection, polygon scheduling, solver execution change,
+  or speed claim is allowed.
 - **P13.5 - Release evidence. State: planned.** Consolidate before/after
   measurements, complete the phase audit, and document every retained and
   rejected optimization.
@@ -2002,5 +2007,5 @@ and AN19 runtime claims.
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
 | P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
-| P13.4 | in_progress | d5fcd67 | pending | pending | pending | pending | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | component scheduling must preserve canonical output/error order and bounded in-flight work |
+| P13.4 | in_progress | d5fcd67 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | grid verification only; explicit bounded workers must preserve canonical output/error order and bounded in-flight/reorder work |
 | P13.5 | planned | pending | pending | pending | pending | pending | consolidated release evidence | pending | pending | depends on P13.2-P13.4 |

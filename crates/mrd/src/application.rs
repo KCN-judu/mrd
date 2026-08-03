@@ -95,6 +95,8 @@ enum Command {
         all_solvers: bool,
         #[arg(long, default_value_t = 40)]
         exact_cover_cell_limit: usize,
+        #[arg(long, default_value_t = 1)]
+        component_workers: usize,
         #[arg(long)]
         output: Option<PathBuf>,
     },
@@ -613,47 +615,73 @@ fn run() -> Result<(), CliError> {
             input_format,
             all_solvers: _,
             exact_cover_cell_limit,
+            component_workers,
             output,
-        } => match load_input(&input, input_format)? {
-            LoadedInput::Grid(grid) => {
-                let report = verification::grid::verify_grid(&grid, exact_cover_cell_limit)
-                    .map_err(|error| CliError::Verification(error.to_string()))?;
-                write_json(&report, output.as_deref())
-            }
-            LoadedInput::Polygon(polygon) => {
-                let report = verification::polygon::verify_polygon(
-                    &polygon,
-                    Some(verification::polygon::RasterLimits {
-                        max_width: exact_cover_cell_limit,
-                        max_height: exact_cover_cell_limit,
-                        max_cells: exact_cover_cell_limit,
-                    }),
+        } => {
+            let component_execution_policy =
+                verification::execution::ComponentExecutionPolicy::from_component_workers(
+                    component_workers,
                 )
-                .map_err(|error| CliError::Verification(error.to_string()))?;
-                write_json(&report, output.as_deref())?;
-                if report.verified() {
-                    Ok(())
-                } else {
-                    Err(CliError::Verification(format!(
-                        "polygon backend disagreements: {}",
-                        report.disagreements.join("; ")
-                    )))
+                .map_err(|error| CliError::Input(error.to_string()))?;
+            match load_input(&input, input_format)? {
+                LoadedInput::Grid(grid) => {
+                    let report = verification::grid::verify_grid(
+                        &grid,
+                        exact_cover_cell_limit,
+                        component_execution_policy,
+                    )
+                    .map_err(|error| CliError::Verification(error.to_string()))?;
+                    write_json(&report, output.as_deref())
+                }
+                LoadedInput::Polygon(polygon) => {
+                    if component_execution_policy
+                        != verification::execution::ComponentExecutionPolicy::Sequential
+                    {
+                        return Err(CliError::Input(
+                            "--component-workers applies only to grid verification".to_owned(),
+                        ));
+                    }
+                    let report = verification::polygon::verify_polygon(
+                        &polygon,
+                        Some(verification::polygon::RasterLimits {
+                            max_width: exact_cover_cell_limit,
+                            max_height: exact_cover_cell_limit,
+                            max_cells: exact_cover_cell_limit,
+                        }),
+                    )
+                    .map_err(|error| CliError::Verification(error.to_string()))?;
+                    write_json(&report, output.as_deref())?;
+                    if report.verified() {
+                        Ok(())
+                    } else {
+                        Err(CliError::Verification(format!(
+                            "polygon backend disagreements: {}",
+                            report.disagreements.join("; ")
+                        )))
+                    }
+                }
+                LoadedInput::FormalPolygon(polygon) => {
+                    if component_execution_policy
+                        != verification::execution::ComponentExecutionPolicy::Sequential
+                    {
+                        return Err(CliError::Input(
+                            "--component-workers applies only to grid verification".to_owned(),
+                        ));
+                    }
+                    let incidence = polygon
+                        .incidence()
+                        .map_err(|error| CliError::Verification(error.to_string()))?;
+                    write_json(
+                        &FormalBoundaryValidationOutput {
+                            input_model: "formal-rectilinear-polygon",
+                            polygon,
+                            incidence,
+                        },
+                        output.as_deref(),
+                    )
                 }
             }
-            LoadedInput::FormalPolygon(polygon) => {
-                let incidence = polygon
-                    .incidence()
-                    .map_err(|error| CliError::Verification(error.to_string()))?;
-                write_json(
-                    &FormalBoundaryValidationOutput {
-                        input_model: "formal-rectilinear-polygon",
-                        polygon,
-                        incidence,
-                    },
-                    output.as_deref(),
-                )
-            }
-        },
+        }
         Command::Exhaustive {
             width,
             height,
@@ -2440,6 +2468,26 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn verify_cli_exposes_explicit_component_worker_bound() {
+        let cli = Cli::try_parse_from([
+            "mrd",
+            "verify",
+            "--input",
+            "input.json",
+            "--component-workers",
+            "2",
+        ])
+        .unwrap();
+        let Command::Verify {
+            component_workers, ..
+        } = cli.command
+        else {
+            panic!("wrong command parsed");
+        };
+        assert_eq!(component_workers, 2);
     }
 
     #[test]

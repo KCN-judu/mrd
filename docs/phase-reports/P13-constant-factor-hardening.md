@@ -2,11 +2,11 @@
 
 ## Status
 
-**State: P13.1-P13.3 complete; P13.4-P13.5 remain.** This phase starts with a
-reproducible baseline, not an optimization claim. All timings below are local
-development-profile observations for the exact 3x3 finite-grid population; they
-are only valid for comparison against later runs with the same recorded
-environment and command.
+**State: P13.1-P13.3 complete; P13.4 audited with closeout pending; P13.5
+remains.** This phase starts with a reproducible baseline, not an optimization
+claim. All timings below are local development-profile observations for the
+exact 3x3 finite-grid population; they are only valid for comparison against
+later runs with the same recorded environment and command.
 
 ## P13.1 - Reproducible Hot-Path Baseline
 
@@ -62,6 +62,38 @@ out-of-bounds biclique endpoint still returns `BicliqueEndpointOutOfBounds`
 before flow execution. The local baseline command remained correct; its timing
 is retained as an observation only, not a portable speed claim.
 
+## P13.4 - Deterministic Execution Policy
+
+`verification::execution` now owns the only P13 component scheduler. Its
+`ComponentExecutionPolicy` is explicit: one requested worker is the serial
+path, while any larger positive count creates a fixed-size scoped-worker pool.
+The main thread owns all input/output effects and returns completed component
+results in original component order. It also returns the first failure in that
+order, even when a later task finished first.
+
+The implementation uses bounded synchronous task and result channels plus a
+canonical `BTreeMap` reorder buffer. At most the chosen worker count is
+submitted without a result, and at most that count can remain in the reorder
+buffer; the report serializes the observed maxima. The requested output vector
+remains proportional to the component count by contract. There is no automatic
+hardware-concurrency selection.
+
+`mrd verify --component-workers <positive>` exposes this policy for grid input
+only. Polygon and formal-polygon verification reject a parallel worker request,
+and solve/benchmark paths remain sequential. The serial-versus-two-worker grid
+differential compares component order, every solver optimum, all rectangles,
+and complete certificates; time measurements are intentionally excluded because
+they are locally nondeterministic instrumentation rather than solver semantics.
+The generic scheduler also regresses output ordering, earliest-input failure
+selection, the worker/reorder bounds, and zero-worker rejection.
+
+The local CLI observation on `test-data/example.json` with two components and
+`--component-workers 2` recorded `deterministic-parallel`, two maximum
+in-flight components, and one maximum reorder-buffered component. The latter
+is a local scheduling observation; the contract is the worker-count upper
+bound, not a fixed reorder count. This is an execution-boundary check only,
+not a throughput or speedup claim.
+
 ## Audit
 
 Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
@@ -74,6 +106,10 @@ Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
 | `cargo run -p mrd -- benchmark --suite direct-grid-parity --output <temporary>.json` | 897 components, 1,794 comparisons, zero mismatches/errors, and per-mode phase maps |
 | `cargo test -p sg-oracle` | passed, including exhaustive 3x3/4x4 chord-family and completion differentials |
 | `cargo test -p dominance compressed_flow` | passed, including invalid biclique endpoint rejection |
+| `cargo test -p verification execution::` | passed: canonical output/failure order and bounded scheduler counters |
+| `cargo test -p verification grid::` | passed: serial-versus-bounded-parallel grid semantic differential |
+| `cargo test -p mrd verify_cli_exposes_explicit_component_worker_bound` | passed: explicit CLI worker policy |
+| `cargo clippy -p verification -p mrd --all-targets --all-features -- -D warnings` | passed |
 | `python3 tools/check_biclique_bound.py` | passed |
 | `python3 tools/check_source_flow_audit.py` | passed |
 | `python3 tools/check_release_consistency.py` | passed |
@@ -82,7 +118,11 @@ Phase baseline: `3bcf4a284d947f1d2cce015d79711135fc9daaa1`.
 | `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | passed |
 | `cargo build --workspace --release` | passed |
 
-The complete workspace audit passed before the P13.3 implementation commit was
-pushed as `d5fcd67`. Local and remote `codex/full-implementation` both point
-to that SHA. P13.4 now evaluates a bounded deterministic component execution
-policy; no parallelism or speed claim is included in this report yet.
+P13.3's complete workspace audit passed before implementation commit `d5fcd67`
+was pushed. P13.4 then reran `git diff --check`, format checking, the
+component-policy regressions, the 3x3 direct-grid differential, both repository
+audit scripts, workspace clippy/test/doc/release build, and release-consistency
+checking. Every command returned zero. The direct-grid benchmark again recorded
+897 components, 1,794 comparisons, zero mismatches/errors, and zero direct
+rank counters. P13.4 has no performance claim beyond its bounded execution
+contract; P13.5 remains responsible for consolidated release evidence.
