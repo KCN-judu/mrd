@@ -25,6 +25,16 @@ pub enum EmbeddingCoordinateBackend {
     DirectGridParity,
 }
 
+impl EmbeddingCoordinateBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::RankedCoordinates => "ranked-coordinates",
+            Self::DirectGridParity => "direct-grid-parity",
+        }
+    }
+}
+
 /// Structural counters for one embedding construction.
 ///
 /// The ranked fields describe only coordinate-ranking work. In particular, a

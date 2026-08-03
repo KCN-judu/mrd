@@ -2,10 +2,10 @@
 
 ## Status
 
-**State: P11.1-P11.2 complete; P11.3-P11.5 remain.** The permanent
+**State: P11.1-P11.3 complete; P11.4-P11.5 remain.** The permanent
 `RankedCoordinates` Oracle remains the default construction. The new direct
-encoder is exact and independently testable, but it is not yet routed through
-the grid solver; that end-to-end work is P11.3.
+encoder is exact, independently testable, and routed through the finite-grid
+solver. P11.4 remains the broader differential campaign.
 
 ## P11.1 - Backend Contract and Counters
 
@@ -38,7 +38,7 @@ coordinate vector. Checked `i128` arithmetic preserves the existing overflow
 error contract. Even horizontal coordinates and odd vertical coordinates also
 make cross-side coordinate equality impossible on the direct path.
 
-## Evidence
+## P11.1-P11.2 Evidence
 
 The focused embedding test exhaustively constructs the existing small chord
 population through both backends. It checks direct geometry/dominance
@@ -46,9 +46,28 @@ equivalence, exact explicit-graph equality with the ranked Oracle, ranked
 counter presence, and all three zero direct counters. A separate fixture checks
 the literal formula coordinates.
 
-P11.3 must still prove end-to-end equality of biclique partitions, networks,
-flows, covers, selected cuts, and rectangles on grid inputs. No direct-grid
-performance claim is made in this checkpoint.
+No direct-grid performance claim is made in this checkpoint. P11.4 must still
+establish exhaustive and metamorphic end-to-end equality of biclique
+partitions, networks, flows, covers, selected cuts, and rectangles on grid
+inputs.
+
+## P11.3 - Grid Pipeline Integration
+
+`solve_with_verification_mode_and_embedding_backend` is a finite-grid-only
+entry that threads `EmbeddingCoordinateBackend` through both the fully-audited
+and compact-only dominance pipelines. The established default entry still
+passes `RankedCoordinates`; polygon and source-shaped flows do not use this
+selection boundary.
+
+Both result paths persist the selected backend and the three rank counters in
+`Diagnostics`. The direct-grid regression runs both verification modes on the
+same component and requires equal objective and rectangles against the ranked
+run, together with `direct-grid-parity` and three zero counters. The wider
+P11.4 campaign remains necessary for exhaustive and metamorphic evidence.
+
+P11.3 has passed its integration audit. It does not broaden the direct backend
+to polygon or source-shaped paths, and it does not substitute one fixture-level
+result comparison for P11.4's complete differential and invariant campaign.
 
 ## Audit
 
@@ -57,18 +76,18 @@ Phase baseline: `feef7e71fdc873e6bb48bb71bfe3dfde543f46f8`.
 | Command | Result |
 | --- | --- |
 | `cargo fmt --all -- --check` | passed |
-| `cargo test -p dominance embedding` | 2 passed, 58 filtered out |
+| `cargo test -p dominance direct_grid_embedding_preserves_grid_pipeline_output` | 1 passed, 60 filtered out |
 | `cargo clippy -p dominance --all-targets --all-features -- -D warnings` | passed |
-| `cargo test -p dominance` | 58 passed, 2 ignored (143.72s) |
+| `cargo test -p dominance` | 59 passed, 2 ignored (148.28s) |
 | `git diff --check` | passed |
 | `python3 tools/check_biclique_bound.py` | passed |
 | `python3 tools/check_source_flow_audit.py` | passed |
 | `python3 tools/check_release_consistency.py` | passed |
 | `cargo clippy --workspace --all-targets --all-features -- -D warnings` | passed |
-| `cargo test --workspace` | 420 passed, 4 ignored (15 suites, 534.15s) |
+| `cargo test --workspace` | 421 passed, 4 ignored (15 suites, 545.79s) |
 | `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps` | passed |
 | `cargo build --workspace --release` | passed |
 
-The final staged-diff inspection must also reject accidental fallback,
-credentials, private paths, stale generated evidence, and ignored direct-grid
-tests before the closeout is pushed.
+The final staged-diff inspection must reject accidental fallback, credentials,
+private paths, stale generated evidence, and ignored direct-grid tests before
+the closeout is pushed.

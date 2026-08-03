@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use crate::biclique::{Error as BicliqueError, Partition};
 use crate::compressed_flow::experiment;
-use crate::embedding::{DominanceEmbedding, EmbeddingError};
+use crate::embedding::{DominanceEmbedding, EmbeddingCoordinateBackend, EmbeddingError};
 pub use crate::path_tree::{
     GapBackend, PathTreeOrientation, PathTreeOrientationPolicy, RegionBackend,
 };
@@ -1092,7 +1092,28 @@ pub fn solve_with_verification_mode<C>(
     component: &GridComponent<C>,
     mode: Verification,
 ) -> Result<DissectionResult, Error> {
-    solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+    solve_with_verification_mode_and_embedding_backend(
+        component,
+        mode,
+        EmbeddingCoordinateBackend::RankedCoordinates,
+    )
+}
+
+/// Solves a finite grid component with an explicit embedding backend.
+///
+/// The caller selects `DirectGridParity` only for the finite integer grid
+/// pipeline. Polygon and source-shaped paths retain their ranked contract.
+///
+/// # Errors
+///
+/// Returns [`enum@Error`] when geometry, embedding, biclique, flow,
+/// completion, or validation invariants fail.
+pub fn solve_with_verification_mode_and_embedding_backend<C>(
+    component: &GridComponent<C>,
+    mode: Verification,
+    embedding_backend: EmbeddingCoordinateBackend,
+) -> Result<DissectionResult, Error> {
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend_and_embedding_backend(
         component,
         mode,
         ChordEnumerator::GridInteriorRuns,
@@ -1100,6 +1121,7 @@ pub fn solve_with_verification_mode<C>(
             Verification::FullyAudited => CompletionBackendKind::ReferenceRescan,
             Verification::CompactOnly => CompletionBackendKind::IndexedFrontier,
         },
+        embedding_backend,
     )
 }
 
@@ -1114,11 +1136,12 @@ pub fn solve_with_verification_mode_and_chord_enumerator<C>(
     mode: Verification,
     enumerator: ChordEnumerator,
 ) -> Result<DissectionResult, Error> {
-    solve_with_verification_mode_and_chord_enumerator_and_completion_backend(
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend_and_embedding_backend(
         component,
         mode,
         enumerator,
         CompletionBackendKind::ReferenceRescan,
+        EmbeddingCoordinateBackend::RankedCoordinates,
     )
 }
 
@@ -1134,25 +1157,51 @@ pub fn solve_with_verification_mode_and_chord_enumerator_and_completion_backend<
     enumerator: ChordEnumerator,
     completion_backend: CompletionBackendKind,
 ) -> Result<DissectionResult, Error> {
+    solve_with_verification_mode_and_chord_enumerator_and_completion_backend_and_embedding_backend(
+        component,
+        mode,
+        enumerator,
+        completion_backend,
+        EmbeddingCoordinateBackend::RankedCoordinates,
+    )
+}
+
+fn solve_with_verification_mode_and_chord_enumerator_and_completion_backend_and_embedding_backend<
+    C,
+>(
+    component: &GridComponent<C>,
+    mode: Verification,
+    enumerator: ChordEnumerator,
+    completion_backend: CompletionBackendKind,
+    embedding_backend: EmbeddingCoordinateBackend,
+) -> Result<DissectionResult, Error> {
     match mode {
         Verification::FullyAudited => match enumerator {
-            ChordEnumerator::ReferencePairwise => {
-                solve_fully_audited_with(component, Mode::Compact, &Pairwise, completion_backend)
-            }
+            ChordEnumerator::ReferencePairwise => solve_fully_audited_with(
+                component,
+                Mode::Compact,
+                &Pairwise,
+                completion_backend,
+                embedding_backend,
+            ),
             ChordEnumerator::GridInteriorRuns => solve_fully_audited_with(
                 component,
                 Mode::Compact,
                 &InteriorRuns,
                 completion_backend,
+                embedding_backend,
             ),
         },
         Verification::CompactOnly => match enumerator {
             ChordEnumerator::ReferencePairwise => {
-                solve_compact_only_with(component, &Pairwise, completion_backend)
+                solve_compact_only_with(component, &Pairwise, completion_backend, embedding_backend)
             }
-            ChordEnumerator::GridInteriorRuns => {
-                solve_compact_only_with(component, &InteriorRuns, completion_backend)
-            }
+            ChordEnumerator::GridInteriorRuns => solve_compact_only_with(
+                component,
+                &InteriorRuns,
+                completion_backend,
+                embedding_backend,
+            ),
         },
     }
 }
@@ -1186,6 +1235,7 @@ pub fn solve_with_flow_backend<C>(
         &Pairwise,
         CompletionBackendKind::ReferenceRescan,
         &backend,
+        EmbeddingCoordinateBackend::RankedCoordinates,
     )
 }
 
@@ -1195,6 +1245,7 @@ fn solve_fully_audited_with<C, E: Enumerator>(
     mode: Mode,
     enumerator: &E,
     completion_backend: CompletionBackendKind,
+    embedding_backend: EmbeddingCoordinateBackend,
 ) -> Result<DissectionResult, Error> {
     solve_fully_audited_with_backend(
         component,
@@ -1202,6 +1253,7 @@ fn solve_fully_audited_with<C, E: Enumerator>(
         enumerator,
         completion_backend,
         &DinicBackend,
+        embedding_backend,
     )
 }
 
@@ -1212,6 +1264,7 @@ fn solve_fully_audited_with_backend<C, E: Enumerator, B: MaxFlowBackend>(
     enumerator: &E,
     completion_backend: CompletionBackendKind,
     backend: &B,
+    embedding_backend: EmbeddingCoordinateBackend,
 ) -> Result<DissectionResult, Error> {
     let started = Instant::now();
     let sg_analysis = sg_oracle::grid::analyze_with(component, enumerator)?;
@@ -1224,8 +1277,11 @@ fn solve_fully_audited_with_backend<C, E: Enumerator, B: MaxFlowBackend>(
         }
     }
     let geometry_at = Instant::now();
-    let embedding =
-        DominanceEmbedding::new(&sg_analysis.horizontal_chords, &sg_analysis.vertical_chords)?;
+    let embedding = DominanceEmbedding::new_with_backend(
+        &sg_analysis.horizontal_chords,
+        &sg_analysis.vertical_chords,
+        embedding_backend,
+    )?;
     embedding.assert_pairwise_equivalence(
         &sg_analysis.horizontal_chords,
         &sg_analysis.vertical_chords,
@@ -1423,6 +1479,10 @@ fn solve_fully_audited_with_backend<C, E: Enumerator, B: MaxFlowBackend>(
                 geometry_at.duration_since(started).as_micros(),
             ),
             conflict_representation: Some(Representation::GeneralDominance4D.name().to_owned()),
+            embedding_coordinate_backend: Some(embedding.backend.name().to_owned()),
+            rank_sort_count: Some(embedding.metrics.rank_sort_count),
+            rank_map_entry_count: Some(embedding.metrics.rank_map_entry_count),
+            rank_map_owned_bytes: Some(embedding.metrics.rank_map_owned_bytes),
             emitted_chord_count: Some(total_chord_count),
             horizontal_interior_run_count: None,
             vertical_interior_run_count: None,
@@ -1463,13 +1523,17 @@ fn solve_compact_only_with<C, E: Enumerator>(
     component: &GridComponent<C>,
     enumerator: &E,
     completion_backend: CompletionBackendKind,
+    embedding_backend: EmbeddingCoordinateBackend,
 ) -> Result<DissectionResult, Error> {
     let started = Instant::now();
     let context = PreparedComponentContext::new(component).map_err(SgError::from)?;
     let geometry = analyze_prepared_geometry(context, enumerator)?;
     let geometry_at = Instant::now();
-    let embedding =
-        DominanceEmbedding::new(&geometry.horizontal_chords, &geometry.vertical_chords)?;
+    let embedding = DominanceEmbedding::new_with_backend(
+        &geometry.horizontal_chords,
+        &geometry.vertical_chords,
+        embedding_backend,
+    )?;
     let embedding_at = Instant::now();
     let partition = crate::biclique::experiment::construct(&embedding)?.partition;
     partition.verify_dominance_blocks(&embedding)?;
@@ -1731,6 +1795,10 @@ fn solve_compact_only_with<C, E: Enumerator>(
                 geometry.effective_chord_enumeration_microseconds,
             ),
             conflict_representation: Some(Representation::GeneralDominance4D.name().to_owned()),
+            embedding_coordinate_backend: Some(embedding.backend.name().to_owned()),
+            rank_sort_count: Some(embedding.metrics.rank_sort_count),
+            rank_map_entry_count: Some(embedding.metrics.rank_map_entry_count),
+            rank_map_owned_bytes: Some(embedding.metrics.rank_map_owned_bytes),
             prepared_component_build_count: Some(1),
             prepared_component_build_microseconds: Some(
                 geometry.prepared_component_build_microseconds,
@@ -2355,6 +2423,7 @@ mod polygon_tests {
         ChordEnumerator, CompletionBackendKind, FlowBackendKind, Mode, Representation,
         Verification, solve_polygon, solve_polygon_with_representation, solve_with_flow_backend,
         solve_with_verification_mode_and_chord_enumerator_and_completion_backend,
+        solve_with_verification_mode_and_embedding_backend,
     };
 
     fn loop_from(points: &[(i64, i64)]) -> OrthogonalLoop {
@@ -2464,6 +2533,48 @@ mod polygon_tests {
             push_relabel.optimum_rectangle_count,
             dinic.optimum_rectangle_count
         );
+    }
+
+    #[test]
+    fn direct_grid_embedding_preserves_grid_pipeline_output() {
+        let grid = ColorGrid::new(
+            3,
+            3,
+            vec![true, true, false, true, true, true, false, true, true],
+        )
+        .unwrap();
+        let component = grid.four_connected_components().remove(0);
+        for mode in [Verification::FullyAudited, Verification::CompactOnly] {
+            let ranked = solve_with_verification_mode_and_embedding_backend(
+                &component,
+                mode,
+                crate::embedding::EmbeddingCoordinateBackend::RankedCoordinates,
+            )
+            .unwrap();
+            let direct = solve_with_verification_mode_and_embedding_backend(
+                &component,
+                mode,
+                crate::embedding::EmbeddingCoordinateBackend::DirectGridParity,
+            )
+            .unwrap();
+            assert_eq!(
+                direct.optimum_rectangle_count,
+                ranked.optimum_rectangle_count
+            );
+            assert_eq!(direct.rectangles, ranked.rectangles);
+            assert_eq!(
+                direct.diagnostics.embedding_coordinate_backend.as_deref(),
+                Some("direct-grid-parity")
+            );
+            assert_eq!(direct.diagnostics.rank_sort_count, Some(0));
+            assert_eq!(direct.diagnostics.rank_map_entry_count, Some(0));
+            assert_eq!(direct.diagnostics.rank_map_owned_bytes, Some(0));
+            assert_eq!(
+                ranked.diagnostics.embedding_coordinate_backend.as_deref(),
+                Some("ranked-coordinates")
+            );
+            assert_eq!(ranked.diagnostics.rank_sort_count, Some(2));
+        }
     }
 
     #[test]
