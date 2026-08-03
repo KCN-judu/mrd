@@ -1903,11 +1903,14 @@ environment/SHAs; reproduction; and limitations. Suggested release:
 
 P14 is split before final-artifact work into these source-of-truth subphases:
 
-- **P14.1 - Campaign inventory and final-manifest contract. State: in_progress.**
+- **P14.1 - Campaign inventory and final-manifest contract. State: complete.**
   Inventory each reproducible existing campaign, required external dependency,
-  output schema, result population, and exact claim boundary. Define a strict
-  final-manifest schema that distinguishes executed, unavailable, and deferred
-  work without converting a missing external run or proof into success.
+  output schema, result population, and exact claim boundary. The inventory and
+  strict JSON Schema contract are recorded in
+  `docs/phase-reports/P14-final-artifact.md` and
+  `docs/final-manifest.schema.json`; they distinguish executed, unavailable,
+  and deferred work without converting a missing external run or proof into
+  success.
 - **P14.2 - Final exact-correctness campaigns. State: planned.** Run and archive
   exhaustive, random, polyomino, polygon, formal-hole, metamorphic, fuzz,
   generic-flow, compressed-flow, and direct-parity gates available locally.
@@ -2051,7 +2054,7 @@ and AN19 runtime claims.
 | P13.5b | complete | 3e3f1be | 83b901e | 83b901e | 83b901e | `docs/phase-reports/P13-constant-factor-hardening.md` | retained/rejected optimization ledger | 2026-08-03T13:00:20Z | 2026-08-03T13:03:06Z | retained/rejected decisions and exact acceptance boundaries recorded |
 | P13.5c | complete | c638e31 | 6b7ead9 | 6b7ead9 | 6b7ead9 | `docs/phase-reports/P13-constant-factor-hardening.md` | final P13 audit and closeout | 2026-08-03T13:03:06Z | 2026-08-03T13:06:21Z | complete phase audit and transient benchmark rerun passed; only timestamp/commit/local timing observations differed from archived JSON |
 | P14 | in_progress | 6b7ead9 | pending | pending | pending | pending | final verification, benchmark, and strict report | 2026-08-03T13:07:55Z | pending | split before final-artifact work; P9.6a AN19 proof debt remains deferred |
-| P14.1 | in_progress | 6b7ead9 | pending | pending | pending | pending | campaign inventory and final-manifest contract | 2026-08-03T13:07:55Z | pending | must distinguish executed, unavailable, and deferred evidence |
+| P14.1 | complete | 37fa506 | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md`; `docs/final-manifest.schema.json` | campaign inventory and final-manifest contract | 2026-08-03T13:09:00Z | 2026-08-03T13:22:30Z | CP-SAT package, external profilers, and cargo-fuzz are not installed locally; P14.3 must execute or record exact unavailable/deferred dispositions |
 | P14.2 | planned | pending | pending | pending | pending | pending | final exact-correctness campaigns | pending | pending | depends on P14.1 |
 | P14.3 | planned | pending | pending | pending | pending | pending | external and resource evidence | pending | pending | depends on P14.1 |
 | P14.4 | planned | pending | pending | pending | pending | pending | performance and complexity synthesis | pending | pending | depends on P14.1-P14.3 |
