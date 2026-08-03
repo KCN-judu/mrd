@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P13
+- Current phase: P13.2
 - Current phase state: in_progress
-- Last completed phase: P11
-- Last pushed SHA: 69270a57d1a7ac9dbf586facb3c2fea699ed7f52
-- Plan last updated: 2026-08-03T12:10:52Z
+- Last completed phase: P13.1
+- Last pushed SHA: c36c267c61cca8c55a4e3dce2c9678ffb0eb4370
+- Plan last updated: 2026-08-03T12:14:30Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1842,7 +1842,7 @@ P13 is split before implementation into these source-of-truth subphases:
   direct-grid, biclique, compressed-flow, completion, and end-to-end baseline
   evidence with checked structural counters and an explicit machine/runtime
   boundary. No optimization claim is allowed before this baseline is pushed.
-- **P13.2 - Geometry and embedding storage. State: planned.** Reduce measured
+- **P13.2 - Geometry and embedding storage. State: in_progress.** Reduce measured
   allocation or traversal cost in prepared geometry and direct-grid embedding
   only when exact parity and the baseline comparison justify it.
 - **P13.3 - Biclique and flow layout. State: planned.** Improve measured
@@ -1998,9 +1998,9 @@ and AN19 runtime claims.
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
-| P13 | in_progress | 69270a5 | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1 baseline is complete pending checkpoint push; P13.2-P13.5 remain |
-| P13.1 | complete | 69270a5 | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:10:52Z | direct-grid, partition, flow, completion, and total timing remain separated |
-| P13.2 | planned | pending | pending | pending | pending | pending | geometry and embedding storage optimization | pending | pending | depends on P13.1 evidence |
+| P13 | in_progress | 69270a5 | c36c267 | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1 baseline is pushed; P13.2-P13.5 remain |
+| P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
+| P13.2 | in_progress | c36c267 | pending | pending | pending | pending | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | pending | baseline indicates geometry preparation and completion dominate; direct embedding remains a small isolated phase |
 | P13.3 | planned | pending | pending | pending | pending | pending | biclique and flow layout optimization | pending | pending | depends on P13.1 evidence |
 | P13.4 | planned | pending | pending | pending | pending | pending | deterministic execution-policy optimization | pending | pending | depends on P13.2-P13.3 evidence |
 | P13.5 | planned | pending | pending | pending | pending | pending | consolidated release evidence | pending | pending | depends on P13.2-P13.4 |
