@@ -7,8 +7,8 @@
 - Current phase: P13.5
 - Current phase state: in_progress
 - Last completed phase: P13.4
-- Last pushed SHA: 367206f68534fa6a16b0cc793b8749e806f80c5a
-- Plan last updated: 2026-08-03T12:54:03Z
+- Last pushed SHA: 4c27d442407178e61b881e378071384a7830073a
+- Plan last updated: 2026-08-03T12:55:12Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -2009,5 +2009,5 @@ and AN19 runtime claims.
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
 | P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
-| P13.4 | complete | d5fcd67 | 367206f | 367206f | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
-| P13.5 | in_progress | 367206f | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:54:03Z | pending | depends on P13.2-P13.4; consolidate benchmark and retained/rejected optimization evidence |
+| P13.4 | complete | d5fcd67 | 367206f | 4c27d44 | 4c27d44 | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | 2026-08-03T12:55:12Z | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
+| P13.5 | in_progress | 4c27d44 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:55:12Z | pending | depends on P13.2-P13.4; consolidate benchmark and retained/rejected optimization evidence |
