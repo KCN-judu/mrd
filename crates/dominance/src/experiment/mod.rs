@@ -2408,16 +2408,19 @@ pub enum Error {
 
 #[cfg(test)]
 mod polygon_tests {
+    use graph::DinicBackend;
     use mrd_domain::{
-        Boundary, ColorGrid, CoordinateRect, OrthogonalLoop, Point, PreparedPolygonContext,
-        RectilinearPolygon,
+        Boundary, Cell, ColorGrid, CoordinateRect, GridComponent, OrthogonalLoop, Point,
+        PreparedPolygonContext, RectilinearPolygon,
     };
     use sg_oracle::grid::experiment::InteriorRuns;
     use sg_oracle::grid::{
         CoordinateCompressedCompletion, HorizontalCutSegment, HorizontalUnitCut,
-        IndexedFrontierCompletion, VerticalCutSegment, VerticalUnitCut, analyze_geometry_with,
-        complete_with_prepared_backend,
+        IndexedFrontierCompletion, VerticalCutSegment, VerticalUnitCut, analyze_geometry,
+        analyze_geometry_with, complete_with_prepared_backend,
     };
+
+    use crate::embedding::{DominanceEmbedding, EmbeddingCoordinateBackend};
 
     use super::{
         ChordEnumerator, CompletionBackendKind, FlowBackendKind, Mode, Representation,
@@ -2574,6 +2577,314 @@ mod polygon_tests {
                 Some("ranked-coordinates")
             );
             assert_eq!(ranked.diagnostics.rank_sort_count, Some(2));
+        }
+    }
+
+    #[test]
+    fn direct_grid_embedding_matches_every_three_by_three_component() {
+        let mut compared = 0;
+        for mask in 1_u16..(1_u16 << 9) {
+            let grid =
+                ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect()).unwrap();
+            for component in grid
+                .four_connected_components()
+                .into_iter()
+                .filter(|component| component.color)
+            {
+                assert_direct_grid_pipeline_matches_ranked(&component, &format!("mask-{mask}"));
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 897);
+    }
+
+    #[test]
+    fn direct_grid_embedding_matches_ranked_under_grid_isometries_and_translation() {
+        let mut compared = 0;
+        for mask in [
+            0b000_000_001,
+            0b000_011_011,
+            0b010_111_010,
+            0b111_101_111,
+            0b111_111_111,
+        ] {
+            let component = component_from_mask(mask);
+            assert_direct_grid_pipeline_matches_ranked(&component, &format!("base-{mask}"));
+            compared += 1;
+            for (name, transformed) in grid_isometry_and_translation_variants(&component) {
+                assert_direct_grid_pipeline_matches_ranked(&transformed, &format!("{name}-{mask}"));
+                compared += 1;
+            }
+        }
+        assert_eq!(compared, 30);
+    }
+
+    fn assert_direct_grid_pipeline_matches_ranked(component: &GridComponent<bool>, label: &str) {
+        let geometry = analyze_geometry(component).unwrap();
+        let ranked = DominanceEmbedding::new_with_backend(
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+            EmbeddingCoordinateBackend::RankedCoordinates,
+        )
+        .unwrap();
+        let direct = DominanceEmbedding::new_with_backend(
+            &geometry.horizontal_chords,
+            &geometry.vertical_chords,
+            EmbeddingCoordinateBackend::DirectGridParity,
+        )
+        .unwrap();
+
+        let (ranked_partition, direct_partition) =
+            assert_embedding_and_partition_match(&geometry, &ranked, &direct, label);
+        assert_network_and_flow_match(
+            &ranked,
+            &direct,
+            &ranked_partition,
+            &direct_partition,
+            label,
+        );
+        for mode in [Verification::FullyAudited, Verification::CompactOnly] {
+            assert_end_to_end_result_matches(component, mode, label);
+        }
+    }
+
+    fn assert_embedding_and_partition_match(
+        geometry: &sg_oracle::grid::Geometry,
+        ranked: &DominanceEmbedding,
+        direct: &DominanceEmbedding,
+        label: &str,
+    ) -> (crate::biclique::Partition, crate::biclique::Partition) {
+        ranked
+            .assert_pairwise_equivalence(&geometry.horizontal_chords, &geometry.vertical_chords)
+            .unwrap();
+        direct
+            .assert_pairwise_equivalence(&geometry.horizontal_chords, &geometry.vertical_chords)
+            .unwrap();
+
+        let ranked_graph = ranked.explicit_graph().unwrap();
+        let direct_graph = direct.explicit_graph().unwrap();
+        assert_eq!(direct_graph, ranked_graph, "{label}: explicit graph");
+
+        let ranked_partition = crate::biclique::experiment::construct(ranked)
+            .unwrap()
+            .partition;
+        let direct_partition = crate::biclique::experiment::construct(direct)
+            .unwrap()
+            .partition;
+        ranked_partition
+            .verify_exact_partition(&ranked_graph)
+            .unwrap();
+        direct_partition
+            .verify_exact_partition(&direct_graph)
+            .unwrap();
+        assert_eq!(
+            direct_partition, ranked_partition,
+            "{label}: biclique partition"
+        );
+
+        (ranked_partition, direct_partition)
+    }
+
+    fn assert_network_and_flow_match(
+        ranked: &DominanceEmbedding,
+        direct: &DominanceEmbedding,
+        ranked_partition: &crate::biclique::Partition,
+        direct_partition: &crate::biclique::Partition,
+        label: &str,
+    ) {
+        let ranked_network = crate::compressed_flow::experiment::network_snapshot(
+            ranked.horizontal.len(),
+            ranked.vertical.len(),
+            ranked_partition,
+        )
+        .unwrap();
+        let direct_network = crate::compressed_flow::experiment::network_snapshot(
+            direct.horizontal.len(),
+            direct.vertical.len(),
+            direct_partition,
+        )
+        .unwrap();
+        assert_eq!(
+            direct_network, ranked_network,
+            "{label}: compressed network"
+        );
+
+        let ranked_flow = crate::compressed_flow::experiment::solve(
+            ranked.horizontal.len(),
+            ranked.vertical.len(),
+            ranked_partition,
+            &DinicBackend,
+        )
+        .unwrap();
+        let direct_flow = crate::compressed_flow::experiment::solve(
+            direct.horizontal.len(),
+            direct.vertical.len(),
+            direct_partition,
+            &DinicBackend,
+        )
+        .unwrap();
+        assert_eq!(
+            direct_flow.flow, ranked_flow.flow,
+            "{label}: flow and min cut"
+        );
+        assert_eq!(
+            direct_flow.vertex_cover, ranked_flow.vertex_cover,
+            "{label}: minimum vertex cover"
+        );
+        assert_eq!(
+            direct_flow.network_vertex_count, ranked_flow.network_vertex_count,
+            "{label}: network vertex count"
+        );
+        assert_eq!(
+            direct_flow.network_arc_count, ranked_flow.network_arc_count,
+            "{label}: network arc count"
+        );
+        assert_eq!(
+            direct_flow.internal_capacity, ranked_flow.internal_capacity,
+            "{label}: internal capacity"
+        );
+        assert_eq!(
+            direct_flow.internal_cut_arc_count, ranked_flow.internal_cut_arc_count,
+            "{label}: internal cut arcs"
+        );
+    }
+
+    fn assert_end_to_end_result_matches(
+        component: &GridComponent<bool>,
+        mode: Verification,
+        label: &str,
+    ) {
+        let ranked = solve_with_verification_mode_and_embedding_backend(
+            component,
+            mode,
+            EmbeddingCoordinateBackend::RankedCoordinates,
+        )
+        .unwrap();
+        let direct = solve_with_verification_mode_and_embedding_backend(
+            component,
+            mode,
+            EmbeddingCoordinateBackend::DirectGridParity,
+        )
+        .unwrap();
+        assert_eq!(
+            direct.optimum_rectangle_count, ranked.optimum_rectangle_count,
+            "{label}: {mode:?} objective"
+        );
+        assert_eq!(
+            direct.rectangles, ranked.rectangles,
+            "{label}: {mode:?} rectangles"
+        );
+        assert_direct_grid_diagnostics(&direct);
+        assert_eq!(ranked.diagnostics.rank_sort_count, Some(2));
+        assert_certificate_fields_match(&direct, &ranked, mode, label);
+    }
+
+    fn assert_certificate_fields_match(
+        direct: &mrd_domain::DissectionResult,
+        ranked: &mrd_domain::DissectionResult,
+        mode: Verification,
+        label: &str,
+    ) {
+        let direct_certificate = direct.certificate.as_ref().unwrap();
+        let ranked_certificate = ranked.certificate.as_ref().unwrap();
+        for field in [
+            "biclique_partition",
+            "flow_value",
+            "compressed_network_vertex_count",
+            "compressed_network_arc_count",
+            "internal_capacity",
+            "internal_cut_arc_count",
+            "min_cut_source_side",
+            "cover_left",
+            "cover_right",
+            "selected_horizontal",
+            "selected_vertical",
+        ] {
+            assert_eq!(
+                direct_certificate.payload.get(field).unwrap(),
+                ranked_certificate.payload.get(field).unwrap(),
+                "{label}: {mode:?} certificate field {field}"
+            );
+        }
+    }
+
+    fn assert_direct_grid_diagnostics(result: &mrd_domain::DissectionResult) {
+        assert_eq!(
+            result.diagnostics.embedding_coordinate_backend.as_deref(),
+            Some("direct-grid-parity")
+        );
+        assert_eq!(result.diagnostics.rank_sort_count, Some(0));
+        assert_eq!(result.diagnostics.rank_map_entry_count, Some(0));
+        assert_eq!(result.diagnostics.rank_map_owned_bytes, Some(0));
+    }
+
+    fn component_from_mask(mask: u16) -> GridComponent<bool> {
+        ColorGrid::new(3, 3, (0..9).map(|bit| mask & (1 << bit) != 0).collect())
+            .unwrap()
+            .four_connected_components()
+            .into_iter()
+            .find(|component| component.color)
+            .unwrap()
+    }
+
+    fn grid_isometry_and_translation_variants(
+        component: &GridComponent<bool>,
+    ) -> Vec<(&'static str, GridComponent<bool>)> {
+        let width = component.grid_width;
+        let height = component.grid_height;
+        vec![
+            (
+                "translated",
+                remap_component(component, width + 17, height + 29, |cell| Cell {
+                    x: cell.x + 17,
+                    y: cell.y + 29,
+                }),
+            ),
+            (
+                "mirror-horizontal",
+                remap_component(component, width, height, |cell| Cell {
+                    x: width - 1 - cell.x,
+                    y: cell.y,
+                }),
+            ),
+            (
+                "mirror-vertical",
+                remap_component(component, width, height, |cell| Cell {
+                    x: cell.x,
+                    y: height - 1 - cell.y,
+                }),
+            ),
+            (
+                "transpose",
+                remap_component(component, height, width, |cell| Cell {
+                    x: cell.y,
+                    y: cell.x,
+                }),
+            ),
+            (
+                "rotate-quarter-turn",
+                remap_component(component, height, width, |cell| Cell {
+                    x: height - 1 - cell.y,
+                    y: cell.x,
+                }),
+            ),
+        ]
+    }
+
+    fn remap_component(
+        component: &GridComponent<bool>,
+        grid_width: usize,
+        grid_height: usize,
+        map: impl Fn(Cell) -> Cell,
+    ) -> GridComponent<bool> {
+        let mut cells = component.cells.iter().copied().map(map).collect::<Vec<_>>();
+        cells.sort_unstable();
+        GridComponent {
+            id: component.id,
+            color: component.color,
+            grid_width,
+            grid_height,
+            cells,
         }
     }
 

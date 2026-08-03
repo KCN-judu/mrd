@@ -5,6 +5,39 @@ use crate::biclique::Partition;
 
 pub mod source;
 
+/// Exact immutable topology of one materialized compressed flow network.
+///
+/// This crate-internal value supports differential evidence without exposing
+/// the mutable network builder used by the solver.
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct NetworkSnapshot {
+    pub node_count: usize,
+    pub source: FlowNodeId,
+    pub sink: FlowNodeId,
+    pub arcs: Vec<(FlowNodeId, FlowNodeId, u64)>,
+}
+
+/// Materializes an exact structural snapshot of the compressed flow network.
+///
+/// # Errors
+///
+/// Returns the same construction errors as [`solve`].
+#[cfg(test)]
+pub(crate) fn network_snapshot(
+    horizontal_count: usize,
+    vertical_count: usize,
+    partition: &Partition,
+) -> Result<NetworkSnapshot, Error> {
+    let layout = build_network(horizontal_count, vertical_count, partition)?;
+    Ok(NetworkSnapshot {
+        node_count: layout.network.node_count(),
+        source: layout.source,
+        sink: layout.sink,
+        arcs: layout.network.arcs().collect(),
+    })
+}
+
 /// Runs an exact flow on the biclique-compressed network and recovers a cover.
 ///
 /// Outer arcs have unit capacity. Internal arcs use

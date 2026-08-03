@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P11
+- Current phase: P11.4
 - Current phase state: in_progress
-- Last completed phase: P10
-- Last pushed SHA: 8cadec8fd881d492b1d02b048b487ec2e62125d0
-- Plan last updated: 2026-08-03T11:41:30Z
+- Last completed phase: P11.3
+- Last pushed SHA: ab951251675612c01228fca1746bdb5102ed7759
+- Plan last updated: 2026-08-03T11:54:33Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1805,7 +1805,7 @@ P11 is split before implementation into these source-of-truth subphases:
   dominance, biclique, flow, cut, and rectangle pipeline through both backends;
   keep polygon and source-shaped paths on their existing ranked/reference
   contract until separately audited.
-- **P11.4 - Differential and invariant campaign. State: planned.** Prove by
+- **P11.4 - Differential and invariant campaign. State: complete.** Prove by
   exhaustive and metamorphic finite campaigns that direct and ranked embeddings
   agree on intersections, explicit graphs, partitions, flows, covers, and
   rectangles; assert cross-side coordinate inequality and zero direct counters.
@@ -1973,9 +1973,9 @@ and AN19 runtime claims.
 | P10.6 | complete | ab11586 | ab11586 | pending | pending | `docs/phase-reports/P10-layered-backend.md` | static audit scans layered module; rejects `AutomaticSource`, automatic `solve_source`, binary search | 2026-08-02T10:05:00Z | 2026-08-02T10:10:00Z | layered no-fallback provenance required |
 | P10.8 | complete | a773a81 | 332a5c5 | 4555070 | 4555070 | `docs/phase-reports/P10-layered-backend.md` | `mrd benchmark --suite layered`, typed categories, exact decimal source targets, explicit target provenance, and isolated source-stage timings | 2026-08-03T10:17:36Z | 2026-08-03T10:39:25Z | direct-grid measurement remains unavailable until P11; an undetermined source run is recorded without fallback or target inference |
 | P10.9 | complete | c9de7a8 | ab7c390 | ab7c390 | ab7c390 | `docs/phase-reports/P10-layered-backend.md` | public architecture/status audit across README, ARCHITECTURE, ALGORITHMS, KNOWN_LIMITATIONS, NEAR_LINEAR, and TESTING; corrected CLI spelling and public source signature | 2026-08-03T10:39:25Z | 2026-08-03T10:58:31Z | direct-grid implementation remains P11; source target discovery and AN19 runtime claims remain unavailable |
-| P11 | in_progress | 06a030d | 8cadec8 | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | direct formula and counters complete; P11.3 grid integration is pending checkpoint push; P11.4-P11.5 remain |
+| P11 | in_progress | 06a030d | 8cadec8, ab95125 | pending | pending | `docs/phase-reports/P11-direct-grid-parity.md` | direct grid parity embedding with RankedCoordinates as the permanent Oracle | 2026-08-03T10:58:31Z | pending | direct formula and counters complete; P11.3 grid integration is pushed; P11.4 is pending checkpoint push; P11.5 remains |
 | P11.1 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | backend contract, stable result, and zero-rank-allocation counters | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | RankedCoordinates remains the default permanent Oracle |
 | P11.2 | complete | 06a030d | 8cadec8 | 8cadec8 | 8cadec8 | `docs/phase-reports/P11-direct-grid-parity.md` | exact direct parity formula encoder | 2026-08-03T11:03:42Z | 2026-08-03T11:21:30Z | P11.3 must route only finite grid calls through this backend |
-| P11.3 | complete | 8cadec8 | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:41:30Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
-| P11.4 | planned | pending | pending | pending | pending | pending | exhaustive/metamorphic differential and invariant campaign | pending | pending | depends on P11.3 |
+| P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
+| P11.4 | complete | ab95125 | pending checkpoint | pending closeout | pending closeout | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:54:33Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | planned | pending | pending | pending | pending | pending | direct-vs-ranked release evidence and performance boundary | pending | pending | depends on P11.4 |

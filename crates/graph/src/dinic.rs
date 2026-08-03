@@ -38,6 +38,12 @@ impl FlowNetwork {
         self.arcs.len()
     }
 
+    /// Iterates over the network's immutable arc specification in insertion order.
+    #[must_use]
+    pub fn arcs(&self) -> impl ExactSizeIterator<Item = (FlowNodeId, FlowNodeId, u64)> + '_ {
+        self.arcs.iter().map(|arc| (arc.from, arc.to, arc.capacity))
+    }
+
     /// # Errors
     ///
     /// Returns [`FlowError::NodeOutOfBounds`] when either endpoint is invalid.
