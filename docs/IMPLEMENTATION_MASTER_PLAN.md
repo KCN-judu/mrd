@@ -7,8 +7,8 @@
 - Current phase: P9.5e.3g.3
 - Current phase state: blocked
 - Last completed phase: P14.5
-- Last pushed SHA: 2cb63de11b23d06be28418c11b57155c3213f7af
-- Plan last updated: 2026-08-03T14:03:41Z
+- Last pushed SHA: d8179ba8b337fd4d8be26fd669b93f8bdca09aaf
+- Plan last updated: 2026-08-03T14:06:23Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -23,12 +23,16 @@ event-driven validation, ranked 4D parity embedding, Cardinal--Yuditsky
 Theorem 8 biclique partition, compressed Dinic flow, and grid path-tree
 specializations. The permanent reference backends remain part of the contract.
 
-Known remaining gaps, established by current code and
-`docs/KNOWN_LIMITATIONS.md`, are recursive re-sorting in biclique
-construction; only Dinic for flow; no
-source-backed deterministic almost-linear exact flow; no direct grid parity
-embedding; and unprofiled constant factors. No phase may upgrade a claim until
-its implementation, assumptions, counters, and evidence establish it.
+At the baseline, `docs/KNOWN_LIMITATIONS.md` identified recursive biclique
+re-sorting, Dinic-only flow, no direct-grid parity embedding, and unprofiled
+constant factors. P4, P5, P11, and P13 respectively addressed those baseline
+items with retained exact Oracles and evidence. The current unclosed limits are
+the automatic source target-decision contract in P9.5e.3g.3 and the deferred
+P9.6a AN19 runtime proof. The source public backend accepts a caller-supplied
+inclusive target, can certify a completed run at most that target, and can
+verify a caller-supplied lower-bound certificate; it cannot discover `F*`.
+No phase may upgrade a claim until its implementation, assumptions, counters,
+and evidence establish it.
 
 ## P9 architecture maintenance
 
