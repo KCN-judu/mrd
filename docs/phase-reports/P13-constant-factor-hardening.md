@@ -2,8 +2,8 @@
 
 ## Status
 
-**State: P13.1-P13.3 complete; P13.4 audited with closeout pending; P13.5
-remains.** This phase starts with a reproducible baseline, not an optimization
+**State: P13.1-P13.4 complete; P13.5 remains.** P13.4 implementation commit
+is `367206f`. This phase starts with a reproducible baseline, not an optimization
 claim. All timings below are local development-profile observations for the
 exact 3x3 finite-grid population; they are only valid for comparison against
 later runs with the same recorded environment and command.

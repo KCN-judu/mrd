@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current phase: P13.4
+- Current phase: P13.5
 - Current phase state: in_progress
-- Last completed phase: P13.3
-- Last pushed SHA: d5fcd67c59cb2683166e135aa4fb7160740e5e7f
-- Plan last updated: 2026-08-03T12:46:16Z
+- Last completed phase: P13.4
+- Last pushed SHA: 367206f68534fa6a16b0cc793b8749e806f80c5a
+- Plan last updated: 2026-08-03T12:54:03Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1848,17 +1848,19 @@ P13 is split before implementation into these source-of-truth subphases:
 - **P13.3 - Biclique and flow layout. State: complete.** Improve measured
   compact partition or flow-network constants while preserving deterministic
   partitions, cuts, covers, and certificates.
-- **P13.4 - Deterministic execution policy. State: in_progress.** Consider
+- **P13.4 - Deterministic execution policy. State: complete. Implementation
+  SHA: `367206f`.** Consider
   component scheduling or reuse only with deterministic output, bounded memory,
   and evidence that parallelism does not conceal a semantic regression. The
   selected boundary is grid verification only: a caller chooses a positive
   worker count, the policy records serial versus bounded deterministic parallel
   execution, and results/errors are recovered in original component order.
   No automatic worker selection, polygon scheduling, solver execution change,
-  or speed claim is allowed.
-- **P13.5 - Release evidence. State: planned.** Consolidate before/after
+  or speed claim is allowed. The full audit passed; no speed claim was made.
+- **P13.5 - Release evidence. State: in_progress.** Consolidate before/after
   measurements, complete the phase audit, and document every retained and
-  rejected optimization.
+  rejected optimization. Keep structural counters, exact differentials, and
+  local timing observations separate from portable performance claims.
 
 ### Mandatory transition after this phase
 
@@ -2003,9 +2005,9 @@ and AN19 runtime claims.
 | P11.3 | complete | 8cadec8 | ab95125 | ab95125 | ab95125 | `docs/phase-reports/P11-direct-grid-parity.md` | grid pipeline integration through biclique, flow, cut, and rectangle recovery | 2026-08-03T11:21:30Z | 2026-08-03T11:44:38Z | finite-grid-only direct path; both verification modes retain a ranked differential regression; P11.4 remains required |
 | P11.4 | complete | ab95125 | 7ea43cd | 7ea43cd | 7ea43cd | `docs/phase-reports/P11-direct-grid-parity.md` | exhaustive 3x3 and metamorphic direct-vs-ranked graph/partition/network/flow/cut/cover/rectangle equality | 2026-08-03T11:44:38Z | 2026-08-03T11:56:48Z | 897 exhaustive components plus 30 translated/isometric inputs; exact network snapshot is test-only; P11.5 depends on recorded evidence |
 | P11.5 | complete | 7ea43cd | 69270a5 | 69270a5 | 69270a5 | `docs/phase-reports/P11-direct-grid-parity.md` | machine-readable 897-component direct-vs-ranked evidence and local embedding-time observation | 2026-08-03T11:56:48Z | 2026-08-03T12:06:51Z | 1,794 comparisons and zero direct rank counters; direct-specific local timing is nonportable and not an end-to-end speed claim |
-| P13 | in_progress | 69270a5 | c36c267, 089187e, d5fcd67 | pending P13.4/P13.5 | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1-P13.3 are complete; P13.4-P13.5 remain |
+| P13 | in_progress | 69270a5 | c36c267, 089187e, d5fcd67, 367206f | pending P13.5 | pending closeout | `docs/phase-reports/P13-constant-factor-hardening.md` | constant-factor performance hardening | 2026-08-03T12:06:51Z | pending | P13.1-P13.4 are complete; P13.5 remains |
 | P13.1 | complete | 69270a5 | c36c267 | c36c267 | c36c267 | `docs/phase-reports/P13-constant-factor-hardening.md` | reproducible hot-path baseline and structural counters | 2026-08-03T12:06:51Z | 2026-08-03T12:14:30Z | direct-grid, partition, flow, completion, and total timing remain separated |
 | P13.2 | complete | c36c267 | 089187e | 089187e | 089187e | `docs/phase-reports/P13-constant-factor-hardening.md` | geometry and embedding storage optimization | 2026-08-03T12:14:30Z | 2026-08-03T12:22:27Z | InteriorRuns removes redundant BTreeSet record nodes; Pairwise Oracle retained; timing variance not claimed as speedup |
 | P13.3 | complete | 089187e | d5fcd67 | d5fcd67 | d5fcd67 | `docs/phase-reports/P13-constant-factor-hardening.md` | biclique and flow layout optimization | 2026-08-03T12:22:27Z | 2026-08-03T12:35:58Z | eliminates three contiguous node-ID vectors per solve; exact network snapshot and endpoint-error contract retained; full workspace audit passed |
-| P13.4 | in_progress | d5fcd67 | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | grid verification only; explicit bounded workers must preserve canonical output/error order and bounded in-flight/reorder work |
-| P13.5 | planned | pending | pending | pending | pending | pending | consolidated release evidence | pending | pending | depends on P13.2-P13.4 |
+| P13.4 | complete | d5fcd67 | 367206f | 367206f | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | deterministic execution-policy optimization | 2026-08-03T12:35:58Z | pending | bounded grid verification scheduler; exact serial/parallel semantic differential; no speed claim |
+| P13.5 | in_progress | 367206f | pending | pending | pending | `docs/phase-reports/P13-constant-factor-hardening.md` | consolidated release evidence | 2026-08-03T12:54:03Z | pending | depends on P13.2-P13.4; consolidate benchmark and retained/rejected optimization evidence |
