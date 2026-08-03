@@ -29,14 +29,14 @@ so a finite experiment remains tied to its actual execution context.
 
 | ID | P14 action | Reproduction command | Expected final artifact | Claim boundary |
 | --- | --- | --- | --- | --- |
-| `grid-exhaustive-4x4` | P14.2 | `cargo run --release -p mrd -- exhaustive --width 4 --height 4 --output results/final-grid-exhaustive-4x4.json` | exact grid report | Exhaustive finite `4x4` colored-grid population only; no asymptotic claim. |
-| `grid-random-8x8-seed42` | P14.2 | `cargo run --release -p mrd -- random --width 8 --height 8 --cases 10000 --seed 42 --output results/final-random-8x8-seed42.json` | seeded differential report | Deterministic finite sample only. |
-| `polyomino-through-12` | P14.2 | `cargo run --release -p mrd -- polyomino --max-cells 12 --all-solvers --output results/final-polyomino-max12.json` | all-solver polyomino report | Canonical free polyominoes through 12 cells only. |
-| `grid-polygon-differential` | P14.2 | `cargo run --release -p mrd -- benchmark --suite polygon-differential --sizes 3,4 --output results/final-polygon-differential.json` | report plus minimized-counterexample file | Ordinary grid-derived polygon parity at the recorded finite sizes only. |
-| `formal-fixtures` | P14.2 | `cargo run --release -p mrd -- benchmark --suite formal-fixtures --output results/final-formal-fixtures.json` | formal fixture report | Eight named formal-boundary fixtures only; not arbitrary formal inputs. |
-| `direct-grid-parity` | P14.2 | `cargo run --release -p mrd -- benchmark --suite direct-grid-parity --output results/final-direct-grid-parity.json` | 3x3 direct-versus-ranked report | Exact finite-grid equality and zero direct rank counters; timing stays local. |
+| `grid-exhaustive-4x4` | P14.2 | `cargo run --release -p mrd -- exhaustive --width 4 --height 4 --output results/final-campaigns/grid-exhaustive-4x4.json` | exact grid report | Exhaustive finite `4x4` colored-grid population only; no asymptotic claim. |
+| `grid-random-8x8-seed42` | P14.2 | `cargo run --release -p mrd -- random --width 8 --height 8 --cases 10000 --seed 42 --output results/final-campaigns/random-8x8-seed42.json` | seeded differential report | Deterministic finite sample only. |
+| `polyomino-through-12` | P14.2 | `cargo run --release -p mrd -- polyomino --max-cells 12 --all-solvers --output results/final-campaigns/polyomino-max12.json` | compact all-solver summary | Canonical free polyominoes through 12 cells only. The transient per-instance output is reduced to a committed count/status summary, following the P1 baseline convention. |
+| `grid-polygon-differential` | P14.2 | `cargo run --release -p mrd -- benchmark --suite polygon-differential --sizes 3,4 --output results/final-campaigns/polygon-differential.json` | report plus minimized-counterexample file | Ordinary grid-derived polygon parity at the recorded finite sizes only. |
+| `formal-fixtures` | P14.2 | `cargo run --release -p mrd -- benchmark --suite formal-fixtures --output results/final-campaigns/formal-fixtures.json` | formal fixture report | Eight named formal-boundary fixtures only; not arbitrary formal inputs. |
+| `direct-grid-parity` | P14.2 | `cargo run --release -p mrd -- benchmark --suite direct-grid-parity --output results/final-campaigns/direct-grid-parity.json` | 3x3 direct-versus-ranked report | Exact finite-grid equality and zero direct rank counters; timing stays local. |
 | `direct-grid-metamorphic` | P14.2 | `cargo test -p dominance direct_grid_embedding_matches` | test transcript recorded in final correctness report | The tested translated/isometric examples only. |
-| `generic-and-compressed-flow` | P14.2 | `cargo test -p graph && cargo test -p dominance && cargo run --release -p mrd -- benchmark --suite construction --sizes 4,8,16,32,64,128,256 --output results/final-flow-backends.csv` | test transcript, CSV, adjacent JSON, and local manifest | Exact finite flow/cut/cover agreement and structural counters; benchmark times do not establish a crossover policy or complexity theorem. |
+| `generic-and-compressed-flow` | P14.2 | `cargo test -p graph && cargo test -p dominance && cargo run --release -p mrd -- benchmark --suite construction --sizes 4,8,16,32,64,128,256 --output results/final-campaigns/flow-backends.csv` | test transcript, CSV, adjacent JSON, and local manifest | Exact finite flow/cut/cover agreement and structural counters; benchmark times do not establish a crossover policy or complexity theorem. |
 | `workspace-quality` | P14.2 and P14.5 | Mandatory workspace audit from the master plan | command ledger in final manifest and reports | Build, lint, test, and documentation health, not exhaustive semantic verification. |
 | `external-cp-sat` | P14.3 | The isolated-venv commands in `tools/external-oracle/README.md`, followed by `tools/external-oracle/verify_suite.py` | CP-SAT/Rust comparison JSON or an unavailable record | Bounded grid components only; CP-SAT `optimal` is required. No general polygon or formal-boundary claim. |
 | `resource-measurement` | P14.3 | `/usr/bin/time -l` around representative final commands, with in-process `MemoryEstimate` fields retained where emitted | resource command ledger and report | Local peak resident-memory observations and retained-memory estimates only, never a portable memory bound. |
@@ -45,10 +45,43 @@ so a finite experiment remains tied to its actual execution context.
 | `an19-runtime-proof` | P14.4/P14.5 | No executable substitute | deferred record | P9.6a remains proof debt: DOI `10.1137/17M1115575` does not establish the reduced-event ordering/counting conversion. No `AlmostLinear` or AN19 runtime claim is permitted. |
 | `final-release-audit` | P14.5 | Mandatory audit protocol plus schema/content/hash inspection | final reports, benchmark files, and final manifest | Artifact integrity and reproducibility at the recorded commit only. |
 
-Commands that write a sibling `manifest.json` are intentionally directed to
-`results/final-*` names, so their historical release manifests are not
-rewritten. The P14.5 final manifest is an explicit aggregation over those
-outputs rather than an implicit interpretation of a legacy manifest.
+P14.2 inspection verified that several benchmark commands write a sibling
+`manifest.json`. Their outputs are therefore directed to
+`results/final-campaigns/`, whose sibling manifest is isolated from the
+historical `results/manifest.json`. The P14.5 final manifest remains the
+explicit `results/final-manifest.json` aggregation over those outputs, rather
+than an implicit interpretation of a legacy manifest.
+
+## P14.2 Exact Correctness Campaigns
+
+**State: complete. Baseline: `2351cc6bf0791bc3a79bb4a4a82759d016f76d9b`.**
+Every runnable campaign below exited zero. Generated data is under
+`results/final-campaigns/`; the directory's local `manifest.json` contains the
+three benchmark runs that use the CLI manifest writer.
+
+| Campaign | Observed population and result | Duration |
+| --- | --- | ---: |
+| 4x4 exhaustive grid | 65,536 grids and 337,058 components; exact-cover, SG, C0, and compressed comparisons each total 337,058; zero counterexamples | 10.84 s |
+| 8x8 seeded random | 10,000 inputs and 162,162 components at seed 42; zero mismatches and solver errors | 11.70 s |
+| Free polyominoes through 12 cells | 87,148 inputs/components; all records `verified` | 9.34 s |
+| Ordinary grid-derived polygon differential | 66,046 inputs and 169,426 components; 167,082 supported components all verified, zero disagreements, solver errors, and timeouts; 2,344 model rejections are recorded explicitly | 9.50 s |
+| Formal fixtures | 8 fixture/parity records; zero disagreements and solver errors | 0.67 s |
+| Direct-grid parity | 511 nonzero 3x3 masks, 897 components, and 1,794 exact pipeline comparisons; zero mismatches/errors; direct rank sort/map-entry/map-byte counters are all zero | 0.34 s |
+| Direct-grid metamorphic test | `cargo test -p dominance direct_grid_embedding_matches`: 2 passed, 62 filtered | 0.40 s |
+| Generic exact flow | `cargo test -p graph`: 225 passed across 2 suites | 7.15 s |
+| Compressed pipeline | `cargo test -p dominance`: 62 passed, 2 existing ignored across 2 suites | 148.14 s |
+| Flow construction differential | 7 dense compressed networks with zero counterexamples and solver errors; both flow backends agree on recorded values | 0.35 s |
+
+The direct-grid report also records ranked Oracle totals of 3,588 rank sorts,
+624 map entries, and 18,240 estimated map-owned bytes. That structural
+comparison is deterministic evidence for the finite direct-grid path; neither
+it nor the recorded timings is a portable speedup or complexity claim.
+
+No registered fuzz target exists in the repository and `cargo-fuzz` is absent.
+P14.2 therefore records fuzzing as unavailable evidence, not as a successful
+random or metamorphic campaign. P14.5 must emit the corresponding
+`unavailable` manifest entry with the P14.1 probes, omitted fuzzing claims, and
+the next action.
 
 ## Availability Probes
 

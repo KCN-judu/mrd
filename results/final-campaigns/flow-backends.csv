@@ -1,0 +1,8 @@
+instance_name,family,parameters,component_id,horizontal_chords,vertical_chords,block_count,total_vertex_occurrences,reference_microseconds,presorted_microseconds,dinic_flow_microseconds,push_relabel_flow_microseconds,dinic_flow_value,push_relabel_flow_value,reference_initial_sorts,reference_recursive_sorts,presorted_initial_sorts,presorted_recursive_sorts,presorted_stable_partition_visits,presorted_scratch_buffer_acquisitions,presorted_scratch_growth_count,presorted_scratch_point_capacity,presorted_recursive_nodes,presorted_emitted_vertex_occurrences,status,message
+dense-conflict-4x4,dense-conflict,"{""min_horizontal"":4,""min_vertical"":4}",1,8,8,17,40,43,37,74,54,8,8,0,62,4,0,2520,186,28,288,187,40,verified,
+dense-conflict-8x8,dense-conflict,"{""min_horizontal"":8,""min_vertical"":8}",1,16,16,24,84,27,61,11,27,16,16,0,98,4,0,6000,294,44,608,295,84,verified,
+dense-conflict-16x16,dense-conflict,"{""min_horizontal"":16,""min_vertical"":16}",1,32,32,51,189,56,102,20,32,32,32,0,197,4,0,14484,591,52,1200,592,189,verified,
+dense-conflict-32x32,dense-conflict,"{""min_horizontal"":32,""min_vertical"":32}",1,64,64,87,386,98,161,38,59,64,64,0,362,4,0,33060,1086,60,2384,1087,386,verified,
+dense-conflict-64x64,dense-conflict,"{""min_horizontal"":64,""min_vertical"":64}",1,128,128,164,795,182,277,52,121,128,128,0,706,4,0,74424,2118,72,4800,2119,795,verified,
+dense-conflict-128x128,dense-conflict,"{""min_horizontal"":128,""min_vertical"":128}",1,256,256,308,1619,338,585,95,243,256,256,0,1336,4,0,164136,4008,80,9584,4009,1619,verified,
+dense-conflict-256x256,dense-conflict,"{""min_horizontal"":256,""min_vertical"":256}",1,512,512,578,3280,617,989,180,433,512,512,0,2568,4,0,358308,7704,96,19296,7705,3280,verified,

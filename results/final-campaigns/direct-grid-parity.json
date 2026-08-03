@@ -1,0 +1,87 @@
+{
+  "metadata": {
+    "git_commit": "2351cc6bf0791bc3a79bb4a4a82759d016f76d9b",
+    "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
+    "command": "mrd benchmark --suite direct-grid-parity --output results/final-campaigns/direct-grid-parity.json",
+    "seed": null,
+    "timestamp": 1785763717
+  },
+  "masks_examined": 511,
+  "components_examined": 897,
+  "pipeline_comparisons": 1794,
+  "mismatches": [],
+  "solver_errors": [],
+  "direct_rank_sort_count": 0,
+  "direct_rank_map_entry_count": 0,
+  "direct_rank_map_owned_bytes": 0,
+  "ranked_rank_sort_count": 3588,
+  "ranked_rank_map_entry_count": 624,
+  "ranked_rank_map_owned_bytes": 18240,
+  "direct_embedding_microseconds": 1,
+  "ranked_embedding_microseconds": 85,
+  "mode_baselines": {
+    "compact-only": {
+      "comparisons": 897,
+      "direct_phase_microseconds": {
+        "biclique_partition": 25,
+        "boundary_effective_chords": 1385,
+        "boundary_extraction": 774,
+        "component_preparation": 0,
+        "compressed_flow": 1,
+        "dominance_embedding": 0,
+        "effective_chord_enumeration": 0,
+        "final_output_validation": 2,
+        "geometric_completion": 444,
+        "horizontal_simple_chord_completion": 21,
+        "rectangle_recovery": 0,
+        "reflex_grouping": 0,
+        "selected_chord_cut_materialization": 0,
+        "vertical_simple_chord_completion": 0
+      },
+      "ranked_phase_microseconds": {
+        "biclique_partition": 27,
+        "boundary_effective_chords": 1392,
+        "boundary_extraction": 774,
+        "component_preparation": 0,
+        "compressed_flow": 2,
+        "dominance_embedding": 1,
+        "effective_chord_enumeration": 0,
+        "final_output_validation": 0,
+        "geometric_completion": 618,
+        "horizontal_simple_chord_completion": 87,
+        "rectangle_recovery": 0,
+        "reflex_grouping": 0,
+        "selected_chord_cut_materialization": 0,
+        "vertical_simple_chord_completion": 2
+      }
+    },
+    "fully-audited": {
+      "comparisons": 897,
+      "direct_phase_microseconds": {
+        "biclique_partition": 61,
+        "boundary_effective_chords": 3123,
+        "compressed_flow": 2,
+        "dominance_embedding": 1,
+        "final_output_validation": 9,
+        "geometric_completion": 690,
+        "horizontal_simple_chord_completion": 29,
+        "rectangle_recovery": 50,
+        "selected_chord_cut_materialization": 0,
+        "vertical_simple_chord_completion": 0
+      },
+      "ranked_phase_microseconds": {
+        "biclique_partition": 128,
+        "boundary_effective_chords": 3576,
+        "compressed_flow": 47,
+        "dominance_embedding": 84,
+        "final_output_validation": 10,
+        "geometric_completion": 1042,
+        "horizontal_simple_chord_completion": 171,
+        "rectangle_recovery": 143,
+        "selected_chord_cut_materialization": 18,
+        "vertical_simple_chord_completion": 1
+      }
+    }
+  },
+  "performance_boundary": "Embedding-phase timings are local observations, not a portable end-to-end speed claim. The deterministic benefit is zero ranked-coordinate sorts, map entries, and map-owned bytes on the direct finite-grid path."
+}
