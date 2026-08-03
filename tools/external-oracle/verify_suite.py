@@ -140,7 +140,7 @@ def classify_case(
 def run_case(
     suite: str,
     input_path: Path,
-    rect_cli: Path,
+    mrd_binary: Path,
     work_dir: Path,
     max_time_seconds: float,
     exact_cover_cell_limit: int,
@@ -153,7 +153,7 @@ def run_case(
     external_path.write_text(json.dumps(external, indent=2) + "\n")
     completed = subprocess.run(
         [
-            str(rect_cli),
+            str(mrd_binary),
             "compare-external",
             "--input",
             str(input_path),
@@ -238,7 +238,7 @@ def main() -> None:
         run_case(
             suite,
             path,
-            args.rect_cli,
+            args.mrd,
             args.work_dir / "cases",
             args.max_time_seconds,
             args.exact_cover_cell_limit,

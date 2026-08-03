@@ -1917,9 +1917,11 @@ P14 is split before final-artifact work into these source-of-truth subphases:
   The P14.2 data is in `results/final-campaigns/` and summarized in
   `docs/phase-reports/P14-final-artifact.md`; all runnable campaigns passed.
   Fuzzing is explicitly unavailable, not inferred from random testing.
-- **P14.3 - External and resource evidence. State: planned.** Run available
-  external CP-SAT comparisons and memory/resource campaigns; otherwise record
-  precise availability evidence and the exact omitted claim.
+- **P14.3 - External and resource evidence. State: complete.** The documented
+  isolated CP-SAT suite and local `/usr/bin/time -l` observations are recorded
+  in `docs/phase-reports/P14-final-artifact.md` and
+  `results/final-campaigns/external-oracle.json`. Profiler-only claims remain
+  explicitly unavailable.
 - **P14.4 - Performance and complexity synthesis. State: planned.** Consolidate
   local timing observations, structural counters, backend crossover evidence,
   P13 ledger, source assumptions, and deferred proof debt into reports that
@@ -2058,6 +2060,6 @@ and AN19 runtime claims.
 | P14 | in_progress | 6b7ead9 | pending | pending | pending | pending | final verification, benchmark, and strict report | 2026-08-03T13:07:55Z | pending | split before final-artifact work; P9.6a AN19 proof debt remains deferred |
 | P14.1 | complete | 37fa506 | 9e7bdd6 | 9e7bdd6 | 9e7bdd6 | `docs/phase-reports/P14-final-artifact.md`; `docs/final-manifest.schema.json` | campaign inventory and final-manifest contract | 2026-08-03T13:09:00Z | 2026-08-03T13:22:30Z | CP-SAT package, external profilers, and cargo-fuzz are not installed locally; P14.3 must execute or record exact unavailable/deferred dispositions |
 | P14.2 | complete | 2351cc6 | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/` exact correctness data and isolated local manifest | 2026-08-03T13:26:47Z | 2026-08-03T13:35:00Z | 4x4 exhaustive, random, polyomino, polygon, formal, direct-parity, generic-flow, and compressed-flow activities passed; fuzz has no runner/target and remains unavailable |
-| P14.3 | planned | pending | pending | pending | pending | pending | external and resource evidence | pending | pending | depends on P14.1 |
+| P14.3 | complete | 69cf77d | pending closeout | pending | pending | `docs/phase-reports/P14-final-artifact.md` | `results/final-campaigns/external-oracle.json` | 2026-08-03T13:40:00Z | 2026-08-03T13:45:00Z | OR-Tools 9.15.6755 isolated rerun: 6,998 inputs/27,228 components all verified; only local RSS observations are available |
 | P14.4 | planned | pending | pending | pending | pending | pending | performance and complexity synthesis | pending | pending | depends on P14.1-P14.3 |
 | P14.5 | planned | pending | pending | pending | pending | pending | final artifact closeout | pending | pending | depends on P14.2-P14.4 |

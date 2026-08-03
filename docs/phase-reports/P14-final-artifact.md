@@ -83,6 +83,35 @@ random or metamorphic campaign. P14.5 must emit the corresponding
 `unavailable` manifest entry with the P14.1 probes, omitted fuzzing claims, and
 the next action.
 
+## P14.3 External and Resource Evidence
+
+**State: complete. Baseline: `69cf77d0c537b665d5c04ae666767fd58bd3cf83`.**
+The documented isolated environment installed OR-Tools `9.15.6755`. After the
+focused `--mrd` runner repair described below, the bounded CP-SAT suite ran in
+44.14 seconds with all 6,998 inputs and all 27,228 components `verified`:
+
+- 512 exhaustive 3x3 inputs and 1,794 components;
+- 6,473 free polyominoes through ten cells and 25,390 components; and
+- 13 admitted adversarial grids and 44 components.
+
+Every component had a CP-SAT optimal comparison, an exact-cover comparison,
+and a Rust comparison; there were zero disagreement components, timeouts,
+unsupported cases, or solver errors. The executable report is
+`results/final-campaigns/external-oracle.json`.
+
+The local resource tool available on this host is `/usr/bin/time -l`. Its
+observations are intentionally not committed as a cross-machine benchmark:
+
+| Command | Wall time | Maximum resident set size | Boundary |
+| --- | ---: | ---: | --- |
+| `target/release/mrd exhaustive --width 4 --height 4` | 10.48 s | 23,674,880 bytes | One local process observation over the finite 4x4 campaign. |
+| `target/release/mrd benchmark --suite direct-grid-parity` | 0.07 s | 23,674,880 bytes | One local process observation over the finite direct-grid campaign. |
+
+`valgrind`, `heaptrack`, and `hyperfine` remain unavailable. Consequently P14
+does not claim allocation counts, portable peak memory, or a profiler-derived
+performance result. In-process `MemoryEstimate` values and P13 structural
+counters remain separate diagnostic evidence.
+
 ## Availability Probes
 
 P14.1 performed these local probes on 2026-08-03:
@@ -94,6 +123,12 @@ P14.1 performed these local probes on 2026-08-03:
 | Resource profilers | `command -v valgrind`, `heaptrack`, and `hyperfine` | unavailable | No profiler-derived allocation claim is available. |
 | Local resource observation | `/usr/bin/time -l true` | exit 0 | P14.3 can collect local peak-resident-memory observations, with the stated local-only boundary. |
 | Fuzzing | repository fuzz-target scan and `command -v cargo-fuzz` | no target found; runner unavailable | P14.2 must report fuzzing as unavailable unless it runs an actual registered fuzzer. |
+
+P14.3 installed the documented isolated OR-Tools environment and exposed a
+separate script defect before any CP-SAT case ran: `parse_args` defines
+`--mrd`, while `main` read the nonexistent `args.rect_cli`. The focused repair
+renames the `run_case` parameter to `mrd_binary` and passes `args.mrd`; it does
+not alter the CP-SAT model, input population, or Rust comparison contract.
 
 ## Deferred Proof Boundary
 
