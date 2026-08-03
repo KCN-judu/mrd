@@ -7,8 +7,8 @@
 - Current phase: P9.5e.3g.3
 - Current phase state: blocked
 - Last completed phase: P14.5
-- Last pushed SHA: d8179ba8b337fd4d8be26fd669b93f8bdca09aaf
-- Plan last updated: 2026-08-03T14:06:23Z
+- Last pushed SHA: 207f68a1cfce64b1e852c43e73a08a89d707959a
+- Plan last updated: 2026-08-03T14:09:38Z
 - Overall target: complete source-traceable geometry, deterministic
   almost-linear exact flow, direct grid parity embedding, constant-factor
   hardening, and final reproducible evidence.
@@ -1754,9 +1754,10 @@ runtime claim is made. Subphases:
   backend -> matching/cover -> chord selection -> rectangle completion -> exact
   verification for both reference and source-with-target modes on supported
   fixtures, without leaking augmentation arcs.
-- **P10.7 - Direct grid parity path. State: pending.** See the direct-grid
-  parity section below (renumbered P11). Do not begin it before P10.1-P10.6
-  unless it is independent of the automatic `F*` blocker.
+- **P10.7 - Direct grid parity path. State: complete as P11.** The direct-grid
+  parity work was completed independently as P11, with RankedCoordinates
+  retained as the permanent Oracle. Its evidence is recorded in
+  `docs/phase-reports/P11-direct-grid-parity.md`.
 - **P10.8 - Benchmark and evidence separation. State: complete.** Separate
   reference-complete, source-with-known-target, certificate-verification,
   direct-grid vs polygon-derived, geometry-only, compressed-representation, and
@@ -1787,8 +1788,9 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P11 - Direct grid parity embedding
 
-**State:** in_progress. Add `EmbeddingCoordinateBackend` with `RankedCoordinates`
-and `DirectGridParity`. For finite integer pixel grids encode horizontal as
+**State:** complete. `EmbeddingCoordinateBackend` now provides
+`RankedCoordinates` and `DirectGridParity`. For finite integer pixel grids it
+encodes horizontal as
 `(2*l, -2*r, 2*y, -2*y)` and vertical as
 `(2*x+1, -2*x+1, 2*t+1, -2*b+1)`. DirectGridParity must build no coordinate
 rank sets/maps/sorted vectors. Require dominance/intersection equivalence, no
@@ -1832,13 +1834,14 @@ After the phase has passed its full audit, been committed, and been pushed:
 
 ## P13 - Constant-factor performance hardening
 
-**State:** in_progress. Profile verified code and reduce constants without weakening
-certificates. Candidates: scratch reuse, capacity planning, SoA dominance
-points, safe narrow integers, flattened flow adjacency, iterative traversal,
-biclique arenas, deterministic component parallelism, specialized pipelines,
-evidence-backed backend selection, and optional certificate materialization.
-Every optimization needs isolated before/after commit and benchmark; revert
-regressions. Suggested release: `v2.2.0-constant-factor-hardening`.
+**State:** complete. Verified hot paths were profiled and three evidence-backed
+constant-factor changes were retained without weakening certificates: canonical
+chord record storage, contiguous compressed-flow node layout, and opt-in
+bounded grid-verification scheduling. Candidate work without an isolated
+correctness and measurement case remains rejected rather than speculative.
+The retained/rejected ledger and phase audit are in
+`docs/phase-reports/P13-constant-factor-hardening.md`. Suggested release:
+`v2.2.0-constant-factor-hardening`.
 
 P13 is split before implementation into these source-of-truth subphases:
 
