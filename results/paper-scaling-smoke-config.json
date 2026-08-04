@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "campaign": "paper-scaling",
+  "seed": 424242,
+  "oracle_cell_limit": 40,
+  "families": [
+    "random-connected",
+    "dense-conflict",
+    "representation-crossover"
+  ],
+  "algorithms": [
+    "compact-mrd",
+    "explicit-hopcroft-karp",
+    "explicit-c0-flow",
+    "exact-cover-oracle"
+  ],
+  "sizes": [4, 6, 8, 10],
+  "warmups": 1,
+  "repetitions": 3,
+  "timeout_seconds": 8,
+  "fit": {
+    "minimum_target_size": 6,
+    "minimum_size_levels": 6,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260804
+  },
+  "notes": "Smoke only: three predeclared families, four sizes, one warm-up, three measured repetitions, and an 8-second censoring threshold."
+}
