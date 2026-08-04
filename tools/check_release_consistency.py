@@ -118,11 +118,6 @@ def check_an19_status_docs() -> None:
             "an19_runtime_verified: true",
             "10.1137/17M1115575",
         ),
-        "docs/KNOWN_LIMITATIONS.md": (
-            "does not block P9.3.3 through P9.5",
-            "low-priority proof debt",
-            "empirical counts do not close the proof",
-        ),
         "docs/IMPLEMENTATION.md": (
             "P9.3.2d's faithful implementation and exact Oracle differential are complete",
             "P9.3.3 through P9.5 source-shaped backend work",
@@ -130,19 +125,10 @@ def check_an19_status_docs() -> None:
             "3n + 4m + 2",
             "n + 2m + 2",
             "priority_queue_bound_proved`",
-        ),
-        "docs/EXPERIMENTS.md": (
-            "247 passed and 3 existing ignored",
-            "no experimental population is treated as a",
-            "proof of that bound",
-        ),
-        "docs/TESTING.md": (
-            "P9 AN19 QA boundary",
-            "does not validate AN19's asymptotic runtime",
-        ),
-        "docs/REFERENCES.md": (
+            "247 tests passed and 3 existing ignored tests",
+            "It does not validate AN19's",
             "10.1137/17M1115575",
-            "runtime chain therefore remains unverified",
+            "empirical counts do not close the proof",
         ),
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
             "Current phase: P9.5e.3g.3",
@@ -333,18 +319,18 @@ def main() -> None:
         assert_reachable(commit, head, "manifest run commit")
 
     paper_tables = (ROOT / "results/paper-tables.md").read_text(encoding="utf-8")
-    experiments = (ROOT / "docs/EXPERIMENTS.md").read_text(encoding="utf-8")
-    if "v0.8" not in paper_tables or "v0.8" not in experiments:
+    evidence = (ROOT / "docs/IMPLEMENTATION.md").read_text(encoding="utf-8")
+    if "v0.8" not in paper_tables or "v0.8" not in evidence:
         fail("generated evidence does not contain a v0.8 section")
-    if "v0.9" not in paper_tables or "v0.9" not in experiments:
+    if "v0.9" not in paper_tables or "v0.9" not in evidence:
         fail("generated evidence does not contain a v0.9 section")
-    if "v1.0" not in paper_tables or "v1.0" not in experiments:
+    if "v1.0" not in paper_tables or "v1.0" not in evidence:
         fail("generated evidence does not contain a v1.0 section")
-    if "v1.1" not in paper_tables or "v1.1" not in experiments:
+    if "v1.1" not in paper_tables or "v1.1" not in evidence:
         fail("generated evidence does not contain a v1.1 section")
-    if "v1.2" not in paper_tables or "v1.2" not in experiments:
+    if "v1.2" not in paper_tables or "v1.2" not in evidence:
         fail("generated evidence does not contain a v1.2 section")
-    if "v1.3" not in paper_tables or "v1.3" not in experiments:
+    if "v1.3" not in paper_tables or "v1.3" not in evidence:
         fail("generated evidence does not contain a v1.3 section")
     generated_tables = set(manifest.get("generated_tables", []))
     for relative in REQUIRED_AN19_EVENT_ARTIFACTS:
@@ -555,9 +541,9 @@ def main() -> None:
     ):
         if required_text not in normalized_tables:
             fail(f"generated paper tables omit v0.8 evidence: {required_text}")
-    if "retains three canonical clean witnesses" in experiments:
+    if "retains three canonical clean witnesses" in evidence:
         fail("experiment documentation still reports only three witnesses")
-    if "No strict sigma advantage was found" in experiments:
+    if "No strict sigma advantage was found" in evidence:
         fail("experiment documentation still reports no strict sigma advantage")
     algorithms = (ROOT / "docs/IMPLEMENTATION.md").read_text(encoding="utf-8")
     if "grid::experiment::InteriorRuns" not in algorithms or "BoundaryIndex" not in algorithms:

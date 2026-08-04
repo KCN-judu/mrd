@@ -115,16 +115,16 @@ P13 hardened constant factors through direct-grid counters, prepared pipeline
 reuse, and diagnostic-only local timing boundaries. P14 consolidated final
 correctness, performance, and complexity reports, manifests, and campaign
 artifacts. The later 31-process direct-grid sampling campaign is described in
-`BENCHMARK_SAMPLING_REPORT.md`; it is local descriptive evidence, not a
+`IMPLEMENTATION.md`; it is local descriptive evidence, not a
 portable speed or complexity claim.
 
 ## Retained Evidence Map
 
 | Question | Current source of truth |
 | --- | --- |
-| What the workspace implements and what remains limited | `IMPLEMENTATION.md`, `KNOWN_LIMITATIONS.md` |
-| Which exact inputs and solvers agreed | `EXPERIMENTS.md`, `results/final-correctness-report.md`, `results/final-campaigns/` |
-| How local timing was sampled | `BENCHMARK_SAMPLING_REPORT.md`, `results/benchmark-sampling.json`, `results/benchmark-sampling-runs.csv` |
+| What the workspace implements and what remains limited | `IMPLEMENTATION.md` |
+| Which exact inputs and solvers agreed | `IMPLEMENTATION.md`, `results/final-correctness-report.md`, `results/final-campaigns/` |
+| How local timing was sampled | `IMPLEMENTATION.md`, `results/benchmark-sampling.json`, `results/benchmark-sampling-runs.csv` |
 | Formal input model and geometry | `IMPLEMENTATION.md` |
 | Current source-flow constraints | `IMPLEMENTATION_MASTER_PLAN.md`, `IMPLEMENTATION.md` |
 | Original detailed prose | Git history before the history-consolidation commit |
@@ -135,5 +135,5 @@ Historical process documents should record only durable decisions in this
 file. Add a new item only when it changes the current supported scope,
 evidence boundary, or unresolved obligation. Store measurements, manifests,
 and counterexamples as structured artifacts. Keep current implementation
-contracts in their dedicated top-level documents instead of recreating
+contracts in the consolidated implementation document instead of recreating
 release notes or per-step diaries.

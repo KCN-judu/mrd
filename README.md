@@ -30,12 +30,10 @@ The crate and namespace ownership map is documented in
 
 The consolidated implementation account is
 [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md). It explains each major
-subsystem's purpose, implementation evidence, and remaining limitations. The separate
-[`docs/BENCHMARK_SAMPLING_REPORT.md`](docs/BENCHMARK_SAMPLING_REPORT.md)
-describes the controlled repeated-process benchmark protocol and links its raw
-samples. The concise historical record is
-[`docs/HISTORY.md`](docs/HISTORY.md); machine-readable campaign artifacts
-remain under `results/`.
+subsystem's purpose, evidence, reproducibility protocol, sources, and remaining
+limitations. The concise historical record is [`docs/HISTORY.md`](docs/HISTORY.md)
+and the active plan is [`docs/IMPLEMENTATION_MASTER_PLAN.md`](docs/IMPLEMENTATION_MASTER_PLAN.md);
+machine-readable campaign artifacts remain under `results/`.
 
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a
@@ -53,8 +51,7 @@ a source-mapped canonical representation, exact effective-chord construction,
 compact matching, formal completion, and Definition 2 validation. The formal
 pipeline is available through `solve` with either dominance solver mode.
 Disconnected outer components remain unsupported. See
-`docs/IMPLEMENTATION.md` and
-`docs/KNOWN_LIMITATIONS.md`.
+`docs/IMPLEMENTATION.md`.
 
 ## Quick start
 
@@ -197,24 +194,23 @@ The v0.9 boundary-native evidence is recorded in
 `results/v0.9-polygon-differential.json` and generated into
 `results/paper-tables.md`; historical v0.2--v0.8.1 result populations remain
 separate and immutable. v1.0 indexed-backend evidence is stored in the
-`results/v1.0-polygon-*` reports and documented in
-`docs/POLYGON_BACKEND_DIFFERENTIAL.md`. The v1.1 three-backend sweep evidence
-is stored in `results/v1.1-polygon-*`. The implementation contracts for the
-event sweep and v1.2 sparse completion are consolidated in
+`results/v1.0-polygon-*` reports. The v1.1 three-backend sweep evidence is
+stored in `results/v1.1-polygon-*`. The implementation contracts, differential
+populations, and sparse-completion evidence are consolidated in
 `docs/IMPLEMENTATION.md`.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
-equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
+equality. See `docs/IMPLEMENTATION.md` before using non-grid polygon inputs.
 
 CompactOnly production geometry uses the indexed boundary metadata, grid-run
 chord enumeration, laminar event sweep, and indexed frontier completion. The
 pairwise endpoint, nested-gap, and rescan paths remain independent references;
-their differential campaigns are recorded separately in `docs/EXPERIMENTS.md`.
+their differential campaigns are recorded in `docs/IMPLEMENTATION.md`.
 
 The optional independent Python/OR-Tools oracle is documented in
 `tools/external-oracle/README.md`. Reproducible commands, exact tested
 populations, seeds, timeouts, and discrepancy counts are recorded in
-`docs/EXPERIMENTS.md` and `results/manifest.json`.
+`docs/IMPLEMENTATION.md` and `results/manifest.json`.
 
 The four-coordinate Cardinal--Yuditsky specialization has representation bound
 `O(q log^4 q)`. For the accepted ordinary-loop polygon model, `sg-sweep` uses

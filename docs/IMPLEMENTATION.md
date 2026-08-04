@@ -16,14 +16,14 @@ four kinds of statement throughout:
 - **Boundary** records unsupported inputs, unimplemented source machinery, or
   a complexity claim that the repository does not make.
 
-Experimental results, test populations, raw benchmark samples, release
-provenance, the forward plan, and the historical record remain separate:
-[`EXPERIMENTS.md`](EXPERIMENTS.md),
-[`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md),
-[`TESTING.md`](TESTING.md), [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md),
-[`IMPLEMENTATION_MASTER_PLAN.md`](IMPLEMENTATION_MASTER_PLAN.md), and
-[`HISTORY.md`](HISTORY.md).  Those documents are evidence and process records;
-they do not redefine the implementation contract stated here.
+Experimental results, test populations, raw benchmark samples, and references
+are described in the evidence sections of this document; the machine-readable
+artifacts remain under `results/`.  Only the forward plan, historical record,
+and JSON manifest schema remain separate operational documents:
+[`IMPLEMENTATION_MASTER_PLAN.md`](IMPLEMENTATION_MASTER_PLAN.md),
+[`HISTORY.md`](HISTORY.md), and `final-manifest.schema.json`.  The plan and
+history are process records; they do not redefine the implementation contract
+stated here.
 
 The implementation handles finite colored unit-cell grids, ordinary
 integer-coordinate rectilinear polygons, and the supported formal-boundary
@@ -748,3 +748,383 @@ promoted here into a universal correctness or asymptotic theorem.
 Any change to this document must preserve these distinctions and update the
 corresponding evidence, limitation, plan, or history record when it changes a
 claim boundary.
+
+## Evidence and Reproducibility
+
+### Evidence taxonomy
+
+The repository distinguishes implementation facts, finite correctness evidence,
+local measurements, and source-level proof obligations.  An implementation
+fact is established by code paths, counters, and invariants.  A finite
+campaign supports only the recorded population, generator, seed, and filters.
+A timing sample describes the recorded binary and host under its protocol.  A
+source theorem is claimed only after the source assumptions, construction, and
+matching counters have all been checked.  No campaign below is used to infer a
+universal correctness theorem or an asymptotic runtime.
+
+The machine-readable result files are the numerical source of truth.  Markdown
+descriptions explain population design and interpretation, while manifests bind
+each report to its producing commit, command, environment, and result files.
+Counterexamples are minimized and retained as regressions; a zero-disagreement
+report is not evidence that an excluded input class was solved.
+
+### Core correctness populations
+
+The permanent grid adapter enumerates all 512 binary `3 x 3` masks, separates
+both colors by four-connectivity, and compares exact cover, explicit SG, C0,
+FullyAudited compressed flow, and CompactOnly.  The nonempty-mask population
+contains 511 masks and 897 foreground components in the direct-parity census;
+all recorded comparisons have zero disagreement.  The explicit release-mode
+`4 x 4` campaign covers all 65,536 masks and 337,058 monochromatic components,
+with 337,058 comparisons per exact solver and no skipped, timed-out, or
+disagreeing component.
+
+The seeded `8 x 8` campaign contains 10,000 inputs, 162,162 components, and
+zero counterexamples.  Exact cover compares 160,900 components and skips 1,262
+above its configured 40-cell limit; SG and both dominance paths compare all
+162,162.  Complete canonical free-polyomino enumeration through 10 cells
+contains 6,473 inputs, while the larger through-12-cell validation contains
+87,146 canonical polyominoes plus two ordinary-hole fixtures.  The bounded
+external CP-SAT population independently parses input and enumerates valid
+rectangles without Rust geometry: 6,998 inputs and 27,228 components, including
+all `3 x 3` grids, free polyominoes through ten cells, and 13 adversarial grids.
+Every selected component agrees across CP-SAT, exact cover, SG, C0, and
+compressed flow; 11 larger adversarial inputs are explicit input-filter skips.
+
+The deterministic adversarial population contains endpoint contacts, rings and
+multiple holes, narrow corridors, combs, staircases, spirals, dense conflicts,
+reflex-heavy shapes, long runs, disconnected same-color regions, and diagonal
+contact.  Its 17 inputs and 19 components have zero unsupported components,
+timeouts, solver errors, and disagreements.  Metamorphic tests apply
+translation, reflections, rotations, diagonal reflection, and positive scaling;
+32 mapped-back solver results preserve exact validation and optimum counts.
+
+### Grid and polygon differential contract
+
+The grid-to-polygon adapter converts only accepted normalized boundary loops.
+For every accepted component, the differential compares the canonical boundary
+and reflex semantics, both complete chord families, minimum-cover selection,
+selected and added cut unions, optimum count, coordinate rectangles, and both
+native validators.  Equal optimum values alone are insufficient.  The default
+`3 x 3` gate contains 893 accepted ordinary polygon components; the release
+`4 x 4` gate contains 166,189.  Both populations have zero chord, cut, and
+rectangle disagreements.
+
+The bounded raster adapter in `verification::polygon` is an independent
+small-coordinate Oracle.  It has mandatory width, height, and cell limits, and
+production polygon diagnostics require `raster_oracle_used=false`.  Large
+coordinate fixtures therefore test the native boundary path rather than being
+silently rasterized.
+
+The extended ordinary-polygon corpus contains free polyominoes, ordinary-hole
+fixtures, endpoint and topology stress, path-tree families, dense and
+complete-bipartite families, 1,000 deterministic random regions, and affine
+metamorphic variants.  The v0.9 report records 7,529 inputs, 7,276 supported
+components, 255 explicit ordinary-model rejections, and zero differences.  The
+isolated CP-SAT rerun agrees on all 27,228 selected components.  Unsupported
+formal ornaments, isolated points, point/segment holes, contour contacts, and
+disconnected outer components remain declared scope boundaries.
+
+### Biclique, flow, and metamorphic evidence
+
+Every feasible FullyAudited compressed invocation checks nonempty biclique
+blocks, unique IDs, actual Cartesian-product edges, no missing or fabricated
+edge, multiplicity exactly one, recursive decrease, and termination.  The
+recorded correctness populations and six dense instances exercise 532,947
+compact solver/audit invocations with zero missing, fabricated, or duplicate
+edges.
+
+The deterministic dense-conflict family has six geometry-backed instances.  At
+sizes 4 through 128, `q` grows from 16 to 512, explicit conflict edges from 32
+to 16,896, and `sigma` from 40 to 1,619.  C0 arcs grow from 80 to 34,304,
+whereas compact arcs grow from 56 to 2,131; the observed arc reduction rises
+from 30.00% to 93.79%.  These are measurements of one family and do not imply
+an asymptotic law.  Owned allocation estimates are not process peak RSS.
+
+The prepared-grid and indexed-completion campaigns compare selected cuts,
+added cuts, sorted rectangles, and both cell-exact validators.  On the dense
+family with `q=512,1024,2048,4096`, indexed-frontier completion measured
+4.183x, 1.800x, 1.821x, and 1.541x relative to reference rescan in the
+recorded single-run campaign.  The comparison is local diagnostic evidence,
+not a portable performance guarantee.
+
+### Path-tree evidence
+
+Path-tree evidence is generated from unit-cell polygons, never from synthetic
+trees passed into production.  The geometry families include laminar chains,
+laminar stars, balanced laminar branching, and asymmetric orientations.  Each
+row records dual vertices and edges, depth, branching, heavy-chain count,
+intervals, canonical segment nodes, bicliques, `sigma`, path length, and
+tree-edge occurrence.  The regression guards
+
+```text
+sum_heavy_intervals <= C1 * path_count * ceil_log2(q + 1)
+sum_canonical_nodes <= C2 * path_count * ceil_log2(q + 1)^2
+tree_edge_occurrences <= C3 * tree_edge_count * ceil_log2(q + 1)
+```
+
+are theorem-shaped engineering guards, not formal proofs.  The corrected clean
+complete-bipartite family satisfies `|H|=|V|=2t` and `|E|=4t^2` for `t=1..4`;
+its paired endpoint construction is a permanent regression.  The
+mixed-branching search examines geometry-backed candidates, delta-minimizes
+them, and retains 16 canonical witnesses with 47--115 cells.  Each has both
+chord orientations, degree at least three, a multi-heavy-chain path, and at
+least two canonical nodes.  The connected-sum family grows through eight
+modules; its first four rows have `(q, regions, paths, intervals, nodes)` equal
+to `(6,4,3,4,2)`, `(14,9,6,10,6)`, `(22,13,10,15,8)`, and
+`(30,17,14,20,11)`.
+
+The boundary-gap differential compares the indexed `EventSweep` with the
+linear `ReferenceNested` backend over 950,557 inputs, 1,053,939 components,
+and 385,947 clean components.  It records 16,530,980 boundary-index
+comparisons, 3,368,464 endpoint-metadata comparisons, 1,053,939 classifier
+comparisons, and 771,894 orientation comparisons, with zero mismatches and
+zero solver errors.  The event backend performs 409,593 pushes and pops and
+zero interval-membership tests; the reference performs 52,388,678 membership
+tests.  Both orientations, dual edges, boundary gaps, endpoint regions,
+compact paths, HLD arrays, biclique partitions, rectangles, optimum counts,
+and validators are compared.
+
+The orientation audit covers 160,443 clean components and historically found
+no positive `BoundEstimate` regret.  The later stored mixed-branching witness
+audit intentionally adds five positive-regret rows, with maximum absolute
+regret 2 and ratio `2/4`.  `BuildBothExact` therefore remains the production
+default; `BoundEstimate` remains a named benchmark heuristic.
+
+### Ordinary-polygon backend evidence
+
+The v1.0 backend differential compares `chord::oracle::Pairwise`,
+`chord::oracle::Indexed`, and `chord::experiment::Sweep` on normalized
+boundaries, reflex vertices, full Definition 7 chord families, endpoint
+metadata, clean certificates, representation and flow values, cuts, rectangles,
+and validators.  The 3 x 3 and 4 x 4 supported populations contain 893 and
+166,189 components respectively; the extended corpus contains 7,394 and the
+native fixture corpus 40.  Every supported row agrees.  The 13-case negative
+campaign preserves validator categories exactly.
+
+The v1.1 sweep campaign retains the same structural equality and requires zero
+aligned-pair iterations, all-pair iterations, Definition 7 fallback checks,
+full-boundary scans, and duplicate outputs.  Candidate-gap family B at size 16
+has `n=260`, `r=128`, `C=2,048`, `q=124`, with 8,128 reference pair
+iterations, 2,048 indexed pair iterations, and 776 sweep event/status
+operations.  Ordinary-hole family C has `n=68`, 16 holes, `r=64`, `C=1,024`,
+`q=30`, with 2,016 reference iterations, 1,024 indexed iterations, and 264
+sweep operations.  These counters test the implementation specialization; they
+do not replace the source proof.
+
+The v1.2 four-path completion differential compares coordinate-compressed
+reference, indexed line-map completion, indexed dynamic stabbing with dense
+recovery, and dynamic stabbing with sparse recovery and slab validation.  All
+paths must agree on selected cuts, added-cut order, canonical unions,
+rectangles, area, and validator category.  CompactOnly traces require false
+flags for atomic cells, occupied arrays, barrier arrays, and coverage
+difference arrays.
+
+### Polygon-native scaling and crossover
+
+The polygon-native scaling families construct integer-coordinate boundaries
+directly.  They include staircase-sparse, many-coordinates/few-faces,
+staggered-hole coordinate products, completion-heavy notches, sparse path-tree,
+ordinary-hole 4D fallback, aligned-reflex-heavy, and huge-coordinate (`10^12`)
+families.  Each row records boundary complexity, holes, reflex count, aligned
+candidate count `C`, chord and cut counts, phase times, indexed counters, owned
+estimates, and exact equality flags.  The v1.0 campaign contains 40 verified
+rows at sizes `1,2,4,8,16`; the v1.3 output-sensitive report contains 56
+verified rows at sizes 16, 32, 64, and 128.
+
+The v1.3 comparison runs dense coordinate arrangement, reference range-scan
+subdivision, output-sensitive orthogonal-sweep subdivision, event-tree
+validation, and opt-in `auto` recovery on identical final cuts.  Sparse memory
+first beats dense estimates between 32 and 128 for ten families; four do not
+cross by 128.  Sparse recovery first wins at 128 for six families; eight do
+not cross.  `auto` selected the measured faster backend on all 56 rows, with
+maximum observed phase regret 88 microseconds and retained-memory regret 1,696
+bytes.  No universal crossover is claimed.  The combined size-256 reference
+run exceeded nine minutes while CPU-bound and memory-stable; it is recorded as
+a resource limit, not as a zero or extrapolated result.
+
+### Direct-grid parity sampling
+
+The direct-parity benchmark is a timing sample, not a correctness population
+and not a causal performance experiment.  One measured process runs:
+
+```bash
+target/release/mrd benchmark --suite direct-grid-parity --output <temporary-relative-path>
+```
+
+It visits 511 nonzero `3 x 3` masks, 897 foreground components, and 1,794
+paired ranked/direct comparisons in both FullyAudited and CompactOnly modes.
+Ranked coordinates execute before direct parity in the fixed CLI order.  The
+standard protocol builds one release binary, runs three unrecorded warmups,
+then 31 fresh measured processes.  A process is rejected if it returns nonzero,
+reports a mismatch or solver error, changes finite counts, changes direct zero
+counters, changes ranked counters, or omits a verification mode.  No measured
+sample is dropped for convenience.
+
+For the recorded campaign, the binary was built with `rustc 1.89.0` on macOS
+26.5 arm64, Apple M4, 10 logical CPUs.  The process-wall-time median was
+66,311 microseconds with Q1 65,546.5 and Q3 67,264.  Direct embedding time
+had median 1 microsecond versus 10 for ranked; direct all-phase time had median
+6,033 versus 6,917 for ranked.  The direct-to-ranked all-phase ratio median was
+0.8713 with IQR 0.8678--0.8816.  Seven direct embedding observations were
+quantized to zero microseconds, so the stable conclusion is structural: all 31
+runs reported zero direct rank sorts, rank-map entries, and rank-map owned
+bytes.  These numbers describe one binary, host, fixed order, and workload.
+
+The raw protocol and observations are retained in
+`results/benchmark-sampling.json` and
+`results/benchmark-sampling-runs.csv`.  Their report includes executable hash,
+source revision, public environment metadata, full per-process reports, and
+quartiles using inclusive linear interpolation (R type 7).  No confidence
+interval, p-value, normality assumption, cross-machine speedup, peak RSS,
+energy, or asymptotic inference is made.
+
+### Test and release protocol
+
+The repository quality gate is:
+
+```bash
+cargo fmt --all -- --check
+python3 tools/check_biclique_bound.py
+python3 tools/check_source_flow_audit.py
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+cargo build --workspace --release
+python3 tools/check_release_consistency.py
+```
+
+The tests cover boundary area and loop invariants, exact-cover outputs,
+Hopcroft--Karp and flow cuts, signed closed-segment versus strict-dominance
+pairs, exact biclique partitions, endpoint and topological adversaries,
+metamorphic transformations, free-polyomino enumeration, stored regression
+bundles, all binary `3 x 3` grids, and seeded CLI families.  CI runs these
+gates plus bounded adversarial smoke tests; the full verification workflow
+adds exhaustive, external-oracle, dense, sparse, path-tree, orientation,
+source-flow, and regression campaigns and archives their machine-readable
+outputs.
+
+The P9 QA boundary is explicit.  At the recorded audit SHA the workspace had
+247 tests passed and 3 existing ignored tests, with clean local and remote
+branches.  This validates implementation counters, invariants, exact
+certificates, and mutation rejection only.  It does not validate AN19's
+asymptotic runtime.  The fixed-snapshot event command differentially checks
+the exact Oracle/reduced traces, six charge maps, A--H families, highway
+halving, trace mutations, and practical heap certificate; it leaves global
+amortization, source-equivalent queue bounds, and AN19 runtime false.
+
+The layered backend tests verify reference provenance, honest source failures,
+caller-target success provenance, exact negative certificates, target parsing,
+missing-target rejection, and explicit unsupported grid input.  The slow
+Appendix B.1 source test remains ignored by design; its honest-failure contract
+is tested.  `tools/check_source_flow_audit.py` rejects an automatic source mode,
+an automatic `solve_source` entry, and binary-search wrappers.
+
+### Reproduction outputs
+
+The following result families are immutable evidence inputs to the release
+manifest rather than duplicate prose tables:
+
+| Evidence | Result source |
+| --- | --- |
+| Exhaustive and random grid correctness | `results/final-campaigns/`, `results/random-8x8-seed42.json` |
+| External exact comparison | `results/v1.3-external-oracle.json` and earlier versioned reports |
+| Polygon backend differential | `results/v1.0-*`, `results/v1.1-*`, `results/v1.2-*`, `results/v1.3-*` |
+| Path-tree families and witnesses | `results/v0.7-*`, `results/v0.8-*`, `results/path-tree-witnesses/` |
+| AN19 event traces | `results/an19-event-adversarial.json` and Markdown summary |
+| Direct parity sample | `results/benchmark-sampling.json`, `results/benchmark-sampling-runs.csv` |
+| Release provenance | `results/release-index.json`, `results/manifest.json`, `results/paper-tables.md` |
+
+When regenerating evidence, change the result filename if the workload,
+repetitions, seed, machine, compiler, backend order, timeout, or statistic
+changes. Never overwrite a historical artifact with a different protocol.
+
+## References and Source Mapping
+
+1. Soltan and Gorpinevich, *Minimum Dissection of a Rectilinear Polygon with
+   Arbitrary Holes into Rectangles*, Discrete & Computational Geometry 9,
+   57--79, 1993. DOI `10.1007/BF02189307`.  Definitions 1, 3, 4, and 7 and
+   Section 10 supply the formal boundary, effective chord, and completion
+   contracts implemented in this document.
+2. Eppstein, *Graph-Theoretic Solutions to Computational Geometry Problems*,
+   arXiv:0908.3916, 2009.  This is background for the graph reduction, not a
+   substitute for Definition 7.
+3. Hopcroft and Karp, *An n^(5/2) Algorithm for Maximum Matchings in Bipartite
+   Graphs*, SIAM Journal on Computing 2(4), 1973. DOI `10.1137/0202019`.
+   `graph::hopcroft_karp` is the explicit matching and Konig-cover Oracle.
+4. Knuth, *Dancing Links*, arXiv:cs/0011047, 2000.  The exact-cover Oracle
+   uses the constrained branching idea with dynamic bitsets, not pointer-based
+   dancing links.
+5. Cardinal and Yuditsky, *Compact Representation of Semilinear and
+   Terrain-Like Graphs*, ESA 2025, LIPIcs 351, Article 67. DOI
+   `10.4230/LIPIcs.ESA.2025.67`.  Theorem 8 and Lemma 12 supply the constructive
+   four-dimensional biclique partition and its `O(q log^4 q)` specialization.
+6. Dinitz, *An Algorithm for the Solution of the Problem of Maximal Flow in a
+   Network with Power Estimation*, Doklady Akademii Nauk SSSR 194, 1970.
+   `graph::dinic` provides a practical integral exact max-flow backend.
+7. Goldberg and Tarjan, *A New Approach to the Maximum-Flow Problem*, Journal
+   of the ACM 35(4), 1988.  The highest-label push-relabel backend is another
+   practical exact backend with global relabel and gap counters.
+8. van den Brand et al., *A Deterministic Almost-Linear Time Algorithm for
+   Minimum-Cost Flow*, arXiv:2309.16629 / FOCS 2023.  The repository retains
+   exact superlinear circulation and min-ratio Oracles; it does not claim the
+   cited IPM, hidden-stability, dynamic-cycle, or almost-linear machinery.
+9. Abraham and Neiman, *Using Petal-Decompositions to Build a Low Stretch
+   Spanning Tree*, SIAM Journal on Computing 48(2), 2019, 227--248. DOI
+   `10.1137/17M1115575`.  The source was checked, but it does not establish
+   the reduced-event ordering/counting conversion required by P9.3.2d.
+10. Sleator and Tarjan, *A Data Structure for Dynamic Trees*, STOC 1981. DOI
+    `10.1145/800076.802464`.  This is a pinned predecessor reference for the
+    source-shaped dynamic tree contracts; it does not establish the repository
+    implementation's missing runtime claims.
+
+## Consolidated Limitations
+
+The following limitations are normative and should be read with every result:
+
+- The accepted geometry consists of finite unit-cell grids and one ordinary
+  nondegenerate integer-coordinate outer loop with ordinary two-dimensional
+  holes.  Ornaments, isolated formal-boundary points, point/segment holes,
+  arbitrary contour contacts, and multiple disconnected outer components are
+  represented or rejected explicitly but are not all accepted by the solver.
+- The ordinary polygon sweep is source-mapped only for the ordinary-loop
+  specialization.  It does not implement formal merge/delete degeneracies or
+  claim the source's general sweep bound.  Pairwise and indexed chord Oracles
+  remain permanent.
+- Grid interior runs are exact for unit-cell components but are not the general
+  polygon `O(n log n)` enumerator.  Biclique recursion retains straightforward
+  recursive sorting; four coordinates imply `O(q log^4 q)` rather than a
+  three-coordinate bound.
+- CompactOnly avoids explicit conflicts and full partition expansion, while
+  FullyAudited retains them as correctness checks.  The compact coordinate-
+  extrema check is not an explicit edge-multiset proof by itself.
+- Prepared occupancy, cuts, recovery, and validation are dense in a component's
+  local bounding box.  Polygon sparse recovery avoids the coordinate product,
+  but dense arrangements remain reference Oracles and sparse structures support
+  only ordinary nondegenerate loops.
+- The optional polygon `auto` recovery policy is evidence-backed only for the
+  recorded scaling corpus and remains opt-in.  There is no universal dense/
+  sparse crossover, and the complete size-256 reference run exceeded its
+  practical time budget.
+- Dinic and highest-label push-relabel are practical integral exact backends.
+  The cited deterministic almost-linear exact-flow algorithm is not
+  implemented.  Experimental agreement is finite evidence, not an
+  `n^(1+o(1))` claim.
+- Process peak RSS, allocator overhead, energy, cache counters, and cross-host
+  timing are not measured.  Null peak-memory fields mean unmeasured, not zero;
+  owned allocation estimates are diagnostic payload estimates only.
+- Automatic source target discovery is not implemented.  The layered source
+  API requires a caller-supplied target, labels failures as
+  `UnsupportedOrUndetermined`, and never falls back to a reference solver or
+  infers target infeasibility.
+- The AN19 source-shaped event engine is exact on its supported finite
+  snapshots, but the reduced-event ordering/counting conversion, source-
+  equivalent priority-queue bound, hierarchy-wide amortization, and production
+  AN19 runtime remain unproved.  P9.3.2d implementation is complete and proof
+  work is low-priority P9.6a; empirical counts do not close the proof.
+- The exact-cover Oracle is exponential and intentionally limited to small
+  components.  Exhaustive `4 x 4` and larger campaigns are explicit release
+  commands because their duration is machine-dependent.
+- JSON colors are compared as exact `serde_json::Value` values.  SVG is a
+  diagnostic view only.  Unsupported classes remain visible in manifests and
+  are not silently treated as solved inputs.

@@ -18,9 +18,8 @@
 This is the active plan, not a process archive. Completed phase narratives,
 release notes, and superseded next actions are summarized in
 [`HISTORY.md`](HISTORY.md). Current implementation scope is described in
-[`IMPLEMENTATION.md`](IMPLEMENTATION.md); finite campaigns and
-their boundaries are described in [`EXPERIMENTS.md`](EXPERIMENTS.md) and
-[`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md).
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md), including its finite campaigns and
+their boundaries.
 
 The permanent reference solvers remain the complete production surface on the
 accepted domain. The source backend remains a research interface until its
