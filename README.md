@@ -48,15 +48,29 @@ baseline.
 ```bash
 cargo build --workspace --release
 python3 tools/run_paper_scaling.py \
-  --config results/paper-scaling-smoke-config.json
-python3 tools/analyze_paper_scaling.py
+  --binary target/release/mrd \
+  --config results/paper-scaling-config.json \
+  --checkpoint results/paper-scaling-full-checkpoint.json \
+  --output results/paper-scaling-full.json \
+  --csv results/paper-scaling-full-runs.csv
+python3 tools/analyze_paper_scaling.py \
+  --input results/paper-scaling-full.json \
+  --summary-json results/paper-scaling-full-summary.json \
+  --summary-csv results/paper-scaling-full-summary.csv \
+  --report results/paper-scaling-full-report.md \
+  --tables results/paper-scaling-full-tables.tex \
+  --figure-dir results/paper-scaling-full-figures
 ```
 
 `results/paper-scaling-config.json` is the predeclared full campaign. The
-checked-in `paper-scaling.*` artifacts are a three-family smoke run, not a
-final scaling claim. See [`docs/PAPER_BENCHMARK_CLAIMS.md`](docs/PAPER_BENCHMARK_CLAIMS.md)
-for the claim boundary and [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md)
-for the complete experimental protocol.
+complete run contains 5,824 planned rows (4,522 successful and 1,302 retained
+unsupported Oracle rows), with zero timeouts, errors, and paired correctness
+mismatches. Its 1,288 paired instance groups cover seven families and eight
+target sizes. The generated fits and ratios are finite local observations, not
+an asymptotic runtime theorem or a hardware-independent ranking. See
+[`docs/PAPER_BENCHMARK_CLAIMS.md`](docs/PAPER_BENCHMARK_CLAIMS.md) for the
+claim boundary and [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md) for the
+complete experimental protocol.
 
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a

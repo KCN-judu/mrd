@@ -1,13 +1,15 @@
 {
   "schema_version": 1,
   "artifact_state": "complete",
-  "git_commit": "f35a9bd9690ddb8b8b6d1e05d3a0360119663cd9",
-  "generated_at_utc": "2026-08-03T13:44:12Z",
+  "git_commit": "252d01f08c6ba64b17b8fe22ce7317d7c2d58c76",
+  "generated_at_utc": "2026-08-04T16:58:48Z",
   "environment": {
-    "operating_system": "Darwin 25.5.0",
+    "operating_system": "macOS-26.5-arm64-arm-64bit-Mach-O",
     "architecture": "arm64",
     "rustc_version": "rustc 1.89.0 (29483883e 2025-08-04)",
-    "cargo_version": "cargo 1.89.0 (c24e10642 2025-06-23)"
+    "cargo_version": "cargo 1.89.0 (c24e10642 2025-06-23)",
+    "cpu_model": "Apple M4",
+    "logical_cpu_count": 10
   },
   "campaigns": [
     {
@@ -97,6 +99,32 @@
       "artifacts": [{"path":"results/final-performance-report.md","sha256":"b6f8d4d5dbc9d1ac8c54f3cb8bcc0ca59bd60a2b125f57b00dfc8d8dfe58151a"},{"path":"results/final-complexity-report.md","sha256":"c034431a5c8eb65ce38be595fdb0d34db35481907761c07fac1afa224bc34a1f"}],
       "population": {"input_count":1,"component_count":1,"input_model":"evidence-synthesis"},
       "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0}
+    },
+    {
+      "id": "paper-scaling-full",
+      "category": "performance",
+      "disposition": "executed",
+      "claim_boundary": "complete finite paired fresh-process evidence on one recorded host; descriptive fits and ratios are not asymptotic runtime proofs",
+      "completed_at_utc": "2026-08-04T16:53:58Z",
+      "commands": [
+        {"command":"python3 tools/run_paper_scaling.py --binary target/release/mrd --config results/paper-scaling-config.json --checkpoint results/paper-scaling-full-checkpoint.json --output results/paper-scaling-full.json --csv results/paper-scaling-full-runs.csv","exit_status":0,"duration_seconds":1255.110297167,"note":"Checkpointed, deterministic full plan; all 5,824 identities terminal."},
+        {"command":"python3 tools/analyze_paper_scaling.py --input results/paper-scaling-full.json --summary-json results/paper-scaling-full-summary.json --summary-csv results/paper-scaling-full-summary.csv --report results/paper-scaling-full-report.md --tables results/paper-scaling-full-tables.tex --figure-dir results/paper-scaling-full-figures","exit_status":0,"duration_seconds":27.1,"note":"Fixed-seed 10,000-resample analysis."}
+      ],
+      "artifacts": [
+        {"path":"results/paper-scaling-full.json","sha256":"b2a2420803aea1266bf8c9cb802eb8d5e0ded0559748479b1501c8f01a52542f"},
+        {"path":"results/paper-scaling-full-runs.csv","sha256":"0fc2d6f29b863edbcb7eb25ac0fa131c4c769eb81909ce8d788460da0e34f875"},
+        {"path":"results/paper-scaling-full-checkpoint.json","sha256":"00106d593727093eeb1585bc1b7b94fa436ccf7f9c02a24cb929a1967a9d306e"},
+        {"path":"results/paper-scaling-full-summary.json","sha256":"11bfac3de46d533ced84e44cfbdfbab6c107f0f8873d4d3c02caa582b9ceeaa1"},
+        {"path":"results/paper-scaling-full-summary.csv","sha256":"3c0704f87f7801802ba4ed5888f379681211d3b9d93d8d5968761071e66aeb42"},
+        {"path":"results/paper-scaling-full-report.md","sha256":"92374335faadc09688da56d680b48b5ad949f558d627a98647c14a93efdc990e"},
+        {"path":"results/paper-scaling-full-tables.tex","sha256":"c78e564da34657f4fbe83860dbf762da545c177ee56cc9a7ae79752814dfa7ec"},
+        {"path":"results/paper-scaling-full-figures/paper-scaling-k-vs-m.svg","sha256":"ea96ff53657fb9db3e756869b66ef4da7da015852c8724fdc9bed7d66b6b54c0"},
+        {"path":"results/paper-scaling-full-figures/paper-scaling-loglog.svg","sha256":"3167453b69e9571d00dfd7f6ea72f227b2b8501fb1e638d18e9677760b851df5"},
+        {"path":"results/paper-scaling-full-figures/paper-scaling-phases.svg","sha256":"be1df9b10ba146518c3a0cbee5056d1d4d036880bc568f68df4ecf40d1e08b7c"},
+        {"path":"results/paper-scaling-full-figures/paper-scaling-ratio.svg","sha256":"d33f863100b3c028da2e3b00beb5d7c070be4ff3c7f3b35079f29401284f028a"}
+      ],
+      "population": {"input_count":1456,"component_count":1456,"input_model":"paired deterministic finite-grid instances across seven predeclared families","seed":424242,"unsupported_input_features":["exact-cover Oracle cell-limit boundary"]},
+      "outcome": {"status":"passed","disagreement_count":0,"solver_error_count":0,"observation":"4522 success, 1302 retained unsupported, 0 timeout, 0 error, and 0 paired mismatch rows."}
     },
     {
       "id": "fuzz-engine",

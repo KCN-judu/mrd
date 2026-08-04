@@ -1037,16 +1037,37 @@ fixed-seed 10,000-resample bootstrap interval, OLS log-median fits, Theil--Sen
 sensitivity slopes, residuals, booktabs tables, and SVG figures. A fit names
 its independent variable (`N`, `B`, `q`, `K`, or `M`) and is emitted only after
 six valid size levels satisfying the predeclared minimum target size. The
-checked-in smoke campaign has three families and four sizes with one warm-up
-and three measured repeats: 160 successful rows, 32 predeclared exact-cover
-unsupported rows, zero timeout, and zero paired mismatch. It has only three
-eligible fit sizes, so it reports no empirical exponent and no stable
-crossover. The full campaign is configured but intentionally unexecuted here.
+complete full campaign is archived in the separately named
+`results/paper-scaling-full.*` artifacts. It contains 5,824 planned and
+observed identities across seven families, eight target sizes, four algorithms,
+three warm-ups, and the predeclared 31/15 repetition schedule. The terminal
+population is 4,522 successful rows and 1,302 retained `unsupported` rows from
+the bounded exact-cover Oracle, with zero timeout, error, invalid row, or paired
+correctness mismatch. All 1,288 measured instance groups have successful
+production-path comparisons.
 
-**Boundary.** Process startup dominates several smoke points, so the smoke
-ratios are not a hardware-independent speed claim. A fitted exponent from the
-full protocol would be an empirical descriptor over its stated interval, not
-the algorithm's complexity and not proof of an `O(n^1.5)` or AN19 claim.
+The full analysis emits six-level empirical fits over target size for every
+production path in every family. Fits against `N`, `B`, `q`, `K`, and `M` are
+reported only where the corresponding representation is defined; in particular,
+`K` is unavailable for sparse-conflict and polyomino, and several polyomino
+structural variables are not defined. The exact-cover Oracle has no
+valid six-level timing fit because its unsupported boundary is part of the
+protocol. The paired compact/Hopcroft--Karp ratio is close to one on every
+family; the fixed crossover rule reports target 60 only for the
+`representation-crossover` family and does not establish a universal ranking.
+
+The measured process-wall quantity includes fresh-process startup and is
+therefore a local observation on the recorded Apple M4 host. The generated
+slopes, bootstrap intervals, `K`--`M` comparison, and phase decomposition are
+descriptive evidence over the declared interval. They do not prove an
+asymptotic bound, an AN19 runtime, or the source-flow backend's unresolved
+target-decision contract.
+
+**Boundary.** Fresh-process startup remains part of the measured full
+process-wall quantity, so the ratios are not a hardware-independent speed
+claim. A fitted exponent from the full protocol is an empirical descriptor over
+its stated interval, not the algorithm's complexity and not proof of an
+`O(n^1.5)` or AN19 claim.
 CP-SAT stays outside the performance comparison unless a separate fair protocol
 is committed. The detailed supported/unsupported wording is in
 [`PAPER_BENCHMARK_CLAIMS.md`](PAPER_BENCHMARK_CLAIMS.md); the legacy

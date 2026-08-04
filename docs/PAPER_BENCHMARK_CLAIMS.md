@@ -18,29 +18,31 @@ recorded binary, operating system, compiler, and process protocol.
 
 | Paper-facing statement | Evidence artifact | Status |
 | --- | --- | --- |
-| The compact, explicit Hopcroft--Karp, and explicit C0 paths agree on every successful smoke pair. | `results/paper-scaling.json`, `paired_validation_errors` | Supported for the smoke population. |
-| The smoke campaign exercised three predeclared families, four target sizes, fresh processes, and counterbalanced order. | `results/paper-scaling-smoke-config.json`, raw `execution_order` fields | Supported. |
-| The compact grid path used direct-grid parity with zero rank sort/map counters. | Raw `structure` fields for `compact-mrd` | Supported on recorded grid rows. |
-| Exact-cover rows beyond the limit were retained as unsupported. | Raw `state`, `outcome`, and `message` fields | Supported. |
-| Compact/explicit paired process-wall ratios can be described for the measured smoke pairs. | `results/paper-scaling-summary.json` | Supported as local descriptive data. |
-| `K` and compressed `M` can be compared without timing a hidden explicit graph in compact samples. | Raw `paired_structural` provenance sidecar | Supported by the protocol design. |
-| An empirical exponent can be reported. | No eligible six-size-level smoke fit | Not yet supported. |
-| A stable compact/explicit crossover can be reported. | Smoke has fewer than six sizes; analyzer reports none | Not yet supported. |
+| The compact, explicit Hopcroft--Karp, and explicit C0 paths agree on every successful full-campaign pair. | `results/paper-scaling-full.json`, `paired_validation_errors` | Supported for 1,288 paired instance groups; zero mismatches. |
+| The full campaign exercised seven predeclared families, eight target sizes, fresh processes, and counterbalanced order. | `results/paper-scaling-config.json`, raw `execution_order` fields | Supported for all 5,824 planned rows. |
+| The compact grid path used direct-grid parity with zero rank sort/map counters. | Raw `structure` fields for `compact-mrd` | Supported on the complete recorded population. |
+| Exact-cover rows beyond the limit were retained as unsupported. | Raw `state`, `outcome`, and `message` fields | Supported: 1,302 rows remain unsupported and are excluded from timing fits. |
+| Compact/explicit paired process-wall ratios can be described for the measured full pairs. | `results/paper-scaling-full-summary.json` | Supported as local descriptive data with fixed-seed bootstrap intervals. |
+| `K` and compressed `M` can be compared without timing a hidden explicit graph in compact samples. | Raw `paired_structural` provenance sidecar and `paper-scaling-k-vs-m.svg` | Supported where the representation exposes both quantities. |
+| Empirical exponents can be reported for declared six-level fits. | `results/paper-scaling-full-summary.json`, `paper-scaling-full-tables.tex` | Supported for all seven families and three production paths against target size; structural variables are emitted only when defined. |
+| A stable compact/explicit crossover can be reported. | Full paired ratios and fixed crossover rule | A crossover is reported at target 60 only for `representation-crossover`; no universal crossover is established. |
 
 ## Supported Wording
 
 The following wording is permitted when it names the population and artifact:
 
-- “On the recorded paired smoke population, the compact, explicit
-  Hopcroft--Karp, and explicit C0 paths had zero optimum mismatches.”
+- “On the 1,288 paired instance groups in the complete full campaign, the
+  compact, explicit Hopcroft--Karp, and explicit C0 paths had zero optimum
+  mismatches.”
 - “The compact grid path reported zero direct rank-sort, rank-map-entry, and
   rank-map-byte counters on the measured finite-grid rows.”
-- “The raw campaign retained successful, unsupported, error, and timeout
-  states; the current smoke run recorded 160 successful and 32 unsupported
-  rows with no timeout or paired mismatch.”
-- “The full protocol will estimate empirical log--log slopes only over the
+- “The raw full campaign retained 4,522 successful, 1,302 unsupported, zero
+  timeout, and zero error rows; unsupported Oracle rows were not counted as
+  compact wins.”
+- “The full protocol reports empirical log--log slopes only over the
   predeclared independent variable and fit range after at least six valid size
-  levels.”
+  levels; the complete campaign provides six valid target-size levels for each
+  production path in every family.”
 - “A `K` versus `M` comparison is structural evidence about this
   implementation's explicit and compressed representations.”
 
@@ -54,8 +56,8 @@ evidence closes the stated gap:
   that treats the P9.6a proof debt as closed.
 - “The compact solver has a universal speedup,” “beats all `n^1.5`
   implementations,” or any hardware-independent ranking.
-- “The smoke crossover is stable” or any exponent claim: the smoke does not
-  meet its own six-size-level fit condition.
+- “The full campaign proves a stable or hardware-independent crossover”; only
+  the declared `representation-crossover` target-60 observation is reported.
 - “CP-SAT is slower than the compact solver” without a separately committed
   same-population, same-timeout, startup-inclusive protocol.
 - Causal attribution to one backend where process startup, cache state,

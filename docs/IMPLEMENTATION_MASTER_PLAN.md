@@ -4,6 +4,7 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
+- Current evidence SHA: 8df010c469fd3586538d4ea38eb448590edd8959
 - Current phase: P9.5e.3g.3
 - Current phase state: blocked
 - Last completed phase: P14.5
@@ -37,16 +38,20 @@ target-decision and runtime proof obligations are closed.
 - The AN19 event campaign contains 31 fixed A--H snapshots with exact
   Oracle/reduced semantic agreement and local certificates. It is not a global
   amortization or runtime proof.
-- The P15 paper-scaling smoke campaign contains three deterministic families,
-  four target sizes, one warm-up, and three fresh measured processes per
-  algorithm/size. It retains 192 raw rows with zero paired objective
-  mismatches; it is a pipeline check rather than exponent evidence.
+- The P15 paper-scaling full campaign is complete: seven deterministic
+  families, eight target sizes, three warm-ups, and the predeclared 31/15
+  measured repetition schedule produced 5,824 terminal rows. It retains 4,522
+  successes and 1,302 unsupported exact-cover rows, with zero timeout, error,
+  invalid row, or paired objective mismatch. The evidence source commit is
+  `252d01f08c6ba64b17b8fe22ce7317d7c2d58c76`; raw and analyzed artifacts are
+  committed separately after that source run.
 
 ## P15 Paper-Scaling Campaign
 
-**Status.** Smoke implementation and evidence complete; full campaign
-predeclared but not run. This phase is independent of the P9 source-flow
-blocker and cannot close an AN19 proof obligation.
+**Status.** Complete for the predeclared finite campaign. The full run and
+analysis artifacts are committed under the `paper-scaling-full` names. This
+phase is independent of the P9 source-flow blocker and cannot close an AN19
+proof obligation.
 
 **Implementation.** `mrd benchmark --suite paper-scaling` executes one
 versioned deterministic request. `verification::paper_scaling` exposes compact
@@ -61,9 +66,12 @@ eight target sizes, three warm-ups, 31 measured runs for target sizes through
 27, 15 thereafter, a 60-second timeout, and a six-size-level fit minimum.
 No exponent is emitted below that minimum. `exact-cover-oracle` is explicitly
 unsupported over its cell limit; that state is retained and never counted as a
-compact win. The current smoke run therefore establishes only that the
-reproducible chain, output schema, correctness gate, censoring, and generated
-artifacts work together.
+compact win. The completed run establishes the reproducible chain, output
+schema, correctness gate, censoring, and generated artifacts over the declared
+finite population. It reports empirical fits only where six valid size levels
+exist; the bounded exact-cover Oracle has no valid six-level timing fit. A
+crossover is reported only for `representation-crossover` at target 60, and is
+not a universal backend policy.
 
 ## P9.3.2d Runtime-Proof Deferral
 
