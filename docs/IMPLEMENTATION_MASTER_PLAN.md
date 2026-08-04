@@ -7,8 +7,8 @@
 - Current evidence SHA: 8df010c469fd3586538d4ea38eb448590edd8959
 - Current phase: P9.5e.3g.3
 - Current phase state: blocked
-- Last completed phase: P14.5
-- Last pushed SHA: 898c3a22e501933671cf4aaba63edf7ec10aaed1
+- Last completed phase: P15 (independent paper-scaling evidence campaign)
+- Last pushed SHA: e4b0ef4c21e4a33cfa43b902c485e304238786dc
 - Plan last updated: 2026-08-04
 - Overall target: complete source-traceable geometry, an automatic exact
   source-flow solver only when its decision contract is established, and a
