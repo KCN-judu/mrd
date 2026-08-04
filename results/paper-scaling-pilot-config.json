@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "campaign": "paper-scaling-pilot",
+  "seed": 424242,
+  "oracle_cell_limit": 40,
+  "families": [
+    "random-connected",
+    "dense-conflict",
+    "sparse-conflict",
+    "comb-staircase",
+    "supported-holes",
+    "polyomino",
+    "representation-crossover"
+  ],
+  "algorithms": [
+    "compact-mrd",
+    "explicit-hopcroft-karp",
+    "explicit-c0-flow",
+    "exact-cover-oracle"
+  ],
+  "sizes": [8, 12, 18, 27, 40, 60],
+  "warmups": 1,
+  "repetitions": 5,
+  "small_medium_max_target_size": 27,
+  "small_medium_repetitions": 5,
+  "timeout_seconds": 60,
+  "fit": {
+    "minimum_target_size": 18,
+    "minimum_size_levels": 6,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 20260804
+  },
+  "notes": "Predeclared pilot only: all families and algorithms, six target sizes, one warm-up, and five measured repetitions. It estimates runtime and validates the resumable protocol; it is not a replacement for the full campaign."
+}
