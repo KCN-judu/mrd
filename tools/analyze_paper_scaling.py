@@ -29,6 +29,7 @@ ALGORITHMS = (
     "exact-cover-oracle",
 )
 SIZE_VARIABLES: dict[str, str] = {
+    "target_size": "target_size",
     "N": "foreground_cells_n",
     "B": "boundary_size_b",
     "q": "q",
@@ -123,6 +124,9 @@ def distribution(values: list[float]) -> dict[str, float | int] | None:
 
 
 def metric_value(row: dict[str, Any], variable: str) -> float | None:
+    if variable == "target_size":
+        value = row.get("target_size")
+        return float(value) if value is not None else None
     if variable == "M":
         sizes = row.get("sizes", {}) or {}
         paired = row.get("paired_structural", {}) or {}
@@ -159,6 +163,41 @@ def group_rows(records: list[dict[str, Any]], family: str, algorithm: str) -> li
         for row in records
         if row.get("family") == family and row.get("algorithm") == algorithm
     ]
+
+
+def planned_group(
+    planned_samples: list[dict[str, Any]], family: str, algorithm: str | None = None
+) -> list[dict[str, Any]]:
+    selected = []
+    for sample in planned_samples:
+        identity = sample.get("identity", sample)
+        if identity.get("family") != family:
+            continue
+        if algorithm is not None and identity.get("algorithm") != algorithm:
+            continue
+        selected.append(identity)
+    return selected
+
+
+def require_complete_campaign(raw: dict[str, Any]) -> None:
+    """Reject new raw artifacts whose explicit campaign plan is not terminal."""
+    completion = raw.get("completion")
+    if completion is None:
+        return
+    if not completion.get("complete"):
+        raise ValueError(
+            "refusing to analyze an incomplete campaign as a full campaign artifact"
+        )
+    planned = raw.get("planned_samples", [])
+    records = raw.get("records", [])
+    planned_ids = {sample.get("sample_identity") for sample in planned}
+    observed_ids = [record.get("sample_identity") for record in records]
+    if None in planned_ids or None in observed_ids:
+        raise ValueError("complete campaign is missing stable sample identities")
+    if len(observed_ids) != len(set(observed_ids)):
+        raise ValueError("complete campaign contains duplicate sample identities")
+    if set(observed_ids) != planned_ids:
+        raise ValueError("complete campaign identities do not equal its predeclared plan")
 
 
 def size_level_values(
@@ -239,29 +278,29 @@ def fit_group(
     resamples: int,
     seed: int,
 ) -> dict[str, Any]:
-    values_by_size = size_level_values(
-        rows, value=lambda row: row.get("process_wall_time_ns")
-    )
-    excluded: list[dict[str, Any]] = []
+    excluded: dict[int, set[str]] = {}
+
+    def exclude(size: int, reason: str) -> None:
+        excluded.setdefault(size, set()).add(reason)
+
     points: list[tuple[float, float]] = []
     medians: dict[int, float] = {}
-    field_variable = variable
-    for row in rows:
-        size = int(row["target_size"])
-        if row.get("measured") and size < minimum_target_size:
-            excluded.append({"target_size": size, "reason": "below-predeclared-fit-minimum"})
-    for size in sorted(values_by_size):
+    all_measured_sizes = sorted(
+        {int(row["target_size"]) for row in rows if row.get("measured")}
+    )
+    for size in all_measured_sizes:
         if size < minimum_target_size:
+            exclude(size, "below-predeclared-fit-minimum")
             continue
         metric_rows = [row for row in rows if int(row["target_size"]) == size and usable(row)]
         metric = [metric_value(row, variable) for row in metric_rows]
         metric = [value for value in metric if value is not None and value > 0]
         times = [float(row["process_wall_time_ns"]) for row in metric_rows]
         if not metric or not times:
-            excluded.append({"target_size": size, "reason": "missing-size-measure-or-valid-time"})
+            exclude(size, "missing-size-measure-or-valid-time")
             continue
         if len(metric) != len(times):
-            excluded.append({"target_size": size, "reason": "paired-size-measure-incomplete"})
+            exclude(size, "paired-size-measure-incomplete")
             continue
         medians[size] = statistics.median(metric)
         points.append((math.log(medians[size]), math.log(statistics.median(times))))
@@ -285,14 +324,27 @@ def fit_group(
             ]
 
         ci = bootstrap_slopes(size_values, points_builder, resamples, seed)
-    fit_min = min(medians) if medians else None
-    fit_max = max(medians) if medians else None
+    censored = []
+    for size in all_measured_sizes:
+        states = {
+            state: sum(
+                row.get("measured")
+                and int(row["target_size"]) == size
+                and row.get("state") == state
+                for row in rows
+            )
+            for state in ("timeout", "unsupported", "error")
+        }
+        if any(states.values()):
+            censored.append({"target_size": size, **states})
+    fit_min = min(medians.values()) if medians else None
+    fit_max = max(medians.values()) if medians else None
     fit_result = {
         "independent_variable": variable,
         "independent_variable_definition": (
             "M = compressed network node count + compressed network arc count"
             if variable == "M"
-            else SIZE_VARIABLES[variable]
+            else "predeclared target size" if variable == "target_size" else SIZE_VARIABLES[variable]
         ),
         "algorithm": rows[0]["algorithm"] if rows else None,
         "family": rows[0]["family"] if rows else None,
@@ -301,9 +353,13 @@ def fit_group(
         "alpha_theil_sen": robust,
         "r_squared": fit["r_squared"] if fit else None,
         "size_level_count": len(points),
-        "fit_target_size_range": [minimum_target_size, max(medians) if medians else None],
+        "fit_target_size_range": [min(medians), max(medians)] if medians else None,
         "fit_independent_range": [fit_min, fit_max],
-        "excluded_sizes": excluded,
+        "excluded_sizes": [
+            {"target_size": size, "reasons": sorted(reasons)}
+            for size, reasons in sorted(excluded.items())
+        ],
+        "censored_target_sizes": censored,
         "residuals_log_time": fit["residuals"] if fit else [],
         "bootstrap_seed": seed,
         "bootstrap_resamples": resamples,
@@ -322,7 +378,9 @@ def bootstrap_median(values: list[float], resamples: int, seed: int) -> list[flo
     ]
 
 
-def paired_comparison(records: list[dict[str, Any]], family: str, resamples: int) -> dict[str, Any]:
+def paired_comparison(
+    records: list[dict[str, Any]], family: str, resamples: int, bootstrap_seed: int
+) -> dict[str, Any]:
     pairs: dict[str, dict[str, dict[str, Any]]] = {}
     for row in records:
         if row.get("family") != family or not row.get("measured"):
@@ -339,7 +397,7 @@ def paired_comparison(records: list[dict[str, Any]], family: str, resamples: int
         if ratio > 0 and math.isfinite(ratio):
             ratios.append(ratio)
             by_size.setdefault(int(compact["target_size"]), []).append(ratio)
-    bootstrap = bootstrap_median(ratios, resamples, BOOTSTRAP_SEED) if ratios else []
+    bootstrap = bootstrap_median(ratios, resamples, bootstrap_seed) if ratios else []
     size_medians = {
         size: statistics.median(values) for size, values in sorted(by_size.items())
     }
@@ -362,15 +420,26 @@ def paired_comparison(records: list[dict[str, Any]], family: str, resamples: int
         "bootstrap_ci95": [percentile(bootstrap, 0.025), percentile(bootstrap, 0.975)]
         if bootstrap
         else None,
-        "bootstrap_seed": BOOTSTRAP_SEED,
+        "bootstrap_seed": bootstrap_seed,
         "bootstrap_resamples": resamples,
         "median_ratio_by_target_size": size_medians,
         "stable_crossover_target_size": crossover,
     }
 
 
-def coverage_summary(records: list[dict[str, Any]], family: str) -> dict[str, Any]:
+def coverage_summary(
+    records: list[dict[str, Any]],
+    planned_samples: list[dict[str, Any]],
+    family: str,
+    resamples: int,
+    bootstrap_seed: int,
+) -> dict[str, Any]:
     rows = [row for row in records if row.get("family") == family and row.get("measured")]
+    planned = [
+        identity
+        for identity in planned_group(planned_samples, family)
+        if not identity.get("warmup")
+    ]
     sizes = sorted({int(row["target_size"]) for row in rows})
     pair_ids = {row["pair_id"] for row in rows}
     mismatch_count = sum(
@@ -380,7 +449,13 @@ def coverage_summary(records: list[dict[str, Any]], family: str) -> dict[str, An
         "family": family,
         "target_size_range": [min(sizes), max(sizes)] if sizes else None,
         "instance_count": len(pair_ids),
-        "successful_paired_comparisons": paired_comparison(records, family, 10_000)[
+        "planned_rows": len(planned) if planned_samples else len(rows),
+        "observed_rows": len(rows),
+        "successes": sum(row.get("state") == "success" for row in rows),
+        "invalid_rows": mismatch_count,
+        "successful_paired_comparisons": paired_comparison(
+            records, family, resamples, bootstrap_seed
+        )[
             "paired_count"
         ],
         "mismatches": mismatch_count,
@@ -439,7 +514,7 @@ def timing_size_levels(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 [float(row["process_wall_time_ns"]) for row in valid]
             ),
         }
-        for variable in ("N", "B", "q", "K", "M"):
+        for variable in ("target_size", "N", "B", "q", "K", "M"):
             values = [metric_value(row, variable) for row in valid]
             values = [value for value in values if value is not None and value > 0]
             level[variable] = statistics.median(values) if values else None
@@ -448,12 +523,15 @@ def timing_size_levels(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def summarize(raw: dict[str, Any]) -> dict[str, Any]:
+    require_complete_campaign(raw)
     records = raw.get("records", [])
+    planned_samples = raw.get("planned_samples", [])
     protocol = raw.get("protocol", {})
     fit_config = protocol.get("fit", {})
     minimum_target_size = int(fit_config.get("minimum_target_size", 1))
     minimum_size_levels = int(fit_config.get("minimum_size_levels", 6))
     resamples = max(DEFAULT_RESAMPLES, int(fit_config.get("bootstrap_resamples", 10_000)))
+    bootstrap_seed = int(fit_config.get("bootstrap_seed", BOOTSTRAP_SEED))
     families = protocol.get("families") or sorted({row["family"] for row in records})
     algorithms = protocol.get("algorithms") or list(ALGORITHMS)
     distributions = []
@@ -461,6 +539,11 @@ def summarize(raw: dict[str, Any]) -> dict[str, Any]:
     for family in families:
         for algorithm in algorithms:
             rows = group_rows(records, family, algorithm)
+            planned = [
+                identity
+                for identity in planned_group(planned_samples, family, algorithm)
+                if not identity.get("warmup")
+            ]
             values = [
                 float(row["process_wall_time_ns"])
                 for row in rows
@@ -470,6 +553,14 @@ def summarize(raw: dict[str, Any]) -> dict[str, Any]:
                 {
                     "family": family,
                     "algorithm": algorithm,
+                    "planned_count": len(planned) if planned_samples else sum(
+                        row.get("measured") for row in rows
+                    ),
+                    "observed_count": sum(row.get("measured") for row in rows),
+                    "success_count": sum(
+                        row.get("measured") and row.get("state") == "success"
+                        for row in rows
+                    ),
                     "sample_count": len(values),
                     "distribution_ns": distribution(values),
                     "timeout_count": sum(
@@ -496,22 +587,32 @@ def summarize(raw: dict[str, Any]) -> dict[str, Any]:
                         minimum_target_size,
                         minimum_size_levels,
                         resamples,
-                        BOOTSTRAP_SEED,
+                        bootstrap_seed,
                     )
                 )
-    paired = [paired_comparison(records, family, resamples) for family in families]
-    coverage = [coverage_summary(records, family) for family in families]
+    paired = [
+        paired_comparison(records, family, resamples, bootstrap_seed) for family in families
+    ]
+    coverage = [
+        coverage_summary(records, planned_samples, family, resamples, bootstrap_seed)
+        for family in families
+    ]
     return {
         "schema_version": SCHEMA_VERSION,
-        "campaign": "paper-scaling",
-        "source_git_commit": raw.get("environment", {}).get("git_commit"),
+        "campaign": raw.get("campaign", "paper-scaling"),
+        "source_git_commit": raw.get("source_commit")
+        or raw.get("environment", {}).get("git_commit"),
+        "config_sha256": raw.get("config_sha256"),
+        "binary_sha256": raw.get("binary_sha256")
+        or raw.get("environment", {}).get("binary_sha256"),
+        "completion": raw.get("completion"),
         "protocol": {
             "fit_minimum_target_size": minimum_target_size,
             "fit_minimum_size_levels": minimum_size_levels,
             "fit_exclusion_rule": "target_size < fit.minimum_target_size; missing or invalid values are excluded",
             "fit_time_variable": "process_wall_time_ns",
             "timeout_treatment": "censored and retained; excluded from exact-time fits",
-            "bootstrap_seed": BOOTSTRAP_SEED,
+            "bootstrap_seed": bootstrap_seed,
             "bootstrap_resamples": resamples,
         },
         "coverage": coverage,
@@ -547,7 +648,7 @@ def report_markdown(summary: dict[str, Any]) -> str:
     lines = [
         "# Paper Scaling Benchmark Report",
         "",
-        "This report is generated from `results/paper-scaling.json` by the committed analyzer. It reports finite local measurements, not an asymptotic runtime theorem.",
+        f"This report is generated from `{summary.get('source_artifact', 'a raw campaign artifact')}` by the committed analyzer. It reports finite local measurements, not an asymptotic runtime theorem.",
         "",
         "## Protocol",
         "",
@@ -568,10 +669,14 @@ def report_markdown(summary: dict[str, Any]) -> str:
                 "Family": row["family"],
                 "Size range": row["target_size_range"],
                 "Instances": row["instance_count"],
+                "Planned": row["planned_rows"],
+                "Observed": row["observed_rows"],
+                "Success": row["successes"],
                 "Paired": row["successful_paired_comparisons"],
                 "Mismatches": row["mismatches"],
                 "Timeouts": row["timeouts"],
                 "Unsupported": row["unsupported"],
+                "Errors": row["errors"],
             }
         )
     lines.append(markdown_table(list(coverage_rows[0]) if coverage_rows else [], coverage_rows))
@@ -640,14 +745,14 @@ def latex_tables(summary: dict[str, Any]) -> str:
         "\\begin{table}[t]",
         "\\caption{Correctness and coverage of the paired paper-scaling population.}",
         "\\label{tab:paper-scaling-coverage}",
-        "\\begin{tabular}{lrrrrrr}",
+        "\\begin{tabular}{lrrrrrrrrr}",
         "\\toprule",
-        "Family & Instances & Paired & Mismatches & Timeouts & Unsupported & Errors \\\\",
+        "Family & Planned & Observed & Success & Paired & Invalid & Timeouts & Unsupported & Errors \\\\",
         "\\midrule",
     ]
     for row in summary["coverage"]:
         lines.append(
-            f"{latex(row['family'])} & {row['instance_count']} & {row['successful_paired_comparisons']} & {row['mismatches']} & {row['timeouts']} & {row['unsupported']} & {row['errors']} \\\\"  # noqa: E501
+            f"{latex(row['family'])} & {row['planned_rows']} & {row['observed_rows']} & {row['successes']} & {row['successful_paired_comparisons']} & {row['invalid_rows']} & {row['timeouts']} & {row['unsupported']} & {row['errors']} \\\\"  # noqa: E501
         )
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
     ratio_by_family = {
@@ -827,6 +932,102 @@ def svg_chart(
     path.write_text("\n".join(parts) + "\n")
 
 
+def phase_categories(phase_medians: dict[str, float]) -> dict[str, float]:
+    return {
+        "geometry": sum(
+            phase_medians.get(key, 0)
+            for key in ("geometry_preprocessing_ns", "chord_generation_ns")
+        ),
+        "representation": sum(
+            phase_medians.get(key, 0)
+            for key in (
+                "embedding_ns",
+                "explicit_conflict_graph_ns",
+                "biclique_construction_ns",
+                "network_construction_ns",
+            )
+        ),
+        "flow/matching": sum(
+            phase_medians.get(key, 0)
+            for key in ("matching_or_flow_ns", "vertex_cover_recovery_ns")
+        ),
+        "recovery": sum(
+            phase_medians.get(key, 0)
+            for key in (
+                "chord_selection_ns",
+                "geometric_completion_ns",
+                "rectangle_recovery_ns",
+            )
+        ),
+        "verification": phase_medians.get("verification_ns", 0),
+    }
+
+
+def phase_breakdown_svg(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Draw actual stacked phase medians, rather than relabelling totals as phases."""
+    selected: list[dict[str, Any]] = []
+    for family in sorted({row["family"] for row in rows}):
+        family_rows = [row for row in rows if row["family"] == family]
+        if not family_rows:
+            continue
+        largest = max(row["target_size"] for row in family_rows)
+        selected.extend(row for row in family_rows if row["target_size"] == largest)
+    categories = ("geometry", "representation", "flow/matching", "recovery", "verification")
+    colors = {
+        "geometry": "#0f766e",
+        "representation": "#b45309",
+        "flow/matching": "#334155",
+        "recovery": "#9f1239",
+        "verification": "#4f46e5",
+    }
+    width = max(920, 110 * max(1, len(selected)))
+    height = 580
+    left, top, right, bottom = 85, 70, 35, 150
+    grouped = [
+        (f"{row['family']}:{row['algorithm']}:{row['target_size']}", phase_categories(row["phase_medians_ns"]))
+        for row in selected
+    ]
+    maximum = max((sum(values.values()) for _, values in grouped), default=1) or 1
+    chart_height = height - top - bottom
+    available_width = width - left - right
+    bar_width = min(54, available_width / max(1, len(grouped)) * 0.7)
+    spacing = available_width / max(1, len(grouped))
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        '<rect width="100%" height="100%" fill="white"/>',
+        f'<text x="{width / 2:.1f}" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#111827">Median in-process phase breakdown</text>',
+        f'<text x="{width / 2:.1f}" y="49" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#334155">Largest sampled target per family; missing phases are omitted, not treated as zero-cost claims</text>',
+        f'<line x1="{left}" y1="{height - bottom}" x2="{width - right}" y2="{height - bottom}" stroke="#334155"/>',
+        f'<line x1="{left}" y1="{top}" x2="{left}" y2="{height - bottom}" stroke="#334155"/>',
+        f'<text x="20" y="{height / 2:.1f}" text-anchor="middle" transform="rotate(-90 20 {height / 2:.1f})" font-family="sans-serif" font-size="13" fill="#334155">median in-process phase time (ns)</text>',
+    ]
+    for index, (label, values) in enumerate(grouped):
+        x = left + spacing * (index + 0.5) - bar_width / 2
+        y = height - bottom
+        for category in categories:
+            value = values[category]
+            if value <= 0:
+                continue
+            segment = value / maximum * chart_height
+            y -= segment
+            parts.append(
+                f'<rect x="{x:.2f}" y="{y:.2f}" width="{bar_width:.2f}" height="{segment:.2f}" fill="{colors[category]}"/>'
+            )
+        label_y = height - bottom + 12
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{label_y}" text-anchor="end" transform="rotate(-55 {x + bar_width / 2:.2f} {label_y})" font-family="sans-serif" font-size="10" fill="#334155">{label}</text>'
+        )
+    for index, category in enumerate(categories):
+        x = left + index * 145
+        parts.append(f'<rect x="{x}" y="{height - 34}" width="12" height="12" fill="{colors[category]}"/>')
+        parts.append(
+            f'<text x="{x + 18}" y="{height - 24}" font-family="sans-serif" font-size="12" fill="#334155">{category}</text>'
+        )
+    parts.append("</svg>")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(parts) + "\n")
+
+
 def figures(summary: dict[str, Any], output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     # Required named figures are deterministic summaries even for an empty or
@@ -905,16 +1106,8 @@ def figures(summary: dict[str, Any], output_dir: Path) -> None:
         "explicit conflict edges K",
         "compressed representation size M",
     )
-    phase_series = []
-    for row in summary["phase_decomposition"][:8]:
-        total = sum(row["phase_medians_ns"].values()) or 1
-        phase_series.append((f"{row['family']}:{row['algorithm']}:{row['target_size']}", [(1, total)]))
-    svg_chart(
-        output_dir / "paper-scaling-phases.svg",
-        "Representative phase totals",
-        phase_series,
-        "representative point",
-        "phase time (ns)",
+    phase_breakdown_svg(
+        output_dir / "paper-scaling-phases.svg", summary["phase_decomposition"]
     )
 
 
@@ -943,6 +1136,7 @@ def main() -> int:
     input_path = root_path(arguments.input or Path("results/paper-scaling.json"))
     raw = json.loads(input_path.read_text())
     summary = summarize(raw)
+    summary["source_artifact"] = relative_path(input_path)
     summary_path = root_path(arguments.summary_json)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")

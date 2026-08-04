@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import os
 import platform
@@ -25,6 +26,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 1
 ALGORITHMS = (
     "compact-mrd",
     "explicit-hopcroft-karp",
@@ -93,6 +95,33 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--csv", type=Path, default=Path("results/paper-scaling-runs.csv")
     )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="atomically updated raw checkpoint for interruption-safe resume",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume only identities absent from --checkpoint",
+    )
+    parser.add_argument(
+        "--family",
+        action="append",
+        choices=FAMILIES,
+        help="run one or more predeclared families while retaining the global plan",
+    )
+    parser.add_argument(
+        "--size",
+        type=int,
+        action="append",
+        help="run one or more predeclared target sizes while retaining the global plan",
+    )
+    parser.add_argument(
+        "--print-plan",
+        action="store_true",
+        help="print predeclared process counts without launching samples",
+    )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
 
@@ -123,6 +152,36 @@ def binary_hash(path: Path) -> str:
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def canonical_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def config_hash(config: dict[str, Any]) -> str:
+    return hashlib.sha256(canonical_json(config).encode()).hexdigest()
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """Replace a file only after its complete contents reach a sibling temp file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
+    atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def environment(binary: Path) -> dict[str, Any]:
@@ -191,6 +250,9 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ValueError("fit.minimum_target_size must be predeclared and positive")
     if int(fit.get("minimum_size_levels", 0)) < 6:
         raise ValueError("fit.minimum_size_levels must be at least 6")
+    campaign = config.get("campaign", "paper-scaling")
+    if not isinstance(campaign, str) or not campaign:
+        raise ValueError("campaign must be a nonempty string")
 
 
 def request_for(
@@ -203,6 +265,295 @@ def request_for(
         "seed": seed,
         "algorithm": algorithm,
         "oracle_cell_limit": oracle_limit,
+    }
+
+
+def planned_identity(
+    config_sha256: str,
+    campaign: str,
+    family: str,
+    size: int,
+    algorithm: str,
+    warmup: bool,
+    repetition: int,
+    pair_id: str,
+    execution_rank: int,
+) -> dict[str, Any]:
+    return {
+        "config_sha256": config_sha256,
+        "campaign": campaign,
+        "family": family,
+        "target_size": size,
+        "algorithm": algorithm,
+        "warmup": warmup,
+        "repetition": repetition,
+        "pair_id": pair_id,
+        "execution_order": execution_rank,
+    }
+
+
+def identity_key(identity: dict[str, Any]) -> str:
+    return "sha256:" + hashlib.sha256(canonical_json(identity).encode()).hexdigest()
+
+
+def planned_samples(config: dict[str, Any], config_sha256: str) -> list[dict[str, Any]]:
+    """Expand the immutable protocol into independently resumable process rows."""
+    validate_config(config)
+    campaign = str(config.get("campaign", "paper-scaling"))
+    seed = int(config.get("seed", 42))
+    oracle_limit = int(config.get("oracle_cell_limit", 40))
+    algorithms = list(config.get("algorithms", ALGORITHMS))
+    small_medium_max = config.get("small_medium_max_target_size")
+    small_medium_repetitions = int(
+        config.get("small_medium_repetitions", config["repetitions"])
+    )
+    plan: list[dict[str, Any]] = []
+    for family in config["families"]:
+        for size in config["sizes"]:
+            measured_repetitions = (
+                small_medium_repetitions
+                if small_medium_max is not None and size <= int(small_medium_max)
+                else int(config["repetitions"])
+            )
+            for warmup, count in ((True, int(config["warmups"])), (False, measured_repetitions)):
+                for repetition in range(count):
+                    pair_id = f"{family}:{seed}:{size}:{repetition}"
+                    for execution_rank, algorithm in enumerate(
+                        execution_order(algorithms, seed, pair_id)
+                    ):
+                        identity = planned_identity(
+                            config_sha256,
+                            campaign,
+                            family,
+                            size,
+                            algorithm,
+                            warmup,
+                            repetition,
+                            pair_id,
+                            execution_rank,
+                        )
+                        plan.append(
+                            {
+                                "sample_identity": identity_key(identity),
+                                "identity": identity,
+                                "request": request_for(
+                                    family, size, seed, algorithm, oracle_limit
+                                ),
+                            }
+                        )
+    validate_planned_samples(plan)
+    return plan
+
+
+def validate_planned_samples(plan: list[dict[str, Any]]) -> None:
+    identities = [sample.get("sample_identity") for sample in plan]
+    if any(not isinstance(identity, str) for identity in identities):
+        raise ValueError("planned samples must have stable identities")
+    if len(set(identities)) != len(identities):
+        raise ValueError("planned sample identities are not unique")
+    for sample in plan:
+        identity = sample["identity"]
+        if identity_key(identity) != sample["sample_identity"]:
+            raise ValueError("planned sample identity hash does not match its fields")
+
+
+def workload_counts(plan: list[dict[str, Any]], timeout_seconds: float) -> dict[str, Any]:
+    warmups = sum(sample["identity"]["warmup"] for sample in plan)
+    measured = len(plan) - warmups
+    return {
+        "family_count": len({sample["identity"]["family"] for sample in plan}),
+        "size_count": len({sample["identity"]["target_size"] for sample in plan}),
+        "algorithm_count": len({sample["identity"]["algorithm"] for sample in plan}),
+        "combination_count": len(
+            {
+                (
+                    sample["identity"]["family"],
+                    sample["identity"]["target_size"],
+                    sample["identity"]["algorithm"],
+                )
+                for sample in plan
+            }
+        ),
+        "warmup_process_count": warmups,
+        "measured_process_count": measured,
+        "total_process_count": len(plan),
+        "timeout_upper_bound_seconds": len(plan) * timeout_seconds,
+    }
+
+
+def select_planned_samples(
+    plan: list[dict[str, Any]], families: list[str] | None, sizes: list[int] | None
+) -> list[dict[str, Any]]:
+    available_families = {sample["identity"]["family"] for sample in plan}
+    available_sizes = {sample["identity"]["target_size"] for sample in plan}
+    requested_families = set(families or available_families)
+    requested_sizes = set(sizes or available_sizes)
+    unknown_families = requested_families - available_families
+    unknown_sizes = requested_sizes - available_sizes
+    if unknown_families:
+        raise ValueError(f"families are not in the predeclared config: {sorted(unknown_families)}")
+    if unknown_sizes:
+        raise ValueError(f"sizes are not in the predeclared config: {sorted(unknown_sizes)}")
+    selected = [
+        sample
+        for sample in plan
+        if sample["identity"]["family"] in requested_families
+        and sample["identity"]["target_size"] in requested_sizes
+    ]
+    if not selected:
+        raise ValueError("partition selection produced no planned samples")
+    return selected
+
+
+def checkpoint_provenance(
+    config: dict[str, Any], binary: Path, config_sha256: str
+) -> dict[str, Any]:
+    captured = environment(binary)
+    return {
+        "checkpoint_schema_version": CHECKPOINT_SCHEMA_VERSION,
+        "sample_schema_version": SCHEMA_VERSION,
+        "campaign": str(config.get("campaign", "paper-scaling")),
+        "config_sha256": config_sha256,
+        "source_commit": captured["git_commit"],
+        "binary_sha256": captured["binary_sha256"],
+        "environment": captured,
+    }
+
+
+def new_checkpoint(
+    config: dict[str, Any], binary: Path, plan: list[dict[str, Any]], config_sha256: str
+) -> dict[str, Any]:
+    provenance = checkpoint_provenance(config, binary, config_sha256)
+    checkpoint = {
+        **provenance,
+        "protocol": config,
+        "planned_samples": plan,
+        "records": [],
+        "paired_validation_errors": [],
+        "created_at_epoch_seconds": int(time.time()),
+        "updated_at_epoch_seconds": int(time.time()),
+    }
+    refresh_checkpoint(checkpoint)
+    return checkpoint
+
+
+def terminal_record(record: dict[str, Any]) -> bool:
+    return record.get("state") in {"success", "unsupported", "timeout", "error"}
+
+
+def record_matches_plan(record: dict[str, Any], sample: dict[str, Any]) -> bool:
+    identity = sample["identity"]
+    return all(
+        record.get(key) == value
+        for key, value in identity.items()
+        if key != "config_sha256" and key != "campaign"
+    )
+
+
+def validate_checkpoint(
+    checkpoint: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    for key in (
+        "checkpoint_schema_version",
+        "sample_schema_version",
+        "config_sha256",
+        "source_commit",
+        "binary_sha256",
+    ):
+        if checkpoint.get(key) != expected.get(key):
+            raise ValueError(
+                f"checkpoint {key} mismatch: expected {expected.get(key)!r}, "
+                f"found {checkpoint.get(key)!r}"
+            )
+    plan = checkpoint.get("planned_samples")
+    records = checkpoint.get("records")
+    if not isinstance(plan, list) or not isinstance(records, list):
+        raise ValueError("checkpoint must contain planned_samples and records arrays")
+    validate_planned_samples(plan)
+    planned = {sample["sample_identity"]: sample for sample in plan}
+    seen: set[str] = set()
+    for record in records:
+        identity = record.get("sample_identity")
+        if not isinstance(identity, str) or identity not in planned:
+            raise ValueError("checkpoint record has an unknown sample identity")
+        if identity in seen:
+            raise ValueError(f"duplicate completed sample identity: {identity}")
+        if not terminal_record(record):
+            raise ValueError(f"checkpoint record is not terminal: {identity}")
+        if not record_matches_plan(record, planned[identity]):
+            raise ValueError(f"checkpoint record fields do not match its plan: {identity}")
+        seen.add(identity)
+
+
+def completion_state(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    plan = checkpoint["planned_samples"]
+    records = checkpoint["records"]
+    planned_ids = {sample["sample_identity"] for sample in plan}
+    observed_ids = {record["sample_identity"] for record in records}
+    missing = sorted(planned_ids - observed_ids)
+    state_counts = {
+        state: sum(record.get("state") == state for record in records)
+        for state in ("success", "unsupported", "timeout", "error")
+    }
+    return {
+        "complete": not missing,
+        "planned_record_count": len(plan),
+        "completed_record_count": len(records),
+        "missing_record_count": len(missing),
+        "missing_sample_identities": missing,
+        "terminal_state_counts": state_counts,
+    }
+
+
+def refresh_checkpoint(checkpoint: dict[str, Any]) -> None:
+    validate_planned_samples(checkpoint["planned_samples"])
+    paired_structural(checkpoint["records"])
+    checkpoint["paired_validation_errors"] = sorted(
+        set(validate_pairs(checkpoint["records"]))
+    )
+    checkpoint["completion"] = completion_state(checkpoint)
+    checkpoint["updated_at_epoch_seconds"] = int(time.time())
+
+
+def load_checkpoint(path: Path, expected: dict[str, Any]) -> dict[str, Any]:
+    checkpoint = json.loads(path.read_text())
+    validate_checkpoint(checkpoint, expected)
+    refresh_checkpoint(checkpoint)
+    return checkpoint
+
+
+def append_record(
+    checkpoint: dict[str, Any], sample: dict[str, Any], record: dict[str, Any]
+) -> None:
+    identity = sample["sample_identity"]
+    if any(existing.get("sample_identity") == identity for existing in checkpoint["records"]):
+        raise ValueError(f"refusing to overwrite completed sample identity: {identity}")
+    record["sample_identity"] = identity
+    record["sample_identity_fields"] = sample["identity"]
+    record["config_sha256"] = checkpoint["config_sha256"]
+    record["campaign"] = checkpoint["campaign"]
+    if not terminal_record(record):
+        raise ValueError(f"runner produced a nonterminal record: {identity}")
+    if not record_matches_plan(record, sample):
+        raise ValueError(f"runner record does not match the requested plan: {identity}")
+    checkpoint["records"].append(record)
+    refresh_checkpoint(checkpoint)
+
+
+def output_payload(checkpoint: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "campaign": checkpoint["campaign"],
+        "protocol": checkpoint["protocol"],
+        "environment": checkpoint["environment"],
+        "config_sha256": checkpoint["config_sha256"],
+        "source_commit": checkpoint["source_commit"],
+        "binary_sha256": checkpoint["binary_sha256"],
+        "planned_samples": checkpoint["planned_samples"],
+        "completion": checkpoint["completion"],
+        "records": checkpoint["records"],
+        "paired_validation_errors": checkpoint["paired_validation_errors"],
+        "generated_at_epoch_seconds": int(time.time()),
     }
 
 
@@ -483,62 +834,75 @@ def csv_row(record: dict[str, Any]) -> dict[str, Any]:
 
 
 def write_csv(path: Path, records: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=csv_fields(), lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(csv_row(record) for record in records)
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=csv_fields(), lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(csv_row(record) for record in records)
+    atomic_write_text(path, buffer.getvalue())
 
 
-def run_campaign(config: dict[str, Any], binary: Path) -> tuple[dict[str, Any], list[str]]:
+def run_campaign(
+    config: dict[str, Any],
+    binary: Path,
+    checkpoint_path: Path | None = None,
+    resume: bool = False,
+    families: list[str] | None = None,
+    sizes: list[int] | None = None,
+    launch=launch_sample,
+) -> tuple[dict[str, Any], list[str]]:
+    """Run missing rows of a fixed campaign plan and persist every terminal row."""
     validate_config(config)
     binary = root_path(binary)
     if not binary.exists():
         raise FileNotFoundError(f"release binary does not exist: {relative_path(binary)}")
-    seed = int(config.get("seed", 42))
-    oracle_limit = int(config.get("oracle_cell_limit", 40))
-    algorithms = list(config.get("algorithms", ALGORITHMS))
-    small_medium_max = config.get("small_medium_max_target_size")
-    small_medium_repetitions = int(
-        config.get("small_medium_repetitions", config["repetitions"])
-    )
-    records: list[dict[str, Any]] = []
-    for family in config["families"]:
-        for size in config["sizes"]:
-            measured_repetitions = (
-                small_medium_repetitions
-                if small_medium_max is not None and size <= int(small_medium_max)
-                else int(config["repetitions"])
+    checksum = config_hash(config)
+    plan = planned_samples(config, checksum)
+    expected = checkpoint_provenance(config, binary, checksum)
+    resolved_checkpoint = root_path(checkpoint_path) if checkpoint_path else None
+    if resume:
+        if resolved_checkpoint is None:
+            raise ValueError("--resume requires --checkpoint")
+        if not resolved_checkpoint.exists():
+            raise FileNotFoundError(
+                f"cannot resume because checkpoint does not exist: {relative_path(resolved_checkpoint)}"
             )
-            for warmup, count in ((True, config["warmups"]), (False, measured_repetitions)):
-                for repetition in range(count):
-                    pair_id = f"{family}:{seed}:{size}:{repetition}"
-                    order = execution_order(algorithms, seed, pair_id)
-                    for execution_rank, algorithm in enumerate(order):
-                        request = request_for(family, size, seed, algorithm, oracle_limit)
-                        records.append(
-                            launch_sample(
-                                binary,
-                                request,
-                                pair_id,
-                                repetition,
-                                warmup,
-                                execution_rank,
-                                float(config["timeout_seconds"]),
-                            )
-                        )
-    paired_structural(records)
-    errors = validate_pairs(records)
-    payload = {
-        "schema_version": SCHEMA_VERSION,
-        "campaign": "paper-scaling",
-        "protocol": config,
-        "environment": environment(binary),
-        "records": records,
-        "paired_validation_errors": errors,
-        "generated_at_epoch_seconds": int(time.time()),
-    }
-    return payload, errors
+        checkpoint = load_checkpoint(resolved_checkpoint, expected)
+        if checkpoint["planned_samples"] != plan:
+            raise ValueError("checkpoint plan does not match the predeclared config")
+    else:
+        if resolved_checkpoint is not None and resolved_checkpoint.exists():
+            raise FileExistsError(
+                f"checkpoint already exists; use --resume: {relative_path(resolved_checkpoint)}"
+            )
+        checkpoint = new_checkpoint(config, binary, plan, checksum)
+        if resolved_checkpoint is not None:
+            atomic_write_json(resolved_checkpoint, checkpoint)
+
+    selected = select_planned_samples(plan, families, sizes)
+    completed = {record["sample_identity"] for record in checkpoint["records"]}
+    for sample in selected:
+        if sample["sample_identity"] in completed:
+            continue
+        identity = sample["identity"]
+        record = launch(
+            binary,
+            sample["request"],
+            str(identity["pair_id"]),
+            int(identity["repetition"]),
+            bool(identity["warmup"]),
+            int(identity["execution_order"]),
+            float(config["timeout_seconds"]),
+        )
+        append_record(checkpoint, sample, record)
+        completed.add(sample["sample_identity"])
+        if resolved_checkpoint is not None:
+            atomic_write_json(resolved_checkpoint, checkpoint)
+
+    refresh_checkpoint(checkpoint)
+    if resolved_checkpoint is not None:
+        atomic_write_json(resolved_checkpoint, checkpoint)
+    payload = output_payload(checkpoint)
+    return payload, list(checkpoint["paired_validation_errors"])
 
 
 def main() -> int:
@@ -549,15 +913,32 @@ def main() -> int:
         return 0
     config_path = root_path(arguments.config or Path("results/paper-scaling-smoke-config.json"))
     config = json.loads(config_path.read_text())
-    payload, errors = run_campaign(config, arguments.binary)
+    binary = root_path(arguments.binary)
+    validate_config(config)
+    checksum = config_hash(config)
+    plan = planned_samples(config, checksum)
+    if arguments.print_plan:
+        print(json.dumps(workload_counts(plan, float(config["timeout_seconds"])), sort_keys=True))
+        return 0
+    if arguments.resume and arguments.checkpoint is None:
+        raise ValueError("--resume requires --checkpoint")
+    payload, errors = run_campaign(
+        config,
+        binary,
+        arguments.checkpoint,
+        arguments.resume,
+        arguments.family,
+        arguments.size,
+    )
     output = root_path(arguments.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    atomic_write_json(output, payload)
     write_csv(root_path(arguments.csv), payload["records"])
     print(
         json.dumps(
             {
                 "records": len(payload["records"]),
+                "complete": payload["completion"]["complete"],
+                "missing_records": payload["completion"]["missing_record_count"],
                 "paired_validation_errors": len(errors),
                 "output": relative_path(output),
                 "csv": relative_path(root_path(arguments.csv)),
