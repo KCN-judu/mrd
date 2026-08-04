@@ -1046,6 +1046,16 @@ the bounded exact-cover Oracle, with zero timeout, error, invalid row, or paired
 correctness mismatch. All 1,288 measured instance groups have successful
 production-path comparisons.
 
+The pilot's 1,008 child-process walls sum to 45.967 seconds, giving a linear
+full-plan child-wall projection of 265.587 seconds. The completed full run
+records 312.813 seconds of child-process wall time and 1,255.110 seconds of
+runner wall time. The residual includes launch, validation, and persistence
+work; in particular, resumability deliberately atomically serializes the whole
+checkpoint after every terminal record. The protocol does not allocate that
+residual among these activities, and it is not attributed to a solver. The
+statistical timing population continues to use each child's recorded
+`process_wall_time_ns`, not runner elapsed time.
+
 The full analysis emits six-level empirical fits over target size for every
 production path in every family. Fits against `N`, `B`, `q`, `K`, and `M` are
 reported only where the corresponding representation is defined; in particular,

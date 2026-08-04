@@ -107,7 +107,7 @@
       "claim_boundary": "complete finite paired fresh-process evidence on one recorded host; descriptive fits and ratios are not asymptotic runtime proofs",
       "completed_at_utc": "2026-08-04T16:53:58Z",
       "commands": [
-        {"command":"python3 tools/run_paper_scaling.py --binary target/release/mrd --config results/paper-scaling-config.json --checkpoint results/paper-scaling-full-checkpoint.json --output results/paper-scaling-full.json --csv results/paper-scaling-full-runs.csv","exit_status":0,"duration_seconds":1255.110297167,"note":"Checkpointed, deterministic full plan; all 5,824 identities terminal."},
+        {"command":"python3 tools/run_paper_scaling.py --binary target/release/mrd --config results/paper-scaling-config.json --checkpoint results/paper-scaling-full-checkpoint.json --output results/paper-scaling-full.json --csv results/paper-scaling-full-runs.csv","exit_status":0,"duration_seconds":1255.110297167,"note":"Checkpointed deterministic full plan; all 5,824 identities terminal. Child-process wall sum is 312.813407982 seconds; the remaining runner elapsed is not solver timing."},
         {"command":"python3 tools/analyze_paper_scaling.py --input results/paper-scaling-full.json --summary-json results/paper-scaling-full-summary.json --summary-csv results/paper-scaling-full-summary.csv --report results/paper-scaling-full-report.md --tables results/paper-scaling-full-tables.tex --figure-dir results/paper-scaling-full-figures","exit_status":0,"duration_seconds":27.1,"note":"Fixed-seed 10,000-resample analysis."}
       ],
       "artifacts": [

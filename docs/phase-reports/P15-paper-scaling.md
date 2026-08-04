@@ -11,6 +11,7 @@
   `6245b382bccc7cfddb32806ad5dff20a1d4019a6991fdfde57254226db632fa3`
 - Host: Apple M4, arm64, 10 logical CPUs, macOS 26.5, Rust 1.89.0.
 - Campaign runner wall duration: 1,255.110297167 seconds.
+- Full child-process wall sum: 312.813407982 seconds.
 
 ## Campaign Completion
 
@@ -24,6 +25,13 @@ The unsupported rows are bounded exact-cover Oracle requests beyond its
 declared cell limit. They remain in the raw evidence and are neither discarded
 nor counted as compact wins. The three production paths agree on all 1,288
 measured paired instance groups.
+
+The 1,008-row pilot's child-process walls sum to 45.966973783 seconds; its
+linear projection for the full plan was 265.586959635 seconds. The complete
+run's child-wall sum is 312.813407982 seconds. The difference between that sum
+and runner elapsed is a collection-protocol residual, including launch,
+validation, and per-record atomic whole-checkpoint persistence. It is not
+allocated to, or interpreted as, solver time.
 
 ## Generated Evidence
 

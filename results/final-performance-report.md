@@ -21,12 +21,20 @@ and configuration SHA-256
 
 ## Full Paper-Scaling Campaign
 
-The predeclared seven-family, eight-size campaign completed in 1,255.110
-runner-wall seconds on the recorded Apple M4 host. Every one of the 1,288
-measured production-path instance groups agreed exactly. The bounded
-exact-cover Oracle is intentionally unsupported over most of this population;
-those 1,302 rows are retained, but are neither timing observations nor compact
-wins.
+The pilot's 1,008 child-process walls sum to 45.967 seconds, yielding a linear
+full-plan child-wall projection of 265.587 seconds. The predeclared
+seven-family, eight-size campaign then completed with 312.813 seconds of
+summed child-process wall time and 1,255.110 runner-wall seconds on the
+recorded Apple M4 host. The 942.297-second residual belongs to the runner
+protocol, not to a solver-specific timing: it includes launch, validation, and
+atomic whole-checkpoint persistence after each terminal record. Its internal
+allocation was not measured, so no fraction is attributed to any one activity.
+Fits and paired ratios use the child process-wall observations only.
+
+Every one of the 1,288 measured production-path instance groups agreed
+exactly. The bounded exact-cover Oracle is intentionally unsupported over most
+of this population; those 1,302 rows are retained, but are neither timing
+observations nor compact wins.
 
 The full paired compact/Hopcroft--Karp process-wall medians are near one:
 random-connected 1.003, dense-conflict 1.008, sparse-conflict 1.004,
