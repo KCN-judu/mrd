@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+<rect width="100%" height="100%" fill="white"/>
+<text x="450.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#111827">Compact / explicit paired ratio</text>
+<line x1="85" y1="475" x2="835" y2="475" stroke="#334155"/>
+<line x1="85" y1="35" x2="85" y2="475" stroke="#334155"/>
+<text x="450.0" y="525" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#334155">target size</text>
+<text x="18" y="270.0" text-anchor="middle" transform="rotate(-90 18 270.0)" font-family="sans-serif" font-size="13" fill="#334155">ratio</text>
+<line x1="85" y1="274.00" x2="835" y2="274.00" stroke="#64748b" stroke-dasharray="6 4"/>
+<path d="M 85.00,435.03 L 335.00,395.91 L 585.00,266.98 L 835.00,35.00" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="85.00" cy="435.03" r="3.5" fill="#0f766e"/>
+<circle cx="335.00" cy="395.91" r="3.5" fill="#0f766e"/>
+<circle cx="585.00" cy="266.98" r="3.5" fill="#0f766e"/>
+<circle cx="835.00" cy="35.00" r="3.5" fill="#0f766e"/>
+<text x="843" y="40" font-family="sans-serif" font-size="12" fill="#0f766e">random-connected</text>
+<path d="M 85.00,356.21 L 335.00,306.56 L 585.00,316.37 L 835.00,369.55" fill="none" stroke="#b45309" stroke-width="2"/>
+<circle cx="85.00" cy="356.21" r="3.5" fill="#b45309"/>
+<circle cx="335.00" cy="306.56" r="3.5" fill="#b45309"/>
+<circle cx="585.00" cy="316.37" r="3.5" fill="#b45309"/>
+<circle cx="835.00" cy="369.55" r="3.5" fill="#b45309"/>
+<text x="843" y="58" font-family="sans-serif" font-size="12" fill="#b45309">dense-conflict</text>
+<path d="M 85.00,59.48 L 335.00,122.58 L 585.00,202.19 L 835.00,475.00" fill="none" stroke="#334155" stroke-width="2"/>
+<circle cx="85.00" cy="59.48" r="3.5" fill="#334155"/>
+<circle cx="335.00" cy="122.58" r="3.5" fill="#334155"/>
+<circle cx="585.00" cy="202.19" r="3.5" fill="#334155"/>
+<circle cx="835.00" cy="475.00" r="3.5" fill="#334155"/>
+<text x="843" y="76" font-family="sans-serif" font-size="12" fill="#334155">representation-crossover</text>
+</svg>

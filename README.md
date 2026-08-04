@@ -35,6 +35,29 @@ limitations. The concise historical record is [`docs/HISTORY.md`](docs/HISTORY.m
 and the active plan is [`docs/IMPLEMENTATION_MASTER_PLAN.md`](docs/IMPLEMENTATION_MASTER_PLAN.md);
 machine-readable campaign artifacts remain under `results/`.
 
+### Paper-scaling benchmark
+
+The publication-oriented scaling campaign is separate from the historical
+correctness and final-performance artifacts. It uses fresh release processes,
+paired deterministic grid instances, counterbalanced solver order, retained
+timeouts and unsupported Oracle rows, and fixed fit rules. The four labels are
+`compact-mrd`, `explicit-hopcroft-karp`, `explicit-c0-flow`, and the bounded
+`exact-cover-oracle`; CP-SAT remains a correctness Oracle rather than a timing
+baseline.
+
+```bash
+cargo build --workspace --release
+python3 tools/run_paper_scaling.py \
+  --config results/paper-scaling-smoke-config.json
+python3 tools/analyze_paper_scaling.py
+```
+
+`results/paper-scaling-config.json` is the predeclared full campaign. The
+checked-in `paper-scaling.*` artifacts are a three-family smoke run, not a
+final scaling claim. See [`docs/PAPER_BENCHMARK_CLAIMS.md`](docs/PAPER_BENCHMARK_CLAIMS.md)
+for the claim boundary and [`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md)
+for the complete experimental protocol.
+
 The v1.3 polygon sparse path uses an output-sensitive closed-endpoint
 orthogonal intersection sweep, an event-driven exact slab validator, and a
 physically sparse dynamic stabbing tree. The v1.2 range-scan subdivision and

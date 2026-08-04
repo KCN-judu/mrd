@@ -979,6 +979,81 @@ quartiles using inclusive linear interpolation (R type 7).  No confidence
 interval, p-value, normality assumption, cross-machine speedup, peak RSS,
 energy, or asymptotic inference is made.
 
+### Paper-scaling empirical protocol
+
+**Role.** The paper-scaling campaign measures end-to-end behavior of retained
+exact MRD paths on paired finite-grid families. Its purpose is to distinguish
+observed representation effects from an asymptotic theorem. It does not replace
+the exhaustive, differential, or external-oracle populations retained above.
+
+**Design.** `verification::paper_scaling` receives a versioned request with a
+family, target size, seed, algorithm, and exact-cover cell limit. It generates
+one connected foreground component and records generation attempts, grid
+dimensions, foreground cells `N`, component count, boundary size `B`, reflex
+count, `|H|`, `|V|`, `q`, `K` when an explicit graph is materialized, biclique
+count, total biclique incidence `sigma`, compressed network nodes/arcs, and
+the exact rectangle optimum. The four noninterchangeable labels are:
+
+| Label | Exact path | Intended comparison role |
+| --- | --- | --- |
+| `compact-mrd` | direct-grid parity embedding, compact Theorem 8 bicliques, compressed flow, indexed completion, exact validation | Production compact path; it never materializes `K` while timed. |
+| `explicit-hopcroft-karp` | full H/V conflict graph, Hopcroft--Karp, Konig cover, identical indexed completion, exact validation | Conventional explicit-graph baseline, including graph construction. |
+| `explicit-c0-flow` | materialized dominance graph, one C0 biclique per edge, explicit flow network, Dinic, cover recovery, indexed completion | Explicit-versus-compressed flow decomposition. |
+| `exact-cover-oracle` | independent bitset branch-and-bound rectangle cover | Small-instance correctness Oracle only; never folded into timing baselines. |
+
+The compact sample deliberately leaves `K` null in its timed child process.
+The paired runner fills a provenance-labelled structural sidecar from the
+paired explicit Hopcroft--Karp row after timing. This prevents a hidden
+explicit-graph construction from contaminating compact wall time while still
+permitting `K` versus `M` analysis.
+
+The predeclared families are random connected growth with a fixed SplitMix64
+seed and one recorded generation attempt; dense conflict; alternating-notch
+sparse conflict; alternating comb/staircase; a multi-hole grid family;
+orthogonal-spiral polyominoes; and the clean complete-bipartite representation
+crossover family. The public configurations are
+`results/paper-scaling-smoke-config.json` and
+`results/paper-scaling-config.json`. The latter fixes seven families, eight
+sizes, three warm-ups, 31 repetitions through target 27, 15 thereafter, and a
+60-second timeout before any full results are inspected.
+
+**Measurement and validity.** The Rust sample records native integer
+nanoseconds for instance generation, preprocessing, chord generation,
+embedding, explicit graph construction, biclique construction, network
+construction, flow execution, cover recovery, selection, completion, recovery,
+and verification when applicable. The runner records process wall time and its
+derived non-solver remainder separately. It uses a fresh release process for
+every row and records its actual counterbalanced execution order. Per-child RSS
+is null on this host because no portable per-child probe is used; null is never
+read as zero. Every successful row independently validates coverage. The
+runner rejects a campaign after preserving raw data if successful paired
+solvers disagree on their optimum or an algorithm gives nondeterministic
+canonical rectangles. Timed exact-cover rows above the predeclared cell limit
+remain `unsupported`; timeouts are censored rather than treated as exact times.
+
+**Analysis and current evidence.** `tools/analyze_paper_scaling.py` consumes
+only raw rows and emits quartiles, MAD, paired compact/explicit ratios with a
+fixed-seed 10,000-resample bootstrap interval, OLS log-median fits, Theil--Sen
+sensitivity slopes, residuals, booktabs tables, and SVG figures. A fit names
+its independent variable (`N`, `B`, `q`, `K`, or `M`) and is emitted only after
+six valid size levels satisfying the predeclared minimum target size. The
+checked-in smoke campaign has three families and four sizes with one warm-up
+and three measured repeats: 160 successful rows, 32 predeclared exact-cover
+unsupported rows, zero timeout, and zero paired mismatch. It has only three
+eligible fit sizes, so it reports no empirical exponent and no stable
+crossover. The full campaign is configured but intentionally unexecuted here.
+
+**Boundary.** Process startup dominates several smoke points, so the smoke
+ratios are not a hardware-independent speed claim. A fitted exponent from the
+full protocol would be an empirical descriptor over its stated interval, not
+the algorithm's complexity and not proof of an `O(n^1.5)` or AN19 claim.
+CP-SAT stays outside the performance comparison unless a separate fair protocol
+is committed. The detailed supported/unsupported wording is in
+[`PAPER_BENCHMARK_CLAIMS.md`](PAPER_BENCHMARK_CLAIMS.md); the legacy
+`EXPERIMENTS.md`, `BENCHMARK_SAMPLING_REPORT.md`, and `KNOWN_LIMITATIONS.md`
+material is consolidated in this document rather than restored as compatibility
+files.
+
 ### Test and release protocol
 
 The repository quality gate is:

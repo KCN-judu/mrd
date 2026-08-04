@@ -37,6 +37,33 @@ target-decision and runtime proof obligations are closed.
 - The AN19 event campaign contains 31 fixed A--H snapshots with exact
   Oracle/reduced semantic agreement and local certificates. It is not a global
   amortization or runtime proof.
+- The P15 paper-scaling smoke campaign contains three deterministic families,
+  four target sizes, one warm-up, and three fresh measured processes per
+  algorithm/size. It retains 192 raw rows with zero paired objective
+  mismatches; it is a pipeline check rather than exponent evidence.
+
+## P15 Paper-Scaling Campaign
+
+**Status.** Smoke implementation and evidence complete; full campaign
+predeclared but not run. This phase is independent of the P9 source-flow
+blocker and cannot close an AN19 proof obligation.
+
+**Implementation.** `mrd benchmark --suite paper-scaling` executes one
+versioned deterministic request. `verification::paper_scaling` exposes compact
+MRD, explicit Hopcroft--Karp, explicit C0 flow, and bounded exact-cover Oracle
+paths. The process runner uses release binaries, a fixed seed, fresh processes,
+per-pair Fisher--Yates order, configurable censoring, and raw-row retention.
+The analyzer emits robust summaries, paired bootstrap intervals, predeclared
+size-level fits, booktabs tables, and SVG figures without notebook state.
+
+**Acceptance boundary.** The full configuration specifies all seven families,
+eight target sizes, three warm-ups, 31 measured runs for target sizes through
+27, 15 thereafter, a 60-second timeout, and a six-size-level fit minimum.
+No exponent is emitted below that minimum. `exact-cover-oracle` is explicitly
+unsupported over its cell limit; that state is retained and never counted as a
+compact win. The current smoke run therefore establishes only that the
+reproducible chain, output schema, correctness gate, censoring, and generated
+artifacts work together.
 
 ## P9.3.2d Runtime-Proof Deferral
 

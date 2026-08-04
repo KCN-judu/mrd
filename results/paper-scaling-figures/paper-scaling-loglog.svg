@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+<rect width="100%" height="100%" fill="white"/>
+<text x="450.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#111827">Log-log process timing versus q</text>
+<line x1="85" y1="475" x2="835" y2="475" stroke="#334155"/>
+<line x1="85" y1="35" x2="85" y2="475" stroke="#334155"/>
+<text x="450.0" y="525" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#334155">log q</text>
+<text x="18" y="270.0" text-anchor="middle" transform="rotate(-90 18 270.0)" font-family="sans-serif" font-size="13" fill="#334155">log process wall time (ns)</text>
+<line x1="605.60" y1="317.67" x2="605.60" y2="237.59" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="707.11" y1="380.54" x2="707.11" y2="290.44" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="779.13" y1="375.22" x2="779.13" y2="333.68" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="835.00" y1="358.64" x2="835.00" y2="325.55" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<path d="M 605.60,282.14 L 707.11,305.62 L 779.13,362.08 L 835.00,341.55" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="605.60" cy="282.14" r="3.5" fill="#0f766e"/>
+<circle cx="707.11" cy="305.62" r="3.5" fill="#0f766e"/>
+<circle cx="779.13" cy="362.08" r="3.5" fill="#0f766e"/>
+<circle cx="835.00" cy="341.55" r="3.5" fill="#0f766e"/>
+<text x="843" y="40" font-family="sans-serif" font-size="12" fill="#0f766e">dense-conflict:compact-mrd</text>
+<line x1="605.60" y1="310.12" x2="605.60" y2="242.20" stroke="#b45309" stroke-width="1" opacity="0.55"/>
+<line x1="707.11" y1="333.81" x2="707.11" y2="233.96" stroke="#b45309" stroke-width="1" opacity="0.55"/>
+<line x1="779.13" y1="383.51" x2="779.13" y2="319.59" stroke="#b45309" stroke-width="1" opacity="0.55"/>
+<line x1="835.00" y1="394.03" x2="835.00" y2="330.85" stroke="#b45309" stroke-width="1" opacity="0.55"/>
+<path d="M 605.60,290.59 L 707.11,265.91 L 779.13,349.81 L 835.00,347.96" fill="none" stroke="#b45309" stroke-width="2"/>
+<circle cx="605.60" cy="290.59" r="3.5" fill="#b45309"/>
+<circle cx="707.11" cy="265.91" r="3.5" fill="#b45309"/>
+<circle cx="779.13" cy="349.81" r="3.5" fill="#b45309"/>
+<circle cx="835.00" cy="347.96" r="3.5" fill="#b45309"/>
+<text x="843" y="58" font-family="sans-serif" font-size="12" fill="#b45309">dense-conflict:explicit-hopcroft-karp</text>
+<line x1="85.00" y1="530.24" x2="85.00" y2="422.20" stroke="#334155" stroke-width="1" opacity="0.55"/>
+<line x1="258.53" y1="408.34" x2="258.53" y2="378.04" stroke="#334155" stroke-width="1" opacity="0.55"/>
+<line x1="314.40" y1="446.62" x2="314.40" y2="356.43" stroke="#334155" stroke-width="1" opacity="0.55"/>
+<path d="M 85.00,475.00 L 258.53,383.14 L 314.40,412.23" fill="none" stroke="#334155" stroke-width="2"/>
+<circle cx="85.00" cy="475.00" r="3.5" fill="#334155"/>
+<circle cx="258.53" cy="383.14" r="3.5" fill="#334155"/>
+<circle cx="314.40" cy="412.23" r="3.5" fill="#334155"/>
+<text x="843" y="76" font-family="sans-serif" font-size="12" fill="#334155">random-connected:compact-mrd</text>
+<line x1="85.00" y1="452.78" x2="85.00" y2="393.74" stroke="#9f1239" stroke-width="1" opacity="0.55"/>
+<line x1="258.53" y1="483.13" x2="258.53" y2="406.49" stroke="#9f1239" stroke-width="1" opacity="0.55"/>
+<line x1="314.40" y1="451.86" x2="314.40" y2="415.46" stroke="#9f1239" stroke-width="1" opacity="0.55"/>
+<path d="M 85.00,439.59 L 258.53,435.78 L 314.40,423.46" fill="none" stroke="#9f1239" stroke-width="2"/>
+<circle cx="85.00" cy="439.59" r="3.5" fill="#9f1239"/>
+<circle cx="258.53" cy="435.78" r="3.5" fill="#9f1239"/>
+<circle cx="314.40" cy="423.46" r="3.5" fill="#9f1239"/>
+<text x="843" y="94" font-family="sans-serif" font-size="12" fill="#9f1239">random-connected:explicit-hopcroft-karp</text>
+<line x1="605.60" y1="289.48" x2="605.60" y2="196.72" stroke="#4f46e5" stroke-width="1" opacity="0.55"/>
+<line x1="707.11" y1="211.78" x2="707.11" y2="141.71" stroke="#4f46e5" stroke-width="1" opacity="0.55"/>
+<line x1="779.13" y1="227.54" x2="779.13" y2="157.75" stroke="#4f46e5" stroke-width="1" opacity="0.55"/>
+<line x1="835.00" y1="127.00" x2="835.00" y2="68.80" stroke="#4f46e5" stroke-width="1" opacity="0.55"/>
+<path d="M 605.60,283.30 L 707.11,151.53 L 779.13,174.43 L 835.00,115.34" fill="none" stroke="#4f46e5" stroke-width="2"/>
+<circle cx="605.60" cy="283.30" r="3.5" fill="#4f46e5"/>
+<circle cx="707.11" cy="151.53" r="3.5" fill="#4f46e5"/>
+<circle cx="779.13" cy="174.43" r="3.5" fill="#4f46e5"/>
+<circle cx="835.00" cy="115.34" r="3.5" fill="#4f46e5"/>
+<text x="843" y="112" font-family="sans-serif" font-size="12" fill="#4f46e5">representation-crossover:compact-mrd</text>
+<line x1="605.60" y1="334.95" x2="605.60" y2="279.78" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="707.11" y1="253.22" x2="707.11" y2="216.93" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="779.13" y1="247.70" x2="779.13" y2="175.17" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<line x1="835.00" y1="60.53" x2="835.00" y2="-0.52" stroke="#0f766e" stroke-width="1" opacity="0.55"/>
+<path d="M 605.60,325.27 L 707.11,239.04 L 779.13,188.57 L 835.00,35.00" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="605.60" cy="325.27" r="3.5" fill="#0f766e"/>
+<circle cx="707.11" cy="239.04" r="3.5" fill="#0f766e"/>
+<circle cx="779.13" cy="188.57" r="3.5" fill="#0f766e"/>
+<circle cx="835.00" cy="35.00" r="3.5" fill="#0f766e"/>
+<text x="843" y="130" font-family="sans-serif" font-size="12" fill="#0f766e">representation-crossover:explicit-hopcroft-karp</text>
+</svg>
