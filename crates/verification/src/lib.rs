@@ -7,6 +7,7 @@ pub mod formal_campaign;
 pub mod gap_differential;
 pub mod grid;
 pub mod minimize;
+pub mod paper_scaling;
 pub mod polygon;
 pub mod polygon_campaign;
 pub mod polyomino;

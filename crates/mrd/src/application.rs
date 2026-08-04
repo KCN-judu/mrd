@@ -164,6 +164,11 @@ enum Command {
             default_value = "staircase,alternating-notch-corridor,comb,double-comb,spiral"
         )]
         families: String,
+        /// Versioned request for one paper-scaling sample. The external runner
+        /// supplies this relative JSON path to keep each measurement process
+        /// deterministic and independently auditable.
+        #[arg(long)]
+        paper_scaling_request: Option<PathBuf>,
         #[arg(long)]
         output: PathBuf,
     },
@@ -410,6 +415,7 @@ enum BenchmarkSuiteArg {
     PolygonScaling,
     FormalFixtures,
     Layered,
+    PaperScaling,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -734,6 +740,7 @@ fn run() -> Result<(), CliError> {
             reference_provided_target,
             sizes,
             families,
+            paper_scaling_request,
             output,
         } => {
             let sizes = parse_sizes(&sizes)?;
@@ -747,6 +754,7 @@ fn run() -> Result<(), CliError> {
                 reference_provided_target,
                 sizes: &sizes,
                 families: &families,
+                paper_scaling_request: paper_scaling_request.as_deref(),
                 output: &output,
             })
         }
@@ -1034,6 +1042,7 @@ struct BenchmarkOptions<'a> {
     reference_provided_target: bool,
     sizes: &'a [usize],
     families: &'a [String],
+    paper_scaling_request: Option<&'a Path>,
     output: &'a Path,
 }
 
@@ -1048,6 +1057,7 @@ fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
         reference_provided_target,
         sizes,
         families,
+        paper_scaling_request,
         output,
     } = options;
     if suite == BenchmarkSuiteArg::Polyomino && max_cells == 0 {
@@ -1056,6 +1066,20 @@ fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
         ));
     }
     let context = benchmark_context()?;
+    if suite == BenchmarkSuiteArg::PaperScaling {
+        let request_path = paper_scaling_request.ok_or_else(|| {
+            CliError::Input(
+                "paper-scaling requires --paper-scaling-request <relative-json-request>".to_owned(),
+            )
+        })?;
+        let request = serde_json::from_slice::<verification::paper_scaling::Request>(&fs::read(
+            request_path,
+        )?)?;
+        let sample = verification::paper_scaling::run(&request)
+            .map_err(|error| CliError::Input(error.to_string()))?;
+        write_json(&sample, Some(output))?;
+        return Ok(());
+    }
     if suite == BenchmarkSuiteArg::Layered {
         let source_target = source_target
             .map(mrd::layered::experiment::SourceTarget::CallerSupplied)
@@ -1409,6 +1433,7 @@ fn benchmark_command(options: BenchmarkOptions<'_>) -> Result<(), CliError> {
         | BenchmarkSuiteArg::PolygonScaling
         | BenchmarkSuiteArg::FormalFixtures
         | BenchmarkSuiteArg::Layered
+        | BenchmarkSuiteArg::PaperScaling
         | BenchmarkSuiteArg::DirectGridParity => unreachable!(),
     };
     let csv = report

@@ -1155,6 +1155,16 @@ pub struct VerticalUnitCut {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CompletionMetrics {
+    #[serde(default)]
+    pub selected_chord_cut_materialization_nanoseconds: u128,
+    #[serde(default)]
+    pub horizontal_simple_chord_completion_nanoseconds: u128,
+    #[serde(default)]
+    pub vertical_simple_chord_completion_nanoseconds: u128,
+    #[serde(default)]
+    pub rectangle_recovery_nanoseconds: u128,
+    #[serde(default)]
+    pub final_output_validation_nanoseconds: u128,
     pub selected_chord_cut_materialization_microseconds: u128,
     pub horizontal_simple_chord_completion_microseconds: u128,
     pub vertical_simple_chord_completion_microseconds: u128,
@@ -1790,6 +1800,9 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
         let selected_horizontal_unit_cuts = cuts.horizontal.iter().copied().collect::<Vec<_>>();
         let selected_vertical_unit_cuts = cuts.vertical.iter().copied().collect::<Vec<_>>();
         let mut metrics = CompletionMetrics {
+            selected_chord_cut_materialization_nanoseconds: selected_at
+                .duration_since(started)
+                .as_nanos(),
             selected_chord_cut_materialization_microseconds: selected_at
                 .duration_since(started)
                 .as_micros(),
@@ -1801,16 +1814,23 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
         let horizontal_at = Instant::now();
         metrics.horizontal_simple_chord_completion_microseconds =
             horizontal_at.duration_since(selected_at).as_micros();
+        metrics.horizontal_simple_chord_completion_nanoseconds =
+            horizontal_at.duration_since(selected_at).as_nanos();
         complete_axis(component, &mut cuts, false, &mut metrics)?;
         let vertical_at = Instant::now();
         metrics.vertical_simple_chord_completion_microseconds =
             vertical_at.duration_since(horizontal_at).as_micros();
+        metrics.vertical_simple_chord_completion_nanoseconds =
+            vertical_at.duration_since(horizontal_at).as_nanos();
         let rectangles = rectangles_from_cuts(component, &cuts, &mut metrics)?;
         let rectangles_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             rectangles_at.duration_since(vertical_at).as_micros();
+        metrics.rectangle_recovery_nanoseconds =
+            rectangles_at.duration_since(vertical_at).as_nanos();
         validate_completion_rectangles(component, &rectangles)?;
         metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
+        metrics.final_output_validation_nanoseconds = rectangles_at.elapsed().as_nanos();
         let added_horizontal_unit_cuts = cuts
             .horizontal
             .iter()
@@ -1887,6 +1907,9 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         let selected_horizontal_unit_cuts = cuts.horizontal_cuts();
         let selected_vertical_unit_cuts = cuts.vertical_cuts();
         let mut metrics = CompletionMetrics {
+            selected_chord_cut_materialization_nanoseconds: selected_at
+                .duration_since(started)
+                .as_nanos(),
             selected_chord_cut_materialization_microseconds: selected_at
                 .duration_since(started)
                 .as_micros(),
@@ -1899,10 +1922,14 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         let horizontal_at = Instant::now();
         metrics.horizontal_simple_chord_completion_microseconds =
             horizontal_at.duration_since(selected_at).as_micros();
+        metrics.horizontal_simple_chord_completion_nanoseconds =
+            horizontal_at.duration_since(selected_at).as_nanos();
         complete_indexed_axis(&mut state, false, &mut metrics)?;
         let vertical_at = Instant::now();
         metrics.vertical_simple_chord_completion_microseconds =
             vertical_at.duration_since(horizontal_at).as_micros();
+        metrics.vertical_simple_chord_completion_nanoseconds =
+            vertical_at.duration_since(horizontal_at).as_nanos();
         let recovery = DenseGridRecovery.recover(prepared, &state.cuts)?;
         metrics.rectangle_recovery_component_visits = recovery.cell_visits;
         metrics.rectangle_recovery_queue_pushes = recovery.queue_pushes;
@@ -1912,8 +1939,11 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         let rectangles_at = Instant::now();
         metrics.rectangle_recovery_microseconds =
             rectangles_at.duration_since(vertical_at).as_micros();
+        metrics.rectangle_recovery_nanoseconds =
+            rectangles_at.duration_since(vertical_at).as_nanos();
         validate_completion_rectangles(component, &rectangles)?;
         metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
+        metrics.final_output_validation_nanoseconds = rectangles_at.elapsed().as_nanos();
         let all_horizontal_unit_cuts = state.cuts.horizontal_cuts();
         let all_vertical_unit_cuts = state.cuts.vertical_cuts();
         let added_horizontal_unit_cuts = all_horizontal_unit_cuts
