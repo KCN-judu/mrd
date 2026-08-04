@@ -430,6 +430,8 @@ def new_checkpoint(
         "planned_samples": plan,
         "records": [],
         "paired_validation_errors": [],
+        "completed_runner_wall_time_ns": 0,
+        "runner_invocations": [],
         "created_at_epoch_seconds": int(time.time()),
         "updated_at_epoch_seconds": int(time.time()),
     }
@@ -515,6 +517,46 @@ def refresh_checkpoint(checkpoint: dict[str, Any]) -> None:
     checkpoint["updated_at_epoch_seconds"] = int(time.time())
 
 
+def begin_runner_invocation(checkpoint: dict[str, Any], resume: bool) -> int:
+    """Start a wall-clock segment, preserving the last durable interrupted segment."""
+    previous = checkpoint.pop("active_runner_invocation", None)
+    if previous is not None:
+        elapsed = int(previous.get("last_elapsed_ns", 0))
+        checkpoint["completed_runner_wall_time_ns"] = int(
+            checkpoint.get("completed_runner_wall_time_ns", 0)
+        ) + elapsed
+        checkpoint.setdefault("runner_invocations", []).append(
+            {**previous, "elapsed_ns": elapsed, "interrupted": True}
+        )
+    checkpoint["active_runner_invocation"] = {
+        "started_at_epoch_ns": time.time_ns(),
+        "last_elapsed_ns": 0,
+        "resume": resume,
+    }
+    return time.perf_counter_ns()
+
+
+def refresh_runner_elapsed(checkpoint: dict[str, Any], started_ns: int) -> None:
+    active = checkpoint["active_runner_invocation"]
+    active["last_elapsed_ns"] = time.perf_counter_ns() - started_ns
+    checkpoint["runner_wall_time_ns"] = int(
+        checkpoint.get("completed_runner_wall_time_ns", 0)
+    ) + int(active["last_elapsed_ns"])
+
+
+def finish_runner_invocation(checkpoint: dict[str, Any], started_ns: int) -> None:
+    refresh_runner_elapsed(checkpoint, started_ns)
+    active = checkpoint.pop("active_runner_invocation")
+    elapsed = int(active["last_elapsed_ns"])
+    checkpoint["completed_runner_wall_time_ns"] = int(
+        checkpoint.get("completed_runner_wall_time_ns", 0)
+    ) + elapsed
+    checkpoint.setdefault("runner_invocations", []).append(
+        {**active, "elapsed_ns": elapsed, "interrupted": False}
+    )
+    checkpoint["runner_wall_time_ns"] = checkpoint["completed_runner_wall_time_ns"]
+
+
 def load_checkpoint(path: Path, expected: dict[str, Any]) -> dict[str, Any]:
     checkpoint = json.loads(path.read_text())
     validate_checkpoint(checkpoint, expected)
@@ -549,6 +591,8 @@ def output_payload(checkpoint: dict[str, Any]) -> dict[str, Any]:
         "config_sha256": checkpoint["config_sha256"],
         "source_commit": checkpoint["source_commit"],
         "binary_sha256": checkpoint["binary_sha256"],
+        "runner_wall_time_ns": checkpoint.get("runner_wall_time_ns"),
+        "runner_invocations": checkpoint.get("runner_invocations", []),
         "planned_samples": checkpoint["planned_samples"],
         "completion": checkpoint["completion"],
         "records": checkpoint["records"],
@@ -875,8 +919,15 @@ def run_campaign(
                 f"checkpoint already exists; use --resume: {relative_path(resolved_checkpoint)}"
             )
         checkpoint = new_checkpoint(config, binary, plan, checksum)
+
+    invocation_started = begin_runner_invocation(checkpoint, resume)
+
+    def persist_checkpoint() -> None:
+        refresh_runner_elapsed(checkpoint, invocation_started)
         if resolved_checkpoint is not None:
             atomic_write_json(resolved_checkpoint, checkpoint)
+
+    persist_checkpoint()
 
     selected = select_planned_samples(plan, families, sizes)
     completed = {record["sample_identity"] for record in checkpoint["records"]}
@@ -895,10 +946,10 @@ def run_campaign(
         )
         append_record(checkpoint, sample, record)
         completed.add(sample["sample_identity"])
-        if resolved_checkpoint is not None:
-            atomic_write_json(resolved_checkpoint, checkpoint)
+        persist_checkpoint()
 
     refresh_checkpoint(checkpoint)
+    finish_runner_invocation(checkpoint, invocation_started)
     if resolved_checkpoint is not None:
         atomic_write_json(resolved_checkpoint, checkpoint)
     payload = output_payload(checkpoint)

@@ -130,6 +130,9 @@ class CheckpointProtocolTests(unittest.TestCase):
             [row["sample_identity"] for row in second["records"]],
             [sample["sample_identity"] for sample in second["planned_samples"]],
         )
+        self.assertGreater(second["runner_wall_time_ns"], 0)
+        self.assertEqual(len(second["runner_invocations"]), 2)
+        self.assertTrue(all(not item["interrupted"] for item in second["runner_invocations"]))
 
     def test_duplicate_identity_is_rejected(self) -> None:
         config = protocol()
