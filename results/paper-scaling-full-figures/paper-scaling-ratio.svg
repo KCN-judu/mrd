@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
+<rect width="100%" height="100%" fill="white"/>
+<text x="450.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#111827">Compact / explicit paired ratio</text>
+<line x1="85" y1="475" x2="835" y2="475" stroke="#334155"/>
+<line x1="85" y1="35" x2="85" y2="475" stroke="#334155"/>
+<text x="450.0" y="525" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#334155">target size</text>
+<text x="18" y="270.0" text-anchor="middle" transform="rotate(-90 18 270.0)" font-family="sans-serif" font-size="13" fill="#334155">ratio</text>
+<line x1="85" y1="354.25" x2="835" y2="354.25" stroke="#64748b" stroke-dasharray="6 4"/>
+<path d="M 85.00,298.82 L 108.62,338.46 L 144.06,338.05 L 197.20,335.36 L 273.98,375.71 L 392.09,309.90 L 569.25,360.96 L 835.00,208.96" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="85.00" cy="298.82" r="3.5" fill="#0f766e"/>
+<circle cx="108.62" cy="338.46" r="3.5" fill="#0f766e"/>
+<circle cx="144.06" cy="338.05" r="3.5" fill="#0f766e"/>
+<circle cx="197.20" cy="335.36" r="3.5" fill="#0f766e"/>
+<circle cx="273.98" cy="375.71" r="3.5" fill="#0f766e"/>
+<circle cx="392.09" cy="309.90" r="3.5" fill="#0f766e"/>
+<circle cx="569.25" cy="360.96" r="3.5" fill="#0f766e"/>
+<circle cx="835.00" cy="208.96" r="3.5" fill="#0f766e"/>
+<text x="843" y="40" font-family="sans-serif" font-size="12" fill="#0f766e">random-connected</text>
+<path d="M 85.00,362.20 L 108.62,390.33 L 144.06,181.86 L 197.20,355.26 L 273.98,438.67 L 392.09,35.00 L 569.25,250.19 L 835.00,308.09" fill="none" stroke="#b45309" stroke-width="2"/>
+<circle cx="85.00" cy="362.20" r="3.5" fill="#b45309"/>
+<circle cx="108.62" cy="390.33" r="3.5" fill="#b45309"/>
+<circle cx="144.06" cy="181.86" r="3.5" fill="#b45309"/>
+<circle cx="197.20" cy="355.26" r="3.5" fill="#b45309"/>
+<circle cx="273.98" cy="438.67" r="3.5" fill="#b45309"/>
+<circle cx="392.09" cy="35.00" r="3.5" fill="#b45309"/>
+<circle cx="569.25" cy="250.19" r="3.5" fill="#b45309"/>
+<circle cx="835.00" cy="308.09" r="3.5" fill="#b45309"/>
+<text x="843" y="58" font-family="sans-serif" font-size="12" fill="#b45309">dense-conflict</text>
+<path d="M 85.00,380.71 L 108.62,444.17 L 144.06,305.18 L 197.20,288.02 L 273.98,281.67 L 392.09,446.43 L 569.25,332.84 L 835.00,234.58" fill="none" stroke="#334155" stroke-width="2"/>
+<circle cx="85.00" cy="380.71" r="3.5" fill="#334155"/>
+<circle cx="108.62" cy="444.17" r="3.5" fill="#334155"/>
+<circle cx="144.06" cy="305.18" r="3.5" fill="#334155"/>
+<circle cx="197.20" cy="288.02" r="3.5" fill="#334155"/>
+<circle cx="273.98" cy="281.67" r="3.5" fill="#334155"/>
+<circle cx="392.09" cy="446.43" r="3.5" fill="#334155"/>
+<circle cx="569.25" cy="332.84" r="3.5" fill="#334155"/>
+<circle cx="835.00" cy="234.58" r="3.5" fill="#334155"/>
+<text x="843" y="76" font-family="sans-serif" font-size="12" fill="#334155">sparse-conflict</text>
+<path d="M 85.00,402.16 L 108.62,398.39 L 144.06,428.25 L 197.20,330.71 L 273.98,459.48 L 392.09,284.98 L 569.25,276.43 L 835.00,406.59" fill="none" stroke="#9f1239" stroke-width="2"/>
+<circle cx="85.00" cy="402.16" r="3.5" fill="#9f1239"/>
+<circle cx="108.62" cy="398.39" r="3.5" fill="#9f1239"/>
+<circle cx="144.06" cy="428.25" r="3.5" fill="#9f1239"/>
+<circle cx="197.20" cy="330.71" r="3.5" fill="#9f1239"/>
+<circle cx="273.98" cy="459.48" r="3.5" fill="#9f1239"/>
+<circle cx="392.09" cy="284.98" r="3.5" fill="#9f1239"/>
+<circle cx="569.25" cy="276.43" r="3.5" fill="#9f1239"/>
+<circle cx="835.00" cy="406.59" r="3.5" fill="#9f1239"/>
+<text x="843" y="94" font-family="sans-serif" font-size="12" fill="#9f1239">comb-staircase</text>
+<path d="M 85.00,354.63 L 108.62,371.23 L 144.06,370.73 L 197.20,343.36 L 273.98,354.03 L 392.09,316.17 L 569.25,386.31 L 835.00,280.86" fill="none" stroke="#4f46e5" stroke-width="2"/>
+<circle cx="85.00" cy="354.63" r="3.5" fill="#4f46e5"/>
+<circle cx="108.62" cy="371.23" r="3.5" fill="#4f46e5"/>
+<circle cx="144.06" cy="370.73" r="3.5" fill="#4f46e5"/>
+<circle cx="197.20" cy="343.36" r="3.5" fill="#4f46e5"/>
+<circle cx="273.98" cy="354.03" r="3.5" fill="#4f46e5"/>
+<circle cx="392.09" cy="316.17" r="3.5" fill="#4f46e5"/>
+<circle cx="569.25" cy="386.31" r="3.5" fill="#4f46e5"/>
+<circle cx="835.00" cy="280.86" r="3.5" fill="#4f46e5"/>
+<text x="843" y="112" font-family="sans-serif" font-size="12" fill="#4f46e5">supported-holes</text>
+<path d="M 85.00,349.43 L 108.62,396.08 L 144.06,286.27 L 197.20,284.35 L 273.98,272.11 L 392.09,374.74 L 569.25,256.54 L 835.00,288.77" fill="none" stroke="#0f766e" stroke-width="2"/>
+<circle cx="85.00" cy="349.43" r="3.5" fill="#0f766e"/>
+<circle cx="108.62" cy="396.08" r="3.5" fill="#0f766e"/>
+<circle cx="144.06" cy="286.27" r="3.5" fill="#0f766e"/>
+<circle cx="197.20" cy="284.35" r="3.5" fill="#0f766e"/>
+<circle cx="273.98" cy="272.11" r="3.5" fill="#0f766e"/>
+<circle cx="392.09" cy="374.74" r="3.5" fill="#0f766e"/>
+<circle cx="569.25" cy="256.54" r="3.5" fill="#0f766e"/>
+<circle cx="835.00" cy="288.77" r="3.5" fill="#0f766e"/>
+<text x="843" y="130" font-family="sans-serif" font-size="12" fill="#0f766e">polyomino</text>
+<path d="M 85.00,271.71 L 108.62,349.85 L 144.06,382.35 L 197.20,375.56 L 273.98,332.49 L 392.09,442.99 L 569.25,475.00 L 835.00,408.94" fill="none" stroke="#b45309" stroke-width="2"/>
+<circle cx="85.00" cy="271.71" r="3.5" fill="#b45309"/>
+<circle cx="108.62" cy="349.85" r="3.5" fill="#b45309"/>
+<circle cx="144.06" cy="382.35" r="3.5" fill="#b45309"/>
+<circle cx="197.20" cy="375.56" r="3.5" fill="#b45309"/>
+<circle cx="273.98" cy="332.49" r="3.5" fill="#b45309"/>
+<circle cx="392.09" cy="442.99" r="3.5" fill="#b45309"/>
+<circle cx="569.25" cy="475.00" r="3.5" fill="#b45309"/>
+<circle cx="835.00" cy="408.94" r="3.5" fill="#b45309"/>
+<text x="843" y="148" font-family="sans-serif" font-size="12" fill="#b45309">representation-crossover</text>
+</svg>
