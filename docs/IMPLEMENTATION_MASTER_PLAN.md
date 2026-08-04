@@ -18,7 +18,7 @@
 This is the active plan, not a process archive. Completed phase narratives,
 release notes, and superseded next actions are summarized in
 [`HISTORY.md`](HISTORY.md). Current implementation scope is described in
-[`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md); finite campaigns and
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md); finite campaigns and
 their boundaries are described in [`EXPERIMENTS.md`](EXPERIMENTS.md) and
 [`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md).
 

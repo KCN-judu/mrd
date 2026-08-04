@@ -24,14 +24,13 @@ All correctness-critical geometry uses integers. Grid rectangles are half-open;
 polygon rectangles use native `i64` coordinates; geometric chords are closed.
 Every solver returns explicit rectangles and runs its exact native validator.
 The crate and namespace ownership map is documented in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md).
 
 ## Documentation
 
 The consolidated implementation account is
-[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md). It explains
-each major subsystem's purpose, implementation evidence, and remaining
-limitations. The separate
+[`docs/IMPLEMENTATION.md`](docs/IMPLEMENTATION.md). It explains each major
+subsystem's purpose, implementation evidence, and remaining limitations. The separate
 [`docs/BENCHMARK_SAMPLING_REPORT.md`](docs/BENCHMARK_SAMPLING_REPORT.md)
 describes the controlled repeated-process benchmark protocol and links its raw
 samples. The concise historical record is
@@ -54,7 +53,7 @@ a source-mapped canonical representation, exact effective-chord construction,
 compact matching, formal completion, and Definition 2 validation. The formal
 pipeline is available through `solve` with either dominance solver mode.
 Disconnected outer components remain unsupported. See
-`docs/FORMAL_BOUNDARY_MODEL.md` and
+`docs/IMPLEMENTATION.md` and
 `docs/KNOWN_LIMITATIONS.md`.
 
 ## Quick start
@@ -200,10 +199,9 @@ The v0.9 boundary-native evidence is recorded in
 separate and immutable. v1.0 indexed-backend evidence is stored in the
 `results/v1.0-polygon-*` reports and documented in
 `docs/POLYGON_BACKEND_DIFFERENTIAL.md`. The v1.1 three-backend sweep evidence
-is stored in `results/v1.1-polygon-*` and source-mapped in
-`docs/SOLTAN_SWEEP_IMPLEMENTATION.md`. v1.2 adds the sparse completion
-contracts in `docs/DYNAMIC_ORTHOGONAL_CUT_INDEX.md`,
-`docs/SPARSE_POLYGON_SUBDIVISION.md`, and `docs/SPARSE_POLYGON_VALIDATION.md`.
+is stored in `results/v1.1-polygon-*`. The implementation contracts for the
+event sweep and v1.2 sparse completion are consolidated in
+`docs/IMPLEMENTATION.md`.
 
 Colors are arbitrary JSON scalar or structured values compared by exact JSON
 equality. See `docs/KNOWN_LIMITATIONS.md` before using non-grid polygon inputs.
@@ -261,12 +259,12 @@ claimed AN19 runtime.
 
 CompactOnly uses the verified `indexed-frontier` geometric-completion backend
 by default. `reference-rescan` remains available for differential debugging;
-see `docs/GEOMETRIC_COMPLETION.md` for the deterministic policy and exact
-cut-family acceptance contract.
+see `docs/IMPLEMENTATION.md` for the deterministic policy and exact cut-family
+acceptance contract.
 
 The CompactOnly geometry path now shares one component-local prepared context
 across grid-run chord enumeration, dense cut completion, dense rectangle
-recovery, and final validation. See `docs/PREPARED_GRID_PIPELINE.md`.
+recovery, and final validation. See `docs/IMPLEMENTATION.md`.
 
 ## Layered public backend architecture
 

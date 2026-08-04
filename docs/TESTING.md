@@ -64,7 +64,7 @@ differential, trace, fixed-snapshot event-cardinality, and practical heap-bound
 statuses. The `O((n+m) log(n+m))` practical bound does not validate the
 source-equivalent priority-queue bound, global amortization, or AN19's
 asymptotic runtime. The proof and excluded work are documented in
-`docs/AN19_LOCAL_EVENT_BOUND.md`.
+`docs/IMPLEMENTATION.md`.
 
 Run larger exhaustive and random campaigns with:
 

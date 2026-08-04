@@ -34,7 +34,7 @@ impl Sweep {
     /// Runs the axis-generic source-mapped event sweep on shared metadata.
     ///
     /// The accepted ordinary-loop model makes Definition 7's formal-boundary
-    /// merge cases inapplicable; see `docs/SOLTAN_SWEEP_IMPLEMENTATION.md`.
+    /// merge cases inapplicable; see `docs/IMPLEMENTATION.md`.
     ///
     /// # Errors
     ///

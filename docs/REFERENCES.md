@@ -13,7 +13,7 @@
    chords, the admissible-family reduction, the rectangle-count formula, and
    Section 10 completion for the accepted formal model. The exact input scope
    and remaining contour-contact limits are documented in
-   `FORMAL_BOUNDARY_MODEL.md`.
+   `IMPLEMENTATION.md`.
 
 2. David Eppstein, "Graph-Theoretic Solutions to Computational Geometry
    Problems," arXiv:0908.3916, 2009.

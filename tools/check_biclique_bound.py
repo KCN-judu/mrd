@@ -44,9 +44,9 @@ def main() -> None:
         sanitized = text.replace(REQUIRED_NOTE, "")
         if proximity.search(sanitized):
             failures.append(str(path))
-    algorithms = Path("docs/ALGORITHMS.md").read_text(encoding="utf-8")
+    algorithms = Path("docs/IMPLEMENTATION.md").read_text(encoding="utf-8")
     if REQUIRED_NOTE not in algorithms:
-        failures.append("docs/ALGORITHMS.md (required specialization note missing)")
+        failures.append("docs/IMPLEMENTATION.md (required specialization note missing)")
     if failures:
         raise SystemExit(
             "incorrect or incomplete four-dimensional biclique bound documentation: "

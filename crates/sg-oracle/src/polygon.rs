@@ -1687,7 +1687,7 @@ impl IndexedPolygonCompletion {
     ///
     /// The line-map backend is retained only as a completion differential
     /// oracle.  The dynamic backend uses the statically closed coordinate
-    /// universe documented in `POLYGON_COMPLETION_COORDINATE_CLOSURE.md`.
+    /// universe documented in `IMPLEMENTATION.md`.
     ///
     /// # Errors
     ///

@@ -123,10 +123,13 @@ def check_an19_status_docs() -> None:
             "low-priority proof debt",
             "empirical counts do not close the proof",
         ),
-        "docs/ALGORITHMS.md": (
-            "P9.3.2d faithful implementation complete",
-            "low-priority proof debt deferred until after P9.5",
-            "tests do not verify the asymptotic runtime",
+        "docs/IMPLEMENTATION.md": (
+            "P9.3.2d's faithful implementation and exact Oracle differential are complete",
+            "P9.3.3 through P9.5 source-shaped backend work",
+            "source-equivalent `O(m + n log log n)` ordering bound",
+            "3n + 4m + 2",
+            "n + 2m + 2",
+            "priority_queue_bound_proved`",
         ),
         "docs/EXPERIMENTS.md": (
             "247 passed and 3 existing ignored",
@@ -141,11 +144,6 @@ def check_an19_status_docs() -> None:
             "10.1137/17M1115575",
             "runtime chain therefore remains unverified",
         ),
-        "docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md": (
-            "Current P9.3.2d deferred proof debt",
-            "P9.3.3 through P9.5 build the complete source-shaped flow backend",
-            "P9.6a must",
-        ),
         "docs/IMPLEMENTATION_MASTER_PLAN.md": (
             "Current phase: P9.5e.3g.3",
             "Current phase state: blocked",
@@ -154,11 +152,6 @@ def check_an19_status_docs() -> None:
             "Deferred Proof Debt: P9.6a",
             "an19_runtime_verified: true",
             "Appendix C.9 route assumes",
-        ),
-        "docs/AN19_LOCAL_EVENT_BOUND.md": (
-            "3n + 4m + 2",
-            "n + 2m + 2",
-            "priority_queue_bound_proved`",
         ),
         "docs/HISTORY.md": (
             "P9.3.2d Runtime-Proof Deferral",
@@ -566,7 +559,7 @@ def main() -> None:
         fail("experiment documentation still reports only three witnesses")
     if "No strict sigma advantage was found" in experiments:
         fail("experiment documentation still reports no strict sigma advantage")
-    algorithms = (ROOT / "docs/ALGORITHMS.md").read_text(encoding="utf-8")
+    algorithms = (ROOT / "docs/IMPLEMENTATION.md").read_text(encoding="utf-8")
     if "grid::experiment::InteriorRuns" not in algorithms or "BoundaryIndex" not in algorithms:
         fail("algorithm documentation does not name the indexed production path")
     for required in (

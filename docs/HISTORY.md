@@ -43,7 +43,7 @@ remain in `results/`.
 The project added canonical formal rectilinear polygons, ornaments, formal
 incidence, effective chords, matching, completion, and Definition 2
 validation. Formal boundary behavior is documented normatively in
-`FORMAL_BOUNDARY_MODEL.md`; eight final named fixtures provide the finite
+`IMPLEMENTATION.md`; eight final named fixtures provide the finite
 end-to-end evidence. The construction does not imply support for every
 topological contour-contact configuration.
 
@@ -95,8 +95,7 @@ P9 separated two kinds of progress that must not be conflated:
   evidence, not a substitute proof.
 
 P9 source-flow evidence is retained in `results/an19-event-adversarial.json`,
-`docs/AN19_LOCAL_EVENT_BOUND.md`, `docs/NEAR_LINEAR_FLOW_IMPLEMENTATION.md`,
-and the current implementation plan. The P9 implementation is research-only
+`docs/IMPLEMENTATION.md`, and the current implementation plan. The P9 implementation is research-only
 where the target or proof obligations require it; it is not an automatic
 almost-linear solver.
 
@@ -123,11 +122,11 @@ portable speed or complexity claim.
 
 | Question | Current source of truth |
 | --- | --- |
-| What the workspace implements and what remains limited | `IMPLEMENTATION_STATUS.md`, `ARCHITECTURE.md`, `ALGORITHMS.md`, `KNOWN_LIMITATIONS.md` |
+| What the workspace implements and what remains limited | `IMPLEMENTATION.md`, `KNOWN_LIMITATIONS.md` |
 | Which exact inputs and solvers agreed | `EXPERIMENTS.md`, `results/final-correctness-report.md`, `results/final-campaigns/` |
 | How local timing was sampled | `BENCHMARK_SAMPLING_REPORT.md`, `results/benchmark-sampling.json`, `results/benchmark-sampling-runs.csv` |
-| Formal input model and geometry | `FORMAL_BOUNDARY_MODEL.md`, `POLYGON_INPUT_MODEL.md`, `SOLTAN_SWEEP_IMPLEMENTATION.md` |
-| Current source-flow constraints | `IMPLEMENTATION_MASTER_PLAN.md`, `NEAR_LINEAR_FLOW_IMPLEMENTATION.md`, `AN19_LOCAL_EVENT_BOUND.md` |
+| Formal input model and geometry | `IMPLEMENTATION.md` |
+| Current source-flow constraints | `IMPLEMENTATION_MASTER_PLAN.md`, `IMPLEMENTATION.md` |
 | Original detailed prose | Git history before the history-consolidation commit |
 
 ## Consolidation Policy

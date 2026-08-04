@@ -3,7 +3,7 @@
 Evidence date: 2026-07-25 (Asia/Tokyo).
 
 For a current narrative account of subsystem scope and evidence, read
-[`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md). The separate
+[`IMPLEMENTATION.md`](IMPLEMENTATION.md). The separate
 [`BENCHMARK_SAMPLING_REPORT.md`](BENCHMARK_SAMPLING_REPORT.md) records a
 controlled repeated-process protocol for the direct-grid parity workload; it
 does not replace the finite correctness populations documented here.
@@ -549,7 +549,7 @@ bounding-box scan per axis, refreshes only incident frontier vertices, and
 recovers rectangles from dense local cuts. Differential tests compare selected
 cuts, added cuts, sorted rectangles, and both cell-exact validators. The
 completion contract and complexity scope are fixed in
-`docs/GEOMETRIC_COMPLETION.md`.
+`docs/IMPLEMENTATION.md`.
 
 The deterministic mixed-branching search examined 74,542 production geometry
 candidates and retains 16 delta-minimized, translation/dihedral-canonical clean
