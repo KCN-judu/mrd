@@ -103,6 +103,32 @@ def bootstrap_ci(values: list[float], statistic: Callable[[list[float]], float],
     return [quantile(samples, 0.025), quantile(samples, 0.975)]
 
 
+def bootstrap_median_ci(values: list[float], count: int, seed: int) -> list[float]:
+    """Sample the exact empirical-bootstrap median order statistics in O(count)."""
+    ordered = sorted(values)
+    size = len(ordered)
+    generator = random.Random(seed)
+    samples = []
+    if size % 2:
+        order = size // 2 + 1
+        for _ in range(count):
+            probability = generator.betavariate(order, size + 1 - order)
+            samples.append(ordered[min(size - 1, int(probability * size))])
+    else:
+        lower_order = size // 2
+        for _ in range(count):
+            lower_probability = generator.betavariate(
+                lower_order, size + 1 - lower_order
+            )
+            upper_probability = lower_probability + (1 - lower_probability) * generator.betavariate(
+                1, size - lower_order
+            )
+            lower = ordered[min(size - 1, int(lower_probability * size))]
+            upper = ordered[min(size - 1, int(upper_probability * size))]
+            samples.append((lower + upper) / 2)
+    return [quantile(samples, 0.025), quantile(samples, 0.975)]
+
+
 def geometric_mean(values: list[float]) -> float:
     return math.exp(statistics.fmean(math.log(value) for value in values))
 
@@ -193,10 +219,9 @@ def distribution_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def paired_rows(rows: list[dict[str, Any]], config: dict[str, Any]) -> list[dict[str, Any]]:
-    indexed = {
-        (row["family"], row["target_size"], row["scope"], row["algorithm"], row["iteration"]): row
-        for row in rows
-    }
+    grouped: dict[tuple[str, int, str, str], dict[int, dict[str, Any]]] = defaultdict(dict)
+    for row in rows:
+        grouped[(row["family"], row["target_size"], row["scope"], row["algorithm"])][row["iteration"]] = row
     bootstrap_count = int(config["fit_rule"]["bootstrap_resamples"])
     seed = int(config["fit_rule"]["bootstrap_seed"])
     result = []
@@ -207,17 +232,12 @@ def paired_rows(rows: list[dict[str, Any]], config: dict[str, Any]) -> list[dict
             for scope in SCOPES:
                 for explicit in EXPLICIT:
                     ratios = []
-                    iterations = sorted(
-                        row["iteration"]
-                        for row in rows
-                        if row["family"] == family
-                        and row["target_size"] == size
-                        and row["scope"] == scope
-                        and row["algorithm"] == "compact-mrd"
-                    )
+                    compact_rows = grouped.get((family, size, scope, "compact-mrd"), {})
+                    reference_rows = grouped.get((family, size, scope, explicit), {})
+                    iterations = sorted(set(compact_rows) & set(reference_rows))
                     for iteration in iterations:
-                        compact = indexed.get((family, size, scope, "compact-mrd", iteration))
-                        reference = indexed.get((family, size, scope, explicit, iteration))
+                        compact = compact_rows.get(iteration)
+                        reference = reference_rows.get(iteration)
                         if compact is not None and reference is not None:
                             ratios.append(float(compact["elapsed_ns"]) / float(reference["elapsed_ns"]))
                     if not ratios:
@@ -230,8 +250,8 @@ def paired_rows(rows: list[dict[str, Any]], config: dict[str, Any]) -> list[dict
                             "explicit_algorithm": explicit,
                             "ratios": distribution(ratios),
                             "geometric_mean_ratio": geometric_mean(ratios),
-                            "median_ratio_ci95": bootstrap_ci(ratios, statistics.median, bootstrap_count, seed ^ size),
-                            "q": indexed[(family, size, scope, "compact-mrd", iterations[0])]["sizes"].get("q"),
+                            "median_ratio_ci95": bootstrap_median_ci(ratios, bootstrap_count, seed ^ size),
+                            "q": compact_rows[iterations[0]]["sizes"].get("q"),
                         }
                     )
     return result
@@ -368,10 +388,115 @@ def coverage(raw: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def structural_compression(distributions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for family in sorted({row["family"] for row in distributions}):
+        levels = [
+            row
+            for row in distributions
+            if row["family"] == family
+            and row["algorithm"] == "compact-mrd"
+            and row["scope"] == SCOPES[0]
+        ]
+        if not levels:
+            continue
+        level = max(levels, key=lambda row: row["target_size"])
+        k_value = level["sizes"].get("explicit_conflict_edge_count_k")
+        m_value = level["sizes"].get("compressed_size_m")
+        result.append(
+            {
+                "family": family,
+                "target_size": level["target_size"],
+                "q": level["sizes"].get("q"),
+                "K": k_value,
+                "M": m_value,
+                "K_over_M": k_value / m_value if k_value and m_value else None,
+            }
+        )
+    return result
+
+
+def phase_conclusions(phases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = []
+    for family in sorted({row["family"] for row in phases}):
+        family_rows = [row for row in phases if row["family"] == family]
+        largest = max(row["target_size"] for row in family_rows)
+        for row in family_rows:
+            if row["target_size"] != largest:
+                continue
+            values = {
+                key: value
+                for key, value in row["phase_medians_ns"].items()
+                if value is not None
+            }
+            total = sum(values.values())
+            dominant = max(values, key=values.get) if values else None
+            result.append(
+                {
+                    "family": family,
+                    "target_size": largest,
+                    "scope": row["scope"],
+                    "algorithm": row["algorithm"],
+                    "dominant_phase": dominant,
+                    "dominant_phase_median_ns": values.get(dominant) if dominant else None,
+                    "dominant_phase_share": values.get(dominant, 0) / total if total else None,
+                }
+            )
+    return result
+
+
+def p15_comparison(classification_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    path = ROOT / "results/paper-scaling-full-summary.json"
+    if not path.exists():
+        return []
+    previous = json.loads(path.read_text())
+    p15 = {row["family"]: row for row in previous.get("paired_comparisons", [])}
+    result = []
+    for family in sorted(p15):
+        scope_a = next(
+            (
+                row
+                for row in classification_rows
+                if row["family"] == family
+                and row["scope"] == SCOPES[0]
+                and row["explicit_algorithm"] == "explicit-hopcroft-karp"
+            ),
+            None,
+        )
+        scope_b = next(
+            (
+                row
+                for row in classification_rows
+                if row["family"] == family
+                and row["scope"] == SCOPES[1]
+                and row["explicit_algorithm"] == "explicit-hopcroft-karp"
+            ),
+            None,
+        )
+        if scope_a is None or scope_b is None:
+            continue
+        old_ratio = p15[family]["median_ratio"]
+        kernel_ratio = scope_b["aggregate_median_ratio"]
+        result.append(
+            {
+                "family": family,
+                "p15_fresh_process_ratio": old_ratio,
+                "scope_a_ratio": scope_a["aggregate_median_ratio"],
+                "scope_b_ratio": kernel_ratio,
+                "fixed_process_cost_masked_kernel_difference": (
+                    abs(old_ratio - 1) <= 0.05 and abs(kernel_ratio - 1) > 0.10
+                ),
+            }
+        )
+    return result
+
+
 def summarize(raw: dict[str, Any]) -> dict[str, Any]:
     rows = flatten(raw)
     distributions = distribution_rows(rows)
     paired = paired_rows(rows, raw["protocol"])
+    classification_rows = classifications(paired, raw["protocol"])
+    phases = phase_rows(rows)
     return {
         "schema_version": 1,
         "campaign": raw["campaign"],
@@ -383,9 +508,12 @@ def summarize(raw: dict[str, Any]) -> dict[str, Any]:
         "coverage": coverage(raw, rows),
         "distributions": distributions,
         "paired_comparisons": paired,
-        "family_classifications": classifications(paired, raw["protocol"]),
+        "family_classifications": classification_rows,
         "fits": fit_rows(distributions, raw["protocol"]),
-        "phase_decomposition": phase_rows(rows),
+        "phase_decomposition": phases,
+        "structural_compression": structural_compression(distributions),
+        "phase_conclusions": phase_conclusions(phases),
+        "p15_comparison": p15_comparison(classification_rows),
         "limitations": [
             "In-process maximum RSS deltas were unavailable and remain null.",
             "Structural byte counts are declared estimates, not allocator measurements.",
@@ -438,9 +566,44 @@ def report_markdown(summary: dict[str, Any]) -> str:
         "",
         "Empirical exponents use one median per predeclared size level. OLS, fixed-seed bootstrap intervals, R-squared, and Theil-Sen estimates are retained in the machine-readable summary. Explicit conflict construction, biclique construction, network construction, matching or flow, recovery, completion, and verification remain separate nullable fields.",
         "",
+        "## Structural compression",
+        "",
+        "| Family | Largest complete target | q | K | M | K/M |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for row in summary["structural_compression"]:
+        lines.append(
+            f"| {row['family']} | {row['target_size']} | {format_number(row['q'])} | {format_number(row['K'])} | {format_number(row['M'])} | {format_number(row['K_over_M'])} |"
+        )
+    lines += [
+        "",
+        "K/M is descriptive structural evidence. Zero-conflict families have K=0 and therefore no positive compression ratio; dense and crossover families show whether explicit conflict materialization grows faster than the measured compressed topology.",
+        "",
+        "## Dominant phases",
+        "",
+        "| Family | Scope | Algorithm | Target | Dominant phase | Share |",
+        "| --- | --- | --- | ---: | --- | ---: |",
+    ]
+    for row in summary["phase_conclusions"]:
+        lines.append(
+            f"| {row['family']} | {row['scope']} | {row['algorithm']} | {row['target_size']} | {format_number(row['dominant_phase'])} | {format_number(row['dominant_phase_share'])} |"
+        )
+    lines += [
+        "",
         "## Relationship to P15",
         "",
-        "P15 measures fresh-process wall time and remains valid for reproducibility at its measured sizes. Scope A removes process creation and CLI/config/serialization overhead while retaining the solve pipeline. Scope B additionally removes common geometry and final completion/verification. Differences between the three scopes identify whether fixed process cost masked a kernel effect; they do not invalidate or overwrite P15.",
+        "P15 measures fresh-process wall time and remains valid for reproducibility at its measured sizes. Scope A removes process creation and CLI/config/serialization overhead while retaining the solve pipeline. Scope B additionally removes common geometry and final completion/verification.",
+        "",
+        "| Family | P15 fresh-process ratio | Scope A ratio | Scope B ratio | Fixed process cost masked kernel difference |",
+        "| --- | ---: | ---: | ---: | --- |",
+    ]
+    for row in summary["p15_comparison"]:
+        lines.append(
+            f"| {row['family']} | {format_number(row['p15_fresh_process_ratio'])} | {format_number(row['scope_a_ratio'])} | {format_number(row['scope_b_ratio'])} | {str(row['fixed_process_cost_masked_kernel_difference']).lower()} |"
+        )
+    lines += [
+        "",
+        "The masking indicator is a predeclared descriptive comparison: P15 lies within 5% of parity while Scope B differs from parity by more than 10%. It does not assert hardware-independent causality and does not invalidate P15.",
         "",
         "## Claim boundary",
         "",
@@ -622,7 +785,16 @@ def figures(summary: dict[str, Any], output: Path) -> None:
 
 def summary_csv(path: Path, summary: dict[str, Any]) -> None:
     rows = []
-    for key in ("distributions", "paired_comparisons", "family_classifications", "fits", "phase_decomposition"):
+    for key in (
+        "distributions",
+        "paired_comparisons",
+        "family_classifications",
+        "fits",
+        "phase_decomposition",
+        "structural_compression",
+        "phase_conclusions",
+        "p15_comparison",
+    ):
         rows.extend({"record_type": key, **row} for row in summary[key])
     fields = sorted({key for row in rows for key in row}) or ["record_type"]
     buffer = io.StringIO(newline="")
@@ -654,6 +826,9 @@ def self_test() -> None:
     assert abs(ols(points)["slope"] - 1) < 1e-12
     assert abs(theil_sen(points) - 1) < 1e-12
     assert bootstrap_ci([1, 2, 3], statistics.median, 100, 42) == bootstrap_ci([1, 2, 3], statistics.median, 100, 42)
+    assert bootstrap_median_ci([1, 2, 3, 4], 100, 42) == bootstrap_median_ci(
+        [1, 2, 3, 4], 100, 42
+    )
 
 
 def main() -> int:

@@ -5,5 +5,11 @@
 **/*.pyc
 /paper/
 
+# Locally reconstructed publication-scale raw kernel evidence. The byte-exact
+# Zstandard archives and their checksum manifest are tracked instead.
+/results/paper-kernel-scaling-full.json
+/results/paper-kernel-scaling-full-runs.csv
+/results/paper-kernel-scaling-full-checkpoint.json
+
 # Local documentary and media-production workspace
 /media/mrd-documentary/
