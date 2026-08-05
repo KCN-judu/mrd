@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18">Explicit K versus compressed M</text>
+<line x1="90" y1="490" x2="740" y2="490" stroke="#263238"/>
+<line x1="90" y1="55" x2="90" y2="490" stroke="#263238"/>
+<text x="415.0" y="542" text-anchor="middle" font-family="sans-serif" font-size="13">explicit conflict edges K</text>
+<text x="20" y="280.0" text-anchor="middle" transform="rotate(-90 20 280.0)" font-family="sans-serif" font-size="13">compressed nodes + arcs M</text>
+<path d="M 90.00,490.00 L 90.00,490.00 L 90.00,489.92 L 90.00,489.87 L 90.00,489.81 L 90.00,489.71 L 90.00,489.60 L 90.00,489.18 L 90.00,488.81 L 90.00,488.33" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="90.00" cy="490.00" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="490.00" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.92" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.87" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.81" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.71" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.60" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="489.18" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="488.81" r="3" fill="#007f73"/>
+<circle cx="90.00" cy="488.33" r="3" fill="#007f73"/>
+<text x="752" y="55" font-family="sans-serif" font-size="10" fill="#007f73">prepared-exposed-edges:comb-staircase</text>
+<path d="M 90.20,485.11 L 90.71,480.32 L 92.69,470.47 L 100.43,450.82 L 131.10,411.59 L 253.13,332.42 L 740.00,174.29" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="90.20" cy="485.11" r="3" fill="#c65d00"/>
+<circle cx="90.71" cy="480.32" r="3" fill="#c65d00"/>
+<circle cx="92.69" cy="470.47" r="3" fill="#c65d00"/>
+<circle cx="100.43" cy="450.82" r="3" fill="#c65d00"/>
+<circle cx="131.10" cy="411.59" r="3" fill="#c65d00"/>
+<circle cx="253.13" cy="332.42" r="3" fill="#c65d00"/>
+<circle cx="740.00" cy="174.29" r="3" fill="#c65d00"/>
+<text x="752" y="71" font-family="sans-serif" font-size="10" fill="#c65d00">prepared-exposed-edges:dense-conflict</text>
+<path d="M 90.00,489.91 L 90.00,489.79 L 90.01,489.10 L 90.02,488.84 L 90.02,488.57 L 90.08,486.56 L 90.10,486.04 L 90.31,480.80 L 90.45,478.01 L 91.33,469.34" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="90.00" cy="489.91" r="3" fill="#4c5f7a"/>
+<circle cx="90.00" cy="489.79" r="3" fill="#4c5f7a"/>
+<circle cx="90.01" cy="489.10" r="3" fill="#4c5f7a"/>
+<circle cx="90.02" cy="488.84" r="3" fill="#4c5f7a"/>
+<circle cx="90.02" cy="488.57" r="3" fill="#4c5f7a"/>
+<circle cx="90.08" cy="486.56" r="3" fill="#4c5f7a"/>
+<circle cx="90.10" cy="486.04" r="3" fill="#4c5f7a"/>
+<circle cx="90.31" cy="480.80" r="3" fill="#4c5f7a"/>
+<circle cx="90.45" cy="478.01" r="3" fill="#4c5f7a"/>
+<circle cx="91.33" cy="469.34" r="3" fill="#4c5f7a"/>
+<text x="752" y="87" font-family="sans-serif" font-size="10" fill="#4c5f7a">prepared-exposed-edges:random-connected</text>
+<path d="M 90.04,489.35 L 90.09,489.03 L 90.16,488.71 L 90.36,488.07 L 90.63,487.44 L 91.31,486.32 L 92.53,484.89 L 95.23,482.66 L 100.12,479.79 L 110.45,475.49" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="90.04" cy="489.35" r="3" fill="#a33f5d"/>
+<circle cx="90.09" cy="489.03" r="3" fill="#a33f5d"/>
+<circle cx="90.16" cy="488.71" r="3" fill="#a33f5d"/>
+<circle cx="90.36" cy="488.07" r="3" fill="#a33f5d"/>
+<circle cx="90.63" cy="487.44" r="3" fill="#a33f5d"/>
+<circle cx="91.31" cy="486.32" r="3" fill="#a33f5d"/>
+<circle cx="92.53" cy="484.89" r="3" fill="#a33f5d"/>
+<circle cx="95.23" cy="482.66" r="3" fill="#a33f5d"/>
+<circle cx="100.12" cy="479.79" r="3" fill="#a33f5d"/>
+<circle cx="110.45" cy="475.49" r="3" fill="#a33f5d"/>
+<text x="752" y="103" font-family="sans-serif" font-size="10" fill="#a33f5d">prepared-exposed-edges:representation-crossover</text>
+<path d="M 90.00,489.63 L 90.00,489.20 L 90.00,488.35 L 90.00,486.65 L 90.00,483.26 L 90.00,476.46 L 90.00,462.86 L 90.00,435.67 L 90.00,381.29 L 90.00,272.53" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="90.00" cy="489.63" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="489.20" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="488.35" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="486.65" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="483.26" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="476.46" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="462.86" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="435.67" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="381.29" r="3" fill="#6b5ca5"/>
+<circle cx="90.00" cy="272.53" r="3" fill="#6b5ca5"/>
+<text x="752" y="119" font-family="sans-serif" font-size="10" fill="#6b5ca5">prepared-exposed-edges:sparse-conflict</text>
+<path d="M 90.00,489.20 L 90.00,488.35 L 90.00,486.65 L 90.00,483.26 L 90.00,476.46 L 90.00,462.86 L 90.00,435.67 L 90.00,381.29 L 90.00,272.53 L 90.00,55.00" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="90.00" cy="489.20" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="488.35" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="486.65" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="483.26" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="476.46" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="462.86" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="435.67" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="381.29" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="272.53" r="3" fill="#2e7d32"/>
+<circle cx="90.00" cy="55.00" r="3" fill="#2e7d32"/>
+<text x="752" y="135" font-family="sans-serif" font-size="10" fill="#2e7d32">prepared-exposed-edges:supported-holes</text>
+</svg>

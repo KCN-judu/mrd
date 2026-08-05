@@ -4,11 +4,10 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current evidence SHA: 8df010c469fd3586538d4ea38eb448590edd8959
-- Current phase: P17 geometry-phase-diagnostic
-- Current phase state: in_progress
-- Last completed phase: P15 (independent paper-scaling evidence campaign)
-- Last pushed SHA: a691f07cac9f82cb9e42c37408a8433c35e8e26b
+- Current evidence SHA: 211308a4981c09ccd549bd0ed322db847f427ce3
+- Current phase: P9.5e.3g.3 automatic target-decision blocker
+- Current phase state: blocked
+- Last completed phase: P17 geometry-phase-diagnostic
 - Plan last updated: 2026-08-05
 - Overall target: complete source-traceable geometry, an automatic exact
   source-flow solver only when its decision contract is established, and a
@@ -74,10 +73,12 @@ outside the measured families and host.
 
 ## P17 Geometry-Phase Diagnostic and Boundary Discovery
 
-**State.** In progress. This phase diagnoses the shared geometry cost exposed
-by P16 Scope A measurements and compares an internal reference boundary path
-with a prepared-occupancy path. It is finite, host-specific evidence; it does
-not alter the P15 schema or create an asymptotic claim.
+**State.** Complete for the declared finite campaign. This phase diagnoses the
+shared geometry cost exposed by P16 Scope A measurements and compares an
+internal reference boundary path with a prepared-occupancy path. It is finite,
+host-specific evidence; it does not alter the P15 schema or create an
+asymptotic claim. The detailed audit is
+[`phase-reports/P17-geometry-phase-diagnostic.md`](phase-reports/P17-geometry-phase-diagnostic.md).
 
 **Measured fact before implementation.** The historical
 `Boundary::from_component` path probes four directed edges per occupied cell,
@@ -112,18 +113,27 @@ requires equal protocol fields, source commit, release binary, generator
 identity, and canonical instances.
 
 **Evidence boundary.** The six-family, ten-level reference and optimized
-campaigns, resume audit, paired JSON/CSV/LaTeX/Markdown outputs, and phase
-fits are acceptance artifacts for this phase. Fits require at least six valid
-levels and are empirical descriptors only. Stopped points remain retained and
-censored; they are never treated as timing observations. RSS is not claimed:
-the executable budget applies to estimated retained structural bytes, while
-`max_rss_delta_bytes` remains explicitly unavailable.
+campaigns contain 60 planned and observed points per backend, 57 complete
+points, three stopped points, 9,826 reference iterations, and 9,954 prepared
+iterations. The paired run has 57 complete canonical-instance pairs, 174
+correctness checks per backend, zero structural/objective mismatches, and a
+successful `--resume` audit for both backends. The source provenance is
+`211308a4981c09ccd549bd0ed322db847f427ce3`; the release binary hash is
+`59ae735a1c99726cb9d298aba1aafc71d5aae4da6e26683d248f6dddb6821ba3`. Fits
+require at least six valid levels and are empirical descriptors only. Stopped
+points remain retained and censored; they are never treated as timing
+observations. RSS is not claimed: the executable budget applies to estimated
+retained structural bytes, while `max_rss_delta_bytes` remains explicitly
+unavailable.
 
-**Unresolved work.** The post-optimization dominant phase must be identified
-from the completed paired campaign. Any remaining geometry or completion cost
-becomes a separately recorded hypothesis. P9.3.2d remains implementation-path
-complete but proof-path deferred and low priority; this phase cannot close the
-reduced-event conversion or automatic target-decision obligations.
+**Unresolved work.** The post-optimization dominant phase is family-dependent:
+canonical component cloning dominates comb-staircase and
+representation-crossover, while representation construction dominates the
+other compact-MRD families. These are separately recorded optimization
+hypotheses and require new paired campaigns. P9.3.2d remains
+implementation-path complete but proof-path deferred and low priority; this
+phase cannot close the reduced-event conversion or automatic target-decision
+obligations.
 
 ## P15 Paper-Scaling Campaign
 

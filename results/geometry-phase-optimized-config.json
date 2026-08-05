@@ -1,0 +1,66 @@
+{
+  "schema_version": 2,
+  "campaign": "paper-kernel-scaling",
+  "comparison_id": "geometry-boundary-discovery-v1",
+  "boundary_discovery_backend": "prepared-exposed-edges",
+  "seed": 20260805,
+  "families": [
+    "random-connected",
+    "dense-conflict",
+    "sparse-conflict",
+    "comb-staircase",
+    "supported-holes",
+    "representation-crossover"
+  ],
+  "initial_size_levels": [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192],
+  "family_parameter_rule": {
+    "comb-staircase": "ceil(sqrt(target_size))",
+    "representation-crossover": "ceil(sqrt(target_size))",
+    "all_other_families": "target_size"
+  },
+  "algorithms": [
+    "compact-mrd",
+    "explicit-hopcroft-karp",
+    "explicit-c0-flow"
+  ],
+  "scopes": [
+    "solve-from-canonical-instance",
+    "representation-and-solver-kernel"
+  ],
+  "oracle_cell_limit": 40,
+  "warmup_rule": {
+    "minimum": 5,
+    "maximum": 10,
+    "cv_threshold_ppm": 50000
+  },
+  "repetition_rule": {
+    "target_measured_ns": 10000000,
+    "fast_threshold_ns": 10000000,
+    "medium_threshold_ns": 100000000,
+    "fast_minimum": 31,
+    "medium_minimum": 15,
+    "slow_minimum": 7,
+    "maximum": 31
+  },
+  "stop_conditions": {
+    "max_explicit_edges": 20000000,
+    "max_iteration_ns": 5000000000,
+    "max_point_ns": 120000000000,
+    "max_estimated_structural_bytes": 12000000000
+  },
+  "partition_timeout_seconds": 135,
+  "fit_rule": {
+    "minimum_valid_size_levels": 6,
+    "range": "all complete predeclared levels; exclude only declared stop or invalid points",
+    "independent_variables": ["N", "B", "r", "H", "V", "q", "K", "M"],
+    "use_size_level_medians": true,
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 604019
+  },
+  "crossover_rule": {
+    "consecutive_larger_levels_below_one": 3,
+    "minimum_levels_with_ci_entirely_below_one": 2
+  },
+  "outlier_policy": "retain every measured observation",
+  "evidence_status": "p17-optimized-diagnostic"
+}

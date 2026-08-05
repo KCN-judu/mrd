@@ -983,6 +983,8 @@ energy, or asymptotic inference is made.
 
 The schema-v2 in-process geometry diagnostic and its exact reproduction contract
 are specified in [`PAPER_KERNEL_SCALING_SCHEMA.md`](PAPER_KERNEL_SCALING_SCHEMA.md).
+Its completed phase audit is recorded in
+[`phase-reports/P17-geometry-phase-diagnostic.md`](phase-reports/P17-geometry-phase-diagnostic.md).
 
 **Role.** The paper-scaling campaign measures end-to-end behavior of retained
 exact MRD paths on paired finite-grid families. Its purpose is to distinguish

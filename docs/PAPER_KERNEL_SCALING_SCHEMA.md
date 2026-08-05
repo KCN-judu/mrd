@@ -134,3 +134,10 @@ It emits seven phase tables plus one paired before/after table, machine-readable
 JSON/CSV summaries, booktabs LaTeX, and seven parseable SVG figures. No output
 from this diagnostic may be used to claim an asymptotic improvement, an AN19
 runtime proof, or automatic source-flow target discovery.
+
+The P17 raw and summary JSON/CSV files are compressed after verification to
+avoid committing large duplicate text files. Their SHA-256 values, compressed
+sizes, and restore commands are recorded in
+`results/geometry-phase-archive-manifest.json`. The archive is evidence
+equivalent to the uncompressed files; restore them before invoking the analyzer
+again.

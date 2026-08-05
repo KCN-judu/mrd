@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "campaign": "paper-kernel-scaling",
+  "phase": "P17-geometry-phase-diagnostic",
+  "source_commit": "211308a4981c09ccd549bd0ed322db847f427ce3",
+  "binary_sha256": "59ae735a1c99726cb9d298aba1aafc71d5aae4da6e26683d248f6dddb6821ba3",
+  "config_sha256": "206d1a3cab0c0d7f4d9821acf7f86ba73a4843105ed2b04bc1b928fe951fba51",
+  "compression": "zstd level 10",
+  "artifacts": [
+    {
+      "path": "results/geometry-phase-diagnostic.json",
+      "archive": "results/geometry-phase-diagnostic.json.zst",
+      "uncompressed_bytes": 38222495,
+      "uncompressed_sha256": "4769655e2a801f8e189e2b758ecad3fbd86199ce70162ca227bf957a94c738c9",
+      "archive_bytes": 1129608,
+      "archive_sha256": "b2fa40b5d193eb2ef94e3179cb31a6a9ae871303b2f99520d5f9b039b63a8671"
+    },
+    {
+      "path": "results/geometry-phase-diagnostic-runs.csv",
+      "archive": "results/geometry-phase-diagnostic-runs.csv.zst",
+      "uncompressed_bytes": 15138383,
+      "uncompressed_sha256": "c78b0e27f1200c541e27a85a00a98a9d0ef0d6996ad79c84e6f6a02b2a7f6879",
+      "archive_bytes": 763290,
+      "archive_sha256": "701ddc711402cc6505d797b39672e4a303766a401e9619199e807dadeb4dcb88"
+    },
+    {
+      "path": "results/geometry-phase-optimized.json",
+      "archive": "results/geometry-phase-optimized.json.zst",
+      "uncompressed_bytes": 38741936,
+      "uncompressed_sha256": "c3181b4346731373597d628f84380dc75740217d6a16a84a52c70e77fab677f4",
+      "archive_bytes": 1135984,
+      "archive_sha256": "ae95eb272fc135a1ef84b8e0c48266de294eec13e4e6734225b226ce86163eb2"
+    },
+    {
+      "path": "results/geometry-phase-optimized-runs.csv",
+      "archive": "results/geometry-phase-optimized-runs.csv.zst",
+      "uncompressed_bytes": 15356703,
+      "uncompressed_sha256": "3eb3c2667b701b6a6a3fb9b5e424b2416434e80f3bce6c8aaee4e6bc1c0b63ee",
+      "archive_bytes": 768625,
+      "archive_sha256": "abe8fd917bf7e8e513955499d3c5cfd3341a935e64e9ff7c8654f5ac9ad78eee"
+    },
+    {
+      "path": "results/geometry-phase-summary.json",
+      "archive": "results/geometry-phase-summary.json.zst",
+      "uncompressed_bytes": 23947007,
+      "uncompressed_sha256": "c2794a84d087e27bad68ec867fc64d7d9eb45dba1f0814cb2152dd61b1174365",
+      "archive_bytes": 1050515,
+      "archive_sha256": "949c439277dac3edced80204c407098a9906e098467c39fc8732acf03e3a51d8"
+    },
+    {
+      "path": "results/geometry-phase-summary.csv",
+      "archive": "results/geometry-phase-summary.csv.zst",
+      "uncompressed_bytes": 14309194,
+      "uncompressed_sha256": "b974b573ec9d1911b130e17fdbda3223d7adfc51e1fc7e4db26389e671b025b1",
+      "archive_bytes": 988280,
+      "archive_sha256": "a3c2b1c97e83464e18ec4a43007aef212dc108c7c4ab9a4c272206207c8edadd"
+    }
+  ],
+  "restore_commands": [
+    "zstd -d --keep results/geometry-phase-diagnostic.json.zst -o results/geometry-phase-diagnostic.json",
+    "zstd -d --keep results/geometry-phase-diagnostic-runs.csv.zst -o results/geometry-phase-diagnostic-runs.csv",
+    "zstd -d --keep results/geometry-phase-optimized.json.zst -o results/geometry-phase-optimized.json",
+    "zstd -d --keep results/geometry-phase-optimized-runs.csv.zst -o results/geometry-phase-optimized-runs.csv",
+    "zstd -d --keep results/geometry-phase-summary.json.zst -o results/geometry-phase-summary.json",
+    "zstd -d --keep results/geometry-phase-summary.csv.zst -o results/geometry-phase-summary.csv"
+  ]
+}

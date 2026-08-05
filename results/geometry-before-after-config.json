@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "comparison": "geometry-boundary-discovery-v1",
+  "reference_config": "results/geometry-phase-diagnostic-config.json",
+  "optimized_config": "results/geometry-phase-optimized-config.json",
+  "reference_backend": "reference-edge-toggle",
+  "optimized_backend": "prepared-exposed-edges",
+  "pairing_keys": [
+    "family",
+    "target_size",
+    "seed",
+    "canonical_instance_identity",
+    "scope",
+    "algorithm",
+    "iteration"
+  ],
+  "required_equal_protocol_fields": [
+    "families",
+    "initial_size_levels",
+    "family_parameter_rule",
+    "algorithms",
+    "scopes",
+    "oracle_cell_limit",
+    "warmup_rule",
+    "repetition_rule",
+    "stop_conditions",
+    "partition_timeout_seconds",
+    "fit_rule",
+    "crossover_rule",
+    "outlier_policy"
+  ],
+  "claim_boundary": "Finite host-specific paired measurements; no theoretical asymptotic claim."
+}
