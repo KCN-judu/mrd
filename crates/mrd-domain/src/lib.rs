@@ -10,8 +10,8 @@ pub mod result;
 pub mod validation;
 
 pub use boundary::{
-    Boundary, BoundaryError, BoundaryIndex, BoundaryIndexError, BoundaryLoop, BoundaryLoopId,
-    BoundaryVertexId, ReflexVertex,
+    Boundary, BoundaryBuild, BoundaryBuildMetrics, BoundaryError, BoundaryIndex,
+    BoundaryIndexError, BoundaryLoop, BoundaryLoopId, BoundaryVertexId, ReflexVertex,
 };
 pub use context::{PreparedComponentContext, PreparedContextError};
 pub use formal_polygon::{

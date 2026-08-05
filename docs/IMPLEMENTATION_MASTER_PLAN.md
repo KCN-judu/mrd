@@ -5,11 +5,11 @@
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Current evidence SHA: 8df010c469fd3586538d4ea38eb448590edd8959
-- Current phase: P9.5e.3g.3
-- Current phase state: blocked
+- Current phase: P17 geometry-phase-diagnostic
+- Current phase state: in_progress
 - Last completed phase: P15 (independent paper-scaling evidence campaign)
-- Last pushed SHA: e4b0ef4c21e4a33cfa43b902c485e304238786dc
-- Plan last updated: 2026-08-04
+- Last pushed SHA: a691f07cac9f82cb9e42c37408a8433c35e8e26b
+- Plan last updated: 2026-08-05
 - Overall target: complete source-traceable geometry, an automatic exact
   source-flow solver only when its decision contract is established, and a
   proof-backed AN19 runtime claim only when its missing reduction is proved.
@@ -71,6 +71,59 @@ solve; Scope B additionally excludes common geometry, completion, and final
 verification. Their ratios must not be pooled, and P16 does not prove an
 asymptotic runtime bound, AN19 runtime, universal speedup, or a crossover
 outside the measured families and host.
+
+## P17 Geometry-Phase Diagnostic and Boundary Discovery
+
+**State.** In progress. This phase diagnoses the shared geometry cost exposed
+by P16 Scope A measurements and compares an internal reference boundary path
+with a prepared-occupancy path. It is finite, host-specific evidence; it does
+not alter the P15 schema or create an asymptotic claim.
+
+**Measured fact before implementation.** The historical
+`Boundary::from_component` path probes four directed edges per occupied cell,
+uses hash-set cancellation for shared edges, then builds the same adjacency,
+ordered trace, normalization, reflex, and sorting structures. For the
+representation-crossover family at target 8192, the deterministic generator
+has `t=91`, `N=390131`, `q=364`, and `U=69944`; the reference path therefore
+probes `4N=1,560,524` candidate edges and retains only `U` exposed edges. Prior
+measurements attributed roughly 97% of geometry preprocessing to this boundary
+extraction. These are implementation measurements, not a proof of asymptotic
+complexity.
+
+**Implemented optimization.** `Boundary::from_prepared_component` probes the
+prepared occupancy once per cell and inserts only exposed edges. Loop tracing,
+normalization, area conservation, reflex identification, endpoint identities,
+and deterministic ordering remain shared with the reference implementation.
+The reference edge-toggle path remains available under
+`mrd_domain::context::oracle` for differential verification. The optimization
+reduces cancellation work and transient internal-edge storage; both paths
+retain the same output-sensitive boundary, adjacency, and sorting terms, so no
+new asymptotic bound is claimed.
+
+**Protocol.** Schema-v2 kernel rows carry setup, boundary, chord, conflict,
+representation, flow/matching, cover, completion, reconstruction, and output
+validation timings as monotonic integer nanoseconds. Parent/child accounting is
+checked for boundary, geometry, chord, completion, output validation, Scope A,
+and Scope B. `A` is the foreground component bounding-box area and is checked
+as `N <= A <= width*height`; `M` is compact network nodes plus arcs. Reference
+and optimized campaigns use identical seeds, families, sizes, repetition rules,
+and binary provenance. The comparison config is consumed by the analyzer and
+requires equal protocol fields, source commit, release binary, generator
+identity, and canonical instances.
+
+**Evidence boundary.** The six-family, ten-level reference and optimized
+campaigns, resume audit, paired JSON/CSV/LaTeX/Markdown outputs, and phase
+fits are acceptance artifacts for this phase. Fits require at least six valid
+levels and are empirical descriptors only. Stopped points remain retained and
+censored; they are never treated as timing observations. RSS is not claimed:
+the executable budget applies to estimated retained structural bytes, while
+`max_rss_delta_bytes` remains explicitly unavailable.
+
+**Unresolved work.** The post-optimization dominant phase must be identified
+from the completed paired campaign. Any remaining geometry or completion cost
+becomes a separately recorded hypothesis. P9.3.2d remains implementation-path
+complete but proof-path deferred and low priority; this phase cannot close the
+reduced-event conversion or automatic target-decision obligations.
 
 ## P15 Paper-Scaling Campaign
 

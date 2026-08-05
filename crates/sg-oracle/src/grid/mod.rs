@@ -14,9 +14,9 @@ use std::time::Instant;
 
 use graph::{BipartiteGraph, Matching, VertexCover, hopcroft_karp, minimum_vertex_cover};
 use mrd_domain::{
-    Boundary, BoundaryError, BoundaryIndex, BoundaryVertexId, Certificate, Coord, Diagnostics,
-    DissectionResult, ExactRatio, GeometryError, GridComponent, GridRect, HorizontalChord,
-    HorizontalChordId, Point, PreparedComponentContext, PreparedContextError,
+    Boundary, BoundaryBuildMetrics, BoundaryError, BoundaryIndex, BoundaryVertexId, Certificate,
+    Coord, Diagnostics, DissectionResult, ExactRatio, GeometryError, GridComponent, GridRect,
+    HorizontalChord, HorizontalChordId, Point, PreparedComponentContext, PreparedContextError,
     PreparedGridComponent, ValidationError, VerticalChord, VerticalChordId,
     closed_chords_intersect, validate_dissection,
 };
@@ -56,6 +56,13 @@ pub struct Geometry {
     pub boundary_index_build_microseconds: u128,
     pub reflex_grouping_microseconds: u128,
     pub effective_chord_enumeration_microseconds: u128,
+    pub boundary_build_metrics: BoundaryBuildMetrics,
+    pub boundary_discovery_backend: &'static str,
+    pub prepared_component_build_nanoseconds: u128,
+    pub boundary_index_build_nanoseconds: u128,
+    pub reflex_grouping_nanoseconds: u128,
+    pub chord_enumeration_timings: ChordEnumerationTimings,
+    pub endpoint_index_build_nanoseconds: u128,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -65,6 +72,19 @@ pub struct Families {
     pub horizontal_interior_run_count: Option<usize>,
     pub vertical_interior_run_count: Option<usize>,
     pub candidate_reflex_pair_count: Option<usize>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ChordEnumerationTimings {
+    pub horizontal_generation_nanoseconds: u128,
+    pub vertical_generation_nanoseconds: u128,
+    pub validation_filtering_nanoseconds: u128,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfiledFamilies {
+    pub families: Families,
+    pub timings: ChordEnumerationTimings,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
@@ -546,6 +566,29 @@ pub trait Enumerator {
         self.enumerate(context.component, &context.boundary)
     }
 
+    /// Enumerates chords and reports disjoint axis/filtering timings.
+    ///
+    /// Implementations without a staged path report their full definition-level
+    /// work as validation/filtering rather than inventing an axis split.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SgError`] under the same conditions as [`Self::enumerate_prepared`].
+    fn enumerate_prepared_profiled<C>(
+        &self,
+        context: &PreparedComponentContext<'_, C>,
+    ) -> Result<ProfiledFamilies, SgError> {
+        let started = Instant::now();
+        let families = self.enumerate_prepared(context)?;
+        Ok(ProfiledFamilies {
+            families,
+            timings: ChordEnumerationTimings {
+                validation_filtering_nanoseconds: started.elapsed().as_nanos(),
+                ..ChordEnumerationTimings::default()
+            },
+        })
+    }
+
     fn name(&self) -> &'static str;
 }
 
@@ -600,13 +643,16 @@ pub fn analyze_prepared_geometry<C, E: Enumerator>(
         });
     }
     let enumeration_started = Instant::now();
-    let families = enumerator.enumerate_prepared(&context)?;
+    let profiled = enumerator.enumerate_prepared_profiled(&context)?;
     let effective_chord_enumeration_microseconds = enumeration_started.elapsed().as_micros();
+    let families = profiled.families;
+    let endpoint_index_started = Instant::now();
     let endpoint_index = EndpointIndex::new(
         &context.boundary_index,
         &families.horizontal,
         &families.vertical,
     )?;
+    let endpoint_index_build_nanoseconds = endpoint_index_started.elapsed().as_nanos();
     Ok(Geometry {
         boundary: context.boundary,
         boundary_index: context.boundary_index,
@@ -622,6 +668,13 @@ pub fn analyze_prepared_geometry<C, E: Enumerator>(
         boundary_index_build_microseconds: context.boundary_index_build_microseconds,
         reflex_grouping_microseconds: context.reflex_grouping_microseconds,
         effective_chord_enumeration_microseconds,
+        boundary_build_metrics: context.boundary_build_metrics,
+        boundary_discovery_backend: context.boundary_discovery_backend,
+        prepared_component_build_nanoseconds: context.prepared_component_build_nanoseconds,
+        boundary_index_build_nanoseconds: context.boundary_index_build_nanoseconds,
+        reflex_grouping_nanoseconds: context.reflex_grouping_nanoseconds,
+        chord_enumeration_timings: profiled.timings,
+        endpoint_index_build_nanoseconds,
     })
 }
 
@@ -942,91 +995,130 @@ impl Enumerator for experiment::InteriorRuns {
         &self,
         context: &PreparedComponentContext<'_, C>,
     ) -> Result<Families, SgError> {
-        // Reflex rows/columns, interior runs, and each row/column's coordinates
-        // are all canonical ascending sequences. Their nested traversal emits
-        // each chord once in canonical order, so a BTreeSet would only repeat
-        // ordering work and allocate tree nodes.
-        let mut horizontal_records = Vec::new();
-        let mut vertical_records = Vec::new();
-        let mut horizontal_interior_run_count = 0;
-        let mut vertical_interior_run_count = 0;
-        let mut candidate_reflex_pair_count = 0;
-        for (&y, xs) in &context.reflex_by_row {
-            let y_index = coordinate_to_usize(y)?;
-            let Some(local_y) = y_index.checked_sub(context.prepared.y0) else {
-                continue;
-            };
-            let Some(runs) = context.prepared.horizontal_interior_runs.get(local_y) else {
-                continue;
-            };
-            horizontal_interior_run_count += runs.len();
-            for &(left_run, right_run) in runs {
-                let left_run = Coord::try_from(left_run)
-                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
-                let right_run = Coord::try_from(right_run)
-                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
-                let begin = xs.partition_point(|&x| x < left_run);
-                let end = xs.partition_point(|&x| x <= right_run);
-                let aligned = &xs[begin..end];
-                for (index, &left) in aligned.iter().enumerate() {
-                    for &right in &aligned[index + 1..] {
-                        candidate_reflex_pair_count += 1;
-                        horizontal_records.push((y, left, right));
-                    }
-                }
-            }
-        }
-        for (&x, ys) in &context.reflex_by_column {
-            let x_index = coordinate_to_usize(x)?;
-            let Some(local_x) = x_index.checked_sub(context.prepared.x0) else {
-                continue;
-            };
-            let Some(runs) = context.prepared.vertical_interior_runs.get(local_x) else {
-                continue;
-            };
-            vertical_interior_run_count += runs.len();
-            for &(bottom_run, top_run) in runs {
-                let bottom_run = Coord::try_from(bottom_run)
-                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
-                let top_run = Coord::try_from(top_run)
-                    .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
-                let begin = ys.partition_point(|&y| y < bottom_run);
-                let end = ys.partition_point(|&y| y <= top_run);
-                let aligned = &ys[begin..end];
-                for (index, &bottom) in aligned.iter().enumerate() {
-                    for &top in &aligned[index + 1..] {
-                        candidate_reflex_pair_count += 1;
-                        vertical_records.push((x, bottom, top));
-                    }
-                }
-            }
-        }
-        let horizontal = horizontal_records
-            .into_iter()
-            .enumerate()
-            .map(|(index, (y, left, right))| {
-                HorizontalChord::new(HorizontalChordId(index), left, right, y)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let vertical = vertical_records
-            .into_iter()
-            .enumerate()
-            .map(|(index, (x, bottom, top))| {
-                VerticalChord::new(VerticalChordId(index), x, bottom, top)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Families {
-            horizontal,
-            vertical,
-            horizontal_interior_run_count: Some(horizontal_interior_run_count),
-            vertical_interior_run_count: Some(vertical_interior_run_count),
-            candidate_reflex_pair_count: Some(candidate_reflex_pair_count),
-        })
+        Ok(enumerate_interior_runs_profiled(context)?.families)
+    }
+
+    fn enumerate_prepared_profiled<C>(
+        &self,
+        context: &PreparedComponentContext<'_, C>,
+    ) -> Result<ProfiledFamilies, SgError> {
+        enumerate_interior_runs_profiled(context)
     }
 
     fn name(&self) -> &'static str {
         "grid-interior-runs"
     }
+}
+
+fn enumerate_interior_runs_profiled<C>(
+    context: &PreparedComponentContext<'_, C>,
+) -> Result<ProfiledFamilies, SgError> {
+    // The maps, runs, and coordinate lists are canonical ascending sequences.
+    // Each axis therefore emits stable unique records without a sorting set.
+    let horizontal_started = Instant::now();
+    let (horizontal, horizontal_interior_run_count, horizontal_pair_count) =
+        enumerate_horizontal_interior_runs(context)?;
+    let horizontal_generation_nanoseconds = horizontal_started.elapsed().as_nanos();
+    let vertical_started = Instant::now();
+    let (vertical, vertical_interior_run_count, vertical_pair_count) =
+        enumerate_vertical_interior_runs(context)?;
+    let vertical_generation_nanoseconds = vertical_started.elapsed().as_nanos();
+    Ok(ProfiledFamilies {
+        families: Families {
+            horizontal,
+            vertical,
+            horizontal_interior_run_count: Some(horizontal_interior_run_count),
+            vertical_interior_run_count: Some(vertical_interior_run_count),
+            candidate_reflex_pair_count: Some(horizontal_pair_count + vertical_pair_count),
+        },
+        timings: ChordEnumerationTimings {
+            horizontal_generation_nanoseconds,
+            vertical_generation_nanoseconds,
+            // Interior-run membership is the exact validity predicate; there
+            // is no post-generation filtering pass on this production path.
+            validation_filtering_nanoseconds: 0,
+        },
+    })
+}
+
+fn enumerate_horizontal_interior_runs<C>(
+    context: &PreparedComponentContext<'_, C>,
+) -> Result<(Vec<HorizontalChord>, usize, usize), SgError> {
+    let mut records = Vec::new();
+    let mut run_count = 0;
+    let mut pair_count = 0;
+    for (&y, xs) in &context.reflex_by_row {
+        let y_index = coordinate_to_usize(y)?;
+        let Some(local_y) = y_index.checked_sub(context.prepared.y0) else {
+            continue;
+        };
+        let Some(runs) = context.prepared.horizontal_interior_runs.get(local_y) else {
+            continue;
+        };
+        run_count += runs.len();
+        for &(left_run, right_run) in runs {
+            let left_run = Coord::try_from(left_run)
+                .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+            let right_run = Coord::try_from(right_run)
+                .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+            let begin = xs.partition_point(|&x| x < left_run);
+            let end = xs.partition_point(|&x| x <= right_run);
+            let aligned = &xs[begin..end];
+            for (index, &left) in aligned.iter().enumerate() {
+                for &right in &aligned[index + 1..] {
+                    pair_count += 1;
+                    records.push((y, left, right));
+                }
+            }
+        }
+    }
+    let chords = records
+        .into_iter()
+        .enumerate()
+        .map(|(index, (y, left, right))| {
+            HorizontalChord::new(HorizontalChordId(index), left, right, y)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((chords, run_count, pair_count))
+}
+
+fn enumerate_vertical_interior_runs<C>(
+    context: &PreparedComponentContext<'_, C>,
+) -> Result<(Vec<VerticalChord>, usize, usize), SgError> {
+    let mut records = Vec::new();
+    let mut run_count = 0;
+    let mut pair_count = 0;
+    for (&x, ys) in &context.reflex_by_column {
+        let x_index = coordinate_to_usize(x)?;
+        let Some(local_x) = x_index.checked_sub(context.prepared.x0) else {
+            continue;
+        };
+        let Some(runs) = context.prepared.vertical_interior_runs.get(local_x) else {
+            continue;
+        };
+        run_count += runs.len();
+        for &(bottom_run, top_run) in runs {
+            let bottom_run = Coord::try_from(bottom_run)
+                .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+            let top_run = Coord::try_from(top_run)
+                .map_err(|_| SgError::CoordinateConversion { value: Coord::MAX })?;
+            let begin = ys.partition_point(|&y| y < bottom_run);
+            let end = ys.partition_point(|&y| y <= top_run);
+            let aligned = &ys[begin..end];
+            for (index, &bottom) in aligned.iter().enumerate() {
+                for &top in &aligned[index + 1..] {
+                    pair_count += 1;
+                    records.push((x, bottom, top));
+                }
+            }
+        }
+    }
+    let chords = records
+        .into_iter()
+        .enumerate()
+        .map(|(index, (x, bottom, top))| VerticalChord::new(VerticalChordId(index), x, bottom, top))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((chords, run_count, pair_count))
 }
 
 fn horizontal_open_interval_is_interior<C>(
@@ -1165,11 +1257,14 @@ pub struct CompletionMetrics {
     pub rectangle_recovery_nanoseconds: u128,
     #[serde(default)]
     pub final_output_validation_nanoseconds: u128,
+    #[serde(default)]
+    pub completion_finalization_nanoseconds: u128,
     pub selected_chord_cut_materialization_microseconds: u128,
     pub horizontal_simple_chord_completion_microseconds: u128,
     pub vertical_simple_chord_completion_microseconds: u128,
     pub rectangle_recovery_microseconds: u128,
     pub final_output_validation_microseconds: u128,
+    pub completion_finalization_microseconds: u128,
     pub initial_horizontal_unit_cut_count: usize,
     pub initial_vertical_unit_cut_count: usize,
     pub added_horizontal_unit_cut_count: usize,
@@ -1796,9 +1891,9 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
             selected_horizontal,
             selected_vertical,
         )?;
-        let selected_at = Instant::now();
         let selected_horizontal_unit_cuts = cuts.horizontal.iter().copied().collect::<Vec<_>>();
         let selected_vertical_unit_cuts = cuts.vertical.iter().copied().collect::<Vec<_>>();
+        let selected_at = Instant::now();
         let mut metrics = CompletionMetrics {
             selected_chord_cut_materialization_nanoseconds: selected_at
                 .duration_since(started)
@@ -1829,8 +1924,11 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
         metrics.rectangle_recovery_nanoseconds =
             rectangles_at.duration_since(vertical_at).as_nanos();
         validate_completion_rectangles(component, &rectangles)?;
-        metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
-        metrics.final_output_validation_nanoseconds = rectangles_at.elapsed().as_nanos();
+        let validated_at = Instant::now();
+        metrics.final_output_validation_microseconds =
+            validated_at.duration_since(rectangles_at).as_micros();
+        metrics.final_output_validation_nanoseconds =
+            validated_at.duration_since(rectangles_at).as_nanos();
         let added_horizontal_unit_cuts = cuts
             .horizontal
             .iter()
@@ -1845,6 +1943,8 @@ impl GeometricCompletionBackend for ReferenceRescanCompletion {
             .collect::<Vec<_>>();
         metrics.added_horizontal_unit_cut_count = added_horizontal_unit_cuts.len();
         metrics.added_vertical_unit_cut_count = added_vertical_unit_cuts.len();
+        metrics.completion_finalization_microseconds = validated_at.elapsed().as_micros();
+        metrics.completion_finalization_nanoseconds = validated_at.elapsed().as_nanos();
         Ok(CompletionResult {
             rectangles,
             selected_horizontal_unit_cuts,
@@ -1903,9 +2003,10 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
             selected_horizontal,
             selected_vertical,
         )?;
-        let selected_at = Instant::now();
         let selected_horizontal_unit_cuts = cuts.horizontal_cuts();
         let selected_vertical_unit_cuts = cuts.vertical_cuts();
+        let mut state = CompletionState::new(prepared, cuts);
+        let selected_at = Instant::now();
         let mut metrics = CompletionMetrics {
             selected_chord_cut_materialization_nanoseconds: selected_at
                 .duration_since(started)
@@ -1917,7 +2018,6 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
             initial_vertical_unit_cut_count: selected_vertical_unit_cuts.len(),
             ..CompletionMetrics::default()
         };
-        let mut state = CompletionState::new(prepared, cuts);
         complete_indexed_axis(&mut state, true, &mut metrics)?;
         let horizontal_at = Instant::now();
         metrics.horizontal_simple_chord_completion_microseconds =
@@ -1942,8 +2042,11 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
         metrics.rectangle_recovery_nanoseconds =
             rectangles_at.duration_since(vertical_at).as_nanos();
         validate_completion_rectangles(component, &rectangles)?;
-        metrics.final_output_validation_microseconds = rectangles_at.elapsed().as_micros();
-        metrics.final_output_validation_nanoseconds = rectangles_at.elapsed().as_nanos();
+        let validated_at = Instant::now();
+        metrics.final_output_validation_microseconds =
+            validated_at.duration_since(rectangles_at).as_micros();
+        metrics.final_output_validation_nanoseconds =
+            validated_at.duration_since(rectangles_at).as_nanos();
         let all_horizontal_unit_cuts = state.cuts.horizontal_cuts();
         let all_vertical_unit_cuts = state.cuts.vertical_cuts();
         let added_horizontal_unit_cuts = all_horizontal_unit_cuts
@@ -1958,6 +2061,8 @@ impl GeometricCompletionBackend for IndexedFrontierCompletion {
             .collect::<Vec<_>>();
         metrics.added_horizontal_unit_cut_count = added_horizontal_unit_cuts.len();
         metrics.added_vertical_unit_cut_count = added_vertical_unit_cuts.len();
+        metrics.completion_finalization_microseconds = validated_at.elapsed().as_micros();
+        metrics.completion_finalization_nanoseconds = validated_at.elapsed().as_nanos();
         Ok(CompletionResult {
             rectangles,
             selected_horizontal_unit_cuts,

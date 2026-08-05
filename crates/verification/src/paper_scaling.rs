@@ -40,6 +40,24 @@ pub enum Algorithm {
     ExactCoverOracle,
 }
 
+/// Boundary edge-discovery paths exposed only to differential benchmarks.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BoundaryDiscoveryBackend {
+    ReferenceEdgeToggle,
+    PreparedExposedEdges,
+}
+
+impl BoundaryDiscoveryBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ReferenceEdgeToggle => "reference-edge-toggle",
+            Self::PreparedExposedEdges => "prepared-exposed-edges",
+        }
+    }
+}
+
 impl Algorithm {
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -124,6 +142,46 @@ pub struct PhaseTimings {
     pub rectangle_recovery_ns: Option<u128>,
     pub verification_ns: Option<u128>,
     pub total_in_process_solve_ns: Option<u128>,
+    #[serde(skip)]
+    pub prepared_component_build_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_total_build_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_edge_discovery_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_adjacency_build_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_loop_tracing_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_loop_normalization_ns: Option<u128>,
+    #[serde(skip)]
+    pub reflex_detection_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_unit_edge_sort_ns: Option<u128>,
+    #[serde(skip)]
+    pub boundary_index_construction_ns: Option<u128>,
+    #[serde(skip)]
+    pub reflex_grouping_ns: Option<u128>,
+    #[serde(skip)]
+    pub horizontal_chord_generation_ns: Option<u128>,
+    #[serde(skip)]
+    pub vertical_chord_generation_ns: Option<u128>,
+    #[serde(skip)]
+    pub chord_validation_filtering_ns: Option<u128>,
+    #[serde(skip)]
+    pub endpoint_index_construction_ns: Option<u128>,
+    #[serde(skip)]
+    pub selected_cut_materialization_ns: Option<u128>,
+    #[serde(skip)]
+    pub horizontal_completion_ns: Option<u128>,
+    #[serde(skip)]
+    pub vertical_completion_ns: Option<u128>,
+    #[serde(skip)]
+    pub internal_output_validation_ns: Option<u128>,
+    #[serde(skip)]
+    pub final_output_validation_ns: Option<u128>,
+    #[serde(skip)]
+    pub completion_finalization_ns: Option<u128>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -154,6 +212,16 @@ pub struct StructuralCounters {
     pub vertex_cover_size: Option<usize>,
     pub c0_network_node_count: Option<usize>,
     pub c0_network_arc_count: Option<usize>,
+    #[serde(skip)]
+    pub completion_candidate_queries: Option<usize>,
+    #[serde(skip)]
+    pub completion_candidate_revalidations: Option<usize>,
+    #[serde(skip)]
+    pub completion_stale_candidates: Option<usize>,
+    #[serde(skip)]
+    pub completion_ray_extension_unit_steps: Option<usize>,
+    #[serde(skip)]
+    pub rectangle_recovery_cell_visits: Option<usize>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -410,11 +478,23 @@ fn solve_algorithm(
     algorithm: Algorithm,
     component: &GridComponent<bool>,
 ) -> Result<Solved, String> {
+    solve_algorithm_with_boundary_backend(
+        algorithm,
+        component,
+        BoundaryDiscoveryBackend::PreparedExposedEdges,
+    )
+}
+
+fn solve_algorithm_with_boundary_backend(
+    algorithm: Algorithm,
+    component: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<Solved, String> {
     match algorithm {
         Algorithm::ExactCoverOracle => solve_exact_cover(component),
-        Algorithm::ExplicitHopcroftKarp => solve_explicit_matching(component),
-        Algorithm::ExplicitC0Flow => solve_c0_flow(component),
-        Algorithm::CompactMrd => solve_compact(component),
+        Algorithm::ExplicitHopcroftKarp => solve_explicit_matching(component, boundary_backend),
+        Algorithm::ExplicitC0Flow => solve_c0_flow(component, boundary_backend),
+        Algorithm::CompactMrd => solve_compact(component, boundary_backend),
     }
 }
 
@@ -438,6 +518,58 @@ fn optimum(geometry: &sg_oracle::grid::Geometry, matching_size: usize) -> Result
         .ok_or_else(|| "MRD formula underflow while computing optimum".to_owned())
 }
 
+fn prepare_component_context(
+    component: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<PreparedComponentContext<'_, bool>, String> {
+    match boundary_backend {
+        BoundaryDiscoveryBackend::ReferenceEdgeToggle => {
+            mrd_domain::context::oracle::prepare_component(component)
+        }
+        BoundaryDiscoveryBackend::PreparedExposedEdges => PreparedComponentContext::new(component),
+    }
+    .map_err(|error| error.to_string())
+}
+
+fn geometry_phase_timings(
+    geometry: &sg_oracle::grid::Geometry,
+    geometry_preprocessing_ns: u128,
+    chord_generation_ns: u128,
+) -> PhaseTimings {
+    let boundary = &geometry.boundary_build_metrics;
+    PhaseTimings {
+        geometry_preprocessing_ns: Some(geometry_preprocessing_ns),
+        chord_generation_ns: Some(chord_generation_ns),
+        prepared_component_build_ns: Some(geometry.prepared_component_build_nanoseconds),
+        boundary_total_build_ns: Some(boundary.total_build_nanoseconds),
+        boundary_edge_discovery_ns: Some(boundary.edge_discovery_nanoseconds),
+        boundary_adjacency_build_ns: Some(boundary.adjacency_build_nanoseconds),
+        boundary_loop_tracing_ns: Some(boundary.loop_tracing_nanoseconds),
+        boundary_loop_normalization_ns: Some(boundary.loop_normalization_nanoseconds),
+        reflex_detection_ns: Some(boundary.reflex_detection_nanoseconds),
+        boundary_unit_edge_sort_ns: Some(boundary.unit_edge_sort_nanoseconds),
+        boundary_index_construction_ns: Some(geometry.boundary_index_build_nanoseconds),
+        reflex_grouping_ns: Some(geometry.reflex_grouping_nanoseconds),
+        horizontal_chord_generation_ns: Some(
+            geometry
+                .chord_enumeration_timings
+                .horizontal_generation_nanoseconds,
+        ),
+        vertical_chord_generation_ns: Some(
+            geometry
+                .chord_enumeration_timings
+                .vertical_generation_nanoseconds,
+        ),
+        chord_validation_filtering_ns: Some(
+            geometry
+                .chord_enumeration_timings
+                .validation_filtering_nanoseconds,
+        ),
+        endpoint_index_construction_ns: Some(geometry.endpoint_index_build_nanoseconds),
+        ..PhaseTimings::default()
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn finish(
     component: &GridComponent<bool>,
@@ -446,7 +578,7 @@ fn finish(
     selected_vertical: &[bool],
     matching_size: usize,
     mut phases: PhaseTimings,
-    structure: StructuralCounters,
+    mut structure: StructuralCounters,
     provenance: &'static str,
     backend: &impl sg_oracle::grid::GeometricCompletionBackend,
 ) -> Result<Solved, String> {
@@ -461,12 +593,30 @@ fn finish(
     )
     .map_err(|error| error.to_string())?;
     let completion_metrics = &completion.metrics;
+    structure.completion_candidate_queries = Some(completion_metrics.concave_candidate_queries);
+    structure.completion_candidate_revalidations = Some(completion_metrics.candidate_revalidations);
+    structure.completion_stale_candidates = Some(completion_metrics.stale_candidate_count);
+    structure.completion_ray_extension_unit_steps =
+        Some(completion_metrics.ray_extension_unit_steps);
+    structure.rectangle_recovery_cell_visits =
+        Some(completion_metrics.rectangle_recovery_component_visits);
     phases.geometric_completion_ns = Some(
         completion_metrics.selected_chord_cut_materialization_nanoseconds
             + completion_metrics.horizontal_simple_chord_completion_nanoseconds
-            + completion_metrics.vertical_simple_chord_completion_nanoseconds,
+            + completion_metrics.vertical_simple_chord_completion_nanoseconds
+            + completion_metrics.completion_finalization_nanoseconds,
     );
     phases.rectangle_recovery_ns = Some(completion_metrics.rectangle_recovery_nanoseconds);
+    phases.selected_cut_materialization_ns =
+        Some(completion_metrics.selected_chord_cut_materialization_nanoseconds);
+    phases.horizontal_completion_ns =
+        Some(completion_metrics.horizontal_simple_chord_completion_nanoseconds);
+    phases.vertical_completion_ns =
+        Some(completion_metrics.vertical_simple_chord_completion_nanoseconds);
+    phases.internal_output_validation_ns =
+        Some(completion_metrics.final_output_validation_nanoseconds);
+    phases.completion_finalization_ns =
+        Some(completion_metrics.completion_finalization_nanoseconds);
     let declared = optimum(geometry, matching_size)?;
     if completion.rectangles.len() != declared {
         return Err(format!(
@@ -483,10 +633,10 @@ fn finish(
     };
     let validation_started = Instant::now();
     validate_dissection_prepared(&geometry.prepared, &result).map_err(|error| error.to_string())?;
-    phases.verification_ns = Some(
-        completion_metrics.final_output_validation_nanoseconds
-            + validation_started.elapsed().as_nanos(),
-    );
+    let final_output_validation_ns = validation_started.elapsed().as_nanos();
+    phases.final_output_validation_ns = Some(final_output_validation_ns);
+    phases.verification_ns =
+        Some(completion_metrics.final_output_validation_nanoseconds + final_output_validation_ns);
     Ok(Solved {
         result,
         phases,
@@ -495,10 +645,13 @@ fn finish(
     })
 }
 
-fn solve_explicit_matching(component: &GridComponent<bool>) -> Result<Solved, String> {
+fn solve_explicit_matching(
+    component: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<Solved, String> {
     let started = Instant::now();
     let preprocessing_started = Instant::now();
-    let context = PreparedComponentContext::new(component).map_err(|error| error.to_string())?;
+    let context = prepare_component_context(component, boundary_backend)?;
     let preprocessing_ns = preprocessing_started.elapsed().as_nanos();
     let chord_started = Instant::now();
     let geometry = sg_oracle::grid::analyze_prepared_geometry(
@@ -532,16 +685,12 @@ fn solve_explicit_matching(component: &GridComponent<bool>) -> Result<Solved, St
         .map(|covered| !covered)
         .collect::<Vec<_>>();
     let selection_ns = selection_started.elapsed().as_nanos();
-    let phases = PhaseTimings {
-        geometry_preprocessing_ns: Some(preprocessing_ns),
-        chord_generation_ns: Some(chord_ns),
-        explicit_conflict_graph_ns: Some(graph_ns),
-        matching_or_flow_ns: Some(matching_ns),
-        vertex_cover_recovery_ns: Some(cover_ns),
-        chord_selection_ns: Some(selection_ns),
-        total_in_process_solve_ns: Some(started.elapsed().as_nanos()),
-        ..PhaseTimings::default()
-    };
+    let mut phases = geometry_phase_timings(&geometry, preprocessing_ns, chord_ns);
+    phases.explicit_conflict_graph_ns = Some(graph_ns);
+    phases.matching_or_flow_ns = Some(matching_ns);
+    phases.vertex_cover_recovery_ns = Some(cover_ns);
+    phases.chord_selection_ns = Some(selection_ns);
+    phases.total_in_process_solve_ns = Some(started.elapsed().as_nanos());
     let structure = StructuralCounters {
         matching_size: Some(matching.size),
         vertex_cover_size: Some(cover.size),
@@ -568,19 +717,29 @@ fn solve_explicit_matching(component: &GridComponent<bool>) -> Result<Solved, St
     Ok(solved)
 }
 
-fn solve_c0_flow(component: &GridComponent<bool>) -> Result<Solved, String> {
-    solve_dominance(component, false)
+fn solve_c0_flow(
+    component: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<Solved, String> {
+    solve_dominance(component, false, boundary_backend)
 }
 
-fn solve_compact(component: &GridComponent<bool>) -> Result<Solved, String> {
-    solve_dominance(component, true)
+fn solve_compact(
+    component: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<Solved, String> {
+    solve_dominance(component, true, boundary_backend)
 }
 
 #[allow(clippy::too_many_lines)]
-fn solve_dominance(component: &GridComponent<bool>, compact: bool) -> Result<Solved, String> {
+fn solve_dominance(
+    component: &GridComponent<bool>,
+    compact: bool,
+    boundary_backend: BoundaryDiscoveryBackend,
+) -> Result<Solved, String> {
     let started = Instant::now();
     let preprocessing_started = Instant::now();
-    let context = PreparedComponentContext::new(component).map_err(|error| error.to_string())?;
+    let context = prepare_component_context(component, boundary_backend)?;
     let preprocessing_ns = preprocessing_started.elapsed().as_nanos();
     let chord_started = Instant::now();
     let geometry = sg_oracle::grid::analyze_prepared_geometry(
@@ -673,20 +832,17 @@ fn solve_dominance(component: &GridComponent<bool>, compact: bool) -> Result<Sol
             .then_some(2 + total_chords + explicit_edges.unwrap_or_default()),
         c0_network_arc_count: (!compact)
             .then_some(total_chords + explicit_edges.unwrap_or_default() * 2),
+        ..StructuralCounters::default()
     };
-    let phases = PhaseTimings {
-        geometry_preprocessing_ns: Some(preprocessing_ns),
-        chord_generation_ns: Some(chord_ns),
-        embedding_ns: Some(embedding_ns),
-        explicit_conflict_graph_ns: graph_ns,
-        biclique_construction_ns: biclique_ns,
-        network_construction_ns: Some(network_ns),
-        matching_or_flow_ns: Some(flow_ns),
-        vertex_cover_recovery_ns: Some(cover_ns),
-        chord_selection_ns: Some(selection_ns),
-        total_in_process_solve_ns: Some(started.elapsed().as_nanos()),
-        ..PhaseTimings::default()
-    };
+    let mut phases = geometry_phase_timings(&geometry, preprocessing_ns, chord_ns);
+    phases.embedding_ns = Some(embedding_ns);
+    phases.explicit_conflict_graph_ns = graph_ns;
+    phases.biclique_construction_ns = biclique_ns;
+    phases.network_construction_ns = Some(network_ns);
+    phases.matching_or_flow_ns = Some(flow_ns);
+    phases.vertex_cover_recovery_ns = Some(cover_ns);
+    phases.chord_selection_ns = Some(selection_ns);
+    phases.total_in_process_solve_ns = Some(started.elapsed().as_nanos());
     let provenance = if compact {
         "dominance::biclique::experiment::construct + compressed flow construction/execution/cover recovery + indexed completion"
     } else {
@@ -954,5 +1110,65 @@ mod tests {
         assert_eq!(compact.outcome, Outcome::Success);
         assert!(c0.structure.c0_network_node_count.is_some());
         assert!(compact.sizes.compressed_network_node_count.is_some());
+    }
+
+    #[test]
+    fn boundary_backends_match_each_other_and_oracle_on_random_small_instances() {
+        for seed in 0..32 {
+            let target = 1 + usize::try_from(seed % 16).unwrap();
+            let generated = random_connected(target, seed).unwrap();
+            let grid = generated.grid().unwrap();
+            let component = grid
+                .four_connected_components()
+                .into_iter()
+                .find(|component| component.color)
+                .unwrap();
+            let oracle = solve_exact_cover(&component).unwrap();
+
+            for algorithm in [
+                Algorithm::CompactMrd,
+                Algorithm::ExplicitHopcroftKarp,
+                Algorithm::ExplicitC0Flow,
+            ] {
+                let reference = solve_algorithm_with_boundary_backend(
+                    algorithm,
+                    &component,
+                    BoundaryDiscoveryBackend::ReferenceEdgeToggle,
+                )
+                .unwrap();
+                let optimized = solve_algorithm_with_boundary_backend(
+                    algorithm,
+                    &component,
+                    BoundaryDiscoveryBackend::PreparedExposedEdges,
+                )
+                .unwrap();
+                assert_eq!(
+                    reference.result.optimum_rectangle_count,
+                    oracle.result.optimum_rectangle_count,
+                    "seed={seed} target={target} algorithm={}",
+                    algorithm.name()
+                );
+                assert_eq!(
+                    reference.result.optimum_rectangle_count,
+                    optimized.result.optimum_rectangle_count
+                );
+                assert_eq!(
+                    canonical_rectangles(&reference.result.rectangles),
+                    canonical_rectangles(&optimized.result.rectangles)
+                );
+                assert_eq!(
+                    reference.result.diagnostics.horizontal_chord_count,
+                    optimized.result.diagnostics.horizontal_chord_count
+                );
+                assert_eq!(
+                    reference.result.diagnostics.vertical_chord_count,
+                    optimized.result.diagnostics.vertical_chord_count
+                );
+                assert_eq!(
+                    reference.result.diagnostics.explicit_conflict_edge_count,
+                    optimized.result.diagnostics.explicit_conflict_edge_count
+                );
+            }
+        }
     }
 }
