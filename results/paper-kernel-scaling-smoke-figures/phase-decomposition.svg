@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18">Scope B phase decomposition at largest levels</text>
+<line x1="90" y1="490" x2="740" y2="490" stroke="#263238"/>
+<line x1="90" y1="55" x2="90" y2="490" stroke="#263238"/>
+<text x="415.0" y="542" text-anchor="middle" font-family="sans-serif" font-size="13">representative family/solver index</text>
+<text x="20" y="280.0" text-anchor="middle" transform="rotate(-90 20 280.0)" font-family="sans-serif" font-size="13">median phase time (ns)</text>
+<path d="M 90.00,489.90" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="90.00" cy="489.90" r="3" fill="#007f73"/>
+<text x="752" y="55" font-family="sans-serif" font-size="10" fill="#007f73">dense-conflict:compact-mrd:embedding_ns</text>
+<path d="M 90.00,459.52" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="90.00" cy="459.52" r="3" fill="#c65d00"/>
+<text x="752" y="71" font-family="sans-serif" font-size="10" fill="#c65d00">dense-conflict:compact-mrd:biclique_construction_ns</text>
+<path d="M 90.00,489.18" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="90.00" cy="489.18" r="3" fill="#4c5f7a"/>
+<text x="752" y="87" font-family="sans-serif" font-size="10" fill="#4c5f7a">dense-conflict:compact-mrd:compressed_network_construction_ns</text>
+<path d="M 90.00,486.34" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="90.00" cy="486.34" r="3" fill="#a33f5d"/>
+<text x="752" y="103" font-family="sans-serif" font-size="10" fill="#a33f5d">dense-conflict:compact-mrd:max_flow_ns</text>
+<path d="M 90.00,489.94" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="90.00" cy="489.94" r="3" fill="#6b5ca5"/>
+<text x="752" y="119" font-family="sans-serif" font-size="10" fill="#6b5ca5">dense-conflict:compact-mrd:vertex_cover_recovery_ns</text>
+<path d="M 171.25,489.87" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="171.25" cy="489.87" r="3" fill="#2e7d32"/>
+<text x="752" y="135" font-family="sans-serif" font-size="10" fill="#2e7d32">dense-conflict:explicit-c0-flow:embedding_ns</text>
+<path d="M 171.25,55.00" fill="none" stroke="#8d6e63" stroke-width="2"/>
+<circle cx="171.25" cy="55.00" r="3" fill="#8d6e63"/>
+<text x="752" y="151" font-family="sans-serif" font-size="10" fill="#8d6e63">dense-conflict:explicit-c0-flow:explicit_conflict_construction_ns</text>
+<path d="M 171.25,365.54" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="171.25" cy="365.54" r="3" fill="#007f73"/>
+<text x="752" y="167" font-family="sans-serif" font-size="10" fill="#007f73">dense-conflict:explicit-c0-flow:explicit_network_construction_ns</text>
+<path d="M 171.25,244.49" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="171.25" cy="244.49" r="3" fill="#c65d00"/>
+<text x="752" y="183" font-family="sans-serif" font-size="10" fill="#c65d00">dense-conflict:explicit-c0-flow:max_flow_ns</text>
+<path d="M 171.25,483.76" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="171.25" cy="483.76" r="3" fill="#4c5f7a"/>
+<text x="752" y="199" font-family="sans-serif" font-size="10" fill="#4c5f7a">dense-conflict:explicit-c0-flow:vertex_cover_recovery_ns</text>
+<path d="M 252.50,56.55" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="252.50" cy="56.55" r="3" fill="#a33f5d"/>
+<text x="752" y="215" font-family="sans-serif" font-size="10" fill="#a33f5d">dense-conflict:explicit-hopcroft-karp:explicit_conflict_construction_ns</text>
+<path d="M 252.50,482.92" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="252.50" cy="482.92" r="3" fill="#6b5ca5"/>
+<text x="752" y="231" font-family="sans-serif" font-size="10" fill="#6b5ca5">dense-conflict:explicit-hopcroft-karp:matching_ns</text>
+<path d="M 252.50,489.99" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="252.50" cy="489.99" r="3" fill="#2e7d32"/>
+<text x="752" y="247" font-family="sans-serif" font-size="10" fill="#2e7d32">dense-conflict:explicit-hopcroft-karp:vertex_cover_recovery_ns</text>
+<path d="M 333.75,490.00" fill="none" stroke="#8d6e63" stroke-width="2"/>
+<circle cx="333.75" cy="490.00" r="3" fill="#8d6e63"/>
+<text x="752" y="263" font-family="sans-serif" font-size="10" fill="#8d6e63">random-connected:compact-mrd:embedding_ns</text>
+<path d="M 333.75,489.38" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="333.75" cy="489.38" r="3" fill="#007f73"/>
+<text x="752" y="279" font-family="sans-serif" font-size="10" fill="#007f73">random-connected:compact-mrd:biclique_construction_ns</text>
+<path d="M 333.75,489.97" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="333.75" cy="489.97" r="3" fill="#c65d00"/>
+<text x="752" y="295" font-family="sans-serif" font-size="10" fill="#c65d00">random-connected:compact-mrd:compressed_network_construction_ns</text>
+<path d="M 333.75,489.86" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="333.75" cy="489.86" r="3" fill="#4c5f7a"/>
+<text x="752" y="311" font-family="sans-serif" font-size="10" fill="#4c5f7a">random-connected:compact-mrd:max_flow_ns</text>
+<path d="M 333.75,490.00" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="333.75" cy="490.00" r="3" fill="#a33f5d"/>
+<text x="752" y="327" font-family="sans-serif" font-size="10" fill="#a33f5d">random-connected:compact-mrd:vertex_cover_recovery_ns</text>
+<path d="M 415.00,490.00" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="415.00" cy="490.00" r="3" fill="#6b5ca5"/>
+<text x="752" y="343" font-family="sans-serif" font-size="10" fill="#6b5ca5">random-connected:explicit-c0-flow:embedding_ns</text>
+<path d="M 415.00,489.97" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="415.00" cy="489.97" r="3" fill="#2e7d32"/>
+<text x="752" y="359" font-family="sans-serif" font-size="10" fill="#2e7d32">random-connected:explicit-c0-flow:explicit_conflict_construction_ns</text>
+<path d="M 415.00,489.93" fill="none" stroke="#8d6e63" stroke-width="2"/>
+<circle cx="415.00" cy="489.93" r="3" fill="#8d6e63"/>
+<text x="752" y="375" font-family="sans-serif" font-size="10" fill="#8d6e63">random-connected:explicit-c0-flow:explicit_network_construction_ns</text>
+<path d="M 415.00,489.82" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="415.00" cy="489.82" r="3" fill="#007f73"/>
+<text x="752" y="391" font-family="sans-serif" font-size="10" fill="#007f73">random-connected:explicit-c0-flow:max_flow_ns</text>
+<path d="M 415.00,490.00" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="415.00" cy="490.00" r="3" fill="#c65d00"/>
+<text x="752" y="407" font-family="sans-serif" font-size="10" fill="#c65d00">random-connected:explicit-c0-flow:vertex_cover_recovery_ns</text>
+<path d="M 496.25,489.97" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="496.25" cy="489.97" r="3" fill="#4c5f7a"/>
+<text x="752" y="423" font-family="sans-serif" font-size="10" fill="#4c5f7a">random-connected:explicit-hopcroft-karp:explicit_conflict_construction_ns</text>
+<path d="M 496.25,489.99" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="496.25" cy="489.99" r="3" fill="#a33f5d"/>
+<text x="752" y="439" font-family="sans-serif" font-size="10" fill="#a33f5d">random-connected:explicit-hopcroft-karp:matching_ns</text>
+<path d="M 496.25,490.00" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="496.25" cy="490.00" r="3" fill="#6b5ca5"/>
+<text x="752" y="455" font-family="sans-serif" font-size="10" fill="#6b5ca5">random-connected:explicit-hopcroft-karp:vertex_cover_recovery_ns</text>
+<path d="M 577.50,489.99" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="577.50" cy="489.99" r="3" fill="#2e7d32"/>
+<text x="752" y="471" font-family="sans-serif" font-size="10" fill="#2e7d32">representation-crossover:compact-mrd:embedding_ns</text>
+<path d="M 577.50,489.72" fill="none" stroke="#8d6e63" stroke-width="2"/>
+<circle cx="577.50" cy="489.72" r="3" fill="#8d6e63"/>
+<text x="752" y="487" font-family="sans-serif" font-size="10" fill="#8d6e63">representation-crossover:compact-mrd:biclique_construction_ns</text>
+<path d="M 577.50,489.98" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="577.50" cy="489.98" r="3" fill="#007f73"/>
+<text x="752" y="503" font-family="sans-serif" font-size="10" fill="#007f73">representation-crossover:compact-mrd:compressed_network_construction_ns</text>
+<path d="M 577.50,489.91" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="577.50" cy="489.91" r="3" fill="#c65d00"/>
+<text x="752" y="519" font-family="sans-serif" font-size="10" fill="#c65d00">representation-crossover:compact-mrd:max_flow_ns</text>
+<path d="M 577.50,490.00" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="577.50" cy="490.00" r="3" fill="#4c5f7a"/>
+<text x="752" y="535" font-family="sans-serif" font-size="10" fill="#4c5f7a">representation-crossover:compact-mrd:vertex_cover_recovery_ns</text>
+<path d="M 658.75,489.99" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="658.75" cy="489.99" r="3" fill="#a33f5d"/>
+<text x="752" y="551" font-family="sans-serif" font-size="10" fill="#a33f5d">representation-crossover:explicit-c0-flow:embedding_ns</text>
+<path d="M 658.75,489.43" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="658.75" cy="489.43" r="3" fill="#6b5ca5"/>
+<text x="752" y="567" font-family="sans-serif" font-size="10" fill="#6b5ca5">representation-crossover:explicit-c0-flow:explicit_conflict_construction_ns</text>
+<path d="M 658.75,489.11" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="658.75" cy="489.11" r="3" fill="#2e7d32"/>
+<text x="752" y="583" font-family="sans-serif" font-size="10" fill="#2e7d32">representation-crossover:explicit-c0-flow:explicit_network_construction_ns</text>
+<path d="M 658.75,488.37" fill="none" stroke="#8d6e63" stroke-width="2"/>
+<circle cx="658.75" cy="488.37" r="3" fill="#8d6e63"/>
+<text x="752" y="599" font-family="sans-serif" font-size="10" fill="#8d6e63">representation-crossover:explicit-c0-flow:max_flow_ns</text>
+<path d="M 658.75,489.96" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="658.75" cy="489.96" r="3" fill="#007f73"/>
+<text x="752" y="615" font-family="sans-serif" font-size="10" fill="#007f73">representation-crossover:explicit-c0-flow:vertex_cover_recovery_ns</text>
+<path d="M 740.00,489.43" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="740.00" cy="489.43" r="3" fill="#c65d00"/>
+<text x="752" y="631" font-family="sans-serif" font-size="10" fill="#c65d00">representation-crossover:explicit-hopcroft-karp:explicit_conflict_construction_ns</text>
+<path d="M 740.00,489.96" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="740.00" cy="489.96" r="3" fill="#4c5f7a"/>
+<text x="752" y="647" font-family="sans-serif" font-size="10" fill="#4c5f7a">representation-crossover:explicit-hopcroft-karp:matching_ns</text>
+<path d="M 740.00,490.00" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="740.00" cy="490.00" r="3" fill="#a33f5d"/>
+<text x="752" y="663" font-family="sans-serif" font-size="10" fill="#a33f5d">representation-crossover:explicit-hopcroft-karp:vertex_cover_recovery_ns</text>
+</svg>

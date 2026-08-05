@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18">Estimated structural storage</text>
+<line x1="90" y1="490" x2="740" y2="490" stroke="#263238"/>
+<line x1="90" y1="55" x2="90" y2="490" stroke="#263238"/>
+<text x="415.0" y="542" text-anchor="middle" font-family="sans-serif" font-size="13">target size</text>
+<text x="20" y="280.0" text-anchor="middle" transform="rotate(-90 20 280.0)" font-family="sans-serif" font-size="13">estimated structural bytes</text>
+<path d="M 90.00,482.69 L 182.86,461.90 L 368.57,380.02 L 740.00,55.00" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="90.00" cy="482.69" r="3" fill="#007f73"/>
+<circle cx="182.86" cy="461.90" r="3" fill="#007f73"/>
+<circle cx="368.57" cy="380.02" r="3" fill="#007f73"/>
+<circle cx="740.00" cy="55.00" r="3" fill="#007f73"/>
+<text x="752" y="55" font-family="sans-serif" font-size="10" fill="#007f73">dense-conflict:explicit</text>
+<path d="M 90.00,487.10 L 182.86,484.12 L 368.57,478.13 L 740.00,466.04" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="90.00" cy="487.10" r="3" fill="#c65d00"/>
+<circle cx="182.86" cy="484.12" r="3" fill="#c65d00"/>
+<circle cx="368.57" cy="478.13" r="3" fill="#c65d00"/>
+<circle cx="740.00" cy="466.04" r="3" fill="#c65d00"/>
+<text x="752" y="71" font-family="sans-serif" font-size="10" fill="#c65d00">dense-conflict:compact</text>
+<path d="M 90.00,489.98 L 182.86,490.00 L 368.57,489.96 L 740.00,489.79" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="90.00" cy="489.98" r="3" fill="#4c5f7a"/>
+<circle cx="182.86" cy="490.00" r="3" fill="#4c5f7a"/>
+<circle cx="368.57" cy="489.96" r="3" fill="#4c5f7a"/>
+<circle cx="740.00" cy="489.79" r="3" fill="#4c5f7a"/>
+<text x="752" y="87" font-family="sans-serif" font-size="10" fill="#4c5f7a">random-connected:explicit</text>
+<path d="M 90.00,489.87 L 182.86,489.91 L 368.57,489.83 L 740.00,489.54" fill="none" stroke="#a33f5d" stroke-width="2"/>
+<circle cx="90.00" cy="489.87" r="3" fill="#a33f5d"/>
+<circle cx="182.86" cy="489.91" r="3" fill="#a33f5d"/>
+<circle cx="368.57" cy="489.83" r="3" fill="#a33f5d"/>
+<circle cx="740.00" cy="489.54" r="3" fill="#a33f5d"/>
+<text x="752" y="103" font-family="sans-serif" font-size="10" fill="#a33f5d">random-connected:compact</text>
+<path d="M 90.00,489.59 L 182.86,489.05 L 368.57,488.30 L 740.00,486.49" fill="none" stroke="#6b5ca5" stroke-width="2"/>
+<circle cx="90.00" cy="489.59" r="3" fill="#6b5ca5"/>
+<circle cx="182.86" cy="489.05" r="3" fill="#6b5ca5"/>
+<circle cx="368.57" cy="488.30" r="3" fill="#6b5ca5"/>
+<circle cx="740.00" cy="486.49" r="3" fill="#6b5ca5"/>
+<text x="752" y="119" font-family="sans-serif" font-size="10" fill="#6b5ca5">representation-crossover:explicit</text>
+<path d="M 90.00,489.85 L 182.86,489.76 L 368.57,489.67 L 740.00,489.50" fill="none" stroke="#2e7d32" stroke-width="2"/>
+<circle cx="90.00" cy="489.85" r="3" fill="#2e7d32"/>
+<circle cx="182.86" cy="489.76" r="3" fill="#2e7d32"/>
+<circle cx="368.57" cy="489.67" r="3" fill="#2e7d32"/>
+<circle cx="740.00" cy="489.50" r="3" fill="#2e7d32"/>
+<text x="752" y="135" font-family="sans-serif" font-size="10" fill="#2e7d32">representation-crossover:compact</text>
+</svg>

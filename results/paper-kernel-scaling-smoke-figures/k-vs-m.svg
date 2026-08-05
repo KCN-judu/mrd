@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="18">Explicit K versus compressed M</text>
+<line x1="90" y1="490" x2="740" y2="490" stroke="#263238"/>
+<line x1="90" y1="55" x2="90" y2="490" stroke="#263238"/>
+<text x="415.0" y="542" text-anchor="middle" font-family="sans-serif" font-size="13">explicit conflict edges K</text>
+<text x="20" y="280.0" text-anchor="middle" transform="rotate(-90 20 280.0)" font-family="sans-serif" font-size="13">compressed nodes + arcs M</text>
+<path d="M 100.67,438.28 L 131.54,383.73 L 253.73,274.80 L 740.00,55.00" fill="none" stroke="#007f73" stroke-width="2"/>
+<circle cx="100.67" cy="438.28" r="3" fill="#007f73"/>
+<circle cx="131.54" cy="383.73" r="3" fill="#007f73"/>
+<circle cx="253.73" cy="274.80" r="3" fill="#007f73"/>
+<circle cx="740.00" cy="55.00" r="3" fill="#007f73"/>
+<text x="752" y="55" font-family="sans-serif" font-size="10" fill="#007f73">dense-conflict</text>
+<path d="M 90.00,490.00 L 90.03,489.30 L 90.05,488.53 L 90.29,482.96" fill="none" stroke="#c65d00" stroke-width="2"/>
+<circle cx="90.00" cy="490.00" r="3" fill="#c65d00"/>
+<circle cx="90.03" cy="489.30" r="3" fill="#c65d00"/>
+<circle cx="90.05" cy="488.53" r="3" fill="#c65d00"/>
+<circle cx="90.29" cy="482.96" r="3" fill="#c65d00"/>
+<text x="752" y="71" font-family="sans-serif" font-size="10" fill="#c65d00">random-connected</text>
+<path d="M 90.60,488.93 L 91.38,487.16 L 92.49,485.39 L 95.17,482.30" fill="none" stroke="#4c5f7a" stroke-width="2"/>
+<circle cx="90.60" cy="488.93" r="3" fill="#4c5f7a"/>
+<circle cx="91.38" cy="487.16" r="3" fill="#4c5f7a"/>
+<circle cx="92.49" cy="485.39" r="3" fill="#4c5f7a"/>
+<circle cx="95.17" cy="482.30" r="3" fill="#4c5f7a"/>
+<text x="752" y="87" font-family="sans-serif" font-size="10" fill="#4c5f7a">representation-crossover</text>
+</svg>
