@@ -25,11 +25,13 @@ use crate::adversarial::{
     dense_conflict_grid, orthogonal_spiral, staircase,
 };
 
+pub mod kernel;
+
 const SCHEMA_VERSION: u32 = 1;
 const GENERATOR_VERSION: &str = "paper-scaling-families-v1";
 
 /// Named exact solver paths exposed by the paper campaign.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Algorithm {
     CompactMrd,
