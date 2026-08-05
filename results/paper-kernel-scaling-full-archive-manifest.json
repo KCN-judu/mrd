@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "campaign": "paper-kernel-scaling",
+  "compression": "zstd level 10",
+  "artifacts": [
+    {
+      "path": "results/paper-kernel-scaling-full.json",
+      "archive": "results/paper-kernel-scaling-full.json.zst",
+      "uncompressed_bytes": 1379253260,
+      "uncompressed_sha256": "dea0dd70ae2705f9cc07dd80a5633b5bb1b5fecf8a33a9f92dd2038c24f89f73",
+      "archive_bytes": 24411599,
+      "archive_sha256": "345352d9a48c10953cd5e40ca934da5d057fb7ae1ee4be945abd33c87b3060f0"
+    },
+    {
+      "path": "results/paper-kernel-scaling-full-runs.csv",
+      "archive": "results/paper-kernel-scaling-full-runs.csv.zst",
+      "uncompressed_bytes": 1018576916,
+      "uncompressed_sha256": "b43b06269563c4b74cbfb51abe2fa9bdcc80b57c4a2c5698d58f63a12b2b3d7f",
+      "archive_bytes": 18780641,
+      "archive_sha256": "975670caaa82f47671e2ae691913bd1c8a7d72fe0ea8d5cbeb93402cbd436e58"
+    }
+  ],
+  "restore_commands": [
+    "zstd -d --keep results/paper-kernel-scaling-full.json.zst -o results/paper-kernel-scaling-full.json",
+    "zstd -d --keep results/paper-kernel-scaling-full-runs.csv.zst -o results/paper-kernel-scaling-full-runs.csv"
+  ]
+}
