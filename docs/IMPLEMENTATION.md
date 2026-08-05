@@ -1128,10 +1128,12 @@ Differential tests compare the clone and borrowed paths for topology fixtures,
 all three algorithms, generated P18 families, randomized small masks, input
 immutability, and multiple algorithm orders. The P18 wrapper and analyzer
 require clean source/binary/config provenance, exact adaptive census, matching
-cross-backend sample order, and zero structural, objective, and witness
-mismatches. A finite Scope A bootstrap interval that crosses 1.0 is reported as
-a negative result; clone removal is not an asymptotic claim, an RSS result, an
-AN19 runtime proof, or an automatic target-decision procedure.
+cross-backend sample identities/order for each shared iteration prefix, and
+zero structural, objective, and witness mismatches. Different adaptive counts
+are retained and reported rather than padded. A finite Scope A bootstrap
+interval that crosses 1.0 is reported as a negative result; clone removal is
+not an asymptotic claim, an RSS result, an AN19 runtime proof, or an automatic
+target-decision procedure.
 
 The post-clone representation audit recommends exactly one later experiment:
 a per-algorithm, per-campaign-lane compact representation workspace whose

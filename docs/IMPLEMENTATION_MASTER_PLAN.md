@@ -155,8 +155,10 @@ not a new production asymptotic algorithm. Scope A records clone, borrow/share,
 release, and workspace preparation separately; Scope B does not construct the
 Scope-A selection workspace. Structural byte values are capacity-based payload
 estimates, not allocator or RSS measurements. Clean source/binary/config
-provenance, exact paired sample order, adaptive repetition census, and zero
-structural/objective/witness mismatches are hard gates. A Scope A confidence
+provenance, matching shared-prefix sample identities/order, adaptive repetition
+census, and zero structural/objective/witness mismatches are hard gates. The
+adaptive rule may produce different counts for the two ownership paths; those
+differences are reported. A Scope A confidence
 interval crossing 1.0 is a valid negative result, especially for the primary
 `representation-crossover` family.
 

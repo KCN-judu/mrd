@@ -362,22 +362,64 @@ def validate_run_timing_shape(
         raise ValueError(f"{identity} scope timing accounting mismatch")
 
 
+def validate_allocation_semantics(
+    allocations: dict[str, Any],
+    point: dict[str, Any],
+    backend: str,
+    scope: str,
+    identity: str,
+) -> None:
+    fields = (
+        "canonical_cells_cloned",
+        "canonical_clone_bytes_estimate",
+        "solver_workspace_retained_bytes_estimate",
+        "representation_retained_bytes_estimate",
+        "ownership_vec_allocation_count_estimate",
+    )
+    for field in fields:
+        require_nonnegative_integer(
+            allocations.get(field), f"{identity} allocations.{field}"
+        )
+    clone_cells = allocations["canonical_cells_cloned"]
+    clone_bytes = allocations["canonical_clone_bytes_estimate"]
+    workspace_bytes = allocations["solver_workspace_retained_bytes_estimate"]
+    ownership_allocations = allocations["ownership_vec_allocation_count_estimate"]
+    if scope == SCOPES[1]:
+        if clone_cells != 0 or clone_bytes != 0:
+            raise ValueError(f"{identity} Scope B reports canonical clone payload")
+        if workspace_bytes != 0 or ownership_allocations != 0:
+            raise ValueError(
+                f"{identity} Scope B reports Scope-A ownership allocations"
+            )
+        return
+    foreground_cells = (point.get("sizes") or {}).get("foreground_cells_n")
+    if not isinstance(foreground_cells, int) or isinstance(foreground_cells, bool):
+        return
+    if backend == BACKENDS[0]:
+        if clone_cells != foreground_cells:
+            raise ValueError(
+                f"{identity} clone-reference cells differ from foreground N"
+            )
+        if foreground_cells > 0 and clone_bytes == 0:
+            raise ValueError(f"{identity} clone-reference payload bytes are zero")
+    elif clone_cells != 0 or clone_bytes != 0:
+        raise ValueError(f"{identity} borrowed backend reports canonical clone payload")
+
+
 def validate_sample_census(
     point: dict[str, Any], backend: str, protocol: dict[str, Any]
 ) -> None:
     warmups = point.get("warmups")
     runs = point.get("runs")
     exact_order = point.get("exact_measured_order")
-    if (
-        not isinstance(warmups, list)
-        or not isinstance(runs, list)
-        or not isinstance(exact_order, list)
-    ):
+    if not isinstance(warmups, list) or not isinstance(runs, list):
         raise ValueError(f"{backend} point sample census is malformed")
     if point.get("stop_propagated_from_target_size") is not None:
-        if warmups or runs or exact_order:
+        if exact_order not in (None, []) or warmups or runs:
             raise ValueError(f"{backend} propagated stop contains samples")
         return
+    if not isinstance(exact_order, list):
+        raise ValueError(f"{backend} point sample census is malformed")
 
     expected_pairs = {
         (scope, algorithm) for scope in SCOPES for algorithm in ALGORITHMS
@@ -683,6 +725,8 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
             validate_sample_census(point, backend, protocol)
             runs = point.get("runs", [])
             exact_order = point.get("exact_measured_order", [])
+            if exact_order is None:
+                exact_order = []
             if not isinstance(runs, list) or not isinstance(exact_order, list):
                 raise ValueError(f"{backend} measured sample census is malformed")
             identities = [run.get("sample_identity") for run in runs]
@@ -711,22 +755,13 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
                     raise ValueError(
                         f"{backend} measured run lacks allocation diagnostics"
                     )
-                for field in (
-                    "canonical_cells_cloned",
-                    "canonical_clone_bytes_estimate",
-                    "solver_workspace_retained_bytes_estimate",
-                    "representation_retained_bytes_estimate",
-                    "ownership_vec_allocation_count_estimate",
-                ):
-                    value = allocations.get(field)
-                    if (
-                        isinstance(value, bool)
-                        or not isinstance(value, int)
-                        or value < 0
-                    ):
-                        raise ValueError(
-                            f"{backend} allocation field {field} is invalid"
-                        )
+                validate_allocation_semantics(
+                    allocations,
+                    point,
+                    backend,
+                    str(run.get("scope", "")),
+                    f"{backend} run {run.get('sample_identity')}",
+                )
         if completion.get("planned_point_count") != len(planned_ids):
             raise ValueError(f"{backend} planned completion census mismatch")
         if completion.get("observed_point_count") != len(observed_ids):
@@ -768,7 +803,9 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
     objective_mismatches = 0
     witness_mismatches = 0
     canonical_identity_mismatches = 0
+    sample_identity_mismatches = 0
     sample_order_mismatches = 0
+    adaptive_count_mismatches = 0
     paired_keys = set(paired_rows[BACKENDS[0]]) & set(paired_rows[BACKENDS[1]])
     if len(paired_keys) != len(plans or []):
         raise ValueError("P18 paired point census is incomplete")
@@ -783,8 +820,32 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
             "structure"
         ) != right.get("structure"):
             structural_mismatches += 1
-        if left.get("exact_measured_order") != right.get("exact_measured_order"):
-            sample_order_mismatches += 1
+        for pair in {
+            (scope, algorithm) for scope in SCOPES for algorithm in ALGORITHMS
+        }:
+            left_runs = sorted(
+                (
+                    run
+                    for run in left.get("runs", [])
+                    if (run.get("scope"), run.get("algorithm")) == pair
+                ),
+                key=lambda run: run.get("iteration", -1),
+            )
+            right_runs = sorted(
+                (
+                    run
+                    for run in right.get("runs", [])
+                    if (run.get("scope"), run.get("algorithm")) == pair
+                ),
+                key=lambda run: run.get("iteration", -1),
+            )
+            if len(left_runs) != len(right_runs):
+                adaptive_count_mismatches += 1
+            for left_run, right_run in zip(left_runs, right_runs):
+                if left_run.get("sample_identity") != right_run.get("sample_identity"):
+                    sample_identity_mismatches += 1
+                if left_run.get("order_position") != right_run.get("order_position"):
+                    sample_order_mismatches += 1
         left_correctness = {
             row.get("algorithm"): row for row in left.get("correctness", [])
         }
@@ -805,9 +866,21 @@ def validate_input(raw: dict[str, Any]) -> dict[str, Any]:
         "structural": structural_mismatches,
         "objective": objective_mismatches,
         "witness": witness_mismatches,
+        "sample_identity": sample_identity_mismatches,
         "sample_order": sample_order_mismatches,
+        "adaptive_count": adaptive_count_mismatches,
     }
-    if any(mismatch_counts.values()):
+    if any(
+        mismatch_counts[field]
+        for field in (
+            "canonical_identity",
+            "structural",
+            "objective",
+            "witness",
+            "sample_identity",
+            "sample_order",
+        )
+    ):
         raise ValueError(f"P18 paired semantic mismatches: {mismatch_counts}")
     top_completion = raw.get("completion")
     if (
@@ -1333,7 +1406,7 @@ def render_report(summary: dict[str, Any]) -> str:
         f"- Release binary SHA-256: `{summary['binary_sha256']}`",
         f"- P18 config SHA-256: `{summary['config_sha256']}`",
         "- Backends: `clone-canonical-reference` and `borrowed-canonical`",
-        f"- Paired point census: {validation['paired_points']}; semantic mismatches: {sum(validation['mismatches'].values())}",
+        f"- Paired point census: {validation['paired_points']}; semantic mismatches: {sum(value for key, value in validation['mismatches'].items() if key != 'adaptive_count')}; adaptive-count differences: {validation['mismatches'].get('adaptive_count', 0)}",
         "- P9.5e.3g.3 remains blocked; P9.6a remains deferred; P18 does not establish AN19 runtime or automatic target decision.",
         "",
         "## Census and outcome",
@@ -1641,6 +1714,7 @@ def self_test() -> None:
     summary = analyze(payload)
     assert summary["validation"]["paired_points"] == len(sizes)
     assert summary["validation"]["mismatches"]["sample_order"] == 0
+    assert summary["validation"]["mismatches"]["adaptive_count"] == 0
     assert summary["families"]["comb-staircase"]["algorithms"][ALGORITHMS[0]][
         "scope_a"
     ]["deep_clone_eliminated"]
@@ -1719,6 +1793,28 @@ def self_test() -> None:
     else:
         raise AssertionError("negative timing was accepted")
 
+    bad_allocation = strict_json_loads(json.dumps(payload, allow_nan=False))
+    bad_allocation["backends"][BACKENDS[0]]["point_results"][0]["runs"][0][
+        "allocations"
+    ]["canonical_cells_cloned"] = 0
+    try:
+        validate_input(bad_allocation)
+    except ValueError as error:
+        assert "clone-reference cells" in str(error)
+    else:
+        raise AssertionError("inconsistent ownership allocation was accepted")
+
+    bad_scope_b_allocation = strict_json_loads(json.dumps(payload, allow_nan=False))
+    bad_scope_b_allocation["backends"][BACKENDS[0]]["point_results"][0]["runs"][6][
+        "allocations"
+    ]["solver_workspace_retained_bytes_estimate"] = 1
+    try:
+        validate_input(bad_scope_b_allocation)
+    except ValueError as error:
+        assert "Scope B" in str(error)
+    else:
+        raise AssertionError("Scope B ownership allocation was accepted")
+
     missing_timing = strict_json_loads(json.dumps(payload, allow_nan=False))
     missing_timing["backends"][BACKENDS[0]]["point_results"][0]["runs"][0][
         "timings"
@@ -1747,6 +1843,7 @@ def self_test() -> None:
         reversed(second_point["exact_measured_order"])
     )
     second_point["runs"] = list(reversed(second_point["runs"]))
+    second_point["runs"][0]["order_position"] = 0
     try:
         validate_input(mismatched_order)
     except ValueError as error:

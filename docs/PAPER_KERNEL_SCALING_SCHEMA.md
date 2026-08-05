@@ -163,10 +163,13 @@ comparison configuration.
 The clean-evidence gate requires `git_dirty = false` at the wrapper and both
 nested environments, equal source and release-binary hashes, stable CPU/power
 metadata, exact planned and terminal point census, exact adaptive repetitions,
-zero duplicate retries, and identical cross-backend measured sample identity
-and order for every paired point. A stopped point is retained as censored data;
-it contributes no timing median or fit. The P18 analyzer repeats these checks
-even when the runner has already validated them.
+zero duplicate retries, and matching cross-backend sample identity and
+algorithm order for every shared `(scope, algorithm, iteration)` prefix. The
+adaptive rule may legitimately choose different repetition counts for the two
+ownership paths; those count differences are retained and reported rather than
+silently padded or discarded. A stopped point is retained as censored data; it
+contributes no timing median or fit. The P18 analyzer repeats these checks even
+when the runner has already validated them.
 
 Older unwrapped schema-v2 kernel files remain valid inputs to the generic
 kernel runner/analyzer according to their own schema contract, but they are
