@@ -220,28 +220,31 @@ measures. It is descriptive and does not identify a causal law. The shared
 parent fits are empirical descriptions over the measured levels, not proofs
 of `O(N)`, `O(B)`, or any other asymptotic bound.
 
-### Post-optimization bottlenecks
+### Erratum: post-optimization phase dominance
 
-After boundary discovery is accelerated, the largest Scope A phase depends on
-the family. For compact MRD, the dominant phase at the largest complete level
-is canonical-component cloning on comb-staircase and representation-crossover,
-and representation construction on the other four families.
+The first P17 analyzer used only fine-grained leaf fields when constructing its
+phase table, then queried coarse geometry and completion parents that were not
+present in that table. The resulting clone/representation dominance paragraph
+was therefore not supported by the accepted raw artifact. This is an analysis
+defect, not a change to the raw measurements; the historical JSON and compressed
+archive are preserved unchanged.
 
-| Family | Dominant Scope A phase | Share |
-| --- | --- | ---: |
-| comb-staircase | canonical_component_clone_ns | 0.800 |
-| dense-conflict | representation_construction_ns | 0.607 |
-| random-connected | representation_construction_ns | 0.758 |
-| representation-crossover | canonical_component_clone_ns | 0.626 |
-| sparse-conflict | representation_construction_ns | 0.643 |
-| supported-holes | representation_construction_ns | 0.657 |
+Re-reading the largest complete compact-MRD Scope A medians from the accepted
+P17 raw data gives the following family-dependent picture:
 
-This result rejects a single universal post-optimization bottleneck claim.
-The next optimization hypotheses are therefore family-specific: reduce
-canonical cloning overhead where geometry is simple, and inspect representation
-construction where conflict structure dominates. No change is justified solely
-by the current empirical slopes; each hypothesis requires a separate paired
-experiment and the same invariant gates.
+| Family | Largest complete level | Largest recorded parent phase | Selected competing values |
+| --- | ---: | --- | --- |
+| comb-staircase | 8192 | completion (`787,459 ns`) | clone `1,166 ns` |
+| dense-conflict | 1024 | completion (`165,075,833 ns`) | representation remains smaller |
+| random-connected | 8192 | completion (`941,750 ns`) | representation is not dominant |
+| representation-crossover | 8192 | completion (`32,864,167 ns`) | geometry `30,606,833 ns` |
+| sparse-conflict | 8192 | geometry (`24,637,334 ns`) | completion is smaller |
+| supported-holes | 8192 | geometry (`25,280,416 ns`) | completion is smaller |
+
+This corrected table rejects a single universal post-optimization bottleneck
+claim. P18 consequently treats representation construction as a separately
+measured candidate experiment rather than an already established global
+bottleneck. No asymptotic inference follows from either table.
 
 ### Structural context
 
@@ -279,7 +282,7 @@ supplies the missing proof.
 | The optimization preserves geometry and solver semantics. | Exhaustive 3x3 mask differential tests, deterministic 4x4 samples, topology transforms, 174 correctness checks per backend, zero structural/objective mismatches. | Supported for the tested domain. |
 | Geometry remains a major shared cost after the optimization. | Shared parent phase decomposition; geometry accounts for 92.1%--99.8% at largest complete levels. | Supported in the measured range. |
 | The prepared path changes the asymptotic complexity class. | Both paths retain four occupancy probes per cell and shared output-sensitive reductions. | Rejected; no such claim is made. |
-| The optimized implementation has one universal downstream bottleneck. | Family-level dominant-phase table shows cloning versus representation construction. | Rejected by the observed evidence. |
+| The optimized implementation has one universal downstream bottleneck. | Corrected parent-phase table and the preserved raw P17 artifact. | Rejected by the observed evidence and the analyzer erratum. |
 | P17 proves the AN19 runtime theorem or automatic source target decision. | No such theorem or target contract is measured here. | Out of scope; P9.6a remains deferred and P9.5e.3g.3 remains the blocker. |
 
 ## Reviewer-facing self-review

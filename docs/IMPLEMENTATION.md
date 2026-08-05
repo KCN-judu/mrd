@@ -1090,6 +1090,55 @@ is committed. The detailed supported/unsupported wording is in
 material is consolidated in this document rather than restored as compatibility
 files.
 
+## P18 Canonical Ownership Audit
+
+### Role
+
+P18 isolates ownership costs at the in-process Scope A benchmark boundary. It
+does not introduce a new solver for ordinary callers: the production solve
+functions already accept an immutable `&GridComponent`, and the removed deep
+copy was a harness-level ownership convenience.
+
+### Design
+
+The measured ownership layers are explicit:
+
+| Layer | Ownership and mutation | P18 treatment |
+| --- | --- | --- |
+| Canonical input | `GridComponent<bool>`; immutable during solve | `clone-canonical-reference` keeps the deep-copy reference; `borrowed-canonical` uses ordinary borrowing. |
+| Prepared geometry | occupancy, boundary, chords, endpoint indexes; immutable after construction | Built inside both Scope A paths so clone removal is isolated. A prepared-context reuse backend is not executable in P18. |
+| Solver workspace | algorithm-local selection buffers and local graph/flow state | Fresh `SolverWorkspace` per Scope A solve; no cross-algorithm mutable state. |
+| Result and witness | owned rectangles, certificates, validation scratch | Returned and checked independently for all three algorithms. |
+
+Scope A records `canonical_component_clone_ns`,
+`canonical_context_borrow_or_share_ns`, `canonical_component_release_ns`, and
+`solver_workspace_prepare_ns` separately. Scope B starts after common geometry
+and does not create the selection workspace. No `Arc`, interior mutability, or
+unsafe aliasing is used.
+
+The clone payload is `N * size_of::<Cell>()`; retained graph, network, and
+partition payloads are estimated from actual `Vec` capacities. These estimates
+exclude allocator metadata and RSS. Rust's `Vec<bool>` is byte-per-element, so
+the selection estimate is `(horizontal_capacity + vertical_capacity) *
+size_of::<bool>()`.
+
+### Evidence and boundary
+
+Differential tests compare the clone and borrowed paths for topology fixtures,
+all three algorithms, generated P18 families, randomized small masks, input
+immutability, and multiple algorithm orders. The P18 wrapper and analyzer
+require clean source/binary/config provenance, exact adaptive census, matching
+cross-backend sample order, and zero structural, objective, and witness
+mismatches. A finite Scope A bootstrap interval that crosses 1.0 is reported as
+a negative result; clone removal is not an asymptotic claim, an RSS result, an
+AN19 runtime proof, or an automatic target-decision procedure.
+
+The post-clone representation audit recommends exactly one later experiment:
+a per-algorithm, per-campaign-lane compact representation workspace whose
+buffers are deterministically reset before each solve and reused across that
+lane's iterations. It is not implemented in P18, and no selector, hybrid
+policy, or zero-conflict fast path is implied.
+
 ### Test and release protocol
 
 The repository quality gate is:

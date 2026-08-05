@@ -118,6 +118,36 @@ artifacts. The later 31-process direct-grid sampling campaign is described in
 `IMPLEMENTATION.md`; it is local descriptive evidence, not a
 portable speed or complexity claim.
 
+### P17: Prepared-Occupancy Boundary Diagnostic
+
+P17 compared the historical directed-edge-toggle boundary constructor with a
+prepared-occupancy path while retaining the same reductions, chord generation,
+representations, solvers, completion, and validation. The accepted finite
+campaign showed family-specific boundary improvements and zero structural or
+objective mismatches. A later audit found that the first dominance paragraph
+omitted coarse geometry/completion parents; the raw P17 artifacts remain
+unchanged and the corrected interpretation is recorded in
+`phase-reports/P17-geometry-phase-diagnostic.md`.
+
+### P18: Canonical Ownership Audit
+
+P18 separates the benchmark-boundary deep clone from immutable canonical input
+and algorithm-local mutable workspace. The clone reference remains executable;
+the borrowed path uses ordinary Rust borrowing, with no compatibility layer,
+`Arc`-wide ownership, interior mutability, or unsafe aliasing. Scope A records
+clone, borrow/share, release, and workspace preparation independently. P18 is
+an implementation and measurement-harness optimization, not a new asymptotic
+production algorithm. Structural byte values are capacity-based payload
+estimates and are not allocator or RSS measurements.
+
+The first exploratory P18 run was rejected because it used a dirty source,
+missing top-level/config provenance, non-standard `NaN` JSON, stale allocation
+fields, and repeated timing-accounting retries. It is retained outside the
+repository as a rejected pre-acceptance record and must not be silently
+overwritten by the clean campaign. The accepted clean campaign, its archive
+manifest, and the one recommended post-clone representation-workspace
+experiment are recorded in the P18 phase report.
+
 ## Retained Evidence Map
 
 | Question | Current source of truth |

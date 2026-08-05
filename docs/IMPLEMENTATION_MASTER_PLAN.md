@@ -126,14 +126,44 @@ observations. RSS is not claimed: the executable budget applies to estimated
 retained structural bytes, while `max_rss_delta_bytes` remains explicitly
 unavailable.
 
-**Unresolved work.** The post-optimization dominant phase is family-dependent:
-canonical component cloning dominates comb-staircase and
-representation-crossover, while representation construction dominates the
-other compact-MRD families. These are separately recorded optimization
-hypotheses and require new paired campaigns. P9.3.2d remains
-implementation-path complete but proof-path deferred and low priority; this
-phase cannot close the reduced-event conversion or automatic target-decision
-obligations.
+**Analysis erratum.** The first P17 phase report selected only leaf timings and
+then queried coarse geometry/completion parents that were absent from its phase
+table. Its clone/representation dominance paragraph was not supported by the
+accepted raw artifact and is corrected in the phase report without rewriting
+the historical raw files. The largest Scope A parent is family-dependent:
+completion dominates comb-staircase, dense-conflict, random-connected, and
+representation-crossover, while geometry dominates sparse-conflict and
+supported-holes. Representation remains a candidate for a separately measured
+experiment, not a proven global bottleneck.
+
+P9.3.2d remains implementation-path complete but proof-path deferred and low
+priority; this phase cannot close the reduced-event conversion or automatic
+target-decision obligations.
+
+## P18 Canonical Sharing and Representation Follow-up
+
+**State.** The P18 implementation separates immutable canonical input from
+algorithm-local mutable workspace at the benchmark Scope A boundary. The
+`clone-canonical-reference` path remains an internal executable reference;
+`borrowed-canonical` uses ordinary Rust borrowing and removes the deep
+`GridComponent.cells` copy. There is deliberately no executable
+`shared-prepared-context` identity: a future prepared-context reuse experiment
+must have distinct semantics and its own evidence.
+
+**Evidence rule.** P18 is a finite ownership/measurement-harness optimization,
+not a new production asymptotic algorithm. Scope A records clone, borrow/share,
+release, and workspace preparation separately; Scope B does not construct the
+Scope-A selection workspace. Structural byte values are capacity-based payload
+estimates, not allocator or RSS measurements. Clean source/binary/config
+provenance, exact paired sample order, adaptive repetition census, and zero
+structural/objective/witness mismatches are hard gates. A Scope A confidence
+interval crossing 1.0 is a valid negative result, especially for the primary
+`representation-crossover` family.
+
+**Next experiment.** Only after clone closeout may one implementation change be
+measured: a per-algorithm, per-campaign-lane reusable compact representation
+workspace, deterministically reset before each solve. No selector, hybrid policy,
+zero-conflict shortcut, or representation rewrite belongs in P18.
 
 ## P15 Paper-Scaling Campaign
 
