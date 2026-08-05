@@ -6,7 +6,9 @@
 //! timings. The Python runner is responsible for fresh processes, pairing,
 //! censoring, and aggregate analysis.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::mem::size_of;
 use std::time::Instant;
 
 use dominance::biclique::Partition;
@@ -54,6 +56,30 @@ impl BoundaryDiscoveryBackend {
         match self {
             Self::ReferenceEdgeToggle => "reference-edge-toggle",
             Self::PreparedExposedEdges => "prepared-exposed-edges",
+        }
+    }
+}
+
+/// Ownership boundary used by the in-process kernel campaign.
+///
+/// The clone path is retained as a semantic reference. The borrowed path
+/// passes the immutable canonical component through ordinary Rust borrowing.
+/// Prepared-context reuse is intentionally not represented until that backend
+/// has distinct executable semantics.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CanonicalBackend {
+    #[default]
+    CloneCanonicalReference,
+    BorrowedCanonical,
+}
+
+impl CanonicalBackend {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::CloneCanonicalReference => "clone-canonical-reference",
+            Self::BorrowedCanonical => "borrowed-canonical",
         }
     }
 }
@@ -142,6 +168,12 @@ pub struct PhaseTimings {
     pub rectangle_recovery_ns: Option<u128>,
     pub verification_ns: Option<u128>,
     pub total_in_process_solve_ns: Option<u128>,
+    /// Preparation of mutable algorithm-local state. This is deliberately
+    /// separate from canonical ownership and immutable geometry preparation.
+    #[serde(skip)]
+    pub solver_workspace_prepare_ns: Option<u128>,
+    #[serde(skip)]
+    pub solver_workspace_retained_bytes_estimate: Option<u128>,
     #[serde(skip)]
     pub prepared_component_build_ns: Option<u128>,
     #[serde(skip)]
@@ -213,6 +245,8 @@ pub struct StructuralCounters {
     pub c0_network_node_count: Option<usize>,
     pub c0_network_arc_count: Option<usize>,
     #[serde(skip)]
+    pub representation_retained_bytes_estimate: Option<u128>,
+    #[serde(skip)]
     pub completion_candidate_queries: Option<usize>,
     #[serde(skip)]
     pub completion_candidate_revalidations: Option<usize>,
@@ -268,6 +302,79 @@ struct Solved {
     phases: PhaseTimings,
     structure: StructuralCounters,
     provenance: &'static str,
+}
+
+/// Acquires the canonical component through the selected ownership boundary.
+///
+/// `Cow` keeps the borrow path allocation-free while retaining the historical
+/// deep clone as an executable reference.
+fn acquire_canonical_component(
+    backend: CanonicalBackend,
+    canonical: &GridComponent<bool>,
+) -> Cow<'_, GridComponent<bool>> {
+    match backend {
+        CanonicalBackend::CloneCanonicalReference => Cow::Owned(canonical.clone()),
+        CanonicalBackend::BorrowedCanonical => Cow::Borrowed(canonical),
+    }
+}
+
+fn solve_algorithm_with_canonical_backend(
+    algorithm: Algorithm,
+    canonical: &GridComponent<bool>,
+    boundary_backend: BoundaryDiscoveryBackend,
+    canonical_backend: CanonicalBackend,
+) -> Result<Solved, String> {
+    let component = acquire_canonical_component(canonical_backend, canonical);
+    solve_algorithm_with_boundary_backend(algorithm, component.as_ref(), boundary_backend)
+}
+
+/// Mutable state owned by one algorithm invocation.
+///
+/// The workspace owns only selection buffers here; graph, embedding, flow,
+/// completion, and validation structures remain in their respective local
+/// values. The explicit owner makes the lifetime boundary visible and keeps
+/// the three algorithms independent without introducing shared mutability.
+#[derive(Debug)]
+pub(crate) struct SolverWorkspace {
+    algorithm: Algorithm,
+    selected_horizontal: Vec<bool>,
+    selected_vertical: Vec<bool>,
+}
+
+impl SolverWorkspace {
+    #[must_use]
+    pub(crate) fn new(
+        algorithm: Algorithm,
+        horizontal_count: usize,
+        vertical_count: usize,
+    ) -> (Self, u128) {
+        let started = Instant::now();
+        let workspace = Self {
+            algorithm,
+            selected_horizontal: Vec::with_capacity(horizontal_count),
+            selected_vertical: Vec::with_capacity(vertical_count),
+        };
+        (workspace, started.elapsed().as_nanos())
+    }
+
+    fn select_from_cover(&mut self, left: &[bool], right: &[bool]) {
+        debug_assert!(matches!(
+            self.algorithm,
+            Algorithm::CompactMrd | Algorithm::ExplicitHopcroftKarp | Algorithm::ExplicitC0Flow
+        ));
+        self.selected_horizontal.clear();
+        self.selected_horizontal
+            .extend(left.iter().map(|covered| !covered));
+        self.selected_vertical.clear();
+        self.selected_vertical
+            .extend(right.iter().map(|covered| !covered));
+    }
+
+    #[must_use]
+    fn retained_bytes_estimate(&self) -> u128 {
+        (self.selected_horizontal.capacity() as u128 + self.selected_vertical.capacity() as u128)
+            * size_of::<bool>() as u128
+    }
 }
 
 /// Executes one release-process sample.
@@ -660,6 +767,11 @@ fn solve_explicit_matching(
     )
     .map_err(|error| error.to_string())?;
     let chord_ns = chord_started.elapsed().as_nanos();
+    let (mut workspace, workspace_ns) = SolverWorkspace::new(
+        Algorithm::ExplicitHopcroftKarp,
+        geometry.horizontal_chords.len(),
+        geometry.vertical_chords.len(),
+    );
     let graph_started = Instant::now();
     let graph = sg_oracle::grid::build_conflict_graph(
         &geometry.horizontal_chords,
@@ -674,33 +786,27 @@ fn solve_explicit_matching(
     let cover = minimum_vertex_cover(&graph, &matching);
     let cover_ns = cover_started.elapsed().as_nanos();
     let selection_started = Instant::now();
-    let selected_horizontal = cover
-        .left
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
-    let selected_vertical = cover
-        .right
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
+    workspace.select_from_cover(&cover.left, &cover.right);
     let selection_ns = selection_started.elapsed().as_nanos();
     let mut phases = geometry_phase_timings(&geometry, preprocessing_ns, chord_ns);
     phases.explicit_conflict_graph_ns = Some(graph_ns);
     phases.matching_or_flow_ns = Some(matching_ns);
     phases.vertex_cover_recovery_ns = Some(cover_ns);
     phases.chord_selection_ns = Some(selection_ns);
+    phases.solver_workspace_prepare_ns = Some(workspace_ns);
+    phases.solver_workspace_retained_bytes_estimate = Some(workspace.retained_bytes_estimate());
     phases.total_in_process_solve_ns = Some(started.elapsed().as_nanos());
     let structure = StructuralCounters {
         matching_size: Some(matching.size),
         vertex_cover_size: Some(cover.size),
+        representation_retained_bytes_estimate: Some(graph.owned_bytes_estimate() as u128),
         ..StructuralCounters::default()
     };
     let mut solved = finish(
         component,
         &geometry,
-        &selected_horizontal,
-        &selected_vertical,
+        &workspace.selected_horizontal,
+        &workspace.selected_vertical,
         matching.size,
         phases,
         structure,
@@ -748,6 +854,15 @@ fn solve_dominance(
     )
     .map_err(|error| error.to_string())?;
     let chord_ns = chord_started.elapsed().as_nanos();
+    let (mut workspace, workspace_ns) = SolverWorkspace::new(
+        if compact {
+            Algorithm::CompactMrd
+        } else {
+            Algorithm::ExplicitC0Flow
+        },
+        geometry.horizontal_chords.len(),
+        geometry.vertical_chords.len(),
+    );
     let embedding_started = Instant::now();
     let embedding = DominanceEmbedding::new_with_backend(
         &geometry.horizontal_chords,
@@ -803,18 +918,7 @@ fn solve_dominance(
         .map_err(|error| error.to_string())?;
     let cover_ns = cover_started.elapsed().as_nanos();
     let selection_started = Instant::now();
-    let selected_horizontal = flow
-        .vertex_cover
-        .left
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
-    let selected_vertical = flow
-        .vertex_cover
-        .right
-        .iter()
-        .map(|covered| !covered)
-        .collect::<Vec<_>>();
+    workspace.select_from_cover(&flow.vertex_cover.left, &flow.vertex_cover.right);
     let selection_ns = selection_started.elapsed().as_nanos();
     let explicit_edges = if compact {
         None
@@ -832,6 +936,7 @@ fn solve_dominance(
             .then_some(2 + total_chords + explicit_edges.unwrap_or_default()),
         c0_network_arc_count: (!compact)
             .then_some(total_chords + explicit_edges.unwrap_or_default() * 2),
+        representation_retained_bytes_estimate: Some(network.owned_bytes_estimate() as u128),
         ..StructuralCounters::default()
     };
     let mut phases = geometry_phase_timings(&geometry, preprocessing_ns, chord_ns);
@@ -842,6 +947,8 @@ fn solve_dominance(
     phases.matching_or_flow_ns = Some(flow_ns);
     phases.vertex_cover_recovery_ns = Some(cover_ns);
     phases.chord_selection_ns = Some(selection_ns);
+    phases.solver_workspace_prepare_ns = Some(workspace_ns);
+    phases.solver_workspace_retained_bytes_estimate = Some(workspace.retained_bytes_estimate());
     phases.total_in_process_solve_ns = Some(started.elapsed().as_nanos());
     let provenance = if compact {
         "dominance::biclique::experiment::construct + compressed flow construction/execution/cover recovery + indexed completion"
@@ -853,8 +960,8 @@ fn solve_dominance(
     let mut solved = finish(
         component,
         &geometry,
-        &selected_horizontal,
-        &selected_vertical,
+        &workspace.selected_horizontal,
+        &workspace.selected_vertical,
         flow.vertex_cover.size,
         phases,
         structure,
@@ -1036,6 +1143,73 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Eq, PartialEq)]
+    struct CanonicalSnapshot {
+        optimum: usize,
+        rectangles: Vec<GridRect>,
+        horizontal_chords: usize,
+        vertical_chords: usize,
+        total_chords: usize,
+        explicit_conflicts: Option<usize>,
+    }
+
+    fn canonical_snapshot(
+        component: &GridComponent<bool>,
+        algorithm: Algorithm,
+        backend: CanonicalBackend,
+    ) -> Result<CanonicalSnapshot, String> {
+        let solved = solve_algorithm_with_canonical_backend(
+            algorithm,
+            component,
+            BoundaryDiscoveryBackend::PreparedExposedEdges,
+            backend,
+        )?;
+        Ok(CanonicalSnapshot {
+            optimum: solved.result.optimum_rectangle_count,
+            rectangles: canonical_rectangles(&solved.result.rectangles),
+            horizontal_chords: solved.result.diagnostics.horizontal_chord_count,
+            vertical_chords: solved.result.diagnostics.vertical_chord_count,
+            total_chords: solved.result.diagnostics.total_chord_count,
+            explicit_conflicts: solved.result.diagnostics.explicit_conflict_edge_count,
+        })
+    }
+
+    fn assert_canonical_backends_match(component: &GridComponent<bool>, label: &str) {
+        let before = component.clone();
+        for algorithm in [
+            Algorithm::CompactMrd,
+            Algorithm::ExplicitHopcroftKarp,
+            Algorithm::ExplicitC0Flow,
+        ] {
+            let reference = canonical_snapshot(
+                component,
+                algorithm,
+                CanonicalBackend::CloneCanonicalReference,
+            );
+            let borrowed =
+                canonical_snapshot(component, algorithm, CanonicalBackend::BorrowedCanonical);
+            assert_eq!(
+                reference, borrowed,
+                "fixture={label} algorithm={algorithm:?}"
+            );
+            assert_eq!(
+                component, &before,
+                "fixture={label} algorithm={algorithm:?}"
+            );
+        }
+    }
+
+    fn assert_grid_backends_match(width: usize, height: usize, cells: Vec<bool>, label: &str) {
+        let grid = mrd_domain::ColorGrid::new(width, height, cells).unwrap();
+        for component in grid
+            .four_connected_components()
+            .into_iter()
+            .filter(|candidate| candidate.color)
+        {
+            assert_canonical_backends_match(&component, label);
+        }
+    }
+
     #[test]
     fn family_generation_is_deterministic() {
         for family in [
@@ -1170,5 +1344,142 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn canonical_backends_are_differential_and_do_not_mutate_input() {
+        let empty = GridComponent {
+            id: mrd_domain::ComponentId(0),
+            color: true,
+            grid_width: 0,
+            grid_height: 0,
+            cells: Vec::new(),
+        };
+        assert_canonical_backends_match(&empty, "empty-component");
+        assert_grid_backends_match(1, 1, vec![true], "single-cell");
+        assert_grid_backends_match(3, 2, vec![true; 6], "rectangle-zero-conflict");
+        assert_grid_backends_match(
+            3,
+            3,
+            vec![true, false, true, false, false, false, true, false, true],
+            "disconnected-corner-touching",
+        );
+        assert_grid_backends_match(6, 1, vec![true; 6], "thin-corridor");
+        assert_grid_backends_match(
+            3,
+            3,
+            vec![true, true, false, true, false, false, true, true, true],
+            "touching-notch-boundary",
+        );
+
+        for family in [
+            Family::CombStaircase,
+            Family::RepresentationCrossover,
+            Family::DenseConflict,
+            Family::RandomConnected,
+            Family::SparseConflict,
+            Family::SupportedHoles,
+        ] {
+            let generated = generate(family, 4, 604_019).unwrap();
+            let component = generated
+                .instance
+                .foreground_components()
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap();
+            assert_canonical_backends_match(&component, family.name());
+        }
+
+        for seed in 0..16 {
+            let generated = random_connected(1 + seed % 12, seed as u64).unwrap();
+            let component = generated
+                .foreground_components()
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap();
+            assert_canonical_backends_match(&component, "random-small-mask");
+        }
+    }
+
+    #[test]
+    fn borrowed_canonical_path_is_order_independent() {
+        let generated = generate(Family::RepresentationCrossover, 4, 604_019).unwrap();
+        let component = generated
+            .instance
+            .foreground_components()
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let before = component.clone();
+        let orders = [
+            [
+                Algorithm::CompactMrd,
+                Algorithm::ExplicitHopcroftKarp,
+                Algorithm::ExplicitC0Flow,
+            ],
+            [
+                Algorithm::ExplicitC0Flow,
+                Algorithm::CompactMrd,
+                Algorithm::ExplicitHopcroftKarp,
+            ],
+            [
+                Algorithm::ExplicitHopcroftKarp,
+                Algorithm::ExplicitC0Flow,
+                Algorithm::CompactMrd,
+            ],
+        ];
+        let mut expected = BTreeMap::new();
+        for (order_index, order) in orders.into_iter().enumerate() {
+            for algorithm in order {
+                let solved = solve_algorithm_with_canonical_backend(
+                    algorithm,
+                    &component,
+                    BoundaryDiscoveryBackend::PreparedExposedEdges,
+                    CanonicalBackend::BorrowedCanonical,
+                )
+                .unwrap();
+                let snapshot = (
+                    solved.result.optimum_rectangle_count,
+                    canonical_rectangles(&solved.result.rectangles),
+                    solved.result.diagnostics.clone(),
+                );
+                if order_index == 0 {
+                    expected.insert(algorithm, snapshot);
+                } else {
+                    assert_eq!(expected[&algorithm], snapshot);
+                }
+            }
+        }
+        assert_eq!(component, before);
+    }
+
+    #[test]
+    fn solver_workspace_bytes_follow_vec_bool_capacity() {
+        let (workspace, _) = SolverWorkspace::new(Algorithm::CompactMrd, 3, 5);
+        let expected = (workspace.selected_horizontal.capacity()
+            + workspace.selected_vertical.capacity())
+            * size_of::<bool>();
+        assert_eq!(workspace.retained_bytes_estimate() as usize, expected);
+    }
+
+    #[test]
+    fn solver_workspaces_are_independent() {
+        let (mut compact, _) = SolverWorkspace::new(Algorithm::CompactMrd, 2, 1);
+        let (mut explicit, _) = SolverWorkspace::new(Algorithm::ExplicitHopcroftKarp, 1, 2);
+        compact.select_from_cover(&[false, true], &[true]);
+        explicit.select_from_cover(&[true], &[false, false]);
+        assert_ne!(
+            compact.selected_horizontal.as_ptr(),
+            explicit.selected_horizontal.as_ptr()
+        );
+        assert_ne!(
+            compact.selected_vertical.as_ptr(),
+            explicit.selected_vertical.as_ptr()
+        );
+        assert_eq!(compact.selected_horizontal, vec![true, false]);
+        assert_eq!(explicit.selected_horizontal, vec![false]);
     }
 }

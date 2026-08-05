@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, VecDeque};
+use std::mem::size_of;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -36,6 +37,14 @@ impl FlowNetwork {
     #[must_use]
     pub const fn arc_count(&self) -> usize {
         self.arcs.len()
+    }
+
+    /// Estimates heap payload bytes retained by the arc specification buffer.
+    ///
+    /// Allocator metadata and the inline node count are excluded.
+    #[must_use]
+    pub fn owned_bytes_estimate(&self) -> usize {
+        self.arcs.capacity().saturating_mul(size_of::<ArcSpec>())
     }
 
     /// Iterates over the network's immutable arc specification in insertion order.

@@ -6,6 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::hint::black_box;
+use std::mem::size_of;
 use std::time::Instant;
 
 use dominance::biclique::Partition;
@@ -16,7 +17,10 @@ use mrd_domain::{GridComponent, GridRect};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::{Algorithm, BoundaryDiscoveryBackend, Family, Outcome, PhaseTimings};
+use super::{
+    Algorithm, BoundaryDiscoveryBackend, CanonicalBackend, Family, Outcome, PhaseTimings,
+    acquire_canonical_component, solve_algorithm_with_canonical_backend,
+};
 
 const SCHEMA_VERSION: u32 = 2;
 const CAMPAIGN: &str = "paper-kernel-scaling";
@@ -64,6 +68,8 @@ pub struct Request {
     pub target_size: usize,
     pub seed: u64,
     pub boundary_discovery_backend: BoundaryDiscoveryBackend,
+    #[serde(default)]
+    pub canonical_backend: CanonicalBackend,
     pub algorithms: Vec<Algorithm>,
     pub scopes: Vec<Scope>,
     pub oracle_cell_limit: usize,
@@ -98,6 +104,9 @@ pub struct Timings {
     pub scope_a_total_ns: Option<u128>,
     pub scope_b_total_ns: Option<u128>,
     pub canonical_component_clone_ns: Option<u128>,
+    pub canonical_context_borrow_or_share_ns: Option<u128>,
+    pub canonical_component_release_ns: Option<u128>,
+    pub solver_workspace_prepare_ns: Option<u128>,
     pub boundary_total_build_ns: Option<u128>,
     pub prepared_component_build_ns: Option<u128>,
     pub boundary_edge_discovery_ns: Option<u128>,
@@ -203,9 +212,19 @@ pub struct StructuralMeasures {
     pub rectangle_recovery_cell_visits: Option<usize>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AllocationMeasures {
+    pub canonical_cells_cloned: Option<usize>,
+    pub canonical_clone_bytes_estimate: Option<u128>,
+    pub solver_workspace_retained_bytes_estimate: Option<u128>,
+    pub representation_retained_bytes_estimate: Option<u128>,
+    pub ownership_vec_allocation_count_estimate: Option<usize>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CorrectnessRecord {
     pub boundary_discovery_backend: BoundaryDiscoveryBackend,
+    pub canonical_backend: CanonicalBackend,
     pub algorithm: Algorithm,
     pub outcome: Outcome,
     pub optimum_rectangle_count: Option<usize>,
@@ -218,6 +237,7 @@ pub struct CorrectnessRecord {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct WarmupRecord {
     pub boundary_discovery_backend: BoundaryDiscoveryBackend,
+    pub canonical_backend: CanonicalBackend,
     pub scope: Scope,
     pub algorithm: Algorithm,
     pub count: usize,
@@ -234,12 +254,14 @@ pub struct IterationRecord {
     pub seed: u64,
     pub canonical_instance_identity: String,
     pub boundary_discovery_backend: BoundaryDiscoveryBackend,
+    pub canonical_backend: CanonicalBackend,
     pub scope: Scope,
     pub algorithm: Algorithm,
     pub iteration: usize,
     pub order_position: usize,
     pub elapsed_ns: u128,
     pub timings: Timings,
+    pub allocations: AllocationMeasures,
     pub optimum_rectangle_count: usize,
     pub matching_size: usize,
     pub vertex_cover_size: usize,
@@ -257,6 +279,7 @@ pub struct CampaignResult {
     pub generator_parameter: usize,
     pub seed: u64,
     pub boundary_discovery_backend: BoundaryDiscoveryBackend,
+    pub canonical_backend: CanonicalBackend,
     pub canonical_instance_identity: String,
     pub state: PointState,
     pub message: Option<String>,
@@ -297,6 +320,7 @@ struct Observation {
     cover: usize,
     witness_checksum: u64,
     consumed_checksum: u64,
+    allocations: AllocationMeasures,
 }
 
 #[derive(Clone, Debug)]
@@ -305,6 +329,7 @@ struct KernelObservation {
     matching: usize,
     cover: usize,
     cover_checksum: u64,
+    allocations: AllocationMeasures,
 }
 
 /// Runs one deterministic in-process benchmark partition.
@@ -363,10 +388,11 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
     let mut correctness = Vec::new();
     let mut gate_solutions = BTreeMap::new();
     for &algorithm in &request.algorithms {
-        match super::solve_algorithm_with_boundary_backend(
+        match solve_algorithm_with_canonical_backend(
             algorithm,
             component,
             request.boundary_discovery_backend,
+            request.canonical_backend,
         ) {
             Ok(solved) => {
                 let witness =
@@ -374,6 +400,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                 gate_solutions.insert(algorithm.name(), (solved.clone(), witness));
                 correctness.push(CorrectnessRecord {
                     boundary_discovery_backend: request.boundary_discovery_backend,
+                    canonical_backend: request.canonical_backend,
                     algorithm,
                     outcome: Outcome::Success,
                     optimum_rectangle_count: Some(solved.result.optimum_rectangle_count),
@@ -385,6 +412,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
             }
             Err(message) => correctness.push(CorrectnessRecord {
                 boundary_discovery_backend: request.boundary_discovery_backend,
+                canonical_backend: request.canonical_backend,
                 algorithm,
                 outcome: Outcome::Error,
                 optimum_rectangle_count: None,
@@ -567,6 +595,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                 scope,
                 algorithm,
                 request.boundary_discovery_backend,
+                request.canonical_backend,
                 component,
                 &geometry,
                 optimum,
@@ -596,6 +625,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                 scope,
                 algorithm,
                 request.boundary_discovery_backend,
+                request.canonical_backend,
                 component,
                 &geometry,
                 optimum,
@@ -603,6 +633,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
             )?;
             warmups.push(WarmupRecord {
                 boundary_discovery_backend: request.boundary_discovery_backend,
+                canonical_backend: request.canonical_backend,
                 scope,
                 algorithm,
                 count: warmup_count,
@@ -638,6 +669,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                         generator_parameter,
                         seed: request.seed,
                         boundary_discovery_backend: request.boundary_discovery_backend,
+                        canonical_backend: request.canonical_backend,
                         canonical_instance_identity: hex(identity),
                         state: PointState::Stopped,
                         message: Some("point time budget exceeded".to_owned()),
@@ -656,6 +688,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                     scope,
                     algorithm,
                     request.boundary_discovery_backend,
+                    request.canonical_backend,
                     component,
                     &geometry,
                     optimum,
@@ -683,12 +716,14 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                     seed: request.seed,
                     canonical_instance_identity,
                     boundary_discovery_backend: request.boundary_discovery_backend,
+                    canonical_backend: request.canonical_backend,
                     scope,
                     algorithm,
                     iteration,
                     order_position: position,
                     elapsed_ns: duration,
                     timings: observation.timings,
+                    allocations: observation.allocations,
                     optimum_rectangle_count: observation.optimum,
                     matching_size: observation.matching,
                     vertex_cover_size: observation.cover,
@@ -705,6 +740,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
                         generator_parameter,
                         seed: request.seed,
                         boundary_discovery_backend: request.boundary_discovery_backend,
+                        canonical_backend: request.canonical_backend,
                         canonical_instance_identity: hex(identity),
                         state: PointState::Stopped,
                         message: Some("measured iteration exceeded time limit".to_owned()),
@@ -731,6 +767,7 @@ pub fn run(request: &Request) -> std::result::Result<CampaignResult, Error> {
         generator_parameter,
         seed: request.seed,
         boundary_discovery_backend: request.boundary_discovery_backend,
+        canonical_backend: request.canonical_backend,
         canonical_instance_identity: hex(identity),
         state: PointState::Complete,
         message: None,
@@ -868,10 +905,12 @@ fn structural_measures(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn measure(
     scope: Scope,
     algorithm: Algorithm,
     boundary_backend: BoundaryDiscoveryBackend,
+    canonical_backend: CanonicalBackend,
     component: &GridComponent<bool>,
     geometry: &sg_oracle::grid::Geometry,
     optimum: usize,
@@ -879,7 +918,7 @@ fn measure(
 ) -> std::result::Result<Observation, Error> {
     let observation = match scope {
         Scope::SolveFromCanonicalInstance => {
-            measure_scope_a(algorithm, boundary_backend, component)?
+            measure_scope_a(algorithm, boundary_backend, canonical_backend, component)?
         }
         Scope::RepresentationAndSolverKernel => {
             let kernel = measure_scope_b(algorithm, geometry)?;
@@ -897,6 +936,7 @@ fn measure(
                 cover: kernel.cover,
                 witness_checksum: gate_witness,
                 consumed_checksum: consumed,
+                allocations: kernel.allocations,
             }
         }
     };
@@ -916,16 +956,25 @@ fn measure(
 fn measure_scope_a(
     algorithm: Algorithm,
     boundary_backend: BoundaryDiscoveryBackend,
+    canonical_backend: CanonicalBackend,
     canonical: &GridComponent<bool>,
 ) -> std::result::Result<Observation, Error> {
     let started = Instant::now();
-    let clone_started = Instant::now();
-    let component = canonical.clone();
-    let clone_ns = clone_started.elapsed().as_nanos();
-    let solved =
-        super::solve_algorithm_with_boundary_backend(algorithm, &component, boundary_backend)
-            .map_err(Error::Generator)?;
-    let total = started.elapsed().as_nanos();
+    let acquisition_started = Instant::now();
+    let component = acquire_canonical_component(canonical_backend, canonical);
+    let acquisition_ns = acquisition_started.elapsed().as_nanos();
+    let clone_ns = matches!(canonical_backend, CanonicalBackend::CloneCanonicalReference)
+        .then_some(acquisition_ns)
+        .unwrap_or(0);
+    let borrow_or_share_ns = matches!(canonical_backend, CanonicalBackend::BorrowedCanonical)
+        .then_some(acquisition_ns)
+        .unwrap_or(0);
+    let solved = super::solve_algorithm_with_boundary_backend(
+        algorithm,
+        component.as_ref(),
+        boundary_backend,
+    )
+    .map_err(Error::Generator)?;
     let witness = witness_checksum(&super::canonical_rectangles(&solved.result.rectangles));
     let matching = solved.structure.matching_size.unwrap_or_default();
     let cover = solved.structure.vertex_cover_size.unwrap_or(matching);
@@ -936,13 +985,30 @@ fn measure_scope_a(
         witness,
         0,
     );
+    let allocations = allocation_measures(
+        canonical,
+        &solved,
+        matches!(canonical_backend, CanonicalBackend::CloneCanonicalReference),
+    );
+    let release_started = Instant::now();
+    drop(component);
+    let release_ns = release_started.elapsed().as_nanos();
+    let total = started.elapsed().as_nanos();
     Ok(Observation {
-        timings: scope_a_timings(algorithm, &solved.phases, clone_ns, total),
+        timings: scope_a_timings(
+            algorithm,
+            &solved.phases,
+            clone_ns,
+            borrow_or_share_ns,
+            release_ns,
+            total,
+        ),
         optimum: solved.result.optimum_rectangle_count,
         matching,
         cover,
         witness_checksum: witness,
         consumed_checksum: consumed,
+        allocations,
     })
 }
 
@@ -950,6 +1016,8 @@ fn scope_a_timings(
     algorithm: Algorithm,
     phases: &PhaseTimings,
     clone_ns: u128,
+    borrow_or_share_ns: u128,
+    release_ns: u128,
     total: u128,
 ) -> Timings {
     let mut timings = Timings {
@@ -982,6 +1050,9 @@ fn scope_a_timings(
         scope_a_total_ns: Some(total),
         scope_b_total_ns: None,
         canonical_component_clone_ns: Some(clone_ns),
+        canonical_context_borrow_or_share_ns: Some(borrow_or_share_ns),
+        canonical_component_release_ns: Some(release_ns),
+        solver_workspace_prepare_ns: phases.solver_workspace_prepare_ns,
         boundary_total_build_ns: phases.boundary_total_build_ns,
         prepared_component_build_ns: phases.prepared_component_build_ns,
         boundary_edge_discovery_ns: phases.boundary_edge_discovery_ns,
@@ -1024,7 +1095,7 @@ fn measure_scope_b(
 ) -> std::result::Result<KernelObservation, Error> {
     let started = Instant::now();
     let mut timings = Timings::default();
-    let (matching, cover, checksum) = match algorithm {
+    let (matching, cover, checksum, representation_bytes) = match algorithm {
         Algorithm::ExplicitHopcroftKarp => {
             let graph_started = Instant::now();
             let graph = sg_oracle::grid::build_conflict_graph(
@@ -1049,6 +1120,7 @@ fn measure_scope_b(
                 matching.size,
                 cover.size,
                 bool_checksum(&cover.left, &cover.right),
+                graph.owned_bytes_estimate() as u128,
             )
         }
         Algorithm::CompactMrd | Algorithm::ExplicitC0Flow => {
@@ -1096,6 +1168,7 @@ fn measure_scope_b(
             )
             .map_err(|error| Error::Generator(error.to_string()))?;
             let network_ns = network_started.elapsed().as_nanos();
+            let representation_bytes = network.owned_bytes_estimate() as u128;
             if algorithm == Algorithm::CompactMrd {
                 timings.compressed_network_construction_ns = Some(network_ns);
             } else {
@@ -1118,6 +1191,7 @@ fn measure_scope_b(
                 size,
                 size,
                 bool_checksum(&solution.vertex_cover.left, &solution.vertex_cover.right),
+                representation_bytes,
             )
         }
         Algorithm::ExactCoverOracle => return Err(Error::Algorithms),
@@ -1129,6 +1203,13 @@ fn measure_scope_b(
         matching,
         cover,
         cover_checksum: checksum,
+        allocations: AllocationMeasures {
+            canonical_cells_cloned: Some(0),
+            canonical_clone_bytes_estimate: Some(0),
+            solver_workspace_retained_bytes_estimate: Some(0),
+            representation_retained_bytes_estimate: Some(representation_bytes),
+            ownership_vec_allocation_count_estimate: Some(0),
+        },
     })
 }
 
@@ -1138,6 +1219,7 @@ fn warm_up(
     scope: Scope,
     algorithm: Algorithm,
     boundary_backend: BoundaryDiscoveryBackend,
+    canonical_backend: CanonicalBackend,
     component: &GridComponent<bool>,
     geometry: &sg_oracle::grid::Geometry,
     optimum: usize,
@@ -1149,6 +1231,7 @@ fn warm_up(
             scope,
             algorithm,
             boundary_backend,
+            canonical_backend,
             component,
             geometry,
             optimum,
@@ -1321,8 +1404,11 @@ fn finalize_scope_accounting(timings: &mut Timings, scope: Scope) {
     let leaf_sum = match scope {
         Scope::SolveFromCanonicalInstance => [
             timings.canonical_component_clone_ns,
+            timings.canonical_context_borrow_or_share_ns,
+            timings.canonical_component_release_ns,
             timings.geometry_preprocessing_ns,
             timings.chord_generation_ns,
+            timings.solver_workspace_prepare_ns,
         ]
         .into_iter()
         .chain(shared_solver_leaves)
@@ -1383,6 +1469,39 @@ fn bool_checksum(left: &[bool], right: &[bool]) -> u64 {
         hash_byte(&mut hash, u8::from(value));
     }
     hash
+}
+
+fn allocation_measures(
+    component: &GridComponent<bool>,
+    solved: &super::Solved,
+    cloned: bool,
+) -> AllocationMeasures {
+    let horizontal = solved.result.diagnostics.horizontal_chord_count;
+    let vertical = solved.result.diagnostics.vertical_chord_count;
+    let representation_bytes = solved
+        .structure
+        .representation_retained_bytes_estimate
+        .unwrap_or_default();
+    AllocationMeasures {
+        canonical_cells_cloned: Some(if cloned { component.cell_count() } else { 0 }),
+        canonical_clone_bytes_estimate: Some(
+            u128::from(cloned)
+                * component.cell_count() as u128
+                * size_of::<mrd_domain::Cell>() as u128,
+        ),
+        solver_workspace_retained_bytes_estimate: Some(
+            solved
+                .phases
+                .solver_workspace_retained_bytes_estimate
+                .unwrap_or_default(),
+        ),
+        representation_retained_bytes_estimate: Some(representation_bytes),
+        ownership_vec_allocation_count_estimate: Some(
+            usize::from(cloned && component.cell_count() > 0)
+                + usize::from(horizontal > 0)
+                + usize::from(vertical > 0),
+        ),
+    }
 }
 
 fn consume(matching: usize, cover: usize, optimum: usize, witness: u64, cover_hash: u64) -> u64 {
@@ -1495,6 +1614,7 @@ fn empty_result_with_structure(
         generator_parameter,
         seed: request.seed,
         boundary_discovery_backend: request.boundary_discovery_backend,
+        canonical_backend: request.canonical_backend,
         canonical_instance_identity: hex(identity),
         state,
         message: Some(message),
@@ -1551,6 +1671,7 @@ mod tests {
             target_size: 4,
             seed: 42,
             boundary_discovery_backend: BoundaryDiscoveryBackend::ReferenceEdgeToggle,
+            canonical_backend: CanonicalBackend::CloneCanonicalReference,
             algorithms: vec![
                 Algorithm::CompactMrd,
                 Algorithm::ExplicitHopcroftKarp,
@@ -1678,6 +1799,61 @@ mod tests {
                 optimized_record.witness_checksum
             );
         }
+    }
+
+    #[test]
+    fn canonical_backend_paths_preserve_results_and_report_ownership_costs() {
+        let reference = run(&request()).unwrap();
+        let mut borrowed_request = request();
+        borrowed_request.canonical_backend = CanonicalBackend::BorrowedCanonical;
+        let borrowed = run(&borrowed_request).unwrap();
+        assert_eq!(reference.state, PointState::Complete);
+        assert_eq!(borrowed.state, PointState::Complete);
+        assert_eq!(
+            reference.canonical_instance_identity,
+            borrowed.canonical_instance_identity
+        );
+        assert_eq!(reference.sizes, borrowed.sizes);
+        assert_eq!(reference.structure, borrowed.structure);
+        assert!(
+            reference
+                .runs
+                .iter()
+                .all(|run| { run.canonical_backend == CanonicalBackend::CloneCanonicalReference })
+        );
+        assert!(
+            borrowed
+                .runs
+                .iter()
+                .all(|run| { run.canonical_backend == CanonicalBackend::BorrowedCanonical })
+        );
+        let clone_bytes = reference
+            .runs
+            .iter()
+            .filter(|run| run.scope == Scope::SolveFromCanonicalInstance)
+            .map(|run| {
+                run.allocations
+                    .canonical_clone_bytes_estimate
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>();
+        let borrowed_bytes = borrowed
+            .runs
+            .iter()
+            .filter(|run| run.scope == Scope::SolveFromCanonicalInstance)
+            .map(|run| {
+                run.allocations
+                    .canonical_clone_bytes_estimate
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>();
+        assert!(clone_bytes.iter().all(|&bytes| bytes > 0));
+        assert!(borrowed_bytes.iter().all(|&bytes| bytes == 0));
+        assert!(borrowed.runs.iter().all(|run| {
+            run.scope != Scope::SolveFromCanonicalInstance
+                || (run.timings.canonical_context_borrow_or_share_ns.is_some()
+                    && run.timings.solver_workspace_prepare_ns.is_some())
+        }));
     }
 
     #[test]

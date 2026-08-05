@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
+use std::mem::size_of;
 
 use graph::BipartiteGraph;
 use mrd_domain::{BicliqueId, HorizontalChordId, VerticalChordId};
@@ -21,6 +22,23 @@ pub struct Block {
 pub struct Partition {
     #[serde(rename = "bicliques")]
     pub blocks: Vec<Block>,
+}
+
+impl Partition {
+    /// Estimates heap payload bytes retained by blocks and their endpoint Vecs.
+    ///
+    /// Allocator metadata and inline Vec headers are excluded from the estimate.
+    #[must_use]
+    pub fn owned_bytes_estimate(&self) -> usize {
+        self.blocks
+            .capacity()
+            .saturating_mul(size_of::<Block>())
+            .saturating_add(self.blocks.iter().fold(0_usize, |bytes, block| {
+                bytes
+                    .saturating_add(block.left.capacity().saturating_mul(size_of::<usize>()))
+                    .saturating_add(block.right.capacity().saturating_mul(size_of::<usize>()))
+            }))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

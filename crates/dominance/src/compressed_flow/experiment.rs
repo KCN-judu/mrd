@@ -180,6 +180,15 @@ impl Network {
         self.graph.arc_count()
     }
 
+    /// Estimates heap payload bytes retained by the flow graph and owned
+    /// biclique partition. Allocator metadata and inline fields are excluded.
+    #[must_use]
+    pub fn owned_bytes_estimate(&self) -> usize {
+        self.graph
+            .owned_bytes_estimate()
+            .saturating_add(self.partition.owned_bytes_estimate())
+    }
+
     const fn horizontal_node(&self, index: usize) -> FlowNodeId {
         FlowNodeId(self.horizontal_start + index)
     }

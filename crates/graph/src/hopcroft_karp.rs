@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::mem::size_of;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -57,6 +58,24 @@ impl BipartiteGraph {
     #[must_use]
     pub fn edge_count(&self) -> usize {
         self.adjacency.iter().map(Vec::len).sum()
+    }
+
+    /// Estimates heap payload bytes retained by the adjacency representation.
+    ///
+    /// The estimate uses current Vec capacities and excludes allocator metadata
+    /// and the inline graph fields.
+    #[must_use]
+    pub fn owned_bytes_estimate(&self) -> usize {
+        self.adjacency
+            .capacity()
+            .saturating_mul(size_of::<Vec<usize>>())
+            .saturating_add(
+                self.adjacency
+                    .iter()
+                    .map(Vec::capacity)
+                    .sum::<usize>()
+                    .saturating_mul(size_of::<usize>()),
+            )
     }
 
     pub fn edges(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
