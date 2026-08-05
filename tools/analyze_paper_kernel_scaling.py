@@ -161,6 +161,11 @@ NESTED_TIMING_GROUPS = (
 SHARED_PREPROCESSING_PHASES = tuple(
     phase for phase in GEOMETRY_LEAF_PHASES if phase != "canonical_component_clone_ns"
 )
+SHARED_PHASE_FIT_PHASES = (
+    "geometry_preprocessing_ns",
+    "chord_generation_ns",
+    *SHARED_PREPROCESSING_PHASES,
+)
 SUMMARY_PHASES = {
     SCOPES[0]: (
         "canonical_component_clone_ns",
@@ -1237,7 +1242,7 @@ def phase_fit_rows(
         if scope == SETUP_SCOPE:
             relevant_phases = SETUP_PHASES
         elif scope == SHARED_PREPROCESSING_SCOPE:
-            relevant_phases = SHARED_PREPROCESSING_PHASES
+            relevant_phases = SHARED_PHASE_FIT_PHASES
         else:
             relevant_phases = scope_leaf_phases(scope)
         for phase in relevant_phases:
@@ -1372,6 +1377,7 @@ def phase_operation(phase: str | None) -> str | None:
     if phase is None:
         return None
     if phase in {
+        "boundary_total_build_ns",
         "boundary_edge_discovery_ns",
         "boundary_adjacency_build_ns",
         "boundary_loop_tracing_ns",
@@ -1382,6 +1388,10 @@ def phase_operation(phase: str | None) -> str | None:
         "reflex_grouping_ns",
     }:
         return "boundary-preparation"
+    if phase == "geometry_preprocessing_ns":
+        return "geometry-copying-or-index-preparation"
+    if phase == "chord_generation_ns":
+        return "chord-generation-and-filtering"
     if phase in {"horizontal_chord_generation_ns", "vertical_chord_generation_ns", "chord_validation_filtering_ns"}:
         return "chord-generation-and-filtering"
     if phase in {"endpoint_index_construction_ns", "conflict_discovery_ns"}:
@@ -1585,14 +1595,18 @@ def summarize(raw: dict[str, Any]) -> dict[str, Any]:
             "scope_a_leaf_phases": list(LEAF_PHASES),
             "scope_b_leaf_phases": list(KERNEL_LEAF_PHASES),
             "coarse_aliases_excluded_from_leaf_sums": list(COARSE_PHASES),
-            "dominant_phase_rule": "largest complete level; disjoint leaf medians only",
+            "dominant_phase_rule": (
+                "largest complete level; disjoint leaf medians for per-run scopes, "
+                "recorded geometry/chord parent totals for shared preprocessing"
+            ),
+            "shared_preprocessing_fit_phases": list(SHARED_PHASE_FIT_PHASES),
         },
         "claim_boundaries": [
             "No exponent is estimated from fewer than six valid, distinct target-size levels.",
             "Log-log fits are empirical descriptions of the recorded families, host, compiler, and measured range; they are not complexity proofs.",
             "The variable with greatest R-squared is descriptive, not causal, because N, B, r, H, V, q, K, and M may be correlated.",
             "Stopped levels are censored and excluded from fits; they are never converted into timing observations.",
-            "Coarse aliases and enclosing totals are excluded from dominant-phase sums to prevent double counting.",
+            "Coarse aliases and enclosing totals are excluded from per-run dominant-phase sums; shared preprocessing instead compares its two disjoint recorded parent phases.",
         ],
         "limitations": [
             "In-process maximum RSS deltas were unavailable and remain null.",
@@ -1944,9 +1958,9 @@ def report_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Phase diagnosis",
         "",
-        "Dominance is computed only from mutually disjoint leaf medians. Coarse aliases, Scope totals, and unattributed measurement overhead are never candidates.",
+        "Dominance uses mutually disjoint leaf medians for per-run scopes. Shared preprocessing uses its recorded geometry and chord parent totals; enclosing scope totals and unattributed measurement overhead are never candidates.",
         "",
-        "| Backend | Family | Scope | Algorithm | Target | Dominant leaf | Operation | Share | Best variable | OLS slope (95% CI) | Theil-Sen | R2 | Levels | Cost assessment | Unattributed larger? |",
+        "| Backend | Family | Scope | Algorithm | Target | Dominant phase | Operation | Share | Best variable | OLS slope (95% CI) | Theil-Sen | R2 | Levels | Cost assessment | Unattributed larger? |",
         "| --- | --- | --- | --- | ---: | --- | --- | ---: | --- | --- | ---: | ---: | ---: | --- | --- |",
     ]
     for row in summary["diagnosis"]:
@@ -1966,9 +1980,9 @@ def report_markdown(summary: dict[str, Any]) -> str:
         "",
         "The dominant_phase_variation records show "
         + (
-            "that at least one backend/scope/algorithm group changes dominant leaf across families."
+            "that at least one backend/scope/algorithm group changes dominant phase across families."
             if any(row["varies_by_family"] for row in summary["dominant_phase_variation"])
-            else "no dominant-leaf change across families in any measured backend/scope/algorithm group."
+            else "no dominant-phase change across families in any measured backend/scope/algorithm group."
         ),
         "",
     ]
@@ -2126,11 +2140,11 @@ def latex_tables(summary: dict[str, Any]) -> str:
 
     tables += [
         "\\begin{table}[t]",
-        "\\caption{Dominant disjoint leaf phases and their best descriptive fits.}",
+        "\\caption{Dominant measured phases and their best descriptive fits.}",
         "\\label{tab:kernel-phases}",
         "\\begin{tabular}{lllllrrrr}",
         "\\toprule",
-        r"Backend & Family & Scope & Algorithm & Leaf & Share & Variable & OLS & $R^2$ \\",
+        r"Backend & Family & Scope & Algorithm & Phase & Share & Variable & OLS & $R^2$ \\",
         "\\midrule",
     ]
     for row in summary["diagnosis"]:
@@ -2632,6 +2646,11 @@ def self_test() -> None:
     ]
     assert shared_conclusions and all(
         row["status"] == "available" for row in shared_conclusions
+    )
+    assert any(
+        row["scope"] == SHARED_PREPROCESSING_SCOPE
+        and row["phase"] == "geometry_preprocessing_ns"
+        for row in summary["phase_fits"]
     )
     assert "Claim boundary" in report_markdown(summary)
     rendered_tables = latex_tables(summary)
