@@ -76,12 +76,15 @@ def protocol(sizes: list[int] | None = None) -> dict[str, Any]:
 
 def point_for(config: dict[str, Any], size: int = 64) -> dict[str, Any]:
     config_hash = runner.sha256_bytes(runner.canonical_json(config).encode())
-    return next(row for row in runner.plan(config, config_hash) if row["target_size"] == size)
+    return next(
+        row for row in runner.plan(config, config_hash) if row["target_size"] == size
+    )
 
 
 def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]:
     canonical = "abc123"
     backend = config["boundary_discovery_backend"]
+    canonical_backend = config.get("canonical_backend", "clone-canonical-reference")
     sizes = {
         "width": 4,
         "height": 4,
@@ -106,6 +109,7 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
     correctness = [
         {
             "boundary_discovery_backend": backend,
+            "canonical_backend": canonical_backend,
             "algorithm": algorithm,
             "outcome": "success",
             "optimum_rectangle_count": 3,
@@ -119,6 +123,7 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
     warmups = [
         {
             "boundary_discovery_backend": backend,
+            "canonical_backend": canonical_backend,
             "scope": scope,
             "algorithm": algorithm,
             "count": 5,
@@ -135,10 +140,13 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
         timings = {field: None for field in runner.TIMING_FIELDS}
         prefix = "scope_a" if scope == runner.SCOPES[0] else "scope_b"
         if scope == runner.SCOPES[0]:
+            clone_path = canonical_backend == "clone-canonical-reference"
             parents = {
-                "canonical_component_clone_ns": 1,
+                "canonical_component_clone_ns": 1 if clone_path else 0,
+                "canonical_context_borrow_or_share_ns": 0 if clone_path else 1,
                 "geometry_preprocessing_ns": 1,
                 "chord_generation_ns": 1,
+                "solver_workspace_prepare_ns": 1,
                 "chord_selection_ns": 1,
                 "rectangle_completion_recovery_ns": 1,
                 "output_validation_ns": 1,
@@ -152,8 +160,10 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
                 timings[f"{nested}_unattributed_ns"] = 1
                 timings[f"{nested}_accounting_ok"] = True
         timings[f"{prefix}_total_ns"] = elapsed_ns
-        timings[f"{prefix}_leaf_sum_ns"] = 6 if scope == runner.SCOPES[0] else 0
-        timings[f"{prefix}_unattributed_ns"] = elapsed_ns - timings[f"{prefix}_leaf_sum_ns"]
+        timings[f"{prefix}_leaf_sum_ns"] = 7 if scope == runner.SCOPES[0] else 0
+        timings[f"{prefix}_unattributed_ns"] = (
+            elapsed_ns - timings[f"{prefix}_leaf_sum_ns"]
+        )
         timings[f"{prefix}_accounting_ok"] = True
         return timings
 
@@ -174,11 +184,6 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
         for scope in runner.SCOPES:
             for order_position, algorithm in enumerate(runner.ALGORITHMS):
                 elapsed_ns = 1_000 + iteration
-                total_field = (
-                    "scope_a_total_ns"
-                    if scope == "solve-from-canonical-instance"
-                    else "scope_b_total_ns"
-                )
                 runs.append(
                     {
                         "sample_identity": runner.sample_identity(
@@ -193,12 +198,34 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
                         "seed": point["seed"],
                         "canonical_instance_identity": canonical,
                         "boundary_discovery_backend": backend,
+                        "canonical_backend": canonical_backend,
                         "scope": scope,
                         "algorithm": algorithm,
                         "iteration": iteration,
                         "order_position": order_position,
                         "elapsed_ns": elapsed_ns,
                         "timings": timings_for(scope, elapsed_ns),
+                        "allocations": {
+                            "canonical_cells_cloned": 8
+                            if scope == runner.SCOPES[0]
+                            and canonical_backend == "clone-canonical-reference"
+                            else 0,
+                            "canonical_clone_bytes_estimate": 128
+                            if scope == runner.SCOPES[0]
+                            and canonical_backend == "clone-canonical-reference"
+                            else 0,
+                            "solver_workspace_retained_bytes_estimate": 5
+                            if scope == runner.SCOPES[0]
+                            else 0,
+                            "representation_retained_bytes_estimate": 104,
+                            "ownership_vec_allocation_count_estimate": (
+                                3
+                                if canonical_backend == "clone-canonical-reference"
+                                else 2
+                            )
+                            if scope == runner.SCOPES[0]
+                            else 0,
+                        },
                         "optimum_rectangle_count": 3,
                         "matching_size": 2,
                         "vertex_cover_size": 2,
@@ -213,6 +240,7 @@ def valid_point(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]
         "generator_version": "test-v1",
         "generator_parameter": point["target_size"],
         "boundary_discovery_backend": backend,
+        "canonical_backend": canonical_backend,
         "canonical_instance_identity": canonical,
         "state": "complete",
         "message": None,
@@ -257,8 +285,25 @@ class KernelRunnerProtocolTests(unittest.TestCase):
     def test_schema_one_config_is_rejected_clearly(self) -> None:
         config = protocol()
         config["schema_version"] = 1
-        with self.assertRaisesRegex(ValueError, "incompatible.*schema_version 1.*expected 2"):
+        with self.assertRaisesRegex(
+            ValueError, "incompatible.*schema_version 1.*expected 2"
+        ):
             runner.validate_config(config)
+
+    def test_unimplemented_shared_context_backend_is_rejected(self) -> None:
+        config = protocol()
+        config["canonical_backend"] = "shared-prepared-context"
+        with self.assertRaisesRegex(ValueError, "canonical_backend must be one of"):
+            runner.validate_config(config)
+
+    def test_nonfinite_json_numbers_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "non-finite JSON number"):
+            runner.strict_json_loads('{"value": NaN}')
+        with tempfile.TemporaryDirectory(prefix="kernel-json-test-") as directory:
+            output = Path(directory) / "output.json"
+            with self.assertRaisesRegex(ValueError, "Out of range float values"):
+                runner.atomic_write_json(output, {"value": float("nan")})
+            self.assertFalse(output.exists())
 
     def test_complete_point_requires_exact_canonical_sample_census(self) -> None:
         config = protocol()
@@ -295,6 +340,28 @@ class KernelRunnerProtocolTests(unittest.TestCase):
         wrong_backend["boundary_discovery_backend"] = "prepared-exposed-edges"
         with self.assertRaisesRegex(ValueError, "backend differs"):
             runner.validate_point_result(wrong_backend, point, config)
+
+    def test_ownership_backend_and_allocation_diagnostics_are_required(self) -> None:
+        config = protocol()
+        config["canonical_backend"] = "borrowed-canonical"
+        point = point_for(config)
+        result = valid_point(config, point)
+        runner.validate_point_result(result, point, config)
+
+        wrong_backend = copy.deepcopy(result)
+        wrong_backend["runs"][0]["canonical_backend"] = "clone-canonical-reference"
+        with self.assertRaisesRegex(ValueError, "run canonical backend mismatch"):
+            runner.validate_point_result(wrong_backend, point, config)
+
+        missing_allocations = copy.deepcopy(result)
+        missing_allocations["runs"][0].pop("allocations")
+        with self.assertRaisesRegex(ValueError, "allocations must be an object"):
+            runner.validate_point_result(missing_allocations, point, config)
+
+        fabricated_clone = copy.deepcopy(result)
+        fabricated_clone["runs"][0]["allocations"]["canonical_cells_cloned"] = 8
+        with self.assertRaisesRegex(ValueError, "non-clone scope reports"):
+            runner.validate_point_result(fabricated_clone, point, config)
 
     def test_nonterminal_runner_failure_is_retried_on_resume(self) -> None:
         config = protocol()
@@ -339,6 +406,29 @@ class KernelRunnerProtocolTests(unittest.TestCase):
             self.assertEqual(len(resumed["retry_history"]), 1)
             self.assertEqual(resumed["completion"]["retry_history_count"], 1)
 
+    def test_binary_mutation_during_campaign_is_rejected(self) -> None:
+        config = protocol()
+        with tempfile.TemporaryDirectory(prefix="kernel-identity-test-") as directory:
+            root = Path(directory)
+            binary = root / "mrd"
+            binary.write_bytes(b"initial binary")
+
+            def mutate(
+                launched_binary: Path,
+                _config: dict[str, Any],
+                point: dict[str, Any],
+            ) -> dict[str, Any]:
+                launched_binary.write_bytes(b"mutated binary")
+                return valid_point(config, point)
+
+            with self.assertRaisesRegex(ValueError, "release binary changed"):
+                runner.run_campaign(
+                    config,
+                    binary,
+                    root / "checkpoint.json",
+                    launch_partition=mutate,
+                )
+
     def test_checkpoint_campaign_identity_mismatch_is_rejected(self) -> None:
         config = protocol()
         with tempfile.TemporaryDirectory(prefix="kernel-runner-test-") as directory:
@@ -369,7 +459,9 @@ class KernelRunnerProtocolTests(unittest.TestCase):
         partial["state"] = "stopped"
         partial["message"] = "predeclared point limit"
         partial["runs"] = partial["runs"][:1]
-        partial["exact_measured_order"] = [row["sample_identity"] for row in partial["runs"]]
+        partial["exact_measured_order"] = [
+            row["sample_identity"] for row in partial["runs"]
+        ]
 
         runner.validate_point_result(partial, point, config)
         self.assertEqual(len(partial["runs"]), 1)
@@ -388,7 +480,9 @@ class KernelRunnerProtocolTests(unittest.TestCase):
         point = point_for(config)
         malformed = valid_point(config, point)
         malformed["shared_scope_b_preprocessing"]["geometry_preprocessing_ns"] += 1
-        with self.assertRaisesRegex(ValueError, "shared preprocessing geometry timing accounting mismatch"):
+        with self.assertRaisesRegex(
+            ValueError, "shared preprocessing geometry timing accounting mismatch"
+        ):
             runner.validate_point_result(malformed, point, config)
 
     def test_checkpoint_rejects_each_reproducibility_identity_mismatch(self) -> None:
@@ -418,6 +512,15 @@ class KernelRunnerProtocolTests(unittest.TestCase):
                     malformed[field] = "different"
                     with self.assertRaisesRegex(ValueError, f"{field} mismatch"):
                         runner.validate_checkpoint(malformed, expected, planned, config)
+
+            changed_environment = copy.deepcopy(checkpoint)
+            changed_environment["environment"]["logical_cpu_count"] += 1
+            with self.assertRaisesRegex(
+                ValueError, r"environment\.logical_cpu_count mismatch"
+            ):
+                runner.validate_checkpoint(
+                    changed_environment, expected, planned, config
+                )
 
     def test_completion_requires_valid_terminal_points_and_correctness(self) -> None:
         config = protocol()
@@ -460,6 +563,8 @@ class KernelRunnerProtocolTests(unittest.TestCase):
         self.assertEqual(row["boundary_discovery_backend"], "reference-edge-toggle")
         self.assertEqual(row["setup_timing_input_normalization_ns"], 10)
         self.assertIn("timing_scope_a_total_ns", row)
+        self.assertEqual(row["allocation_canonical_cells_cloned"], 8)
+        self.assertNotIn("allocations", row)
 
 
 if __name__ == "__main__":

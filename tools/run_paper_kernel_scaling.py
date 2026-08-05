@@ -43,7 +43,25 @@ BOUNDARY_DISCOVERY_BACKENDS = (
     "reference-edge-toggle",
     "prepared-exposed-edges",
 )
+CANONICAL_BACKENDS = (
+    "clone-canonical-reference",
+    "borrowed-canonical",
+)
 RUNNER_FAILURE_STATES = frozenset(("runner-error", "runner-timeout"))
+RESUME_ENVIRONMENT_FIELDS = (
+    "clock_source",
+    "cpu_model",
+    "operating_system",
+    "architecture",
+    "logical_cpu_count",
+    "rustc_version",
+    "compiler_profile",
+    "git_commit",
+    "git_dirty",
+    "binary_sha256",
+    "power_source",
+    "turbo_or_power_mode",
+)
 KERNEL_LEAF_PHASES = (
     "embedding_ns",
     "conflict_discovery_ns",
@@ -53,10 +71,14 @@ KERNEL_LEAF_PHASES = (
     "matching_or_flow_ns",
     "minimum_vertex_cover_recovery_ns",
 )
+SCOPE_B_PARENT_PHASES = KERNEL_LEAF_PHASES
 SCOPE_A_PARENT_PHASES = (
     "canonical_component_clone_ns",
+    "canonical_context_borrow_or_share_ns",
+    "canonical_component_release_ns",
     "geometry_preprocessing_ns",
     "chord_generation_ns",
+    "solver_workspace_prepare_ns",
     *KERNEL_LEAF_PHASES,
     "chord_selection_ns",
     "rectangle_completion_recovery_ns",
@@ -131,6 +153,9 @@ TIMING_FIELDS = tuple(
             "scope_a_total_ns",
             "scope_b_total_ns",
             "canonical_component_clone_ns",
+            "canonical_context_borrow_or_share_ns",
+            "canonical_component_release_ns",
+            "solver_workspace_prepare_ns",
             "prepared_component_build_ns",
             "boundary_total_build_ns",
             "boundary_edge_discovery_ns",
@@ -182,6 +207,14 @@ TIMING_FIELDS = tuple(
     )
 )
 
+OPTIONAL_OWNERSHIP_TIMING_FIELDS = frozenset(
+    {
+        "canonical_context_borrow_or_share_ns",
+        "canonical_component_release_ns",
+        "solver_workspace_prepare_ns",
+    }
+)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -212,7 +245,14 @@ def relative_path(path: Path) -> str:
 
 
 def canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    return json.dumps(value, allow_nan=False, sort_keys=True, separators=(",", ":"))
+
+
+def strict_json_loads(value: str) -> Any:
+    def reject_constant(constant: str) -> None:
+        raise ValueError(f"non-finite JSON number {constant!r} is not permitted")
+
+    return json.loads(value, parse_constant=reject_constant)
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -238,7 +278,13 @@ def power_state() -> dict[str, Any]:
     if sys.platform != "darwin":
         return {"power_source": "unknown", "turbo_or_power_mode": "unknown"}
     output = command_or_unknown(["pmset", "-g", "batt"])
-    source = "AC" if "AC Power" in output else "battery" if "Battery Power" in output else "unknown"
+    source = (
+        "AC"
+        if "AC Power" in output
+        else "battery"
+        if "Battery Power" in output
+        else "unknown"
+    )
     return {"power_source": source, "turbo_or_power_mode": "unknown"}
 
 
@@ -289,21 +335,39 @@ def validate_config(config: dict[str, Any]) -> None:
             "boundary_discovery_backend must be one of "
             + ", ".join(BOUNDARY_DISCOVERY_BACKENDS)
         )
+    canonical_backend = config.get("canonical_backend", "clone-canonical-reference")
+    if canonical_backend not in CANONICAL_BACKENDS:
+        raise ValueError(
+            "canonical_backend must be one of " + ", ".join(CANONICAL_BACKENDS)
+        )
     if config.get("algorithms") != list(ALGORITHMS):
-        raise ValueError("config must contain exactly the three timed algorithms in declared order")
+        raise ValueError(
+            "config must contain exactly the three timed algorithms in declared order"
+        )
     if config.get("scopes") != list(SCOPES):
         raise ValueError("config must contain exactly Scope A and Scope B")
     families = config.get("families")
     sizes = config.get("initial_size_levels")
-    if not families or len(set(families)) != len(families) or any(value not in FAMILIES for value in families):
+    if (
+        not families
+        or len(set(families)) != len(families)
+        or any(value not in FAMILIES for value in families)
+    ):
         raise ValueError("families must be unique supported campaign families")
-    if not sizes or len(set(sizes)) != len(sizes) or any(not isinstance(value, int) or value <= 0 for value in sizes):
+    if (
+        not sizes
+        or len(set(sizes)) != len(sizes)
+        or any(not isinstance(value, int) or value <= 0 for value in sizes)
+    ):
         raise ValueError("initial_size_levels must be unique positive integers")
     if sizes != sorted(sizes):
         raise ValueError("initial_size_levels must be in increasing order")
     if isinstance(config.get("seed"), bool) or not isinstance(config.get("seed"), int):
         raise ValueError("seed must be an integer")
-    if not isinstance(config.get("oracle_cell_limit"), int) or int(config["oracle_cell_limit"]) <= 0:
+    if (
+        not isinstance(config.get("oracle_cell_limit"), int)
+        or int(config["oracle_cell_limit"]) <= 0
+    ):
         raise ValueError("oracle_cell_limit must be a positive integer")
     if config.get("family_parameter_rule") != {
         "comb-staircase": "ceil(sqrt(target_size))",
@@ -319,7 +383,10 @@ def validate_config(config: dict[str, Any]) -> None:
         raise ValueError("warmup rule must use at least 5 and at most 50 iterations")
     if int(warmup.get("maximum", 0)) < int(warmup.get("minimum", 0)):
         raise ValueError("warmup maximum must cover its minimum")
-    if [repetitions.get(key) for key in ("fast_minimum", "medium_minimum", "slow_minimum")] != [31, 15, 7]:
+    if [
+        repetitions.get(key)
+        for key in ("fast_minimum", "medium_minimum", "slow_minimum")
+    ] != [31, 15, 7]:
         raise ValueError("repetition minima must be 31/15/7")
     if not 31 <= int(repetitions.get("maximum", 0)) <= 10_000:
         raise ValueError("maximum repetitions must be between 31 and 10000")
@@ -373,6 +440,9 @@ def rust_request(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any
         "target_size": point["target_size"],
         "seed": point["seed"],
         "boundary_discovery_backend": config["boundary_discovery_backend"],
+        "canonical_backend": config.get(
+            "canonical_backend", "clone-canonical-reference"
+        ),
         "algorithms": config["algorithms"],
         "scopes": config["scopes"],
         "oracle_cell_limit": config["oracle_cell_limit"],
@@ -384,7 +454,9 @@ def rust_request(config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any
 
 def atomic_write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "w") as handle:
@@ -398,7 +470,18 @@ def atomic_write_text(path: Path, value: str) -> None:
 
 
 def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
-    atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
+    atomic_write_text(
+        path, json.dumps(value, allow_nan=False, indent=2, sort_keys=True) + "\n"
+    )
+
+
+def validate_runtime_identity(expected: dict[str, Any], binary: Path) -> None:
+    current_commit = command_or_unknown(["git", "rev-parse", "HEAD"])
+    if current_commit != expected["source_commit"]:
+        raise ValueError("source commit changed during the campaign")
+    current_binary_sha256 = sha256_file(binary)
+    if current_binary_sha256 != expected["binary_sha256"]:
+        raise ValueError("release binary changed during the campaign")
 
 
 def provenance(config: dict[str, Any], binary: Path) -> dict[str, Any]:
@@ -461,9 +544,13 @@ def require_nonnegative_integer(value: Any, field: str) -> int:
 def validate_correctness(records: Any) -> int:
     if not isinstance(records, list):
         raise ValueError("point correctness must be an array")
-    algorithms = [record.get("algorithm") for record in records if isinstance(record, dict)]
+    algorithms = [
+        record.get("algorithm") for record in records if isinstance(record, dict)
+    ]
     if len(records) != len(ALGORITHMS) or set(algorithms) != set(ALGORITHMS):
-        raise ValueError("point correctness must contain each timed algorithm exactly once")
+        raise ValueError(
+            "point correctness must contain each timed algorithm exactly once"
+        )
     optima = set()
     for record in records:
         if record.get("outcome") != "success":
@@ -546,19 +633,23 @@ def validate_sizes(result: dict[str, Any], *, require_complete: bool) -> int | N
             "compressed_network_arc_count",
         )
     ) and values["compressed_representation_size_m"] != (
-        values["compressed_network_node_count"]
-        + values["compressed_network_arc_count"]
+        values["compressed_network_node_count"] + values["compressed_network_arc_count"]
     ):
         raise ValueError("sizes M differs from compact nodes + arcs")
-    if all(
-        field in values
-        for field in ("output_rectangle_count", "optimum_rectangle_count")
-    ) and values["output_rectangle_count"] != values["optimum_rectangle_count"]:
+    if (
+        all(
+            field in values
+            for field in ("output_rectangle_count", "optimum_rectangle_count")
+        )
+        and values["output_rectangle_count"] != values["optimum_rectangle_count"]
+    ):
         raise ValueError("sizes output rectangle count differs from optimum")
     return values.get("optimum_rectangle_count")
 
 
-def validate_setup_and_structure(result: dict[str, Any], *, require_complete: bool) -> None:
+def validate_setup_and_structure(
+    result: dict[str, Any], *, require_complete: bool
+) -> None:
     setup = result.get("setup_timings")
     structure = result.get("structure")
     if not isinstance(setup, dict) or not isinstance(structure, dict):
@@ -574,9 +665,10 @@ def validate_setup_and_structure(result: dict[str, Any], *, require_complete: bo
             field: require_nonnegative_integer(setup.get(field), f"setup {field}")
             for field in setup_fields
         }
-        if sum(setup_values[field] for field in setup_fields[:-1]) > setup_values[
-            "setup_total_ns"
-        ]:
+        if (
+            sum(setup_values[field] for field in setup_fields[:-1])
+            > setup_values["setup_total_ns"]
+        ):
             raise ValueError("setup leaf timing sum exceeds setup_total_ns")
         for field in (
             "boundary_candidate_edge_probes",
@@ -609,7 +701,10 @@ def validate_setup_and_structure(result: dict[str, Any], *, require_complete: bo
             ("explicit_graph_node_count", sizes["q"]),
             ("explicit_graph_edge_count", sizes["explicit_conflict_edge_count_k"]),
             ("biclique_count", sizes["biclique_count"]),
-            ("biclique_incidence_sigma", sizes["biclique_total_vertex_occurrences_sigma"]),
+            (
+                "biclique_incidence_sigma",
+                sizes["biclique_total_vertex_occurrences_sigma"],
+            ),
             ("compact_node_count", sizes["compressed_network_node_count"]),
             ("compact_arc_count", sizes["compressed_network_arc_count"]),
         )
@@ -622,7 +717,9 @@ def validate_setup_and_structure(result: dict[str, Any], *, require_complete: bo
             structure["explicit_c0_estimated_structural_bytes"],
         )
         if structure["estimated_peak_structural_bytes"] != max(estimates):
-            raise ValueError("estimated peak structural bytes differs from backend estimates")
+            raise ValueError(
+                "estimated peak structural bytes differs from backend estimates"
+            )
 
 
 def validate_nested_timing_accounting(timings: dict[str, Any], identity: str) -> None:
@@ -661,6 +758,8 @@ def validate_nested_timing_accounting(timings: dict[str, Any], identity: str) ->
 def validate_run_timings(timings: dict[str, Any], scope: str, identity: str) -> None:
     for field in TIMING_FIELDS:
         if field not in timings:
+            if field in OPTIONAL_OWNERSHIP_TIMING_FIELDS:
+                continue
             raise ValueError(f"{identity} timings omit {field}")
         if field.endswith("_ok"):
             if timings[field] is not None and not isinstance(timings[field], bool):
@@ -673,10 +772,14 @@ def validate_run_timings(timings: dict[str, Any], scope: str, identity: str) -> 
     leaf_field = f"{prefix}_leaf_sum_ns"
     unattributed_field = f"{prefix}_unattributed_ns"
     ok_field = f"{prefix}_accounting_ok"
-    phases = SCOPE_A_PARENT_PHASES if scope == SCOPES[0] else KERNEL_LEAF_PHASES
-    total = require_nonnegative_integer(timings.get(total_field), f"{identity} {total_field}")
+    phases = SCOPE_A_PARENT_PHASES if scope == SCOPES[0] else SCOPE_B_PARENT_PHASES
+    total = require_nonnegative_integer(
+        timings.get(total_field), f"{identity} {total_field}"
+    )
     leaf_sum = sum(timings.get(field) or 0 for field in phases)
-    declared = require_nonnegative_integer(timings.get(leaf_field), f"{identity} {leaf_field}")
+    declared = require_nonnegative_integer(
+        timings.get(leaf_field), f"{identity} {leaf_field}"
+    )
     unattributed = require_nonnegative_integer(
         timings.get(unattributed_field), f"{identity} {unattributed_field}"
     )
@@ -696,10 +799,17 @@ def validate_run_census(
     warmups = result.get("warmups")
     runs = result.get("runs")
     exact_order = result.get("exact_measured_order")
-    if not isinstance(warmups, list) or not isinstance(runs, list) or not isinstance(exact_order, list):
+    if (
+        not isinstance(warmups, list)
+        or not isinstance(runs, list)
+        or not isinstance(exact_order, list)
+    ):
         raise ValueError("point warmups, runs, and exact_measured_order must be arrays")
 
-    expected_pairs = {(scope, algorithm) for scope in SCOPES for algorithm in ALGORITHMS}
+    expected_pairs = {
+        (scope, algorithm) for scope in SCOPES for algorithm in ALGORITHMS
+    }
+    expected_canonical_backend = config.get("canonical_backend")
     warmup_counts: dict[tuple[str, str], int] = {}
     for record in warmups:
         if not isinstance(record, dict):
@@ -711,6 +821,11 @@ def validate_run_census(
             "boundary_discovery_backend"
         ):
             raise ValueError("warmup boundary discovery backend mismatch")
+        if (
+            expected_canonical_backend is not None
+            and record.get("canonical_backend") != expected_canonical_backend
+        ):
+            raise ValueError("warmup canonical backend mismatch")
         count = require_nonnegative_integer(record.get("count"), "warmup count")
         if count < int(config["warmup_rule"]["minimum"]):
             raise ValueError("warmup count is below the configured minimum")
@@ -728,9 +843,7 @@ def validate_run_census(
         else:
             minimum = int(repetition_rule["slow_minimum"])
         target = int(repetition_rule["target_measured_ns"]) // max(preflight_ns, 1)
-        expected_measured = min(
-            max(target, minimum), int(repetition_rule["maximum"])
-        )
+        expected_measured = min(max(target, minimum), int(repetition_rule["maximum"]))
         if measured != expected_measured:
             raise ValueError(
                 "measured repetition count differs from the configured adaptive rule"
@@ -748,12 +861,16 @@ def validate_run_census(
             raise ValueError("measured run must be an object")
         scope = record.get("scope")
         algorithm = record.get("algorithm")
-        iteration = require_nonnegative_integer(record.get("iteration"), "run iteration")
+        iteration = require_nonnegative_integer(
+            record.get("iteration"), "run iteration"
+        )
         pair = (scope, algorithm)
         if pair not in expected_pairs:
             raise ValueError("measured run has an unsupported scope or algorithm")
         if pair not in warmup_counts or iteration >= warmup_counts[pair]:
-            raise ValueError("measured run falls outside its declared repetition census")
+            raise ValueError(
+                "measured run falls outside its declared repetition census"
+            )
         if record.get("record_kind") != "measured":
             raise ValueError("measured run record_kind must be 'measured'")
         if record.get("seed") != point["seed"]:
@@ -762,6 +879,11 @@ def validate_run_census(
             raise ValueError("measured run canonical instance identity mismatch")
         if record.get("boundary_discovery_backend") != backend:
             raise ValueError("measured run boundary discovery backend mismatch")
+        if (
+            expected_canonical_backend is not None
+            and record.get("canonical_backend") != expected_canonical_backend
+        ):
+            raise ValueError("measured run canonical backend mismatch")
         expected_identity = sample_identity(
             point,
             canonical_identity,
@@ -771,12 +893,49 @@ def validate_run_census(
             iteration,
         )
         if record.get("sample_identity") != expected_identity:
-            raise ValueError("measured run sample identity does not match its canonical fields")
-        elapsed_ns = require_nonnegative_integer(record.get("elapsed_ns"), "run elapsed_ns")
+            raise ValueError(
+                "measured run sample identity does not match its canonical fields"
+            )
+        elapsed_ns = require_nonnegative_integer(
+            record.get("elapsed_ns"), "run elapsed_ns"
+        )
         timings = record.get("timings")
         if not isinstance(timings, dict):
             raise ValueError("measured run timings must be an object")
         validate_run_timings(timings, scope, str(record.get("sample_identity")))
+        if expected_canonical_backend is not None:
+            allocations = record.get("allocations")
+            if not isinstance(allocations, dict):
+                raise ValueError("measured ownership run allocations must be an object")
+            for field in (
+                "canonical_cells_cloned",
+                "canonical_clone_bytes_estimate",
+                "solver_workspace_retained_bytes_estimate",
+                "representation_retained_bytes_estimate",
+                "ownership_vec_allocation_count_estimate",
+            ):
+                require_nonnegative_integer(
+                    allocations.get(field),
+                    f"{record.get('sample_identity')} allocations.{field}",
+                )
+            cloned_cells = allocations["canonical_cells_cloned"]
+            cloned_bytes = allocations["canonical_clone_bytes_estimate"]
+            if (
+                scope == SCOPES[0]
+                and expected_canonical_backend == "clone-canonical-reference"
+            ):
+                if (
+                    cloned_cells != result["sizes"]["foreground_cells_n"]
+                    or cloned_bytes <= 0
+                ):
+                    raise ValueError(
+                        "clone-reference allocation diagnostics are inconsistent"
+                    )
+            elif cloned_cells != 0 or cloned_bytes != 0:
+                raise ValueError("non-clone scope reports canonical clone allocations")
+            workspace_bytes = allocations["solver_workspace_retained_bytes_estimate"]
+            if scope == SCOPES[1] and workspace_bytes != 0:
+                raise ValueError("Scope B reports a solver selection workspace")
         total_field = (
             "scope_a_total_ns"
             if scope == "solve-from-canonical-instance"
@@ -784,8 +943,12 @@ def validate_run_census(
         )
         if timings.get(total_field) != elapsed_ns:
             raise ValueError(f"measured run {total_field} differs from elapsed_ns")
-        matching = require_nonnegative_integer(record.get("matching_size"), "run matching_size")
-        cover = require_nonnegative_integer(record.get("vertex_cover_size"), "run vertex_cover_size")
+        matching = require_nonnegative_integer(
+            record.get("matching_size"), "run matching_size"
+        )
+        cover = require_nonnegative_integer(
+            record.get("vertex_cover_size"), "run vertex_cover_size"
+        )
         if matching != cover:
             raise ValueError("measured run matching and cover sizes disagree")
         run_optimum = require_nonnegative_integer(
@@ -809,7 +972,9 @@ def validate_run_census(
             for iteration in range(count)
         }
         if set(observed_keys) != expected_keys:
-            raise ValueError("complete point does not contain its exact measured sample census")
+            raise ValueError(
+                "complete point does not contain its exact measured sample census"
+            )
 
 
 def validate_point_result(
@@ -834,6 +999,8 @@ def validate_point_result(
         "seed": point["seed"],
         "boundary_discovery_backend": config["boundary_discovery_backend"],
     }
+    if "canonical_backend" in config:
+        expected_header["canonical_backend"] = config["canonical_backend"]
     for field, expected_value in expected_header.items():
         if result.get(field) != expected_value:
             raise ValueError(f"point result {field} differs from its request")
@@ -872,11 +1039,15 @@ def validate_point_result(
                 shared_preprocessing.get(field), f"shared preprocessing {field}"
             )
     if any(
-        record.get("boundary_discovery_backend")
-        != config["boundary_discovery_backend"]
+        record.get("boundary_discovery_backend") != config["boundary_discovery_backend"]
         for record in result.get("correctness", [])
     ):
         raise ValueError("correctness boundary discovery backend mismatch")
+    if "canonical_backend" in config and any(
+        record.get("canonical_backend") != config["canonical_backend"]
+        for record in result.get("correctness", [])
+    ):
+        raise ValueError("correctness canonical backend mismatch")
     correctness_optimum = validate_correctness(result.get("correctness"))
     if size_optimum is not None and correctness_optimum != size_optimum:
         raise ValueError("point correctness optimum differs from point sizes")
@@ -912,6 +1083,19 @@ def validate_checkpoint(
                 f"checkpoint {key} mismatch: expected {expected.get(key)!r}, "
                 f"found {checkpoint.get(key)!r}"
             )
+    checkpoint_environment = checkpoint.get("environment")
+    expected_environment = expected.get("environment")
+    if not isinstance(checkpoint_environment, dict) or not isinstance(
+        expected_environment, dict
+    ):
+        raise ValueError("checkpoint environment is missing or malformed")
+    for field in RESUME_ENVIRONMENT_FIELDS:
+        if checkpoint_environment.get(field) != expected_environment.get(field):
+            raise ValueError(
+                f"checkpoint environment.{field} mismatch: expected "
+                f"{expected_environment.get(field)!r}, found "
+                f"{checkpoint_environment.get(field)!r}"
+            )
     if checkpoint.get("protocol") != config:
         raise ValueError("checkpoint protocol differs from the normalized config")
     if checkpoint.get("planned_points") != planned:
@@ -920,7 +1104,9 @@ def validate_checkpoint(
     if not isinstance(point_results, list):
         raise ValueError("checkpoint point_results must be an array")
     planned_by_identity = {row["point_identity"]: row for row in planned}
-    observed = [row.get("point_identity") for row in point_results if isinstance(row, dict)]
+    observed = [
+        row.get("point_identity") for row in point_results if isinstance(row, dict)
+    ]
     if len(observed) != len(point_results):
         raise ValueError("checkpoint contains a malformed point result")
     if len(observed) != len(set(observed)):
@@ -928,7 +1114,9 @@ def validate_checkpoint(
     if any(identity not in planned_by_identity for identity in observed):
         raise ValueError("checkpoint contains an unplanned point")
     for result in point_results:
-        validate_point_result(result, planned_by_identity[result["point_identity"]], config)
+        validate_point_result(
+            result, planned_by_identity[result["point_identity"]], config
+        )
     retry_history = checkpoint.get("retry_history", [])
     if not isinstance(retry_history, list) or any(
         not isinstance(row, dict)
@@ -949,7 +1137,9 @@ def refresh(checkpoint: dict[str, Any]) -> None:
     observed = {row["point_identity"] for row in checkpoint["point_results"]}
     states: dict[str, int] = {}
     for row in checkpoint["point_results"]:
-        states[row.get("state", "runner-error")] = states.get(row.get("state", "runner-error"), 0) + 1
+        states[row.get("state", "runner-error")] = (
+            states.get(row.get("state", "runner-error"), 0) + 1
+        )
     correctness_failures = sum(
         record.get("outcome") != "success"
         for row in checkpoint["point_results"]
@@ -969,12 +1159,19 @@ def refresh(checkpoint: dict[str, Any]) -> None:
     checkpoint["updated_at_epoch_seconds"] = int(time.time())
 
 
-def launch(binary: Path, config: dict[str, Any], point: dict[str, Any]) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="paper-kernel-scaling-", dir=ROOT / "results") as directory:
+def launch(
+    binary: Path, config: dict[str, Any], point: dict[str, Any]
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(
+        prefix="paper-kernel-scaling-", dir=ROOT / "results"
+    ) as directory:
         directory_path = Path(directory)
         request_path = directory_path / "request.json"
         output_path = directory_path / "result.json"
-        request_path.write_text(json.dumps(rust_request(config, point), sort_keys=True) + "\n")
+        request_path.write_text(
+            json.dumps(rust_request(config, point), allow_nan=False, sort_keys=True)
+            + "\n"
+        )
         command = [
             relative_path(binary),
             "benchmark",
@@ -1012,11 +1209,19 @@ def launch(binary: Path, config: dict[str, Any], point: dict[str, Any]) -> dict[
                 "partition_wall_time_ns": wall,
             }
         try:
-            result = json.loads(output_path.read_text())
-        except (OSError, json.JSONDecodeError) as error:
-            return {**point, "state": "runner-error", "message": str(error), "partition_wall_time_ns": wall}
+            result = strict_json_loads(output_path.read_text())
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            return {
+                **point,
+                "state": "runner-error",
+                "message": str(error),
+                "partition_wall_time_ns": wall,
+            }
         returned_point_identity = result.get("point_identity")
-        if returned_point_identity is not None and returned_point_identity != point["point_identity"]:
+        if (
+            returned_point_identity is not None
+            and returned_point_identity != point["point_identity"]
+        ):
             return {
                 **point,
                 "state": "runner-error",
@@ -1076,11 +1281,13 @@ def csv_rows(checkpoint: dict[str, Any]) -> list[dict[str, Any]]:
                 ("size_", point.get("sizes", {})),
                 ("structure_", point.get("structure", {})),
                 ("timing_", run.get("timings", {})),
+                ("allocation_", run.get("allocations", {})),
                 ("host_", environment_values),
             ):
                 for key, value in values.items():
                     row[prefix + key] = value
             row.pop("timings", None)
+            row.pop("allocations", None)
             rows.append(row)
     return rows
 
@@ -1091,7 +1298,12 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     writer = csv.DictWriter(buffer, fieldnames=fields, lineterminator="\n")
     writer.writeheader()
     for row in rows:
-        writer.writerow({key: canonical_json(value) if isinstance(value, (dict, list)) else value for key, value in row.items()})
+        writer.writerow(
+            {
+                key: canonical_json(value) if isinstance(value, (dict, list)) else value
+                for key, value in row.items()
+            }
+        )
     atomic_write_text(path, buffer.getvalue())
 
 
@@ -1121,6 +1333,9 @@ def propagated_stop(
         "schema_version": SCHEMA_VERSION,
         "campaign": CAMPAIGN,
         "boundary_discovery_backend": config["boundary_discovery_backend"],
+        "canonical_backend": config.get(
+            "canonical_backend", "clone-canonical-reference"
+        ),
         "canonical_instance_identity": None,
         "state": "stopped",
         "message": (
@@ -1155,7 +1370,7 @@ def run_campaign(
     planned = plan(config, expected["config_sha256"])
     checkpoint_path = root_path(checkpoint_path)
     if resume:
-        checkpoint = json.loads(checkpoint_path.read_text())
+        checkpoint = strict_json_loads(checkpoint_path.read_text())
         validate_checkpoint(checkpoint, expected, planned, config)
         invalid = [
             row["point_identity"]
@@ -1193,7 +1408,9 @@ def run_campaign(
         }
     selected_families = set(families or config["families"])
     selected_sizes = set(sizes or config["initial_size_levels"])
-    if not selected_families.issubset(config["families"]) or not selected_sizes.issubset(config["initial_size_levels"]):
+    if not selected_families.issubset(
+        config["families"]
+    ) or not selected_sizes.issubset(config["initial_size_levels"]):
         raise ValueError("partition selection is outside the predeclared config")
     completed = {
         row["point_identity"]
@@ -1208,13 +1425,18 @@ def run_campaign(
     }
     started = time.perf_counter_ns()
     for point in planned:
-        if point["point_identity"] in completed or point["family"] not in selected_families or point["target_size"] not in selected_sizes:
+        if (
+            point["point_identity"] in completed
+            or point["family"] not in selected_families
+            or point["target_size"] not in selected_sizes
+        ):
             continue
         prior_stop = family_stops.get(point["family"])
         if prior_stop is not None and point["target_size"] > prior_stop["target_size"]:
             result = propagated_stop(point, prior_stop, config)
         else:
             result = launch_partition(binary, config, point)
+            validate_runtime_identity(expected, binary)
             validate_point_result(result, point, config)
             if result.get("state") == "stopped":
                 family_stops[point["family"]] = result
@@ -1228,6 +1450,7 @@ def run_campaign(
     checkpoint["runner_wall_time_ns"] += time.perf_counter_ns() - started
     refresh(checkpoint)
     atomic_write_json(checkpoint_path, checkpoint)
+    validate_runtime_identity(expected, binary)
     validate_checkpoint(checkpoint, expected, planned, config)
     return output_payload(checkpoint)
 
@@ -1284,11 +1507,20 @@ def main() -> int:
         self_test()
         print("paper-kernel-scaling runner self-test: ok")
         return 0
-    config = json.loads(root_path(arguments.config).read_text())
+    config = strict_json_loads(root_path(arguments.config).read_text())
     validate_config(config)
     planned = plan(config, sha256_bytes(canonical_json(config).encode()))
     if arguments.print_plan:
-        print(json.dumps({"planned_points": len(planned), "families": len(config["families"]), "sizes": len(config["initial_size_levels"])}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "planned_points": len(planned),
+                    "families": len(config["families"]),
+                    "sizes": len(config["initial_size_levels"]),
+                },
+                sort_keys=True,
+            )
+        )
         return 0
     checkpoint = arguments.checkpoint
     if checkpoint is None:
@@ -1305,7 +1537,16 @@ def main() -> int:
     )
     atomic_write_json(root_path(arguments.output), payload)
     write_csv(root_path(arguments.csv), csv_rows(payload))
-    print(json.dumps({"completion": payload["completion"], "measured_iterations": len(csv_rows(payload)), "output": relative_path(root_path(arguments.output))}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "completion": payload["completion"],
+                "measured_iterations": len(csv_rows(payload)),
+                "output": relative_path(root_path(arguments.output)),
+            },
+            sort_keys=True,
+        )
+    )
     return 0 if payload["completion"]["complete"] else 1
 
 
