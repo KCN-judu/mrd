@@ -391,6 +391,24 @@ def output_payload(checkpoint: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def propagated_stop(point: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **point,
+        "state": "stopped",
+        "message": (
+            f"larger level omitted after predeclared stop at target "
+            f"{source['target_size']}: {source.get('message', 'unspecified stop')}"
+        ),
+        "stop_propagated_from_target_size": source["target_size"],
+        "runs": [],
+        "warmups": [],
+        "correctness": [],
+        "sizes": {},
+        "structure": {},
+        "partition_wall_time_ns": 0,
+    }
+
+
 def run_campaign(config: dict[str, Any], binary: Path, checkpoint_path: Path, resume: bool, families: list[str] | None, sizes: list[int] | None) -> dict[str, Any]:
     validate_config(config)
     binary = root_path(binary)
@@ -418,11 +436,24 @@ def run_campaign(config: dict[str, Any], binary: Path, checkpoint_path: Path, re
     if not selected_families.issubset(config["families"]) or not selected_sizes.issubset(config["initial_size_levels"]):
         raise ValueError("partition selection is outside the predeclared config")
     completed = {row["point_identity"] for row in checkpoint["point_results"]}
+    family_stops = {
+        row["family"]: row
+        for row in checkpoint["point_results"]
+        if row.get("state") == "stopped"
+        and row.get("stop_propagated_from_target_size") is None
+    }
     started = time.perf_counter_ns()
     for point in planned:
         if point["point_identity"] in completed or point["family"] not in selected_families or point["target_size"] not in selected_sizes:
             continue
-        checkpoint["point_results"].append(launch(binary, config, point))
+        prior_stop = family_stops.get(point["family"])
+        if prior_stop is not None and point["target_size"] > prior_stop["target_size"]:
+            result = propagated_stop(point, prior_stop)
+        else:
+            result = launch(binary, config, point)
+            if result.get("state") == "stopped":
+                family_stops[point["family"]] = result
+        checkpoint["point_results"].append(result)
         completed.add(point["point_identity"])
         checkpoint["runner_wall_time_ns"] += time.perf_counter_ns() - started
         started = time.perf_counter_ns()
@@ -467,6 +498,11 @@ def self_test() -> None:
     rows = plan(config, sha256_bytes(canonical_json(config).encode()))
     assert len(rows) == 2
     assert len({row["point_identity"] for row in rows}) == 2
+    stopped = {**rows[0], "state": "stopped", "message": "iteration limit"}
+    propagated = propagated_stop(rows[1], stopped)
+    assert propagated["state"] == "stopped"
+    assert propagated["stop_propagated_from_target_size"] == 1
+    assert propagated["runs"] == []
 
 
 def main() -> int:
