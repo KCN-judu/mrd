@@ -4,11 +4,11 @@
 - Current branch: codex/full-implementation
 - Baseline local SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
 - Baseline origin/main SHA: 72ce32a6fbde3c2d285ca7b8c9a21dc17e0dea64
-- Current evidence SHA: 211308a4981c09ccd549bd0ed322db847f427ce3
+- Current evidence SHA: ccd121d12cce0290dccd24447e0722230b31f74c
 - Current phase: P9.5e.3g.3 automatic target-decision blocker
 - Current phase state: blocked
-- Last completed phase: P17 geometry-phase-diagnostic
-- Plan last updated: 2026-08-05
+- Last completed phase: P18 canonical-sharing
+- Plan last updated: 2026-08-06
 - Overall target: complete source-traceable geometry, an automatic exact
   source-flow solver only when its decision contract is established, and a
   proof-backed AN19 runtime claim only when its missing reduction is proved.
@@ -161,6 +161,28 @@ adaptive rule may produce different counts for the two ownership paths; those
 differences are reported. A Scope A confidence
 interval crossing 1.0 is a valid negative result, especially for the primary
 `representation-crossover` family.
+
+**Accepted campaign.** The clean source commit is
+`ccd121d12cce0290dccd24447e0722230b31f74c`; the release binary SHA-256 is
+`2f1fe9eb884ac53399e9e65fc05a6751488fa372313a9d11942af38db8672ff8`; and the
+comparison-config SHA-256 is
+`7da028ed4680720410464fc85a5a6c2c6614a79e89a3187d02abf87074588dda`. The
+Apple M4 campaign has 60 terminal points per backend, 57 complete and 3
+stopped, 9,906 clone-reference rows, 9,922 borrowed rows, 174 correctness
+records per backend, zero retries, zero structural/objective/witness/sample
+mismatches, and three reported adaptive-count differences. Dense-conflict
+targets 2048, 4096, and 8192 are retained as censored stopped states.
+
+The primary compact-MRD `representation-crossover` Scope A speedup is 0.8625
+with 95% bootstrap CI [0.8266, 0.9273], so the result is honestly negative.
+The borrowed path removes the deep clone payload (345,016 -> 0 estimated
+bytes at the family median) but leaves workspace preparation at 83 -> 83 ns;
+the Amdahl removable fraction is 0.002104. `supported-holes` is the only
+compact family with a Scope A interval wholly above one (1.0834,
+[1.0596, 1.1095]). The full interpretation and rejected-run disclosure are in
+[`phase-reports/P18-canonical-sharing.md`](phase-reports/P18-canonical-sharing.md);
+compressed raw and derived evidence is indexed by
+[`results/p18-canonical-sharing-archive-manifest.json`](../results/p18-canonical-sharing-archive-manifest.json).
 
 **Next experiment.** Only after clone closeout may one implementation change be
 measured: a per-algorithm, per-campaign-lane reusable compact representation

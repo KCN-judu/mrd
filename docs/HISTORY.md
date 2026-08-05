@@ -148,6 +148,21 @@ overwritten by the clean campaign. The accepted clean campaign, its archive
 manifest, and the one recommended post-clone representation-workspace
 experiment are recorded in the P18 phase report.
 
+The accepted campaign is bound to source commit
+`ccd121d12cce0290dccd24447e0722230b31f74c`, release binary
+`2f1fe9eb884ac53399e9e65fc05a6751488fa372313a9d11942af38db8672ff8`, and
+comparison configuration
+`7da028ed4680720410464fc85a5a6c2c6614a79e89a3187d02abf87074588dda`. Each
+backend has 60 terminal points (57 complete, 3 stopped), with 9,906 and 9,922
+measured rows, 174 correctness records, zero retries, zero semantic
+mismatches, and three disclosed adaptive-count differences. The primary
+compact-MRD `representation-crossover` Scope A interval is [0.8266, 0.9273]
+around a 0.8625 speedup, so clone removal is a correct but negative finite
+result. `supported-holes` is the only compact family with a wholly positive
+Scope A interval. The raw and derived evidence is compressed under the P18
+archive manifest; the rejected dirty exploratory run remains outside the
+repository and is described in the phase report.
+
 ## Retained Evidence Map
 
 | Question | Current source of truth |

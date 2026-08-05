@@ -1141,6 +1141,21 @@ buffers are deterministically reset before each solve and reused across that
 lane's iterations. It is not implemented in P18, and no selector, hybrid
 policy, or zero-conflict fast path is implied.
 
+The accepted P18 campaign contains 60 terminal points per ownership backend,
+with 57 complete and 3 censored stopped points. It retains 9,906 clone-reference
+rows and 9,922 borrowed rows, 174 correctness records per backend, zero retries,
+and zero canonical, structural, objective, witness, sample-identity, or
+sample-order mismatches; three adaptive-count differences are disclosed rather
+than padded. The primary compact-MRD `representation-crossover` Scope A
+speedup is 0.8625 with 95% bootstrap CI [0.8266, 0.9273]. Deep clone payload
+bytes fall from 345,016 to zero at the family median, while workspace
+preparation remains 83 -> 83 ns and the Amdahl removable fraction is 0.002104.
+The complete finite result, stopped census, rejected exploratory run, and
+claim-evidence map are recorded in
+[`phase-reports/P18-canonical-sharing.md`](phase-reports/P18-canonical-sharing.md);
+the compressed machine-readable files and restore commands are recorded in
+[`results/p18-canonical-sharing-archive-manifest.json`](../results/p18-canonical-sharing-archive-manifest.json).
+
 ### Test and release protocol
 
 The repository quality gate is:

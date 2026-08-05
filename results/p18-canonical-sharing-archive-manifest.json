@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "campaign": "p18-canonical-sharing",
+  "source_commit": "ccd121d12cce0290dccd24447e0722230b31f74c",
+  "analysis_commit": "8e0b67d",
+  "binary_sha256": "2f1fe9eb884ac53399e9e65fc05a6751488fa372313a9d11942af38db8672ff8",
+  "config_sha256": "7da028ed4680720410464fc85a5a6c2c6614a79e89a3187d02abf87074588dda",
+  "archives": [
+    {
+      "path": "results/p18-canonical-sharing.json.zst",
+      "source_path": "results/p18-canonical-sharing.json",
+      "source_sha256": "b52c2f9b1ae7c8b69cf634f99a03cd950c4bc162669f50db0cfc2df55d0d1037",
+      "source_bytes": 95176391,
+      "archive_sha256": "043e23fdf6dba7aac7604d1a27a2ffa6db06f7bd5b7b116a99572500446a4a9a",
+      "archive_bytes": 1817240,
+      "restore_command": "zstd -d results/p18-canonical-sharing.json.zst -o results/p18-canonical-sharing.json"
+    },
+    {
+      "path": "results/p18-canonical-sharing-clone-canonical-reference.csv.zst",
+      "source_path": "results/p18-canonical-sharing-clone-canonical-reference.csv",
+      "source_sha256": "8f9524913481b1b22d8d26ab38fdf7f535607163bec6151267b454cf10c048f4",
+      "source_bytes": 15816773,
+      "archive_sha256": "597ab82c157f7888f6411c3091b0edc819c843903ec04a9f6d82194c850629fd",
+      "archive_bytes": 719990,
+      "restore_command": "zstd -d results/p18-canonical-sharing-clone-canonical-reference.csv.zst -o results/p18-canonical-sharing-clone-canonical-reference.csv"
+    },
+    {
+      "path": "results/p18-canonical-sharing-borrowed-canonical.csv.zst",
+      "source_path": "results/p18-canonical-sharing-borrowed-canonical.csv",
+      "source_sha256": "0f0f72f0e5d75947e03afef1030dcd8c028e68f2b607dcb7f1ee81c8317d1dcb",
+      "source_bytes": 15748434,
+      "archive_sha256": "9ca5fcb7ac3293cb0fbb63bb33faf71cceeed054aae0700d7949f008f87b122c",
+      "archive_bytes": 708889,
+      "restore_command": "zstd -d results/p18-canonical-sharing-borrowed-canonical.csv.zst -o results/p18-canonical-sharing-borrowed-canonical.csv"
+    },
+    {
+      "path": "results/p18-canonical-sharing-summary.json.zst",
+      "source_path": "results/p18-canonical-sharing-summary.json",
+      "source_sha256": "60cf537b32105d30a54ce1968534ed882b753a673fc98dbe6525b9324c6b474f",
+      "source_bytes": 159062,
+      "archive_sha256": "ef692069ef26a49c485733726cca6ff93aeb36bb31cdf1d6a3cd8b2f87094d2d",
+      "archive_bytes": 8603,
+      "restore_command": "zstd -d results/p18-canonical-sharing-summary.json.zst -o results/p18-canonical-sharing-summary.json"
+    },
+    {
+      "path": "results/p18-canonical-sharing-summary.csv.zst",
+      "source_path": "results/p18-canonical-sharing-summary.csv",
+      "source_sha256": "c7a73ad84f629c6ea7737eecde01824e9906f84b2d446bb8bbf40cff162bb42a",
+      "source_bytes": 62951,
+      "archive_sha256": "f5890e1201e4c86543bc6bea7d06bccf5f209861677c994998b1ada6d457a90b",
+      "archive_bytes": 11763,
+      "restore_command": "zstd -d results/p18-canonical-sharing-summary.csv.zst -o results/p18-canonical-sharing-summary.csv"
+    },
+    {
+      "path": "results/p18-canonical-sharing-report.md.zst",
+      "source_path": "results/p18-canonical-sharing-report.md",
+      "source_sha256": "0384d1db470eefbbe91ef880fe9e364e708f8d1344963b33ff63eedca0cdce08",
+      "source_bytes": 14201,
+      "archive_sha256": "294455ff2e6e29e09afa5b6f98b08beae6efab7fe4d8ce16b3ab4cba07acfea5",
+      "archive_bytes": 2719,
+      "restore_command": "zstd -d results/p18-canonical-sharing-report.md.zst -o results/p18-canonical-sharing-report.md"
+    }
+  ],
+  "reproduction": {
+    "restore_all": "for archive in results/p18-canonical-sharing-*.zst; do zstd -d \"$archive\" -o \"${archive%.zst}\"; done",
+    "analyze": "python3 tools/analyze_p18_canonical_sharing.py --input results/p18-canonical-sharing.json --summary-json results/p18-canonical-sharing-summary.json --summary-csv results/p18-canonical-sharing-summary.csv --report results/p18-canonical-sharing-report.md"
+  },
+  "rejected_exploratory_run": "external:mrd-p18-rejected-4ae1719"
+}
