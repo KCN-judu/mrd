@@ -46,6 +46,32 @@ target-decision and runtime proof obligations are closed.
   `252d01f08c6ba64b17b8fe22ce7317d7c2d58c76`; raw and analyzed artifacts are
   committed separately after that source run.
 
+## P16 Paper-Kernel-Scaling Campaign
+
+The in-process `paper-kernel-scaling` campaign is complete for its declared
+finite population. One release process owns each family/size partition,
+reuses one canonical component, counterbalances the three timed production
+paths, and records Scope A (solve from canonical input) and Scope B
+(representation-and-solver kernel) separately. The plan contains six families
+and eight target levels. It produced 45 complete points, three predeclared
+dense-conflict stop states, 1,070,372 retained measured iterations, 138
+production correctness checks, zero mismatches, zero duplicate sample
+identities, and zero missing planned points. The source commit is
+`103700eaa2b55de14daab010a82556efdf16fb84`; binary and config hashes are
+recorded in the full summary and archive manifest.
+
+The dense-conflict target 2048 exceeded the five-second per-iteration limit
+during preflight. Targets 4096 and 8192 are explicitly retained as propagated
+stop states, not inferred measurements. This satisfies the predeclared stop
+rule and does not justify extrapolation beyond complete levels.
+
+P16 does not replace P15. P15 remains fresh-process evidence; Scope A removes
+process startup and CLI/config/serialization overhead while retaining the full
+solve; Scope B additionally excludes common geometry, completion, and final
+verification. Their ratios must not be pooled, and P16 does not prove an
+asymptotic runtime bound, AN19 runtime, universal speedup, or a crossover
+outside the measured families and host.
+
 ## P15 Paper-Scaling Campaign
 
 **Status.** Complete for the predeclared finite campaign. The full run and

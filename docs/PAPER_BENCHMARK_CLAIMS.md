@@ -3,7 +3,7 @@
 ## Scope
 
 This document governs claims based on the independently named
-`paper-scaling` campaign. It supplements the consolidated experimental and
+`paper-scaling` and `paper-kernel-scaling` campaigns. It supplements the consolidated experimental and
 limitation material in [`IMPLEMENTATION.md`](IMPLEMENTATION.md); the former
 standalone experiment, sampling, and limitation documents intentionally remain
 consolidated rather than being recreated.
@@ -13,6 +13,32 @@ instances: `compact-mrd`, `explicit-hopcroft-karp`, `explicit-c0-flow`, and a
 bounded `exact-cover-oracle`. CP-SAT remains a correctness Oracle and is not a
 direct timing baseline. All values below are local observations attached to the
 recorded binary, operating system, compiler, and process protocol.
+
+## Fresh-Process Evidence
+
+P15 `paper-scaling` measures fresh-process wall time, including process
+creation and CLI/configuration effects. Its finite population and claims remain
+unchanged; it is process-level reproducibility evidence, not a kernel
+benchmark.
+
+## In-Process Solve Evidence
+
+`paper-kernel-scaling` Scope A runs the three timed production paths in one
+release process per family/size partition. Each starts from the same canonical
+component and includes geometry, chords, representation, matching or flow,
+cover recovery, completion, rectangle recovery, and verification. Generation,
+process startup, CLI/config parsing, and serialization are excluded. Results
+are specific to the recorded host/compiler/binary and six declared families.
+
+## Representation-Kernel Evidence
+
+Scope B starts after common geometry and chord generation. It measures
+representation construction, network construction, matching or flow, and
+cover recovery only; it is not end-to-end runtime. Structural `K` and `M`
+values and nullable phase fields are reported independently of elapsed time.
+The full raw observations are retained locally and byte-bound to the committed
+Zstandard archives by
+`results/paper-kernel-scaling-full-archive-manifest.json`.
 
 ## Evidence Map
 
@@ -26,6 +52,8 @@ recorded binary, operating system, compiler, and process protocol.
 | `K` and compressed `M` can be compared without timing a hidden explicit graph in compact samples. | Raw `paired_structural` provenance sidecar and `paper-scaling-k-vs-m.svg` | Supported where the representation exposes both quantities. |
 | Empirical exponents can be reported for declared six-level fits. | `results/paper-scaling-full-summary.json`, `paper-scaling-full-tables.tex` | Supported for all seven families and three production paths against target size; structural variables are emitted only when defined. |
 | A stable compact/explicit crossover can be reported. | Full paired ratios and fixed crossover rule | A crossover is reported at target 60 only for `representation-crossover`; no universal crossover is established. |
+| Scope A and Scope B in-process ratios can be reported separately. | `results/paper-kernel-scaling-full-summary.json` and report | Supported for 45 complete points, 1,070,372 retained iterations, zero correctness mismatches, and three declared stop states. |
+| P15 can be compared with in-process scopes without rewriting P15. | `p15_comparison` in the kernel summary | Supported only as a descriptive scope comparison on overlapping families. |
 
 ## Supported Wording
 
@@ -63,6 +91,9 @@ evidence closes the stated gap:
 - Causal attribution to one backend where process startup, cache state,
   allocator behavior, or coupled geometry phases remain uncontrolled.
 - Counting an unsupported Oracle row, an error, or a timeout as a compact win.
+- “Scope B is end-to-end runtime” or “Scope B includes completion or final verification.”
+- “The in-process kernel benchmark proves asymptotic complexity, AN19 runtime,
+  universal speedup, or a crossover outside its measured families and host.”
 
 ## Reporting Rules
 
@@ -77,6 +108,7 @@ asymptotic proof.
 
 The intended paper narrative is therefore ordered as follows: establish exact
 agreement on the paired population, show representation counts independently
-of timing, report end-to-end paired wall times with uncertainty, then state
-the measured-range fit and its limitations. This order avoids presenting a
-small local timing effect as a theorem.
+of timing, report fresh-process P15 timing, report Scope A timing, then report
+Scope B kernel timing and phase decomposition, and finally state the
+measured-range fits and limitations. These are different measurement scopes;
+none proves asymptotic complexity.
